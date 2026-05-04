@@ -18,7 +18,8 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
-    MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP, AI_PROVIDERS,
+    MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP,
+    AI_PROVIDERS_SETUP, AI_PROVIDERS,
     AI_MODELS_SETUP,
     AI_MODELS, AI_MODEL_EDIT,
     AI_MODEL_TYPES,
@@ -99,6 +100,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             SettingsSubScreen.AI_PROVIDER_ADD -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
+            SettingsSubScreen.AI_PROVIDERS -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS_SETUP
             SettingsSubScreen.AI_MODEL_EDIT -> {
                 val from = modelEditFromProvider
                 modelEditFromProvider = false
@@ -112,7 +114,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
-            SettingsSubScreen.AI_PROVIDERS, SettingsSubScreen.AI_MODELS_SETUP,
+            SettingsSubScreen.AI_PROVIDERS_SETUP,
+            SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_WORKERS_SETUP,
             SettingsSubScreen.AI_PROMPTS_SETUP,
             SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
@@ -149,14 +152,20 @@ fun SettingsScreen(
                 onNavigateToCostConfig = onNavigateToCostConfig
             )
         }
+        SettingsSubScreen.AI_PROVIDERS_SETUP -> {
+            ProvidersSetupScreen(
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onNavigate = { currentSubScreen = it },
+                onNavigateToProviderAdmin = onNavigateToProviderAdmin
+            )
+        }
         SettingsSubScreen.AI_PROVIDERS -> {
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
                 activeOnly = providersActiveOnly,
                 onActiveOnlyChange = { providersActiveOnly = it },
                 onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
-                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD },
-                onAdminLinks = onNavigateToProviderAdmin
+                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
             )
         }
         SettingsSubScreen.AI_PROVIDER_ADD -> {
