@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
-import com.ai.ui.settings.importAiConfigFromAsset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -253,30 +252,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             prefs.edit().putInt(KEY_CAPS_PRECOMPUTED_VERSION, CAPS_PRECOMPUTED_VERSION).apply()
         }
 
-        val alreadyImported = application.readBoolean(AppPrefKeys.SETUP_IMPORTED)
-        if (!alreadyImported) {
-            // One-shot bootstrap: read the setup flag from DataStore for atomicity guarantees
-            // across a potential legacy SharedPreferences → DataStore migration. Also migrate
-            // the legacy SharedPreferences flag if present so existing users don't re-run setup.
-            val legacy = prefs.getBoolean("setup_imported", false)
-            if (legacy) {
-                application.writeBoolean(AppPrefKeys.SETUP_IMPORTED, true)
-            } else {
-                val result = importAiConfigFromAsset(application, "setup.json", ai)
-                if (result != null) {
-                    ai = result.aiSettings
-                    settingsPrefs.saveSettings(ai)
-                    val updatedGs = gs.copy(
-                        huggingFaceApiKey = result.huggingFaceApiKey ?: gs.huggingFaceApiKey,
-                        openRouterApiKey = result.openRouterApiKey ?: gs.openRouterApiKey,
-                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: gs.artificialAnalysisApiKey,
-                        defaultTypePaths = result.defaultTypePaths ?: gs.defaultTypePaths
-                    )
-                    if (updatedGs != gs) { gs = updatedGs; settingsPrefs.saveGeneralSettings(gs) }
-                }
-                application.writeBoolean(AppPrefKeys.SETUP_IMPORTED, true)
-            }
-        }
+        // Bundled-provider seeding used to live here; it now runs only
+        // when the user taps "Import new providers from
+        // assets/providers.json" on the Providers screen. Fresh installs
+        // start with an empty registry by design.
 
         // Legacy migration: pre-v23 builds (and any backup made then)
         // stored the Intro / Model info / Translate templates as plain

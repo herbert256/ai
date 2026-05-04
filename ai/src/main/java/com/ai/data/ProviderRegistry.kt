@@ -3,13 +3,18 @@ package com.ai.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import com.ai.model.ConfigExport
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 
 /**
  * Mutable registry of AI service providers.
- * On first launch, loads from bundled assets/setup.json.
- * Subsequent launches load from SharedPreferences.
+ *
+ * Persisted to SharedPreferences. A fresh install starts with an empty
+ * registry — the bundled `assets/providers.json` catalog is loaded on
+ * demand by [importFromAsset], wired to a button on the Providers
+ * screen. Existing installs upgrade transparently because their
+ * registry prefs already carry the providers seeded by older builds.
  */
 object ProviderRegistry {
     private const val PREFS_NAME = "provider_registry"
@@ -36,26 +41,13 @@ object ProviderRegistry {
                         providers.addAll(parseProvidersJson(json))
                     } catch (e: Exception) {
                         android.util.Log.e("ProviderRegistry", "Error loading from prefs: ${e.message}")
-                        loadFromAssets(context)
                     }
-                } else loadFromAssets(context)
-            } else loadFromAssets(context)
-            if (providers.isEmpty()) {
-                android.util.Log.w("ProviderRegistry", "No providers loaded, falling back to assets")
-                loadFromAssets(context)
+                }
             }
-            // Every startup: re-read setup.json's providerDefinitions and
-            // append any whose id isn't yet in the registry. Existing
-            // providers are left strictly alone — fields the user has
-            // edited locally never get clobbered. Lets the bundle ship
-            // new built-in providers to existing installs without a
-            // "Reset to defaults" step.
-            ensureBundledProvidersPresent(context)
-            // One-shot field-level migrations for known bugs in the
-            // initial setup.json bundle. Each entry patches a single
-            // field on a single provider and is idempotent — the
-            // condition fails on subsequent boots once the fix has
-            // been applied.
+            // Field-level fix-ups for known shipped-bad values from the
+            // legacy setup.json bundle. Idempotent — the condition
+            // fails on subsequent boots once the fix has been applied,
+            // and on a fresh install it never matches.
             applyFieldBugfixMigrations()
             initialized = true
         }
@@ -68,7 +60,7 @@ object ProviderRegistry {
      *  manually (the condition won't match anymore). */
     private fun applyFieldBugfixMigrations() {
         var changed = false
-        // Perplexity: setup.json originally shipped modelsPath="models",
+        // Perplexity: the original bundle shipped modelsPath="models",
         // which 404s. The actual endpoint is /v1/models (verified by
         // 401 vs 404 probe). Patch any persisted entry that still has
         // the bad value.
@@ -81,39 +73,37 @@ object ProviderRegistry {
         if (changed) save()
     }
 
-    private fun ensureBundledProvidersPresent(context: Context) {
-        try {
-            val json = context.assets.open("setup.json").bufferedReader().use { it.readText() }
-            val export = createAppGson().fromJson(json, ConfigExport::class.java)
-            val defs = export.providerDefinitions ?: return
-            var changed = false
-            for (def in defs) {
-                if (providers.none { it.id == def.id }) {
-                    try {
-                        providers.add(def.toAppService())
-                        changed = true
-                    } catch (e: Exception) {
-                        android.util.Log.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
+    /** On-demand import of `assets/providers.json` (or any asset with
+     *  the same `{ "providers": [<ProviderDefinition>] }` shape). New
+     *  entries — by id, case-sensitive — are appended; existing rows
+     *  are left strictly alone, no field overwrites. Returns the count
+     *  of newly added providers, or `-1` on parse / read failure so
+     *  the UI can distinguish "nothing new" from "broken bundle". */
+    fun importFromAsset(context: Context, filename: String = "providers.json"): Int {
+        return try {
+            val json = context.assets.open(filename).bufferedReader().use { it.readText() }
+            val root = JsonParser.parseString(json) as? JsonObject ?: return -1
+            val arr = root.getAsJsonArray("providers") ?: return -1
+            val gson = createAppGson()
+            val defs: List<ProviderDefinition> = gson.fromJson(arr, providerListType)
+            synchronized(lock) {
+                var added = 0
+                for (def in defs) {
+                    if (providers.none { it.id == def.id }) {
+                        try {
+                            providers.add(def.toAppService())
+                            added++
+                        } catch (e: Exception) {
+                            android.util.Log.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
+                        }
                     }
                 }
+                if (added > 0) save()
+                added
             }
-            if (changed) save()
         } catch (e: Exception) {
-            android.util.Log.w("ProviderRegistry", "ensureBundledProvidersPresent failed: ${e.message}")
-        }
-    }
-
-    private fun loadFromAssets(context: Context) {
-        try {
-            val json = context.assets.open("setup.json").bufferedReader().use { it.readText() }
-            val export = createAppGson().fromJson(json, ConfigExport::class.java)
-            val defs = export.providerDefinitions
-            if (defs.isNullOrEmpty()) return
-            providers.clear()
-            providers.addAll(defs.map { it.toAppService() })
-            save()
-        } catch (e: Exception) {
-            android.util.Log.e("ProviderRegistry", "Error loading from assets: ${e.message}")
+            android.util.Log.w("ProviderRegistry", "importFromAsset($filename) failed: ${e.message}")
+            -1
         }
     }
 

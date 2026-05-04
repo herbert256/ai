@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.PricingCache
+import com.ai.data.ProviderRegistry
 import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
@@ -82,37 +83,18 @@ fun ImportExportScreen(
         Toast.makeText(context, "${keys.size} API keys exported", Toast.LENGTH_SHORT).show()
     }
 
-    val exportSetupJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+    val exportProvidersJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        // Drop-in replacement for assets/setup.json: a full ConfigExport (everything
-        // exportAiConfig writes — providers, agents, flocks, swarms, parameters,
-        // system prompts, internal prompts, manual pricing, provider endpoints,
-        // provider definitions, provider states, model type overrides, default
-        // type paths) so a fresh install lands directly on the user's current
-        // setup. API keys, HuggingFace key, and OpenRouter key are intentionally
-        // stripped — those are per-user secrets.
-        //
-        // The catalog providerDefinitions get the same per-user overrides as the
-        // stand-alone setup.json export had previously (defaultModel,
-        // defaultModelSource, hardcodedModels for MANUAL providers) so first-run
-        // ProviderRegistry.loadFromAssets — which only reads providerDefinitions
-        // — picks up the right defaults before bootstrap's full-config import
-        // runs the rest.
-        val baseJson = exportAiConfig(context, aiSettings, generalSettings)
-        val parsed = createAppGson().fromJson(baseJson, ConfigExport::class.java)
-        val tunedDefs = AppService.entries.map { service ->
-            val cfg = aiSettings.getProvider(service)
-            val userDefault = cfg.model.takeIf { it.isNotBlank() } ?: service.defaultModel
-            val userHardcoded = if (cfg.modelSource == ModelSource.MANUAL) cfg.models.ifEmpty { null } else null
-            com.ai.data.ProviderDefinition.fromAppService(service).copy(
-                defaultModel = userDefault,
-                defaultModelSource = cfg.modelSource.name,
-                hardcodedModels = userHardcoded
-            )
-        }
-        val tuned = parsed.copy(providerDefinitions = tunedDefs)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tuned))
-        Toast.makeText(context, "Setup exported (${tunedDefs.size} providers, ${parsed.agents.size} agents)", Toast.LENGTH_SHORT).show()
+        // Dump the current registry as `{ "providers": [<ProviderDefinition>] }`
+        // — same shape the on-demand "Import new providers from
+        // assets/providers.json" button consumes. ProviderDefinition
+        // doesn't carry an apiKey field, so this export is intrinsically
+        // key-free; the per-provider configs (with keys) live in a
+        // different prefs file and are not touched here.
+        val defs = ProviderRegistry.getCustomProviders()
+        val payload = mapOf("providers" to defs)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Providers exported (${defs.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -289,11 +271,13 @@ fun ImportExportScreen(
                             exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
-                    // Bundle-shape export: provider definitions only, drop-in replacement
-                    // for assets/setup.json so a developer can ship the user's edits.
+                    // Bundle-shape export: provider catalog only, no API
+                    // keys. Drop-in shape for assets/providers.json so a
+                    // developer can ship the user's tuned catalog as the
+                    // new bundled defaults.
                     OutlinedButton(onClick = {
-                        exportSetupJsonLauncher.launch("setup.json")
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("setup.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        exportProvidersJsonLauncher.launch("providers.json")
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
 

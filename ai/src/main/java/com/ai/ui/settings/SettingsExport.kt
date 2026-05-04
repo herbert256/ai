@@ -19,23 +19,6 @@ private val gson = createAppGson()
 // ===== Import Functions =====
 
 /**
- * Import AI configuration from a bundled asset file (e.g., setup.json on first run).
- * Returns ConfigImportResult or null on error. Does not show toasts.
- */
-fun importAiConfigFromAsset(context: Context, assetFileName: String, currentSettings: Settings): ConfigImportResult? {
-    return try {
-        val json = context.assets.open(assetFileName).bufferedReader().use { it.readText() }
-        if (json.isBlank()) return null
-        val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..23) return null
-        processImportedConfig(context, export, currentSettings, silent = true)
-    } catch (e: Exception) {
-        android.util.Log.e("SettingsExport", "Error importing config from asset $assetFileName: ${e.message}")
-        null
-    }
-}
-
-/**
  * Import AI configuration from a file URI. Accepts versions 11-21.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings): ConfigImportResult? {

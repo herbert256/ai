@@ -231,17 +231,15 @@ object BackupManager {
                 }
             }
         }
-        // After restoring the provider_registry prefs, fold in any providers that
-        // exist in the bundled assets/setup.json but not in the backup. Catches
-        // the case where the user took a backup before we added new providers
-        // (e.g. Cloudflare, DeepInfra, ...) — those would otherwise be invisible
-        // until the user manually wipes app data.
-        val providersAdded = mergeMissingProvidersFromSetup(context)
+        // The backup carries the user's provider_registry prefs in
+        // full, so the registry rebuilds straight from disk on next
+        // launch — nothing else to do here. The on-demand
+        // ProviderRegistry.importFromAsset is the only path that adds
+        // newly bundled providers now.
         return RestoreSummary(
             version = version,
             prefsFiles = prefsRestored,
-            dataFiles = filesRestored,
-            newProviders = providersAdded
+            dataFiles = filesRestored
         )
     }
 
@@ -278,60 +276,8 @@ object BackupManager {
     data class RestoreSummary(
         val version: Int,
         val prefsFiles: Int,
-        val dataFiles: Int,
-        val newProviders: Int = 0
+        val dataFiles: Int
     )
-
-    /**
-     * Read assets/setup.json and add any providerDefinition whose `id` is not
-     * already in the (just-restored) provider_registry prefs. Returns the
-     * number of providers actually added.
-     *
-     * We work at the raw JSON layer rather than going through ProviderRegistry
-     * because the singleton's in-memory list is stale at this point — it was
-     * loaded at app start, before the restore overwrote prefs.
-     */
-    private fun mergeMissingProvidersFromSetup(context: Context): Int {
-        val prefs = context.getSharedPreferences(PROVIDER_REGISTRY_PREFS, Context.MODE_PRIVATE)
-        val existingJson = prefs.getString("providers_json", null) ?: return loadAssetSetupAndPersist(context, prefs)
-        val existing: MutableList<Map<String, Any?>> = try {
-            @Suppress("UNCHECKED_CAST")
-            (gson.fromJson(existingJson, List::class.java) as? List<Map<String, Any?>>)?.toMutableList() ?: mutableListOf()
-        } catch (_: Exception) { return 0 }
-        val existingIds = existing.mapNotNull { it["id"] as? String }.toSet()
-
-        val asset = readAssetSetupProviderDefinitions(context) ?: return 0
-        var added = 0
-        for (def in asset) {
-            val id = def["id"] as? String ?: continue
-            if (id in existingIds) continue
-            existing += def
-            added++
-        }
-        if (added > 0) {
-            prefs.edit().putString("providers_json", gson.toJson(existing))
-                .putBoolean("initialized", true)
-                .commit()
-        }
-        return added
-    }
-
-    private fun loadAssetSetupAndPersist(context: Context, prefs: android.content.SharedPreferences): Int {
-        val asset = readAssetSetupProviderDefinitions(context) ?: return 0
-        prefs.edit().putString("providers_json", gson.toJson(asset))
-            .putBoolean("initialized", true)
-            .commit()
-        return asset.size
-    }
-
-    private fun readAssetSetupProviderDefinitions(context: Context): List<Map<String, Any?>>? {
-        return try {
-            val json = context.assets.open("setup.json").bufferedReader().use { it.readText() }
-            @Suppress("UNCHECKED_CAST")
-            val root = gson.fromJson(json, Map::class.java) as? Map<String, Any?> ?: return null
-            (root["providerDefinitions"] as? List<*>)?.filterIsInstance<Map<String, Any?>>()
-        } catch (_: Exception) { null }
-    }
 
     // ===== SharedPreferences ↔ JSON =====
 

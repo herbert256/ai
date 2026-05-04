@@ -285,13 +285,20 @@ fun ProvidersScreen(
     onActiveOnlyChange: (Boolean) -> Unit = {}
 ) {
     BackHandler { onBackToAiSetup() }
-    val allProviders = AppService.entries
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // refreshTick bumps after the on-demand assets/providers.json
+    // import so newly-added providers appear without leaving the
+    // screen — AppService.entries is read each composition, but the
+    // remembered list/counts otherwise stay stale.
+    var refreshTick by remember { mutableStateOf(0) }
+    var importStatus by remember { mutableStateOf<String?>(null) }
+    val allProviders = remember(refreshTick) { AppService.entries }
     // "Active" = providers that have been tested and have a working API key (state == "ok").
     // The filter choice is hoisted into the parent SettingsScreen so it survives a
     // navigation hop into a provider's detail screen and back.
-    val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
+    val activeCount = remember(refreshTick, aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
 
-    val visibleProviders = remember(activeOnly, aiSettings) {
+    val visibleProviders = remember(refreshTick, activeOnly, aiSettings) {
         (if (activeOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
             .sortedBy { it.displayName }
     }
@@ -338,6 +345,23 @@ fun ProvidersScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
                 ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = {
+                        val added = com.ai.data.ProviderRegistry.importFromAsset(context)
+                        importStatus = when {
+                            added < 0 -> "Could not read assets/providers.json"
+                            added == 0 -> "No new providers in assets/providers.json"
+                            added == 1 -> "Added 1 new provider"
+                            else -> "Added $added new providers"
+                        }
+                        if (added > 0) refreshTick++
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Import new providers from assets/providers.json", maxLines = 1, softWrap = false) }
+                importStatus?.let {
+                    Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+                }
             }
 
             visibleProviders.forEach { provider ->

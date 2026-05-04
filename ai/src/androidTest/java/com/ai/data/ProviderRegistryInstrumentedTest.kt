@@ -19,26 +19,29 @@ class ProviderRegistryInstrumentedTest {
         @ClassRule @JvmField val stateGuard = PersistentStateGuard()
     }
 
-    @Test fun init_loads_providers_from_setup_json_assets() {
+    @Test fun fresh_init_is_empty() {
+        // Bundled providers are no longer auto-seeded; resetToDefaults
+        // clears prefs and re-inits an empty registry.
+        assertThat(ProviderRegistry.getAll()).isEmpty()
+    }
+
+    @Test fun import_from_asset_seeds_providers_then_is_idempotent() {
+        // First import populates from the bundled assets/providers.json.
+        val firstAdded = ProviderRegistry.importFromAsset(context)
+        assertThat(firstAdded).isGreaterThan(0)
         val all = ProviderRegistry.getAll()
-        assertThat(all).isNotEmpty()
-        // Every provider has a non-blank id and base URL.
+        assertThat(all).hasSize(firstAdded)
         all.forEach { svc ->
             assertThat(svc.id).isNotEmpty()
             assertThat(svc.baseUrl).isNotEmpty()
             assertThat(svc.displayName).isNotEmpty()
         }
+        // Second call is a no-op — every id already present.
+        val secondAdded = ProviderRegistry.importFromAsset(context)
+        assertThat(secondAdded).isEqualTo(0)
     }
 
-    @Test fun findById_returns_a_known_provider() {
-        val all = ProviderRegistry.getAll()
-        val first = all.firstOrNull() ?: error("provider registry should not be empty")
-        val byId = ProviderRegistry.findById(first.id)
-        assertThat(byId).isNotNull()
-        assertThat(byId!!.id).isEqualTo(first.id)
-    }
-
-    @Test fun findById_returns_null_for_unknown_id() {
+    @Test fun findById_returns_null_on_empty_registry() {
         assertThat(ProviderRegistry.findById("DEFINITELY-NOT-A-REAL-PROVIDER")).isNull()
     }
 
@@ -60,8 +63,10 @@ class ProviderRegistryInstrumentedTest {
     }
 
     @Test fun update_replaces_existing_entry() {
+        // Seed via the on-demand import so there's something to update.
+        ProviderRegistry.importFromAsset(context)
         val all = ProviderRegistry.getAll()
-        val first = all.firstOrNull() ?: error("registry empty")
+        val first = all.firstOrNull() ?: error("import yielded no providers")
         val updated = AppService(
             id = first.id,
             displayName = "Renamed Display",
