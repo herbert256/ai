@@ -269,13 +269,7 @@ fun HousekeepingScreen(
 
             NavCard("Export & Import", onClick = onNavigateToImportExport)
 
-            CollapsibleCard("Refresh") {
-                Button(
-                    onClick = onNavigateToRefresh,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
+            NavCard("Refresh", onClick = onNavigateToRefresh)
 
             CollapsibleCard("Trim by age") {
                     OutlinedTextField(
