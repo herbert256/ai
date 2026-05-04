@@ -32,8 +32,7 @@ fun HousekeepingScreen(
     onClearConfiguration: () -> AppViewModel.ConfigWipeResult = { AppViewModel.ConfigWipeResult(0, 0) },
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit = { _ -> },
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {},
-    onNavigateToProviderAdmin: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
@@ -238,24 +237,6 @@ fun HousekeepingScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            NavCard("Export / Import", onClick = onNavigateToImportExport)
-
-            CollapsibleCard("Refresh") {
-                Button(
-                    onClick = onNavigateToRefresh,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
-
-            CollapsibleCard("Provider administration") {
-                Button(
-                    onClick = onNavigateToProviderAdmin,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("Provider administration", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
-
             // Backup / restore — uses Android's Storage Access Framework so the
             // user picks the destination on save (Google Drive, OneDrive, local
             // file, etc., all show up as choices when the corresponding app is
@@ -284,6 +265,16 @@ fun HousekeepingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                         ) { Text("Restore", maxLines = 1, softWrap = false) }
                     }
+            }
+
+            NavCard("Export & Import", onClick = onNavigateToImportExport)
+
+            CollapsibleCard("Refresh") {
+                Button(
+                    onClick = onNavigateToRefresh,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
 
             CollapsibleCard("Trim by age") {

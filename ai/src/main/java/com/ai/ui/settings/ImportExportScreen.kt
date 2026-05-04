@@ -299,28 +299,6 @@ fun ImportExportScreen(
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). All exports every model; Filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Re-import via the Costs button — only the first four columns are read.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportLayeredCostsLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                        OutlinedButton(onClick = {
-                            exportLayeredCostsFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                }
-            }
-
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Import", fontWeight = FontWeight.Bold, color = Color.White)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
@@ -344,6 +322,28 @@ fun ImportExportScreen(
                         OutlinedButton(onClick = {
                             importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). All exports every model; Filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Re-import via the Costs button — only the first four columns are read.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportLayeredCostsLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                        OutlinedButton(onClick = {
+                            exportLayeredCostsFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
                     }
                 }
             }

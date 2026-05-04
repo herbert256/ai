@@ -697,8 +697,7 @@ fun AppNavHost(
                 viewModel = appViewModel,
                 onNavigateHome = navigateHome,
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
-                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
-                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) }
+                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) }
             )
         }
         composable(NavRoutes.AI_PROVIDER_ADMIN) {
@@ -859,8 +858,7 @@ fun HousekeepingScreenNav(
     viewModel: AppViewModel,
     onNavigateHome: () -> Unit,
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {},
-    onNavigateToProviderAdmin: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {}
 ) {
     val context = LocalContext.current
     HousekeepingScreen(
@@ -870,8 +868,7 @@ fun HousekeepingScreenNav(
         onClearConfiguration = { viewModel.clearAllConfiguration(context) },
         onResetApplication = { onComplete -> viewModel.resetApplication(context, onComplete) },
         onNavigateToImportExport = onNavigateToImportExport,
-        onNavigateToRefresh = onNavigateToRefresh,
-        onNavigateToProviderAdmin = onNavigateToProviderAdmin
+        onNavigateToRefresh = onNavigateToRefresh
     )
 }
 
