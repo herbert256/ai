@@ -158,12 +158,41 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) } ?: emptyList()
     val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
     // Pull internalPrompts; fall back to the legacy v22 metaPrompts
-    // field when an older bundle is being imported. Both shapes use the
-    // same per-row schema thanks to InternalPromptExport's defaults.
+    // field when an older bundle is being imported. v22 metaPrompts
+    // rows had no category / agent — Gson reflection bypass leaves
+    // those properties as runtime null. Default category to "meta"
+    // (the legacy data was always meta-eligible) and agent to
+    // "*select" so the imported rows carry valid values.
     val internalPromptSource = export.internalPrompts ?: export.metaPrompts
-    val internalPrompts = internalPromptSource?.map {
-        InternalPrompt(it.id, it.name, it.type, it.reference, it.category, it.agent, it.text)
-    } ?: currentSettings.internalPrompts
+    val mappedInternalPrompts: List<InternalPrompt>? = internalPromptSource?.map { e ->
+        @Suppress("USELESS_CAST")
+        val cat = (e.category as String?)?.takeIf { it.isNotBlank() } ?: "meta"
+        @Suppress("USELESS_CAST")
+        val ag = (e.agent as String?)?.takeIf { it.isNotBlank() } ?: "*select"
+        InternalPrompt(e.id, e.name, e.type, e.reference, cat, ag, e.text)
+    }
+    // Fold legacy v11-v22 introPrompt / modelInfoPrompt / translatePrompt
+    // GeneralSettings fields into matching InternalPrompt entries by
+    // name so older bundles don't lose the user's overrides. Only
+    // applied when the bundle has the legacy field set AND no entry
+    // by that name already exists in the imported set.
+    val internalPrompts = run {
+        val base = (mappedInternalPrompts ?: currentSettings.internalPrompts).toMutableList()
+        fun upsertLegacy(name: String, text: String?) {
+            if (text.isNullOrBlank()) return
+            if (base.none { it.name.equals(name, ignoreCase = true) }) {
+                base += InternalPrompt(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = name, type = "chat", reference = false,
+                    category = "internal", agent = "*select", text = text
+                )
+            }
+        }
+        upsertLegacy("Intro", export.introPrompt)
+        upsertLegacy("Model info", export.modelInfoPrompt)
+        upsertLegacy("Translate", export.translatePrompt)
+        base.toList()
+    }
 
     var settings = currentSettings.copy(
         agents = agents, flocks = flocks, swarms = swarms,

@@ -266,6 +266,47 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // Legacy migration: pre-v23 builds (and any backup made then)
+        // stored the Intro / Model info / Translate templates as plain
+        // String fields on GeneralSettings — keys "intro_prompt",
+        // "model_info_prompt", "translate_prompt" in eval_prefs. The
+        // fields themselves are gone now, but the keys may still be on
+        // disk (orphaned by the upgrade or written by a restore from an
+        // old backup). Carry their content into matching InternalPrompt
+        // entries so the user keeps their customised text. Only applied
+        // when no entry by that name already exists; the orphan keys
+        // are cleared once consumed.
+        val legacyKeyToName = listOf(
+            "intro_prompt" to "Intro",
+            "model_info_prompt" to "Model info",
+            "translate_prompt" to "Translate"
+        )
+        val migratedFromLegacy = mutableListOf<com.ai.model.InternalPrompt>()
+        val keysToClear = mutableListOf<String>()
+        for ((key, name) in legacyKeyToName) {
+            if (!prefs.contains(key)) continue
+            val text = prefs.getString(key, null)
+            if (!text.isNullOrBlank() &&
+                ai.internalPrompts.none { it.name.equals(name, ignoreCase = true) }) {
+                migratedFromLegacy += com.ai.model.InternalPrompt(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = name, type = "chat", reference = false,
+                    category = "internal", agent = "*select", text = text
+                )
+            }
+            // Clear the orphan key whether it had content or not — the
+            // field is gone from GeneralSettings, no other code reads
+            // it, and leaving it lets the same migration run pointlessly
+            // on every launch.
+            keysToClear += key
+        }
+        if (migratedFromLegacy.isNotEmpty()) {
+            ai = ai.copy(internalPrompts = ai.internalPrompts + migratedFromLegacy)
+        }
+        if (keysToClear.isNotEmpty()) {
+            prefs.edit().also { e -> keysToClear.forEach { e.remove(it) } }.apply()
+        }
+
         // Ensure every prompt declared in assets/prompts.json is
         // present in Settings.internalPrompts. Runs on every startup —
         // existing entries are left alone (no overwrites), missing
