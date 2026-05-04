@@ -34,7 +34,8 @@ import java.util.Locale
 fun HistoryScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenReportResult: (String) -> Unit = {}
+    onOpenReportResult: (String) -> Unit = {},
+    onNavigateToTraceList: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -124,6 +125,7 @@ fun HistoryScreenNav(
                 items(pageItems, key = { it.id }) { report ->
                     HistoryReportRow(report = report,
                         onOpen = { onOpenReportResult(report.id) },
+                        onOpenTraces = { onNavigateToTraceList(report.id) },
                         onDeleteReport = {
                             scope.launch {
                                 withContext(Dispatchers.IO) { ReportStorage.deleteReport(context, report.id) }
@@ -147,9 +149,17 @@ fun HistoryScreenNav(
 }
 
 @Composable
-private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport: () -> Unit) {
+private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenTraces: () -> Unit, onDeleteReport: () -> Unit) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.US) }
+
+    // Per-row trace existence — drives the 🐞 icon's visibility. Cheap
+    // lookup against the cached trace-file metadata; no JSON parse.
+    val hasTraces by produceState(initialValue = false, report.id) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles().any { it.reportId == report.id }
+        }
+    }
 
     if (showDeleteConfirm) {
         DeleteConfirmationDialog(entityType = "Report", entityName = report.title,
@@ -161,6 +171,12 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport:
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
             Text(dateFormat.format(Date(report.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            if (ApiTracer.isTracingEnabled && hasTraces) {
+                Text("🐞", fontSize = 16.sp,
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .clickable { onOpenTraces() })
+            }
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Text("✕", fontSize = 14.sp, color = AppColors.Red, maxLines = 1, softWrap = false)
             }

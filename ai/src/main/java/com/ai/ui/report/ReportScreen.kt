@@ -875,7 +875,9 @@ fun ReportsScreen(
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onLaunchMetaPrompt = launchMetaPrompt
+                onLaunchMetaPrompt = launchMetaPrompt,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
             )
         }
     }
@@ -1059,7 +1061,14 @@ private fun ColumnScope.GenerationPhase(
     onOpenTranslationRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = {}
+    onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = {},
+    /** Open a single trace file in the trace detail view. Wired to the
+     *  per-row 🐞 icons next to agent / secondary rows. */
+    onNavigateToTraceFile: (String) -> Unit = {},
+    /** Open the trace list filtered to (reportId, category). Wired to
+     *  the per-row 🐞 on translation runs which collapse multiple
+     *  per-call traces into a single category-scoped list. */
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -1234,6 +1243,25 @@ private fun ColumnScope.GenerationPhase(
                     val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
                     Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
+                // Latest-trace 🐞 for this (reportId, model) — only
+                // rendered when a trace exists. Mirrors the lookup that
+                // ReportSingleResultScreen does, just inline so the user
+                // can jump from the row without drilling in.
+                val rowModel = result?.let { resolveModelForResult(agentId, it) } ?: row.displayName
+                val rowTrace by produceState<String?>(initialValue = null, currentReportId, rowModel, result) {
+                    val rid = currentReportId
+                    value = if (rid == null || result == null) null else withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == rid && it.model == rowModel }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                }
+                if (ApiTracer.isTracingEnabled) rowTrace?.let { tf ->
+                    Text("🐞", fontSize = 14.sp,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onNavigateToTraceFile(tf) })
+                }
             }
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
@@ -1289,6 +1317,23 @@ private fun ColumnScope.GenerationPhase(
                     if (totalCost > 0.0) {
                         Text(formatCents(totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    }
+                    // Closest-timestamp trace for this secondary — same
+                    // (reportId, model, ts) lookup MetaResultsPickerView
+                    // and SecondaryResultDetailScreen use, so the inline
+                    // icon resolves to the same file as drilling in.
+                    val runTrace by produceState<String?>(initialValue = null, run.id) {
+                        value = withContext(Dispatchers.IO) {
+                            ApiTracer.getTraceFiles()
+                                .filter { it.reportId == run.reportId && it.model == run.model }
+                                .minByOrNull { kotlin.math.abs(it.timestamp - run.timestamp) }?.filename
+                        }
+                    }
+                    if (ApiTracer.isTracingEnabled) runTrace?.let { tf ->
+                        Text("🐞", fontSize = 14.sp,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clickable { onNavigateToTraceFile(tf) })
                     }
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -1358,6 +1403,23 @@ private fun ColumnScope.GenerationPhase(
                     if (run.totalCost > 0.0) {
                         Text(formatCents(run.totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    }
+                    // 🐞 → trace list filtered to (reportId, "Translation").
+                    // A run has many per-call traces, so the icon opens
+                    // the list rather than a single file.
+                    val rid = currentReportId
+                    val hasTranslationTraces by produceState(initialValue = false, rid, run.runId) {
+                        value = if (rid == null) false else withContext(Dispatchers.IO) {
+                            ApiTracer.getTraceFiles().any {
+                                it.reportId == rid && it.category == "Translation"
+                            }
+                        }
+                    }
+                    if (ApiTracer.isTracingEnabled && hasTranslationTraces && rid != null) {
+                        Text("🐞", fontSize = 14.sp,
+                            modifier = Modifier
+                                .padding(start = 6.dp)
+                                .clickable { onNavigateToTraceListFiltered(rid, "Translation") })
                     }
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)

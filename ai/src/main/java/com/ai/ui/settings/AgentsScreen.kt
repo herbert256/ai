@@ -262,11 +262,11 @@ fun AgentEditScreen(
                     ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
 
                     val traceFile = lastTraceFile
-                    if (traceFile != null && onNavigateToTrace != null) {
-                        Button(
-                            onClick = { onNavigateToTrace(traceFile) },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                        ) { Text("Show API call", maxLines = 1, softWrap = false) }
+                    if (traceFile != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
+                        Text("🐞", fontSize = 22.sp,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .clickable { onNavigateToTrace(traceFile) })
                     }
                 }
                 testResult?.let { Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp) }

@@ -237,7 +237,8 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
-                }
+                },
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
             )
         }
         composable(NavRoutes.AI_LOCAL_SEARCH) {
@@ -323,7 +324,8 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
-                }
+                },
+                onNavigateToTraceList = { rid -> navController.navigate(NavRoutes.traceListForReport(rid)) }
             )
         }
 
@@ -606,7 +608,8 @@ fun AppNavHost(
         }
         composable(NavRoutes.AI_CHAT_HISTORY) {
             ChatHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onSelectSession = { navController.navigate(NavRoutes.aiChatContinue(it)) })
+                onSelectSession = { navController.navigate(NavRoutes.aiChatContinue(it)) },
+                onOpenTraces = { sid -> navController.navigate(NavRoutes.traceListForReport(sid)) })
         }
         composable(NavRoutes.AI_CHAT_CONTINUE) { entry ->
             val sessionId = entry.arguments?.getString("sessionId") ?: ""
@@ -653,7 +656,8 @@ fun AppNavHost(
         composable(NavRoutes.AI_DUAL_CHAT_SESSION) {
             val uiState by appViewModel.uiState.collectAsState()
             DualChatSessionScreen(appViewModel = appViewModel, chatViewModel = chatViewModel, aiSettings = uiState.aiSettings,
-                onNavigateBack = safePopBack, onNavigateHome = navigateHome)
+                onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
 
         // ===== Admin =====

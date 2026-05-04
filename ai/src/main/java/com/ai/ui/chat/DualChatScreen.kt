@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.SelectProviderScreen
 import com.ai.ui.shared.TitleBar
@@ -48,7 +50,16 @@ private const val KEY_INTERACTIONS = "interaction_count"
 private const val KEY_FIRST_PROMPT = "first_prompt"
 private const val KEY_SECOND_PROMPT = "second_prompt"
 
-private data class DualMessage(val modelIndex: Int, val content: String, val providerName: String, val modelName: String)
+private data class DualMessage(
+    val modelIndex: Int,
+    val content: String,
+    val providerName: String,
+    val modelName: String,
+    /** Wall clock at the moment this turn finished — used to pick the
+     *  closest trace tagged with (sessionId, modelName) so the per-bubble
+     *  🐞 doesn't alias when the same model speaks several times. */
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 private fun loadStringList(prefs: android.content.SharedPreferences, key: String): List<String> {
     return try {
@@ -287,7 +298,8 @@ fun DualChatSessionScreen(
     chatViewModel: ChatViewModel,
     aiSettings: Settings,
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
 
@@ -402,7 +414,7 @@ fun DualChatSessionScreen(
         // Messages
         LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(messages.size, key = { "msg_${it}_${messages[it].modelIndex}" }) { index ->
-                DualMessageBubble(messages[index])
+                DualMessageBubble(messages[index], sessionId, onNavigateToTraceFile)
             }
             if (thinkingModel != null) {
                 item(key = "thinking") {
@@ -477,10 +489,26 @@ private fun CostLabel(name: String, costCents: Double, color: Color) {
 }
 
 @Composable
-private fun DualMessageBubble(msg: DualMessage) {
+private fun DualMessageBubble(
+    msg: DualMessage,
+    sessionId: String,
+    onNavigateToTraceFile: (String) -> Unit
+) {
     val isModel1 = msg.modelIndex == 1
     val color = if (isModel1) Color(0xFF4488CC) else Color(0xFF44AA66)
     val align = if (isModel1) Alignment.CenterStart else Alignment.CenterEnd
+
+    // Closest-timestamp trace lookup, mirroring the single-chat
+    // bubble's behaviour. Keyed on the message timestamp so each turn
+    // ends up with its own filename — the same model speaking again
+    // gets a different trace.
+    val traceFilename by produceState<String?>(initialValue = null, sessionId, msg.modelName, msg.timestamp) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ApiTracer.getTraceFiles()
+                .filter { it.reportId == sessionId && it.model == msg.modelName }
+                .minByOrNull { kotlin.math.abs(it.timestamp - msg.timestamp) }?.filename
+        }
+    }
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
         Card(
@@ -489,10 +517,20 @@ private fun DualMessageBubble(msg: DualMessage) {
             modifier = Modifier.widthIn(max = 320.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    "${msg.providerName} / ${msg.modelName}",
-                    fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${msg.providerName} / ${msg.modelName}",
+                        fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
+                        modifier = Modifier.weight(1f)
+                    )
+                    val tf = traceFilename
+                    if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
+                        Text("🐞", fontSize = 14.sp,
+                            modifier = Modifier
+                                .clickable { onNavigateToTraceFile(tf) }
+                                .padding(start = 6.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(msg.content, fontSize = 14.sp, color = Color.White)
             }

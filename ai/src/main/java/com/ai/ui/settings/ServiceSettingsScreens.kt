@@ -713,16 +713,18 @@ fun ProviderSettingsScreen(
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                         }
                     }
-                    testResult?.let {
-                        Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp)
-                    }
-                    val tf = testTraceFile
-                    if (!testSuccess && tf != null && onNavigateToTrace != null) {
-                        TextButton(
-                            onClick = { onNavigateToTrace(tf) },
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
-                        ) {
-                            Text("Show trace", fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, softWrap = false)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        testResult?.let {
+                            Text(it,
+                                color = if (testSuccess) AppColors.Green else AppColors.Red,
+                                fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        } ?: Spacer(modifier = Modifier.weight(1f))
+                        val tf = testTraceFile
+                        if (!testSuccess && tf != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
+                            Text("🐞", fontSize = 18.sp,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .clickable { onNavigateToTrace(tf) })
                         }
                     }
                 }

@@ -31,7 +31,8 @@ import java.util.Locale
 fun ChatHistoryScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onSelectSession: (String) -> Unit
+    onSelectSession: (String) -> Unit,
+    onOpenTraces: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
 
@@ -72,6 +73,14 @@ fun ChatHistoryScreen(
 
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(currentPageSessions, key = { it.id }) { session ->
+                            // Per-row trace probe \u2014 gates the \uD83D\uDC1E icon's
+                            // visibility on whether any chat-turn trace
+                            // was tagged with this sessionId.
+                            val hasTraces by produceState(initialValue = false, session.id) {
+                                value = withContext(Dispatchers.IO) {
+                                    com.ai.data.ApiTracer.getTraceFiles().any { it.reportId == session.id }
+                                }
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable { onSelectSession(session.id) }
                                     .padding(vertical = 8.dp, horizontal = 4.dp),
@@ -88,6 +97,12 @@ fun ChatHistoryScreen(
                                         Text(" \u00B7 ${session.model}", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                     Text(dateFormat.format(session.updatedAt), fontSize = 11.sp, color = AppColors.TextDim)
+                                }
+                                if (com.ai.data.ApiTracer.isTracingEnabled && hasTraces) {
+                                    Text("\uD83D\uDC1E", fontSize = 16.sp,
+                                        modifier = Modifier
+                                            .padding(start = 6.dp)
+                                            .clickable { onOpenTraces(session.id) })
                                 }
                                 Text(">", fontSize = 18.sp, color = AppColors.Blue, modifier = Modifier.padding(start = 8.dp))
                             }

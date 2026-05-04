@@ -624,12 +624,27 @@ fun ModelInfoScreen(
             else -> {
                 val info = modelInfo
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Model name header
+                    // Model name header. The trailing 🐞 ladybug opens
+                    // the same model-filtered trace list that the
+                    // dedicated "API Traces" card below points at —
+                    // the inline icon is the same convention used by
+                    // every result-detail screen, just at the top.
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                Text(provider.displayName, fontSize = 14.sp, color = AppColors.Blue)
+                            Row(
+                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    Text(provider.displayName, fontSize = 14.sp, color = AppColors.Blue)
+                                }
+                                if (ApiTracer.isTracingEnabled && traceCount > 0) {
+                                    Text("🐞", fontSize = 20.sp,
+                                        modifier = Modifier
+                                            .padding(start = 8.dp)
+                                            .clickable { onNavigateToTracesForModel(provider, modelName) })
+                                }
                             }
                         }
                     }

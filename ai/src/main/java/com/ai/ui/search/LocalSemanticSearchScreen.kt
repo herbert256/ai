@@ -43,7 +43,8 @@ import java.util.Locale
 fun LocalSemanticSearchScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenReport: (String) -> Unit
+    onOpenReport: (String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -56,6 +57,16 @@ fun LocalSemanticSearchScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
+    // Latest "Local semantic search" trace — drives the 🐞 next to the
+    // status text after a search completes. Refreshed each time
+    // running flips back to false.
+    val latestTrace by produceState<String?>(initialValue = null, running) {
+        if (running) return@produceState
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ApiTracer.getTraceFiles()
+                .firstOrNull { it.category == "Local semantic search" }?.filename
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = "Local semantic search", onBackClick = onBack, onAiClick = onNavigateHome)
@@ -129,7 +140,16 @@ fun LocalSemanticSearchScreen(
 
         status?.let {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(it, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                val tf = latestTrace
+                if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
+                    Text("🐞", fontSize = 16.sp,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onNavigateToTraceFile(tf) })
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
