@@ -297,13 +297,23 @@ fun ProviderModelSettingsScreen(
                     label = { Text("Manual") }
                 )
             }
-            if (modelSource == ModelSource.API && apiKey.isNotBlank()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { onFetchModels(apiKey) },
-                        enabled = !isLoadingModels,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
+            // Action row — visible for both API and Manual modes. The
+            // Fetch button is API-only (manual lists are user-curated);
+            // Test all / Remove failed work against whatever models are
+            // currently in the list, regardless of source.
+            if (apiKey.isNotBlank() && (models.isNotEmpty() || modelSource == ModelSource.API)) {
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (modelSource == ModelSource.API) {
+                        Button(
+                            onClick = { onFetchModels(apiKey) },
+                            enabled = !isLoadingModels,
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
+                    }
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
                         Button(
                             onClick = {
