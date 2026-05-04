@@ -130,6 +130,7 @@
       "prefsKey": "ai_perplexity",
       "supportsCitations": true,
       "supportsSearchRecency": true,
+      "defaultModelSource": "MANUAL",
       "hardcodedModels": [
         "sonar",
         "sonar-pro",
