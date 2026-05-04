@@ -264,9 +264,7 @@ TEXT TO TRANSLATE:
 
 /** Substitutes placeholders in [template] using the values for the
  *  current secondary-result run. `@RESULTS@` arrives pre-formatted
- *  from the caller — we only do plain string replace here.
- *  `@RESULTS_SHORT@` is kept as an alias of `@RESULTS@` for backward
- *  compatibility with any user template that still references it. */
+ *  from the caller — we only do plain string replace here. */
 fun resolveSecondaryPrompt(
     template: String, question: String, results: String, count: Int,
     title: String? = null
@@ -274,10 +272,6 @@ fun resolveSecondaryPrompt(
     val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
     return template
         .replace("@QUESTION@", question)
-        // @RESULTS_SHORT@ first so the @RESULTS@ pass below doesn't
-        // partially match (the longer placeholder must replace before
-        // its prefix).
-        .replace("@RESULTS_SHORT@", results)
         .replace("@RESULTS@", results)
         .replace("@COUNT@", count.toString())
         .replace("@DATE@", now)
