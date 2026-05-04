@@ -312,6 +312,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
     }
 
+    /** Called by the per-provider Test button when the test passes:
+     *  flips the provider state to "ok" AND ensures there's a row for
+     *  the provider in the "default agents" flock (creating the agent
+     *  + flock if needed). Both edits are applied to the same Settings
+     *  copy so the StateFlow update lands atomically and a single save
+     *  flushes the result to disk. */
+    fun markProviderTestedOk(service: AppService, defaultModel: String) {
+        val updated = _uiState.value.aiSettings
+            .withProviderState(service, "ok")
+            .ensureDefaultAgentInFlock(service, defaultModel)
+        _uiState.update { it.copy(aiSettings = updated) }
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+    }
+
     fun clearTraces() = ApiTracer.clearTraces()
 
     // ===== Report Agents/Models Selection =====

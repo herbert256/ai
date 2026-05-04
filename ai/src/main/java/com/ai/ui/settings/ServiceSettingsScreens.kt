@@ -364,6 +364,7 @@ fun ProviderSettingsScreen(
     onFetchModels: (String) -> Unit = {},
     onTestApiKey: suspend (AppService, String, String) -> String?,
     onProviderStateChange: (String) -> Unit = {},
+    onProviderTestedOk: (defaultModel: String) -> Unit = {},
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
     onNavigateToModels: () -> Unit = {}
@@ -553,7 +554,8 @@ fun ProviderSettingsScreen(
                                         // apiFormat / typePaths / etc. ran during this screen.
                                         val fresh = AppService.findById(service.id) ?: service
                                         val error = onTestApiKey(fresh, apiKey, defaultModel)
-                                        onProviderStateChange(if (error == null) "ok" else "error")
+                                        if (error == null) onProviderTestedOk(defaultModel)
+                                        else onProviderStateChange("error")
                                     } else {
                                         onProviderStateChange("not-used")
                                     }
@@ -591,7 +593,12 @@ fun ProviderSettingsScreen(
                                                 .firstOrNull { it.timestamp >= startedAt }
                                                 ?.filename
                                         } else null
-                                        onProviderStateChange(if (error == null) "ok" else "error")
+                                        // Successful test atomically flips state to "ok"
+                                        // AND adds this provider's default agent to the
+                                        // "default agents" flock — mirrors Refresh All →
+                                        // Default agents but scoped to one provider.
+                                        if (error == null) onProviderTestedOk(defaultModel)
+                                        else onProviderStateChange("error")
                                         isTesting = false
                                     }
                                 },

@@ -787,6 +787,7 @@ fun SettingsScreenNav(
         onSaveGeneral = { viewModel.updateGeneralSettings(it) }, onSaveAi = { viewModel.updateSettings(it) },
         onTestAiModel = { s, k, m -> viewModel.testAiModel(s, k, m) },
         onProviderStateChange = { s, st -> viewModel.updateProviderState(s, st) },
+        onProviderTestedOk = { s, m -> viewModel.markProviderTestedOk(s, m) },
         onRefreshAllModels = { settings, force, progress -> viewModel.refreshAllModelLists(settings, force, progress) },
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },

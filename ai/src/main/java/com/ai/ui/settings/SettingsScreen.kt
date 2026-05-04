@@ -49,6 +49,7 @@ fun SettingsScreen(
     onFetchModels: (AppService, String) -> Unit = { _, _ -> },
     onTestAiModel: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AppService, String) -> Unit = { _, _ -> },
+    onProviderTestedOk: (AppService, String) -> Unit = { _, _ -> },
     onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
@@ -173,6 +174,7 @@ fun SettingsScreen(
                         onFetchModels(fresh, it)
                     },
                     onTestApiKey = onTestAiModel, onProviderStateChange = { onProviderStateChange(provider, it) },
+                    onProviderTestedOk = { defaultModel -> onProviderTestedOk(provider, defaultModel) },
                     onTestModelWithPrompt = { prompt ->
                         val fresh = AppService.findById(provider.id) ?: provider
                         onTestModelWithPrompt(fresh, aiSettings.getApiKey(fresh), aiSettings.getModel(fresh), prompt)

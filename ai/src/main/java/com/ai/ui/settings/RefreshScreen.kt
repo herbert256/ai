@@ -341,11 +341,11 @@ fun RefreshScreen(
                 }
             }
             val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
-            val existingFlock = updatedSettings.flocks.find { it.name == "default agents" }
+            val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
             updatedSettings = if (existingFlock != null) {
                 updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
             } else {
-                val flock = Flock(java.util.UUID.randomUUID().toString(), "default agents", defaultAgentIds)
+                val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
                 updatedSettings.copy(flocks = updatedSettings.flocks + flock)
             }
             onSave(updatedSettings)

@@ -115,6 +115,11 @@ data class Flock(
     val paramsIds: List<String> = emptyList(), val systemPromptId: String? = null
 )
 
+/** Name of the auto-managed flock that the per-provider Test button
+ *  and the Refresh All → Default agents step populate. Stored here
+ *  so the two call sites match exactly. */
+const val DEFAULT_AGENTS_FLOCK_NAME = "default agents"
+
 data class SwarmMember(val provider: AppService, val model: String)
 
 data class Swarm(
@@ -549,6 +554,46 @@ data class Settings(
     fun removeInternalPrompt(internalPromptId: String) = copy(
         internalPrompts = internalPrompts.filter { it.id != internalPromptId }
     )
+
+    /** Ensure the "default agents" flock contains an agent for [service].
+     *  Called from the per-provider Test button when the test succeeds:
+     *  if the user already has a matching agent (by `name == displayName
+     *  && provider.id == service.id`) it's just added to the flock if
+     *  missing; otherwise a new agent is created with [defaultModel] and
+     *  added. The flock itself is created on first use.
+     *
+     *  Returns the same Settings instance when nothing needs changing,
+     *  so callers can compare reference-equally and skip a redundant
+     *  save. */
+    fun ensureDefaultAgentInFlock(service: AppService, defaultModel: String): Settings {
+        val existingAgent = agents.find { it.name == service.displayName && it.provider.id == service.id }
+        val (agentId, withAgent) = if (existingAgent != null) {
+            existingAgent.id to this
+        } else {
+            val newAgent = Agent(
+                id = java.util.UUID.randomUUID().toString(),
+                name = service.displayName, provider = service,
+                model = defaultModel, apiKey = ""
+            )
+            newAgent.id to copy(agents = agents + newAgent)
+        }
+        val flock = withAgent.flocks.find { it.name == DEFAULT_AGENTS_FLOCK_NAME }
+        return when {
+            flock == null -> withAgent.copy(
+                flocks = withAgent.flocks + Flock(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = DEFAULT_AGENTS_FLOCK_NAME,
+                    agentIds = listOf(agentId)
+                )
+            )
+            agentId !in flock.agentIds -> withAgent.copy(
+                flocks = withAgent.flocks.map {
+                    if (it.id == flock.id) it.copy(agentIds = it.agentIds + agentId) else it
+                }
+            )
+            else -> withAgent
+        }
+    }
 
     fun removeParameters(parametersId: String) = copy(
         parameters = parameters.filter { it.id != parametersId },
