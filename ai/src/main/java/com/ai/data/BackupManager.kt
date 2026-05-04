@@ -28,14 +28,22 @@ import java.util.zip.ZipOutputStream
  *                                       Excludes [FILES_DIR_BACKUP_EXCLUDES]
  *                                       (local_llms / local_models — see
  *                                       comment on that constant).
+ *   cache/<mirror of cacheDir>/...    — exports, shared-trace handoffs,
+ *                                       camera captures, bulk-export
+ *                                       staging, anything else generated
+ *                                       under cacheDir. Top-level
+ *                                       in-flight temp files are skipped
+ *                                       (see [CACHE_TOPLEVEL_SKIP_PREFIXES])
+ *                                       — never archive a restore-in-progress
+ *                                       zip or a plaintext-keys reset temp.
  *
  * Things deliberately NOT in the backup:
- *   - Anything under cacheDir (exports, shared traces, restore temp) —
- *     regeneratable and non-portable.
  *   - filesDir/local_llms — multi-GB user-supplied .task model bundles.
  *   - filesDir/local_models — hundreds-of-MB MediaPipe TextEmbedder
  *     .tflite files. Both are user-supplied via SAF / direct download
  *     and re-importing them is independent of settings restore.
+ *   - cacheDir top-level entries matching CACHE_TOPLEVEL_SKIP_PREFIXES
+ *     (in-flight restore / reset / backup temps).
  *   - WebViewChromiumPrefs and any prefs not in PREFS_TO_BACKUP.
  *
  * SharedPreferences entries are serialized with a type discriminator so values
@@ -44,9 +52,10 @@ import java.util.zip.ZipOutputStream
  *
  * After a restore the in-memory state of singletons (ProviderRegistry,
  * ApiTracer, PromptCache, ReportStorage, ChatHistoryManager) is stale, and the
- * AppViewModel's StateFlow is out of sync. The simplest correct path is to
- * tell the user to restart the app — restoration writes everything to disk,
- * the next launch re-reads it. We don't try to live-reload here.
+ * AppViewModel's StateFlow is out of sync. HousekeepingScreen handles this by
+ * killing the process and relaunching the activity once restore returns —
+ * the next launch reads everything from disk fresh. We don't try to
+ * live-reload here.
  */
 object BackupManager {
 
@@ -91,6 +100,26 @@ object BackupManager {
      *      restoring an unrelated settings/data backup. */
     internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")
 
+    /** Top-level cacheDir filename prefixes to skip during backup AND
+     *  during the cacheDir wipe on restore. These are in-flight temp
+     *  files written by the backup / restore / reset flows themselves:
+     *    - "ai-restore-": the temp zip the current restore is reading
+     *      from. Archiving it would self-contain the backup; deleting
+     *      it during the wipe would yank the file out from under the
+     *      restore.
+     *    - "reset_keys_": API keys in plaintext written by the reset
+     *      orchestrator. Never archive — this would leak keys into a
+     *      backup zip. The reset's finally block deletes them under
+     *      normal flow; this guard catches crashed-orphan files.
+     *    - "ai-backup-": defensive — should the backup ever stage a
+     *      temp file under this prefix, exclude it. */
+    private val CACHE_TOPLEVEL_SKIP_PREFIXES = listOf(
+        "ai-restore-", "reset_keys_", "ai-backup-"
+    )
+
+    private fun shouldSkipCacheTopLevel(name: String): Boolean =
+        CACHE_TOPLEVEL_SKIP_PREFIXES.any { name.startsWith(it) }
+
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     fun timestampForFileName(): String =
@@ -120,12 +149,20 @@ object BackupManager {
                 zip.write("prefs/$name.json", serializePrefs(context, name))
             }
 
-            // Mirror the entire filesDir, minus FILES_DIR_BACKUP_EXCLUDES at the
-            // top level. Exports live under cacheDir/exports/ and are excluded
-            // simply because cacheDir isn't part of this mirror.
+            // Mirror the entire filesDir, minus FILES_DIR_BACKUP_EXCLUDES at
+            // the top level (local model bundles).
             val filesRoot = context.filesDir
             if (filesRoot.exists()) {
                 addDirectoryRecursive(zip, filesRoot, "files")
+            }
+
+            // Mirror cacheDir as well (exports, shared-trace handoffs,
+            // camera captures, bulk-export staging, etc.). Top-level
+            // in-flight temp files matching CACHE_TOPLEVEL_SKIP_PREFIXES
+            // are skipped — see the constant's doc comment.
+            val cacheRoot = context.cacheDir
+            if (cacheRoot.exists()) {
+                addDirectoryRecursive(zip, cacheRoot, "cache")
             }
         }
     }
@@ -153,6 +190,11 @@ object BackupManager {
             // first, destroy second.
             val staged = readAllEntriesValidated(context, tempZip)
             clearFilesDirForRestore(context.filesDir)
+            // Wipe cacheDir too, but preserve the temp zip we're
+            // currently restoring from — deleting it mid-restore would
+            // be safe (we've already read its bytes into [staged]) but
+            // preserving it keeps the finally below well-defined.
+            clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
             applyStagedEntries(context, staged, version)
         } finally {
             tempZip.delete()
@@ -179,10 +221,12 @@ object BackupManager {
                 val keep = name == "manifest.json"
                     || (name.startsWith("prefs/") && name.endsWith(".json"))
                     || name.startsWith("files/")
+                    || name.startsWith("cache/")
                 if (!keep) { zip.closeEntry(); continue }
-                // For files/ entries, validate the resolved path lives
-                // inside filesDir before staging — defence in depth
-                // against `files/../shared_prefs/...` style entries.
+                // For files/ and cache/ entries, validate the resolved
+                // path lives inside the corresponding root before
+                // staging — defence in depth against `files/../shared_prefs/...`
+                // style entries.
                 if (name.startsWith("files/")) {
                     val rel = name.removePrefix("files/")
                     if (rel.isBlank()) { zip.closeEntry(); continue }
@@ -192,6 +236,17 @@ object BackupManager {
                     if (!canonicalTarget.startsWith(canonicalRoot)) {
                         android.util.Log.w("BackupManager",
                             "Skipping zip entry that escapes filesDir: $name")
+                        zip.closeEntry(); continue
+                    }
+                } else if (name.startsWith("cache/")) {
+                    val rel = name.removePrefix("cache/")
+                    if (rel.isBlank()) { zip.closeEntry(); continue }
+                    val target = File(context.cacheDir, rel)
+                    val canonicalTarget = target.canonicalPath
+                    val canonicalRoot = context.cacheDir.canonicalPath + File.separator
+                    if (!canonicalTarget.startsWith(canonicalRoot)) {
+                        android.util.Log.w("BackupManager",
+                            "Skipping zip entry that escapes cacheDir: $name")
                         zip.closeEntry(); continue
                     }
                 }
@@ -224,6 +279,15 @@ object BackupManager {
                     val rel = name.removePrefix("files/")
                     if (rel.isNotBlank()) {
                         val target = File(context.filesDir, rel)
+                        target.parentFile?.mkdirs()
+                        target.writeBytes(bytes)
+                        filesRestored++
+                    }
+                }
+                name.startsWith("cache/") -> {
+                    val rel = name.removePrefix("cache/")
+                    if (rel.isNotBlank()) {
+                        val target = File(context.cacheDir, rel)
                         target.parentFile?.mkdirs()
                         target.writeBytes(bytes)
                         filesRestored++
@@ -270,6 +334,19 @@ object BackupManager {
         // destroy gigabytes of unrelated user data on the target device.
         filesDir.listFiles()?.forEach {
             if (it.name !in FILES_DIR_BACKUP_EXCLUDES) it.deleteRecursively()
+        }
+    }
+
+    /** Wipe cacheDir before applying staged cache/ entries. [preserve]
+     *  protects the in-flight restore temp zip — its name is generated
+     *  by File.createTempFile, so the caller passes it in. */
+    internal fun clearCacheDirForRestore(cacheDir: File, preserve: Set<String>) {
+        if (!cacheDir.exists()) {
+            cacheDir.mkdirs()
+            return
+        }
+        cacheDir.listFiles()?.forEach {
+            if (it.name !in preserve) it.deleteRecursively()
         }
     }
 
@@ -334,6 +411,9 @@ object BackupManager {
             // FILES_DIR_BACKUP_EXCLUDES. Only applied at depth 0 (prefix == "files")
             // so a deeper directory that happens to share the name still gets backed up.
             if (prefix == "files" && child.name in FILES_DIR_BACKUP_EXCLUDES) continue
+            // Top-level cacheDir excludes — in-flight backup / restore /
+            // reset temp files. See CACHE_TOPLEVEL_SKIP_PREFIXES.
+            if (prefix == "cache" && shouldSkipCacheTopLevel(child.name)) continue
             val entryName = "$prefix/${child.name}"
             if (child.isDirectory) {
                 addDirectoryRecursive(zip, child, entryName)
