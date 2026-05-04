@@ -81,7 +81,7 @@ private sealed interface ReportLoadState {
  *  TRANSLATE secondaries on the report — Original always present;
  *  Dutch / German / … added per distinct [SecondaryResult.targetLanguage].
  *  Used by the in-app report viewer (ContentDisplay) and the per-kind
- *  Summaries / Compares lists (SecondaryResultsScreen). [key] is a
+ *  per-Meta-prompt result lists (SecondaryResultsScreen). [key] is a
  *  filesystem-safe lowercase id; [displayName] is the human English
  *  name and matches [SecondaryResult.targetLanguage]. */
 internal data class LangTab(val key: String, val displayName: String, val nativeName: String?) {
@@ -364,13 +364,18 @@ fun ReportCostTable(report: Report) {
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, s.model) }
         val inCents = (s.inputCost ?: 0.0) * 100
         val outCents = (s.outputCost ?: 0.0) * 100
-        val type = when (s.kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summarize"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translate"
-        }
+        // Cost-table "Type" column: prefer the user-given Meta prompt
+        // name so a "Compare" row reads "compare", a "Critique" row
+        // reads "critique", etc. Rerank / moderation / translate keep
+        // their fixed labels — those routing labels are the user's
+        // mental model for those rows.
+        val type = s.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
+            ?: when (s.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.META -> "meta"
+                SecondaryKind.MODERATION -> "moderation"
+                SecondaryKind.TRANSLATE -> "translate"
+            }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     val rows = (agentRows + secondaryRows).sortedByDescending { it.inputCents + it.outputCents }

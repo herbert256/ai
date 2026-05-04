@@ -32,7 +32,7 @@ class SecondaryResultStorageInstrumentedTest {
 
     @Test fun create_then_save_persists_content_for_get() {
         val placeholder = SecondaryResultStorage.create(
-            context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m1", "Provider / m1"
+            context, reportA, SecondaryKind.META, "UNIT", "m1", "Provider / m1"
         )
         assertThat(placeholder.content).isNull()
 
@@ -45,13 +45,13 @@ class SecondaryResultStorageInstrumentedTest {
         assertThat(reloaded).isNotNull()
         assertThat(reloaded!!.content).isEqualTo("summary text")
         assertThat(reloaded.durationMs).isEqualTo(1234)
-        assertThat(reloaded.kind).isEqualTo(SecondaryKind.SUMMARIZE)
+        assertThat(reloaded.kind).isEqualTo(SecondaryKind.META)
     }
 
     @Test fun listForReport_returns_only_that_reports_results() {
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "n1")
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.COMPARE, "UNIT", "m", "n2")
-        SecondaryResultStorage.create(context, reportB, SecondaryKind.SUMMARIZE, "UNIT", "m", "n3")
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.META, "UNIT", "m", "n1")
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.RERANK, "UNIT", "m", "n2")
+        SecondaryResultStorage.create(context, reportB, SecondaryKind.META, "UNIT", "m", "n3")
 
         val a = SecondaryResultStorage.listForReport(context, reportA).map { it.agentName }.toSet()
         val b = SecondaryResultStorage.listForReport(context, reportB).map { it.agentName }.toSet()
@@ -60,24 +60,24 @@ class SecondaryResultStorageInstrumentedTest {
     }
 
     @Test fun listForReport_filters_by_kind_when_provided() {
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "s")
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.COMPARE, "UNIT", "m", "c")
-        val onlySummaries = SecondaryResultStorage.listForReport(context, reportA, SecondaryKind.SUMMARIZE)
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.META, "UNIT", "m", "s")
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.RERANK, "UNIT", "m", "c")
+        val onlySummaries = SecondaryResultStorage.listForReport(context, reportA, SecondaryKind.META)
         assertThat(onlySummaries).hasSize(1)
-        assertThat(onlySummaries[0].kind).isEqualTo(SecondaryKind.SUMMARIZE)
+        assertThat(onlySummaries[0].kind).isEqualTo(SecondaryKind.META)
     }
 
     @Test fun delete_removes_only_target_id() {
-        val a = SecondaryResultStorage.create(context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "x")
-        val b = SecondaryResultStorage.create(context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "y")
+        val a = SecondaryResultStorage.create(context, reportA, SecondaryKind.META, "UNIT", "m", "x")
+        val b = SecondaryResultStorage.create(context, reportA, SecondaryKind.META, "UNIT", "m", "y")
         SecondaryResultStorage.delete(context, reportA, a.id)
         val remaining = SecondaryResultStorage.listForReport(context, reportA).map { it.id }
         assertThat(remaining).containsExactly(b.id)
     }
 
     @Test fun deleteAllForReport_clears_directory() {
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "x")
-        SecondaryResultStorage.create(context, reportA, SecondaryKind.COMPARE, "UNIT", "m", "y")
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.META, "UNIT", "m", "x")
+        SecondaryResultStorage.create(context, reportA, SecondaryKind.RERANK, "UNIT", "m", "y")
         SecondaryResultStorage.deleteAllForReport(context, reportA)
         assertThat(SecondaryResultStorage.listForReport(context, reportA)).isEmpty()
     }
@@ -101,7 +101,7 @@ class SecondaryResultStorageInstrumentedTest {
 
     @Test fun translatedFromSecondaryId_round_trip() {
         val source = SecondaryResultStorage.create(
-            context, reportA, SecondaryKind.SUMMARIZE, "UNIT", "m", "src"
+            context, reportA, SecondaryKind.META, "UNIT", "m", "src"
         )
         SecondaryResultStorage.save(
             context,

@@ -64,16 +64,16 @@ internal fun SecondaryResultsScreen(
         }
     }
     // TRANSLATE rows on this report — drives the language picker for
-    // SUMMARIZE / COMPARE views. Languages not seen on TRANSLATE rows
-    // never get a tab even if a per-language batch row exists, since
-    // the spec is "show the picker iff there are translations."
+    // chat-type META views. Languages not seen on TRANSLATE rows never
+    // get a tab even if a per-language batch row exists, since the
+    // spec is "show the picker iff there are translations."
     val translates by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.targetLanguage.isNullOrBlank() }
         }
     }
-    val showLanguagePicker = (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) && translates.isNotEmpty()
+    val showLanguagePicker = kind == SecondaryKind.META && translates.isNotEmpty()
     val languages = remember(translates) { buildLangTabs(translates) }
     var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
     LaunchedEffect(languages) {
@@ -84,30 +84,27 @@ internal fun SecondaryResultsScreen(
         else languages.firstOrNull { it.key == selectedLangKey }?.displayName
     }
 
-    // For SUMMARIZE / COMPARE: a non-Original language view shows two
+    // For chat-type META: a non-Original language view shows two
     // sources of translated content side by side:
     //   1. Per-language rows tagged with targetLanguage = X (produced
-    //      by the multi-language Summarize/Compare batch flow).
+    //      by the multi-language Meta batch flow).
     //   2. Original rows (targetLanguage == null) whose content has
     //      been overlaid by a TRANSLATE row pointing at them
     //      (Translate-only flow). The overlay copies the translated
     //      content onto the Original row so the user sees the
     //      translated text without losing the row's metadata.
-    // The Original view shows untagged rows only; non-SUMMARIZE/
-    // non-COMPARE kinds skip the overlay path entirely.
+    // The Original view shows untagged rows only; non-META kinds skip
+    // the overlay path entirely (rerank / moderation are structured
+    // JSON, not narrative translatable text).
     val filteredResults = remember(results, selectedLangKey, showLanguagePicker, selectedLanguageName, translates) {
         if (!showLanguagePicker) return@remember results
         if (selectedLanguageName == null) return@remember results.filter { it.targetLanguage == null }
         val perLang = results.filter { it.targetLanguage == selectedLanguageName }
-        val sourceKind = when (kind) {
-            SecondaryKind.SUMMARIZE -> "SUMMARY"
-            SecondaryKind.COMPARE -> "COMPARE"
-            else -> return@remember perLang
-        }
+        if (kind != SecondaryKind.META) return@remember perLang
         val txByTarget = translates
             .filter {
                 it.targetLanguage == selectedLanguageName &&
-                    it.translateSourceKind == sourceKind &&
+                    it.translateSourceKind == "META" &&
                     !it.content.isNullOrBlank()
             }
             .associateBy { it.translateSourceTargetId ?: "" }
@@ -163,13 +160,13 @@ internal fun SecondaryResultsScreen(
             return@Column
         }
 
-        // SUMMARIZE / COMPARE: mirror the Reports viewer — a row of
-        // picker buttons (one per filtered result) followed by the
-        // selected result's body inline. RERANK / MODERATION / TRANSLATE
-        // keep the row-list-and-drill-in flow since each item is a
-        // distinct table or per-input classification.
-        if (kind == SecondaryKind.SUMMARIZE || kind == SecondaryKind.COMPARE) {
-            SummariesComparesPickerView(
+        // Chat-type META: mirror the Reports viewer — a row of picker
+        // buttons (one per filtered result) followed by the selected
+        // result's body inline. RERANK / MODERATION / TRANSLATE keep
+        // the row-list-and-drill-in flow since each item is a distinct
+        // table or per-input classification.
+        if (kind == SecondaryKind.META) {
+            MetaResultsPickerView(
                 results = filteredResults,
                 reportId = reportId,
                 onDelete = { id -> onDelete(id); refreshTick++ },
@@ -192,13 +189,13 @@ internal fun SecondaryResultsScreen(
     }
 }
 
-/** Reports-viewer-style screen for Summaries / Compares: a FlowRow of
- *  picker buttons (one per result) plus the selected result's content
- *  inline. Picker labels show the result's provider · model. The
- *  trailing action row mirrors [SecondaryResultDetailScreen]:
+/** Reports-viewer-style screen for chat-type META results: a FlowRow
+ *  of picker buttons (one per result) plus the selected result's
+ *  content inline. Picker labels show the result's provider · model.
+ *  The trailing action row mirrors [SecondaryResultDetailScreen]:
  *  Delete / Model Info / Trace. */
 @Composable
-private fun ColumnScope.SummariesComparesPickerView(
+private fun ColumnScope.MetaResultsPickerView(
     results: List<SecondaryResult>,
     reportId: String,
     onDelete: (String) -> Unit,
@@ -374,9 +371,9 @@ internal fun SecondaryResultDetailScreen(
     val context = LocalContext.current
     val providerService = AppService.findById(result.providerId)
     val provider = providerService?.displayName ?: result.providerId
-    // Prefer the user-given Meta-prompt name over the legacy kind label —
-    // every chat-type Meta runs under kind=SUMMARIZE, so the kind alone
-    // would surface "Summary" even when the user picked "Compare".
+    // Prefer the user-given Meta-prompt name over the legacy kind
+    // label — every chat-type Meta runs under kind=META, so the kind
+    // alone would surface "Meta" even when the user picked "Compare".
     val title = result.metaPromptName?.takeIf { it.isNotBlank() }
         ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
@@ -411,8 +408,8 @@ internal fun SecondaryResultDetailScreen(
     }
     val agentLabels = agentLabelsState.value
 
-    // Translation comparison: only meaningful for SUMMARIZE / COMPARE,
-    // and only when this secondary is a translated copy (its
+    // Translation comparison: only meaningful for chat-type META
+    // rows, and only when this secondary is a translated copy (its
     // translatedFromSecondaryId points at the source's untranslated
     // counterpart). Load the source's content lazily.
     val sourceContentState = produceState<String?>(
@@ -428,7 +425,7 @@ internal fun SecondaryResultDetailScreen(
     }
     val sourceContent = sourceContentState.value
     val canShowTranslation =
-        (result.kind == SecondaryKind.SUMMARIZE || result.kind == SecondaryKind.COMPARE) &&
+        result.kind == SecondaryKind.META &&
             !sourceContent.isNullOrBlank() && !result.content.isNullOrBlank()
     var showTranslationCompare by remember { mutableStateOf(false) }
 

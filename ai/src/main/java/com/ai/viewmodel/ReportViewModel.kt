@@ -472,11 +472,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 // Cascade: prompt / params change invalidates every meta
                 // result and every translation. Re-fire each meta kind
-                // with its original picks (RERANK first because
-                // SUMMARIZE / COMPARE may consume it as scope), then
-                // re-fire translations sequentially (translation jobs
-                // are mutually exclusive — startTranslation cancels the
-                // previous one). Picks come from the persisted rows so
+                // with its original picks (RERANK first because chat-
+                // type META runs may consume it as Top-Ranked scope),
+                // then re-fire translations sequentially (translation
+                // jobs are mutually exclusive — startTranslation cancels
+                // the previous one). Picks come from the persisted rows so
                 // the user gets the same coverage they had before.
                 if (cascadeAll) cascadeMetasAndTranslations(context, scope, reportId)
             }
@@ -710,14 +710,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     // ===== Meta prompt results =====
 
-    /** Map a [com.ai.model.InternalPrompt.type] to the legacy [SecondaryKind]
-     *  used by storage / counts. The kind is only a routing label here —
-     *  the user-given Meta prompt name (persisted on the result) is what
-     *  the View card buckets on. */
+    /** Map a [com.ai.model.InternalPrompt.type] to the [SecondaryKind]
+     *  routing label. The kind decides which API path handles the call
+     *  (rerank endpoint, moderation endpoint, or chat); the user-given
+     *  Meta prompt name (persisted on the result) is what the UI /
+     *  exports bucket on. */
     private fun metaTypeToKind(type: String): SecondaryKind = when (type) {
         "rerank" -> SecondaryKind.RERANK
         "moderation" -> SecondaryKind.MODERATION
-        else -> SecondaryKind.SUMMARIZE  // every chat-type Meta lives under SUMMARIZE
+        else -> SecondaryKind.META  // every chat-type Meta routes through the chat API
     }
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
@@ -1101,8 +1102,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
                 kind = when (kind) {
                     SecondaryKind.RERANK -> "rerank"
-                    SecondaryKind.SUMMARIZE -> "summarize"
-                    SecondaryKind.COMPARE -> "compare"
+                    SecondaryKind.META -> "meta"
                     SecondaryKind.MODERATION -> "moderation"
                     SecondaryKind.TRANSLATE -> "translate"
                 }
@@ -1228,7 +1228,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // ===== Translate =====
 
     enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
-    enum class TranslationKind { PROMPT, AGENT_RESPONSE, SUMMARY, COMPARE }
+    enum class TranslationKind { PROMPT, AGENT_RESPONSE, META }
 
     /** One row on the translation progress screen. [sourceText] is what
      *  gets fed to the model; [translatedText] is filled in on DONE.
@@ -1236,9 +1236,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  the running tally — the live result-list row passes it through
      *  formatCents() which multiplies by 100, same convention every
      *  other cost cell in the app uses. [target] is the
-     *  SecondaryResult.id when the source is a SUMMARY / COMPARE —
-     *  used so the new report can recreate that meta result with
-     *  translated content. */
+     *  SecondaryResult.id when the source is a chat-type META row —
+     *  used so the per-language overlay can re-attach the translated
+     *  content to the right meta result. */
     data class TranslationItem(
         val id: String,
         val label: String,
@@ -1336,24 +1336,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         target = agent.agentId
                     )
                 }
-            secondaries.filter { it.kind == SecondaryKind.SUMMARIZE && !it.content.isNullOrBlank() }
+            // Every chat-type Meta result is a candidate for translation.
+            // Label the row by the user-given Meta prompt name so the
+            // progress screen / per-call detail show "Compare 1: …" or
+            // "Critique 2: …" — driven entirely by the CRUD prompt name,
+            // not a hardcoded "Summary" / "Compare".
+            secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
                 .forEachIndexed { idx, s ->
                     val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+                        ?: com.ai.data.legacyKindDisplayName(s.kind)
                     items += TranslationItem(
-                        id = "summary:${s.id}",
-                        label = "Summary ${idx + 1}: $provDisplay / ${s.model}",
-                        kind = TranslationKind.SUMMARY,
-                        sourceText = s.content!!,
-                        target = s.id
-                    )
-                }
-            secondaries.filter { it.kind == SecondaryKind.COMPARE && !it.content.isNullOrBlank() }
-                .forEachIndexed { idx, s ->
-                    val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
-                    items += TranslationItem(
-                        id = "compare:${s.id}",
-                        label = "Compare ${idx + 1}: $provDisplay / ${s.model}",
-                        kind = TranslationKind.COMPARE,
+                        id = "meta:${s.id}",
+                        label = "$name ${idx + 1}: $provDisplay / ${s.model}",
+                        kind = TranslationKind.META,
                         sourceText = s.content!!,
                         target = s.id
                     )
@@ -1501,8 +1497,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val (srcKind, srcTargetId) = when (item.kind) {
                 TranslationKind.PROMPT -> "PROMPT" to "prompt"
                 TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
-                TranslationKind.SUMMARY -> "SUMMARY" to (item.target ?: "")
-                TranslationKind.COMPARE -> "COMPARE" to (item.target ?: "")
+                TranslationKind.META -> "META" to (item.target ?: "")
             }
             SecondaryResultStorage.save(context, SecondaryResult(
                 id = java.util.UUID.randomUUID().toString(),

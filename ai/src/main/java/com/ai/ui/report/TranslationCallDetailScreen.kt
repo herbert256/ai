@@ -47,39 +47,41 @@ internal fun TranslationCallDetailScreen(
     val titleLang = result.targetLanguage?.let { "Translate · $it" } ?: "Translate"
 
     // Resolve everything we need about the source item in one IO read:
-    // its content, the model that produced it, and the trace file
-    // (when one exists). Driven by translateSourceKind +
-    // translateSourceTargetId stamped on the row in
-    // saveTranslationSecondaries.
-    data class SourceInfo(val content: String?, val model: String?, val traceFilename: String?)
-    val source by produceState(initialValue = SourceInfo(null, null, null), result.id) {
+    // its content, the model that produced it, the trace file (when
+    // one exists), and — for META rows — the user-given Meta prompt
+    // name so the source-side header reads "Compare", "Critique",
+    // "Synthesize", etc. instead of a hardcoded label. Driven by
+    // translateSourceKind + translateSourceTargetId stamped on the
+    // row in saveTranslationSecondaries.
+    data class SourceInfo(val content: String?, val model: String?, val traceFilename: String?, val metaName: String?)
+    val source by produceState(initialValue = SourceInfo(null, null, null, null), result.id) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, result.reportId)
-                ?: return@withContext SourceInfo(null, null, null)
+                ?: return@withContext SourceInfo(null, null, null, null)
             when (result.translateSourceKind) {
                 // The prompt is user-typed text — no source model, no trace.
-                "PROMPT" -> SourceInfo(report.prompt, null, null)
+                "PROMPT" -> SourceInfo(report.prompt, null, null, null)
                 "AGENT" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null)
+                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null, null)
                     val agent = report.agents.firstOrNull { it.agentId == targetId && it.reportStatus == ReportStatus.SUCCESS }
                     val tf = agent?.let {
                         ApiTracer.getTraceFiles()
                             .filter { t -> t.reportId == result.reportId && t.model == it.model }
                             .maxByOrNull { t -> t.timestamp }?.filename
                     }
-                    SourceInfo(agent?.responseBody, agent?.model, tf)
+                    SourceInfo(agent?.responseBody, agent?.model, tf, null)
                 }
-                "SUMMARY", "COMPARE" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null)
+                "META" -> {
+                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null, null)
                     val sec = SecondaryResultStorage.get(context, result.reportId, targetId)
                     val tf = sec?.let {
                         ApiTracer.getTraceFiles()
                             .filter { t -> t.reportId == result.reportId && t.model == it.model }
                             .minByOrNull { t -> kotlin.math.abs(t.timestamp - it.timestamp) }?.filename
                     }
-                    SourceInfo(sec?.content, sec?.model, tf)
+                    SourceInfo(sec?.content, sec?.model, tf, sec?.metaPromptName)
                 }
-                else -> SourceInfo(null, null, null)
+                else -> SourceInfo(null, null, null, null)
             }
         }
     }
@@ -103,15 +105,16 @@ internal fun TranslationCallDetailScreen(
         // (PROMPT). Cost row sums input + output cents for this single
         // translation call.
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            // Source-side header reflects the actual item being translated:
-            // Prompt (no model attached), Report (one of the agent
-            // responses), Summary, or Compare. Falls back to "Source"
-            // for legacy rows missing translateSourceKind.
+            // Source-side header reflects the actual item being
+            // translated: "Prompt" (no model attached), "Report" (one of
+            // the agent responses), or — for chat-type META rows — the
+            // user-given Meta prompt name ("Compare", "Critique", …)
+            // pulled from the source row, falling back to "Meta" for
+            // rows without a stored name.
             val sourceLabel = when (result.translateSourceKind) {
                 "PROMPT" -> "Prompt"
                 "AGENT" -> "Report"
-                "SUMMARY" -> "Summary"
-                "COMPARE" -> "Compare"
+                "META" -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
                 else -> "Source"
             }
             val sourceHeader = source.model?.let { "$sourceLabel: $it" } ?: sourceLabel

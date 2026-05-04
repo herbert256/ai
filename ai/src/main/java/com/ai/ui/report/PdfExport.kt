@@ -146,8 +146,9 @@ internal fun makeStaticForPdf(html: String): String {
             .think-btn, .section-btn,
             .cat-list, .trace-list, .trace-part-tabs,
             .view-btn, .layout-btn, .item-btn, .cat-btn, .trace-btn, .trace-part-btn { display: none !important; }
-            /* Force every view-block (Reports/Summaries/Compares/Reranks/
-               Moderations/Translations/Prompt/Costs/JSON) visible at once. */
+            /* Force every view-block visible at once: Reports, every
+               per-Meta-prompt section, Reranks, Moderations,
+               Translations, Prompt, Costs, JSON. */
             .view-block { display: block !important; }
             /* Reveal both layouts (one-by-one + all-together) and every
                per-item slot they contain so neither is hidden behind a
@@ -186,18 +187,26 @@ internal fun makeStaticForPdf(html: String): String {
 
 // ===== Short HTML — prompt, per-model results, meta items =====
 
-/** Short HTML: prompt + per-model responses + meta items (Summaries,
- *  Compares, Moderations only — Rerank and Translate skipped per spec).
- *  No index, no cost table, no API trace dump. The same HTML is what
- *  buildShortHtml returns for HTML/PDF SHORT exports; DOCX/ODT have
- *  their own block-based equivalent in WordOdtExport. */
+/** Short HTML: prompt + per-model responses + meta items grouped by
+ *  user-given Meta prompt name (chat-type META rows) plus Moderations.
+ *  Rerank and Translate are skipped per spec. No index, no cost table,
+ *  no API trace dump. The same HTML is what buildShortHtml returns
+ *  for HTML/PDF SHORT exports; DOCX/ODT have their own block-based
+ *  equivalent in WordOdtExport. */
 internal fun buildShortHtml(context: Context, report: Report): String {
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
         .sortedBy { it.agentName.lowercase() }
     val secondary = com.ai.data.SecondaryResultStorage.listForReport(context, report.id)
-    val summaries = secondary.filter { it.kind == com.ai.data.SecondaryKind.SUMMARIZE }
-    val compares = secondary.filter { it.kind == com.ai.data.SecondaryKind.COMPARE }
+    // Group chat-type META rows by their user-given prompt name —
+    // "Compare", "Critique", "Synthesize", … all surface as their
+    // own heading. Rows missing a name fall back to "Meta".
+    val metaByName = LinkedHashMap<String, MutableList<com.ai.data.SecondaryResult>>()
+    secondary.filter { it.kind == com.ai.data.SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        metaByName.getOrPut(name) { mutableListOf() }.add(s)
+    }
     val moderations = secondary.filter { it.kind == com.ai.data.SecondaryKind.MODERATION }
 
     val sb = StringBuilder()
@@ -258,8 +267,7 @@ internal fun buildShortHtml(context: Context, report: Report): String {
             }
         }
     }
-    appendMeta(summaries, "Summaries")
-    appendMeta(compares, "Compares")
+    metaByName.forEach { (name, items) -> appendMeta(items, name) }
     appendMeta(moderations, "Moderations")
 
     if (!report.closeText.isNullOrBlank()) {

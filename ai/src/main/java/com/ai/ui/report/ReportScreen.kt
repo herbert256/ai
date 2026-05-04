@@ -253,12 +253,11 @@ fun ReportsScreen(
     val currentReportId = uiState.currentReportId
 
     // Per-kind row counts + the actual meta-run list for the result
-    // page. Counts gate the Summaries / Compares / Reranks /
-    // Moderations buttons in the View row; the list drives the per-
-    // run rows shown below the agent rows. Polled while a meta batch
-    // is in flight so newly added rows / status changes surface
-    // promptly without the user bouncing in/out of the screen.
-    var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0, 0)) }
+    // page. The list drives the per-run rows shown below the agent
+    // rows. Polled while a meta batch is in flight so newly added
+    // rows / status changes surface promptly without the user
+    // bouncing in/out of the screen.
+    var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0)) }
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
@@ -280,7 +279,7 @@ fun ReportsScreen(
     val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
     LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick) {
         val rid = currentReportId ?: run {
-            secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0)
+            secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
             translationRunSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
@@ -391,8 +390,9 @@ fun ReportsScreen(
     var showMetaScreen by remember { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
     // card buttons. The kind is still useful for routing through
-    // SecondaryResultsScreen (rendering picks SUMMARIZE/COMPARE vs
-    // RERANK/MODERATION/TRANSLATE branches), so we carry both.
+    // SecondaryResultsScreen (rendering picks the chat-type META path
+    // vs the structured RERANK / MODERATION / TRANSLATE branches), so
+    // we carry both.
     var listKind by remember { mutableStateOf<SecondaryKind?>(null) }
     var listFilterByName by remember { mutableStateOf<String?>(null) }
 
@@ -1048,7 +1048,7 @@ private fun ColumnScope.GenerationPhase(
     onCopy: () -> Unit = {},
     onTogglePin: () -> Unit = {},
     onTranslate: () -> Unit = {},
-    secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0, 0),
+    secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
@@ -1249,13 +1249,17 @@ private fun ColumnScope.GenerationPhase(
                         }
                         else -> Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    val typeLabel = when (run.kind) {
-                        SecondaryKind.RERANK -> "rerank"
-                        SecondaryKind.SUMMARIZE -> "summarize"
-                        SecondaryKind.COMPARE -> "compare"
-                        SecondaryKind.MODERATION -> "moderate"
-                        SecondaryKind.TRANSLATE -> "translate"
-                    }
+                    // Live row "type" cell: same name-driven approach
+                    // as the cost table — "Compare", "Critique", … come
+                    // straight from the Meta prompt name. Rerank /
+                    // moderate / translate keep their routing labels.
+                    val typeLabel = run.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
+                        ?: when (run.kind) {
+                            SecondaryKind.RERANK -> "rerank"
+                            SecondaryKind.META -> "meta"
+                            SecondaryKind.MODERATION -> "moderate"
+                            SecondaryKind.TRANSLATE -> "translate"
+                        }
                     RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {

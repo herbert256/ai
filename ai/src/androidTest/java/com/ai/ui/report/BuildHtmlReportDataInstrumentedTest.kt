@@ -75,7 +75,7 @@ class BuildHtmlReportDataInstrumentedTest {
         )
         // One secondary on the translated copy.
         val sumPlaceholder = SecondaryResultStorage.create(
-            context, translated.id, SecondaryKind.SUMMARIZE, TestProvider.ID, TestProvider.MODEL, "OpenAI / gpt-test"
+            context, translated.id, SecondaryKind.META, TestProvider.ID, TestProvider.MODEL, "OpenAI / gpt-test"
         )
         SecondaryResultStorage.save(context, sumPlaceholder.copy(content = "vertaalde samenvatting"))
 
@@ -96,7 +96,7 @@ class BuildHtmlReportDataInstrumentedTest {
         assertThat(data.agents[0].responseText).isEqualTo("vertaling")
         // Secondary present.
         assertThat(data.secondary).hasSize(1)
-        assertThat(data.secondary[0].kind).isEqualTo(SecondaryKind.SUMMARIZE)
+        assertThat(data.secondary[0].kind).isEqualTo(SecondaryKind.META)
         assertThat(data.secondary[0].content).isEqualTo("vertaalde samenvatting")
         // Two traces with distinct origins.
         assertThat(data.traces.map { it.origin }).containsExactly("this", "source")

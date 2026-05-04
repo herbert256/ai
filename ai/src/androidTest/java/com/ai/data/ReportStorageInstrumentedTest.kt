@@ -159,7 +159,7 @@ class ReportStorageInstrumentedTest {
         SecondaryResultStorage.init(context)
         SecondaryResultStorage.create(
             context = context, reportId = report.id,
-            kind = SecondaryKind.SUMMARIZE,
+            kind = SecondaryKind.META,
             providerId = "UNIT", model = "m",
             agentName = "n"
         )

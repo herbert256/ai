@@ -62,13 +62,17 @@ class JsonTraceZipInstrumentedTest {
     @Test fun buildJsonTraceZipBytes_groups_traces_by_category_directory() {
         val report = ReportStorage.createReport(context, "t", "p", emptyList())
         ApiTracer.saveTrace(planTrace(report.id, "Report"))
-        ApiTracer.saveTrace(planTrace(report.id, "Report compare"))
+        ApiTracer.saveTrace(planTrace(report.id, "Report meta: Compare"))
 
         val bytes = buildJsonTraceZipBytes(context, ReportStorage.getReport(context, report.id)!!)
         assertThat(bytes).isNotNull()
         val names = zipNames(bytes!!)
         assertThat(names.any { it.startsWith("Report/") }).isTrue()
-        assertThat(names.any { it.startsWith("Report compare/") }).isTrue()
+        // Trace categories with characters unsafe in zip-entry names
+        // (the colon in "Report meta: Compare") are run through the
+        // export's filesystem-safe filter — spaces are kept, the
+        // colon collapses to a "_".
+        assertThat(names.any { it.startsWith("Report meta_ Compare/") }).isTrue()
     }
 
     @Test fun buildJsonTraceZipBytes_returns_null_when_no_traces() {

@@ -73,7 +73,12 @@ internal data class HtmlSecondaryData(
     val targetLanguageNative: String? = null,
     /** Legacy field kept for old reports that forked into translated
      *  copies. Always null on new TRANSLATE rows. */
-    val translatedFromSecondaryId: String? = null
+    val translatedFromSecondaryId: String? = null,
+    /** User-given Meta prompt name, copied from the source
+     *  [SecondaryResult]. Drives every section heading / bucket in
+     *  the exports. Null on TRANSLATE rows and on rows persisted
+     *  before the Meta-prompt CRUD existed. */
+    val metaPromptName: String? = null
 )
 
 /** A "view" of [HtmlReportData] under one language — Original or one of
@@ -92,7 +97,7 @@ internal data class HtmlLanguageView(
     val nativeName: String?,
     /** Report data with translated text overlaid. Costs / JSON / Rerank
      *  / Moderation rows are unchanged across languages — only Prompt /
-     *  Reports / Summaries / Compares get the overlay. */
+     *  Reports + chat-type META rows get the overlay. */
     val data: HtmlReportData
 )
 
@@ -263,7 +268,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             translateSourceTargetId = s.translateSourceTargetId,
             targetLanguage = s.targetLanguage,
             targetLanguageNative = s.targetLanguageNative,
-            translatedFromSecondaryId = s.translatedFromSecondaryId
+            translatedFromSecondaryId = s.translatedFromSecondaryId,
+            metaPromptName = s.metaPromptName
         )
     }
 
@@ -336,7 +342,7 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
 
     val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
     // Original view shows only secondaries with no language tag (the
-    // canonical originals); per-language SUMMARIZE/COMPARE rows
+    // canonical originals); per-language META rows
     // tagged with a targetLanguage live exclusively in their own
     // language view.
     val originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }
@@ -360,28 +366,22 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
             val tx = byTarget["AGENT:${a.agentId}"]?.content
             if (tx != null) a.copy(responseText = tx) else a
         }
-        // SUMMARIZE / COMPARE rows for this language come in two
-        // flavours: native per-language batch rows tagged with
+        // Chat-type META rows for this language come in two flavours:
+        // native per-language batch rows tagged with
         // targetLanguage = lang (preferred — generated directly from
         // translated input), and Original rows whose content has been
         // translated via a TRANSLATE row pointing at them (legacy
         // path, still surfaced so old translate-only flows keep
         // working). Both are included.
-        val perLangSummariesAndCompares = nonTranslateSecondary.filter {
-            (it.kind == SecondaryKind.SUMMARIZE || it.kind == SecondaryKind.COMPARE) &&
-                it.targetLanguage == lang
+        val perLangMeta = nonTranslateSecondary.filter {
+            it.kind == SecondaryKind.META && it.targetLanguage == lang
         }
-        val overlaidOriginalSummariesAndCompares = nonTranslateSecondary.mapNotNull { s ->
-            if (s.targetLanguage != null) return@mapNotNull null
-            val key = when (s.kind) {
-                SecondaryKind.SUMMARIZE -> "SUMMARY:${s.id}"
-                SecondaryKind.COMPARE -> "COMPARE:${s.id}"
-                else -> return@mapNotNull null
-            }
-            val tx = byTarget[key]?.content ?: return@mapNotNull null
+        val overlaidOriginalMeta = nonTranslateSecondary.mapNotNull { s ->
+            if (s.targetLanguage != null || s.kind != SecondaryKind.META) return@mapNotNull null
+            val tx = byTarget["META:${s.id}"]?.content ?: return@mapNotNull null
             s.copy(content = tx)
         }
-        val translatedSecondary = perLangSummariesAndCompares + overlaidOriginalSummariesAndCompares
+        val translatedSecondary = perLangMeta + overlaidOriginalMeta
         views += HtmlLanguageView(
             key = languageKey(lang),
             displayName = lang,
@@ -423,13 +423,14 @@ private fun ApiTrace.toRedactedExportJson(): String {
 // language's set of view-blocks. When no translations exist on the
 // report the picker collapses to a single "Original" block and stays
 // hidden. Inside each language block the "view picker" lets the user
-// switch between Reports / Summaries / Compares / Reranks /
-// Moderations / Prompt / Costs / JSON. Costs and JSON are emitted only
-// inside the Original block — they aggregate across all languages and
-// would be misleading duplicates. Reranks / Moderations are also
-// Original-only (their content is structured JSON, not narrative
-// translatable text). Each multi-item view gets its own "One by one"
-// / "All together" sub-toggle.
+// switch between Reports, one tab per chat-type Meta prompt name
+// present on the report (e.g. "Compare", "Critique", "Synthesize"),
+// Reranks / Moderations / Prompt / Costs / JSON. Costs and JSON are
+// emitted only inside the Original block — they aggregate across all
+// languages and would be misleading duplicates. Reranks / Moderations
+// are also Original-only (their content is structured JSON, not
+// narrative translatable text). Each multi-item view gets its own
+// "One by one" / "All together" sub-toggle.
 //
 // All in-block toggles use DOM-relative `closest()` traversal in JS
 // rather than IDs, so identical button/card markup in different
@@ -480,9 +481,16 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     val data = lv.data
     val defaultAllTogether = data.reportType == ReportType.TABLE
     val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
-    val summaries = data.secondary.filter { it.kind == SecondaryKind.SUMMARIZE }
-    val compares = data.secondary.filter { it.kind == SecondaryKind.COMPARE }
     val moderations = data.secondary.filter { it.kind == SecondaryKind.MODERATION }
+    // Chat-type META rows bucket by user-given prompt name. Each
+    // bucket gets its own tab in the view picker — first-seen order
+    // is preserved so tabs match the chronological run order.
+    val metaByName = LinkedHashMap<String, MutableList<HtmlSecondaryData>>()
+    data.secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        metaByName.getOrPut(name) { mutableListOf() }.add(s)
+    }
     val hasPrompt = data.prompt.isNotBlank()
     val hasReports = data.agents.isNotEmpty()
     val hasAgentCosts = data.agents.any { it.inputTokens != null }
@@ -496,16 +504,32 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
         a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
     }.toMap()
 
-    data class View(val id: String, val label: String)
+    data class View(val id: String, val label: String, val emit: () -> Unit)
     val views = mutableListOf<View>()
-    if (hasReports) views += View("reports", "Reports")
-    if (summaries.isNotEmpty()) views += View("summaries", "Summaries")
-    if (compares.isNotEmpty()) views += View("compares", "Compares")
-    if (showReranks) views += View("reranks", "Reranks")
-    if (showModerations) views += View("moderations", "Moderations")
-    if (hasPrompt) views += View("prompt", "Prompt")
-    if (hasCosts) views += View("costs", "Costs")
-    if (hasJson) views += View("json", "JSON")
+    if (hasReports) views += View("reports", "Reports") {
+        renderReportsView(sb, data, defaultAllTogether, isOriginal)
+    }
+    metaByName.forEach { (name, items) ->
+        // CSS id derived from the prompt name: lowercase + non-alnum
+        // stripped, falling back to "meta" when the name reduces to
+        // nothing. Multiple Meta prompts can never collide because
+        // metaByName is name-keyed, so the id collisions handled here
+        // would only be cross-language (each language renders its own
+        // view-block tree, and the JS uses DOM-relative scoping).
+        val viewId = "meta-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+        views += View(viewId, name) { renderMetaItemsView(sb, viewId, items, maxAnchor) }
+    }
+    if (showReranks) views += View("reranks", "Reranks") {
+        renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
+    }
+    if (showModerations) views += View("moderations", "Moderations") {
+        renderMetaItemsView(sb, "moderations", moderations, maxAnchor)
+    }
+    if (hasPrompt) views += View("prompt", "Prompt") {
+        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
+    }
+    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data) }
+    if (hasJson) views += View("json", "JSON") { renderJsonView(sb, data.traces) }
 
     if (views.isEmpty()) return
 
@@ -518,23 +542,12 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     }
     sb.append("</div>")
 
-    fun emitBlock(id: String, body: () -> Unit) {
-        val display = if (id == firstViewId) "block" else "none"
-        sb.append("<div class='view-block' data-view-id='$id' style='display:$display'>")
-        body()
+    views.forEach { v ->
+        val display = if (v.id == firstViewId) "block" else "none"
+        sb.append("<div class='view-block' data-view-id='${v.id}' style='display:$display'>")
+        v.emit()
         sb.append("</div>")
     }
-
-    if (hasReports) emitBlock("reports") { renderReportsView(sb, data, defaultAllTogether, isOriginal) }
-    if (summaries.isNotEmpty()) emitBlock("summaries") { renderMetaItemsView(sb, "summaries", summaries, maxAnchor) }
-    if (compares.isNotEmpty()) emitBlock("compares") { renderMetaItemsView(sb, "compares", compares, maxAnchor) }
-    if (showReranks) emitBlock("reranks") { renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor) }
-    if (showModerations) emitBlock("moderations") { renderMetaItemsView(sb, "moderations", moderations, maxAnchor) }
-    if (hasPrompt) emitBlock("prompt") {
-        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
-    }
-    if (hasCosts) emitBlock("costs") { renderCostsView(sb, data) }
-    if (hasJson) emitBlock("json") { renderJsonView(sb, data.traces) }
 }
 
 // ===== View Renderers =====
@@ -604,7 +617,7 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     sb.append("</div>")
 }
 
-/** Meta-items view (Summaries / Compares / Reranks / Moderations).
+/** Meta-items view (one chat-type Meta bucket / Reranks / Moderations).
  *  Single-item views render the lone item directly with no sub-toggle.
  *  Multi-item views get their own One-by-one / All-together toggle.
  *  All scoping is DOM-relative (closest('.view-block')) so multiple
@@ -648,19 +661,19 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
 }
 
 private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
-    val isCompare = item.kind == SecondaryKind.COMPARE
-    val cardClass = if (isCompare) "secondary-card secondary-card-compare" else "secondary-card"
-    val headerClass = if (isCompare) "secondary-card-header secondary-card-header-compare" else "secondary-card-header"
-    sb.append("<div class='$cardClass'>")
-    sb.append("<div class='$headerClass'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
+    sb.append("<div class='secondary-card'>")
+    sb.append("<div class='secondary-card-header'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
     } else if (!item.content.isNullOrBlank()) {
         when (item.kind) {
             SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor, agentsByAnchor)}</div>")
-            SecondaryKind.COMPARE -> {
-                // Linkify [N] references the same way as rerank's fallback
-                // path so users can jump to any cited result card.
+            SecondaryKind.META -> {
+                // Chat-type Meta content can reference report rows via
+                // bracketed [N] tags. Linkify them so a "Compare" /
+                // "Critique" / etc. result can jump back to any cited
+                // agent card. RERANK has its own structured renderer
+                // above; MODERATION renders as plain text below.
                 val linkified = Regex("""\[(\d+)\]""").replace(item.content) { m ->
                     val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
                     if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
@@ -686,13 +699,13 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-        val type = when (it.kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summarize"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translate"
-        }
+        val type = it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
+            ?: when (it.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.META -> "meta"
+                SecondaryKind.MODERATION -> "moderation"
+                SecondaryKind.TRANSLATE -> "translate"
+            }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
@@ -999,9 +1012,6 @@ ul{padding-left:20px}li{margin:4px 0}
 .rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
 .rerank-table .num{text-align:right;font-family:monospace}
 .rerank-table a{color:#64B5F6;text-decoration:none;font-family:monospace}
-.secondary-heading-compare{color:#8B5CF6}
-.secondary-card-compare{border-left-color:#8B5CF6}
-.secondary-card-header-compare{color:#8B5CF6}
 .secondary-body a{color:#64B5F6;text-decoration:none;font-family:monospace}
 </style></head>
 """

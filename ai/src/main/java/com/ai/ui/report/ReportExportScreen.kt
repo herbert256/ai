@@ -101,8 +101,8 @@ fun ReportExportScreen(
                         }
                         Text(
                             when (detail) {
-                                ReportExportDetail.SHORT -> "Prompt, per-model results (with citations and related questions), and meta items: Summaries, Compares, Moderations. No index, no costs, no traces."
-                                ReportExportDetail.COMPLETE -> "Index, prompt, every meta kind (Rerank / Summarize / Compare / Moderation / Translate), the cost table, and every captured API trace with redacted bodies."
+                                ReportExportDetail.SHORT -> "Prompt, per-model results (with citations and related questions), and Meta sections (one per Meta prompt) plus Moderations. No index, no costs, no traces."
+                                ReportExportDetail.COMPLETE -> "Index, prompt, every Meta section (one per Meta prompt name), Reranks / Moderations / Translations, the cost table, and every captured API trace with redacted bodies."
                             },
                             fontSize = 12.sp, color = AppColors.TextTertiary
                         )

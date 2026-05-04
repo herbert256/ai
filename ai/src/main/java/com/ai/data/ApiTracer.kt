@@ -20,11 +20,11 @@ data class ApiTrace(
     val timestamp: Long, val hostname: String,
     val reportId: String? = null, val model: String? = null,
     /** Functional description of the call site that produced this trace,
-     *  e.g. "Report", "Report compare", "Chat", "Chat validate input",
-     *  "Provider test", "Retrieve models list", "Pricing fetch". Set
-     *  via [ApiTracer.currentCategory] / [withTraceCategory] before the
-     *  API call runs. Null on traces written before the field existed
-     *  or from sites that don't bracket their calls. */
+     *  e.g. "Report", "Report meta: Compare", "Chat", "Chat validate
+     *  input", "Provider test", "Retrieve models list", "Pricing fetch".
+     *  Set via [ApiTracer.currentCategory] / [withTraceCategory] before
+     *  the API call runs. Null on traces written before the field
+     *  existed or from sites that don't bracket their calls. */
     val category: String? = null,
     val request: TraceRequest, val response: TraceResponse
 )
@@ -46,12 +46,12 @@ object ApiTracer {
     @Volatile var isTracingEnabled: Boolean = false
     @Volatile var currentReportId: String? = null
     /** Free-form label describing what kind of call is in flight (e.g.
-     *  "Report compare", "Chat validate input"). Read at trace-write time
-     *  by [TracingInterceptor] and persisted on the trace JSON so the
-     *  Trace screen can offer a category filter. Same volatile + global
-     *  pattern as [currentReportId] — overlapping flows on different
-     *  threads will share whichever value was set last; precision is
-     *  per-flow, not per-call. */
+     *  "Report meta: Compare", "Chat validate input"). Read at trace-
+     *  write time by [TracingInterceptor] and persisted on the trace
+     *  JSON so the Trace screen can offer a category filter. Same
+     *  volatile + global pattern as [currentReportId] — overlapping
+     *  flows on different threads will share whichever value was set
+     *  last; precision is per-flow, not per-call. */
     @Volatile var currentCategory: String? = null
 
     /** In-memory mirror of the trace dir's [TraceFileInfo] list, sorted

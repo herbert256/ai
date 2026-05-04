@@ -6,13 +6,16 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, SUMMARIZE, COMPARE, MODERATION, TRANSLATE }
+enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE }
 
 /**
  * A meta-result that operates on a parent Report's per-agent outputs:
- * a Rerank ranks them, a Summarize fuses them into one. Each is the work
- * of a single chosen model, persisted independently so a report can
- * accumulate many of either kind over time.
+ * a Rerank ranks them, a chat-type Meta prompt narrates / compares /
+ * summarises / etc. them. Each is the work of a single chosen model,
+ * persisted independently so a report can accumulate many of either
+ * kind over time. The user-given Meta prompt name carried on the row
+ * (metaPromptName) is what the UI / exports bucket by — the kind is
+ * just the routing label for which API path handles the call.
  */
 data class SecondaryResult(
     val id: String,
@@ -30,11 +33,11 @@ data class SecondaryResult(
     val durationMs: Long? = null,
     /** When kind == TRANSLATE: identifier of the item this translation
      *  operated on. "prompt" for the report prompt, agent.agentId for
-     *  an agent response, secondary.id for a Summary or Compare. Null
-     *  on non-translate rows. */
+     *  an agent response, secondary.id for a META row. Null on non-
+     *  translate rows. */
     val translateSourceTargetId: String? = null,
     /** Companion to [translateSourceTargetId]. One of "PROMPT", "AGENT",
-     *  "SUMMARY", "COMPARE". Null on non-translate rows. */
+     *  "META". Null on non-translate rows. */
     val translateSourceKind: String? = null,
     /** Target language for a TRANSLATE row, English name (e.g. "Dutch",
      *  "German"). Used to group translated content into per-language
@@ -163,26 +166,25 @@ object SecondaryResultStorage {
     /** Counts persisted across all kinds for a report. Used by the Report
      *  result screen for the Translate / legacy buckets. The redesigned
      *  Meta card uses [countByMetaName] instead. */
-    data class Counts(val rerank: Int, val summarize: Int, val compare: Int, val moderation: Int, val translate: Int)
+    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int)
     fun countForReport(context: Context, reportId: String): Counts {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0, 0)
-            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0, 0)
-            var rerank = 0; var summarize = 0; var compare = 0; var moderation = 0; var translate = 0
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0)
+            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0)
+            var rerank = 0; var meta = 0; var moderation = 0; var translate = 0
             dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
                 try {
                     val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
                     when (r.kind) {
                         SecondaryKind.RERANK -> rerank++
-                        SecondaryKind.SUMMARIZE -> summarize++
-                        SecondaryKind.COMPARE -> compare++
+                        SecondaryKind.META -> meta++
                         SecondaryKind.MODERATION -> moderation++
                         SecondaryKind.TRANSLATE -> translate++
                     }
                 } catch (_: Exception) {}
             }
-            Counts(rerank, summarize, compare, moderation, translate)
+            Counts(rerank, meta, moderation, translate)
         }
     }
 
@@ -209,13 +211,12 @@ object SecondaryResultStorage {
     }
 }
 
-/** Display label for legacy SecondaryResult rows that pre-date the
- *  Meta-prompt CRUD (no metaPromptName persisted). Used by the View
- *  card / Meta detail to keep old reports readable. */
+/** Display label for a [SecondaryKind]. Only ever shown when a row
+ *  doesn't carry a `metaPromptName` — every UI surface prefers the
+ *  user-given Meta prompt name. */
 fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.RERANK -> "Rerank"
-    SecondaryKind.SUMMARIZE -> "Summary"
-    SecondaryKind.COMPARE -> "Compare"
+    SecondaryKind.META -> "Meta"
     SecondaryKind.MODERATION -> "Moderation"
     SecondaryKind.TRANSLATE -> "Translate"
 }
@@ -284,7 +285,7 @@ fun buildReferenceLegend(report: Report, includeIds: Set<Int>? = null): String {
 }
 
 /** Restriction on which of the parent report's per-agent results are
- *  fed into a Summarize / Compare run. Rerank itself always uses
+ *  fed into a chat-type Meta run. Rerank itself always uses
  *  [AllReports] — it ranks the full set by definition. */
 sealed class SecondaryScope {
     object AllReports : SecondaryScope()
@@ -295,10 +296,10 @@ sealed class SecondaryScope {
     data class Manual(val agentIds: Set<String>) : SecondaryScope()
 }
 
-/** Language filter for SUMMARIZE / COMPARE multi-language fan-out.
- *  Defaults to AllPresent so existing call sites keep their behaviour;
- *  the scope picker offers Selected for "only these languages".
- *  TRANSLATE / RERANK / MODERATION ignore this. */
+/** Language filter for chat-type META multi-language fan-out. Defaults
+ *  to AllPresent so existing call sites keep their behaviour; the scope
+ *  picker offers Selected for "only these languages". TRANSLATE /
+ *  RERANK / MODERATION ignore this. */
 sealed class SecondaryLanguageScope {
     object AllPresent : SecondaryLanguageScope()
     /** [languages] holds English-name keys ("Dutch") plus the empty

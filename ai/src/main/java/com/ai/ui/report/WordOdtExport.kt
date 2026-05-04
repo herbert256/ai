@@ -34,14 +34,15 @@ internal data class DocBlock(
 /** Build the flat block list from the same data the Medium HTML export
  *  uses. The export shows the full set of report content: title +
  *  rapport, every per-agent response (with citations / search results /
- *  related questions), every meta result (rerank / summarize / compare /
- *  moderation), the prompt, the per-call cost table, and every captured
- *  API trace with redacted bodies. When translations exist on the
- *  report each translated language is appended after the originals
- *  with a "Language: X" heading and the translated prompt / agents /
- *  summaries / compares. The lone DOCX/ODT affordance is the leading
- *  TOC block — Word and LibreOffice fill the page numbers in when the
- *  document is opened. */
+ *  related questions), every meta result (rerank / chat-type META rows
+ *  bucketed by user-given prompt name / moderation), the prompt, the
+ *  per-call cost table, and every captured API trace with redacted
+ *  bodies. When translations exist on the report each translated
+ *  language is appended after the originals with a "Language: X"
+ *  heading and the translated prompt / agents / Meta sections. The
+ *  lone DOCX/ODT affordance is the leading TOC block — Word and
+ *  LibreOffice fill the page numbers in when the document is
+ *  opened. */
 private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Boolean): List<DocBlock> {
     val out = mutableListOf<DocBlock>()
     out += DocBlock(DocBlockKind.HEADING, data.title.ifBlank { "Untitled" }, 1)
@@ -78,10 +79,11 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
     return out
 }
 
-/** Emit one language's narrative content into [out]: Reports,
- *  Summaries, Compares, (Original-only Reranks / Moderations,) Prompt.
- *  [headingBoost] is added to all headings so a translated language's
- *  Reports heading nests one level under its "Language: X" parent. */
+/** Emit one language's narrative content into [out]: Reports, one
+ *  section per chat-type META prompt name, (Original-only Reranks /
+ *  Moderations,) Prompt. [headingBoost] is added to all headings so a
+ *  translated language's Reports heading nests one level under its
+ *  "Language: X" parent. */
 private fun appendLanguageContent(
     out: MutableList<DocBlock>,
     data: com.ai.ui.report.HtmlReportData,
@@ -119,8 +121,11 @@ private fun appendLanguageContent(
             }
         }
     }
-    appendSecondary(out, data.secondary, SecondaryKind.SUMMARIZE, "Summaries", maxAnchor)
-    appendSecondary(out, data.secondary, SecondaryKind.COMPARE, "Compares", maxAnchor)
+    // Chat-type META rows bucket by user-given prompt name. The
+    // section heading IS the name — "Compare", "Critique", … — so a
+    // user with several Meta prompts gets a section per prompt
+    // instead of everything jammed under a single hardcoded label.
+    appendMetaByName(out, data.secondary, maxAnchor)
     if (isOriginal && !short) {
         // Reranks / Moderations are structured JSON — never translated;
         // skipped entirely on the per-language repeats too. Short skips
@@ -135,6 +140,38 @@ private fun appendLanguageContent(
             if (t.isNotEmpty()) out += DocBlock(DocBlockKind.PARAGRAPH, t)
         }
     }
+}
+
+/** Group chat-type META rows by user-given prompt name, then emit one
+ *  section per name (preserving first-seen order). Each section is a
+ *  level-2 heading; rows nest underneath at level 3. */
+private fun appendMetaByName(
+    out: MutableList<DocBlock>, secondary: List<com.ai.ui.report.HtmlSecondaryData>,
+    maxAnchor: Int
+) {
+    val byName = LinkedHashMap<String, MutableList<com.ai.ui.report.HtmlSecondaryData>>()
+    secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        byName.getOrPut(name) { mutableListOf() }.add(s)
+    }
+    byName.forEach { (name, items) ->
+        out += DocBlock(DocBlockKind.HEADING, name, 2)
+        for (s in items) {
+            out += DocBlock(DocBlockKind.HEADING, "${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
+            if (s.errorMessage != null) {
+                out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${s.errorMessage}")
+                continue
+            }
+            if (s.content.isNullOrBlank()) continue
+            // Markdown rendering for every chat-type Meta row regardless
+            // of the prompt name. [N] anchor tags are kept as bracketed
+            // numbers — DOCX/ODT can't link back to specific cards
+            // without a lot of bookmark machinery.
+            out += mdToBlocks(s.content, headingBase = 4)
+        }
+    }
+    @Suppress("UNUSED_PARAMETER") val unused = maxAnchor
 }
 
 private fun appendSecondary(
@@ -160,12 +197,6 @@ private fun appendSecondary(
                     out += mdToBlocks(s.content, headingBase = 4)
                 }
             }
-            SecondaryKind.COMPARE -> {
-                // Strip [N] anchor markup — keep the bracketed numbers as-is
-                // for readability since DOCX/ODT can't link back to specific
-                // cards without a lot of bookmark machinery.
-                out += mdToBlocks(s.content, headingBase = 4)
-            }
             else -> out += mdToBlocks(s.content, headingBase = 4)
         }
     }
@@ -189,13 +220,13 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.report.HtmlR
         )
     }
     for (s in secondaryRows) {
-        val type = when (s.kind) {
-            SecondaryKind.RERANK -> "rerank"
-            SecondaryKind.SUMMARIZE -> "summarize"
-            SecondaryKind.COMPARE -> "compare"
-            SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translate"
-        }
+        val type = s.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
+            ?: when (s.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.META -> "meta"
+                SecondaryKind.MODERATION -> "moderation"
+                SecondaryKind.TRANSLATE -> "translate"
+            }
         rows += Row(
             type, s.providerDisplay, s.model, s.pricingTier ?: "",
             s.durationMs?.let { "%.1f".format(it / 1000.0) } ?: "",

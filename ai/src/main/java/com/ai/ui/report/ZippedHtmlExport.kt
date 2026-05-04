@@ -21,9 +21,10 @@ import java.util.zip.ZipOutputStream
  * "Zipped HTML" export — bundles every section of the Complete report
  * into its own .html file inside a directory tree, one directory per
  * language. The user gets a navigable mini-site: a zip-root index
- * lists each language; each language directory has Reports / Summaries
- * / Compares / Prompt; the Original directory additionally has
- * Reranks / Moderations / Costs / JSON traces (those don't translate).
+ * lists each language; each language directory has Reports plus one
+ * directory per chat-type Meta prompt name + Prompt; the Original
+ * directory additionally has Reranks / Moderations / Costs / JSON
+ * traces (those don't translate).
  *
  * Tree:
  *
@@ -34,7 +35,9 @@ import java.util.zip.ZipOutputStream
  *     Reports/         — every successful agent's response page
  *       index.html
  *       <01_provider_model>.html ...
- *     Summaries/, Compares/  (translatable meta-kinds — same shape)
+ *     <metaPromptName>/  one directory per chat-type Meta prompt
+ *                        present on the report (e.g. "Compare/",
+ *                        "Critique/", "Synthesize/"). All translatable.
  *     Reranks/, Moderations/ (Original only — structured JSON, not
  *                             translated)
  *     Prompt/
@@ -52,7 +55,7 @@ import java.util.zip.ZipOutputStream
  *   dutch/             — translated language directory
  *     index.html
  *     Reports/         — translated agent responses
- *     Summaries/, Compares/, Prompt/
+ *     <metaPromptName>/, Prompt/
  *   german/, …
  */
 internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
@@ -101,8 +104,7 @@ private fun emitLanguageSections(
     emit(zos, "${basePath}index.html", languageIndex(data, lv, basePath, isOriginal))
 
     if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath, lv.displayName)
-    emitSecondaryKind(zos, data, SecondaryKind.SUMMARIZE, "Summaries", traceIndex, basePath, lv.displayName)
-    emitSecondaryKind(zos, data, SecondaryKind.COMPARE, "Compares", traceIndex, basePath, lv.displayName)
+    emitMetaSections(zos, data, traceIndex, basePath, lv.displayName)
     if (isOriginal) {
         emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath, lv.displayName)
         emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath, lv.displayName)
@@ -200,13 +202,28 @@ private fun buildReportIndex(data: HtmlReportData, basePath: String, origin: Str
         val filename = itemFilename(idx, "${a.providerDisplay}_${a.model}")
         out += ReportLoc(a.providerDisplay, a.model, "Report", "${basePath}Reports/$filename", origin)
     }
-    val secondaryLabels = mapOf(
-        SecondaryKind.SUMMARIZE to ("Summaries" to "Report summarize"),
-        SecondaryKind.COMPARE to ("Compares" to "Report compare"),
+    // Chat-type META rows: one section per user-given prompt name.
+    // Trace category matches the runMetaPrompt tag — "Report meta:
+    // <name>" — so the bug-link picker can find the right trace file
+    // for each card. First-seen order preserved so directory listing
+    // matches the in-app history.
+    val metaByName = LinkedHashMap<String, MutableList<HtmlSecondaryData>>()
+    data.secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        metaByName.getOrPut(name) { mutableListOf() }.add(s)
+    }
+    metaByName.forEach { (name, items) ->
+        items.forEachIndexed { idx, s ->
+            val filename = itemFilename(idx, "${s.providerDisplay}_${s.model}")
+            out += ReportLoc(s.providerDisplay, s.model, "Report meta: $name", "${basePath}${safeName(name)}/$filename", origin)
+        }
+    }
+    val structuredLabels = mapOf(
         SecondaryKind.RERANK to ("Reranks" to "Report rerank"),
         SecondaryKind.MODERATION to ("Moderations" to "Report moderation")
     )
-    secondaryLabels.forEach { (kind, pair) ->
+    structuredLabels.forEach { (kind, pair) ->
         val (sectionLabel, traceCategory) = pair
         val items = data.secondary.filter { it.kind == kind }
         items.forEachIndexed { idx, s ->
@@ -246,12 +263,20 @@ private fun languageSections(data: HtmlReportData, isOriginal: Boolean): List<Pa
         out += "Costs" to "Costs/"
     }
     if (data.agents.isNotEmpty()) out += "Reports" to "Reports/"
-    val byKind: (SecondaryKind, String) -> Unit = { kind, label ->
-        if (data.secondary.any { it.kind == kind }) out += label to "$label/"
+    // One entry per chat-type Meta prompt name present in this
+    // language view. First-seen order preserved so the link list
+    // matches the on-disk directory order.
+    val metaNames = LinkedHashSet<String>()
+    data.secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        metaNames += name
     }
-    byKind(SecondaryKind.SUMMARIZE, "Summaries")
-    byKind(SecondaryKind.COMPARE, "Compares")
+    metaNames.forEach { name -> out += name to "${safeName(name)}/" }
     if (isOriginal) {
+        val byKind: (SecondaryKind, String) -> Unit = { kind, label ->
+            if (data.secondary.any { it.kind == kind }) out += label to "$label/"
+        }
         byKind(SecondaryKind.RERANK, "Reranks")
         byKind(SecondaryKind.MODERATION, "Moderations")
         if (data.traces.isNotEmpty()) out += "JSON" to "JSON/"
@@ -370,7 +395,44 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
     return sb.toString()
 }
 
-// ===== Secondary (Summaries / Compares / Reranks / Moderations) =====
+// ===== Secondary sections (chat-type Meta by prompt name; structured
+//      Reranks / Moderations) =====
+
+/** Emit one folder per chat-type Meta prompt name, named by the
+ *  user-given name (e.g. "Compare/", "Critique/"). Each folder gets
+ *  an index of its rows + per-row HTML files. Trace-link lookup uses
+ *  the matching "Report meta: <name>" category that runMetaPrompt
+ *  tagged the trace with. */
+private fun emitMetaSections(zos: ZipOutputStream, data: HtmlReportData, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?) {
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    val byName = LinkedHashMap<String, MutableList<HtmlSecondaryData>>()
+    data.secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        byName.getOrPut(name) { mutableListOf() }.add(s)
+    }
+    byName.forEach { (name, items) ->
+        val label = name
+        val safeLabel = safeName(name)
+        val withFiles = items.mapIndexed { idx, s ->
+            Triple(itemFilename(idx, "${s.providerDisplay}_${s.model}"), "${s.providerDisplay} / ${s.model}", s)
+        }
+        val sb = StringBuilder()
+        sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
+        sb.append(breadcrumb(1, listOf(label to null), data, langDisplay))
+        sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
+        withFiles.forEach { (filename, itemLabel, s) ->
+            sb.append("<li><a href='${esc(filename)}'>").append(esc(itemLabel))
+                .append(" <span class='ts'>").append(esc(s.timestamp)).append("</span></a></li>")
+        }
+        sb.append("</ul></main></body></html>")
+        emit(zos, "${basePath}$safeLabel/index.html", sb.toString())
+        val traceCategory = "Report meta: $name"
+        withFiles.forEach { (filename, itemLabel, s) ->
+            emit(zos, "${basePath}$safeLabel/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))
+        }
+    }
+}
 
 private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: SecondaryKind, label: String, traceIndex: List<TraceLoc>, basePath: String, langDisplay: String?) {
     val items = data.secondary.filter { it.kind == kind }
@@ -390,13 +452,13 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     }
     sb.append("</ul></main></body></html>")
     emit(zos, "${basePath}$label/index.html", sb.toString())
-    // Per-item files
+    // Structured kinds — fixed trace-category tags. Chat-type META is
+    // routed through emitMetaSections; this branch never sees META.
     val traceCategory = when (kind) {
-        SecondaryKind.SUMMARIZE -> "Report summarize"
-        SecondaryKind.COMPARE -> "Report compare"
         SecondaryKind.RERANK -> "Report rerank"
         SecondaryKind.MODERATION -> "Report moderation"
         SecondaryKind.TRANSLATE -> "Report translate"
+        SecondaryKind.META -> "Report meta"
     }
     withFiles.forEach { (filename, itemLabel, s) ->
         emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))
@@ -406,6 +468,10 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
 private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryData, data: HtmlReportData, maxAnchor: Int, traceIndex: List<TraceLoc>, traceCategory: String, basePath: String, langDisplay: String?): String {
     val sb = StringBuilder()
     sb.append(htmlHead("$itemLabel - ${data.title}", depth = 1, basePath = basePath))
+    // Breadcrumb hop back to the section index — the per-row file
+    // sits in the same directory as the index, so a bare
+    // "index.html" relative link works regardless of whether the
+    // directory name was filesystem-safed.
     sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data, langDisplay))
     sb.append("<main>")
     val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
@@ -421,7 +487,11 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
                 }.toMap()
                 sb.append("<div class='response'>${renderRerankContentLocal(s.content, maxAnchor, agentsByAnchor)}</div>")
             }
-            SecondaryKind.COMPARE -> {
+            SecondaryKind.META -> {
+                // Chat-type Meta content can reference report rows via
+                // bracketed [N] tags — keep them as bracketed numbers
+                // here (the per-Meta page doesn't host the agent cards
+                // and inter-page anchors aren't worth wiring up).
                 val linkified = Regex("""\[(\d+)\]""").replace(s.content) { m ->
                     val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
                     if (id in 1..maxAnchor) "[$id]" else m.value
@@ -474,11 +544,13 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-        val type = when (it.kind) {
-            SecondaryKind.RERANK -> "rerank"; SecondaryKind.SUMMARIZE -> "summarize"
-            SecondaryKind.COMPARE -> "compare"; SecondaryKind.MODERATION -> "moderation"
-            SecondaryKind.TRANSLATE -> "translate"
-        }
+        val type = it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
+            ?: when (it.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.META -> "meta"
+                SecondaryKind.MODERATION -> "moderation"
+                SecondaryKind.TRANSLATE -> "translate"
+            }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val sorted = (agentRows + secondaryRows).sortedByDescending { it.inC + it.outC }

@@ -73,8 +73,8 @@ class ZippedHtmlBuildInstrumentedTest {
         SecondaryResultStorage.save(
             context,
             SecondaryResultStorage.create(
-                context, report.id, SecondaryKind.SUMMARIZE, TestProvider.ID, TestProvider.MODEL, "OpenAI / gpt-test"
-            ).copy(content = "the summary")
+                context, report.id, SecondaryKind.META, TestProvider.ID, TestProvider.MODEL, "OpenAI / gpt-test"
+            ).copy(content = "the summary", metaPromptName = "Summary")
         )
 
         val bytes = buildZippedHtmlBytes(context, ReportStorage.getReport(context, report.id)!!)
@@ -82,12 +82,14 @@ class ZippedHtmlBuildInstrumentedTest {
 
         // Without translations the zip still contains exactly one
         // language directory ("original/"); the user-facing root index
-        // sits at the top alongside style.css.
+        // sits at the top alongside style.css. Meta sections are now
+        // bucketed by user-given prompt name — a row with
+        // metaPromptName="Summary" lives under original/Summary/.
         assertThat(entries).contains("style.css")
         assertThat(entries).contains("index.html")
         assertThat(entries).contains("original/index.html")
         assertThat(entries).contains("original/Reports/index.html")
-        assertThat(entries).contains("original/Summaries/index.html")
+        assertThat(entries).contains("original/Summary/index.html")
         assertThat(entries).contains("original/Prompt/index.html")
         assertThat(entries).contains("original/Costs/index.html")
         // No JSON section because no traces.
