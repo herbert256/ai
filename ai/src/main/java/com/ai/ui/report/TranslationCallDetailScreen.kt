@@ -123,7 +123,7 @@ internal fun TranslationCallDetailScreen(
                     fontSize = 14.sp, color = AppColors.Blue,
                     fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f))
-                source.traceFilename?.let { tf ->
+                if (ApiTracer.isTracingEnabled) source.traceFilename?.let { tf ->
                     Text("🐞", fontSize = 18.sp,
                         modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
                 }
@@ -134,7 +134,7 @@ internal fun TranslationCallDetailScreen(
                     fontSize = 14.sp, color = AppColors.Green,
                     fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f))
-                translationTraceFilename?.let { tf ->
+                if (ApiTracer.isTracingEnabled) translationTraceFilename?.let { tf ->
                     Text("🐞", fontSize = 18.sp,
                         modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
                 }

@@ -1146,7 +1146,8 @@ private fun ColumnScope.GenerationPhase(
     // whenever the report has an id, so it's always reachable from the
     // top of the screen.
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
-    if (showTotals || currentReportId != null) {
+    val showTraceIcon = ApiTracer.isTracingEnabled && currentReportId != null
+    if (showTotals || showTraceIcon) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1157,7 +1158,7 @@ private fun ColumnScope.GenerationPhase(
             } else {
                 Spacer(modifier = Modifier.weight(1f))
             }
-            if (currentReportId != null) {
+            if (showTraceIcon) {
                 Text("🐞", fontSize = 18.sp,
                     modifier = Modifier.padding(start = 8.dp).clickable { onTrace() })
             }

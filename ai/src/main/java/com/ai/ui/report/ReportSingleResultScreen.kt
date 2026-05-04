@@ -133,7 +133,7 @@ fun ReportSingleResultScreen(
                 fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )
-            if (traceFilename != null) {
+            if (ApiTracer.isTracingEnabled && traceFilename != null) {
                 Text("🐞", fontSize = 18.sp,
                     modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(traceFilename) })
             }

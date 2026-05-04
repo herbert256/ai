@@ -81,9 +81,12 @@ fun HubScreen(
         value = withContext(Dispatchers.IO) { ApiTracer.hasAnyTraceFile() }
     }
 
+    // The AI API Traces card disappears entirely when tracing is off \u2014
+    // adjust the card count so the logo sizing math still works.
+    val tracingEnabled = uiState.generalSettings.tracingEnabled
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
-    val cardCount = 10
+    val cardCount = if (tracingEnabled) 10 else 9
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -107,8 +110,10 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage, enabled = hasStatisticsData)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces, enabled = hasTraces)
-            Spacer(modifier = Modifier.height(12.dp))
+            if (tracingEnabled) {
+                HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces, enabled = hasTraces)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
@@ -688,7 +693,7 @@ fun NewReportScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Prompt flagged by moderation", modifier = Modifier.weight(1f))
-                    if (traceFn != null) {
+                    if (ApiTracer.isTracingEnabled && traceFn != null) {
                         Text("🐞", fontSize = 18.sp,
                             modifier = Modifier
                                 .clickable { onNavigateToTraceFile(traceFn) }

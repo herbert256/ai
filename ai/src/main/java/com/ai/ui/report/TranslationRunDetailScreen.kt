@@ -129,7 +129,7 @@ internal fun TranslationRunDetailScreen(
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            if (translationTraceCount > 0) {
+            if (ApiTracer.isTracingEnabled && translationTraceCount > 0) {
                 Text("🐞", fontSize = 18.sp,
                     modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceList() })
             }

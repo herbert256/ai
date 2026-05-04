@@ -801,7 +801,7 @@ fun ChatSessionScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
-                    if (flagged.traceFilename != null) {
+                    if (ApiTracer.isTracingEnabled && flagged.traceFilename != null) {
                         Text(
                             "🐞", fontSize = 18.sp,
                             modifier = Modifier
@@ -890,9 +890,12 @@ private fun ChatMessageBubble(
                 // 🐞 button — opens the trace for this assistant turn.
                 // Only rendered when a matching trace exists; the lookup
                 // result is null on user messages and on assistant
-                // responses where tracing was off at call time.
+                // responses where tracing was off at call time. Also
+                // suppressed wholesale when API tracing is off in
+                // Settings — old recordings stay on disk but the icons
+                // disappear.
                 val traceFilename = traceFilenameState?.value
-                if (traceFilename != null) {
+                if (ApiTracer.isTracingEnabled && traceFilename != null) {
                     Text(
                         "🐞", fontSize = 14.sp,
                         modifier = Modifier

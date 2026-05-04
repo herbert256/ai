@@ -7,6 +7,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
@@ -444,9 +446,12 @@ private fun SettingsMainScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
 
-    LaunchedEffect(userName, defaultEmail) {
-        val updated = generalSettings.copy(userName = userName, defaultEmail = defaultEmail)
+    LaunchedEffect(userName, defaultEmail, tracingEnabled) {
+        val updated = generalSettings.copy(
+            userName = userName, defaultEmail = defaultEmail, tracingEnabled = tracingEnabled
+        )
         if (updated != generalSettings) onSave(updated)
     }
 
@@ -467,6 +472,26 @@ private fun SettingsMainScreen(
                 label = { Text("Default email address") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors()
             )
+
+            // Master switch for API tracing. Off → no new trace files,
+            // the Hub "AI API Traces" card and every 🐞 ladybug icon in
+            // the result screens disappear.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("API tracing", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
+                        fontSize = 12.sp, color = AppColors.TextSecondary
+                    )
+                }
+                Switch(
+                    checked = tracingEnabled,
+                    onCheckedChange = { tracingEnabled = it }
+                )
+            }
         }
     }
 }

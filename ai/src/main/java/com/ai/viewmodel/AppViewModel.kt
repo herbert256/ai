@@ -33,7 +33,13 @@ data class GeneralSettings(
     /** Default API path per model type. Used when a provider doesn't declare a
      *  per-type override in its typePaths. Falls back to ModelType.DEFAULT_PATHS
      *  when this map is empty for a given type. */
-    val defaultTypePaths: Map<String, String> = emptyMap()
+    val defaultTypePaths: Map<String, String> = emptyMap(),
+    /** Master switch for API tracing. When false, no new traces are
+     *  written, the Hub "AI API Traces" card is hidden, and every 🐞
+     *  ladybug icon disappears from the per-result screens. Mirrored
+     *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
+     *  sites consult a single global. */
+    val tracingEnabled: Boolean = true
 )
 
 // Prompt history entry
@@ -174,6 +180,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     init {
+        // Tracing default is true; the bootstrap below overrides it with
+        // the persisted GeneralSettings.tracingEnabled. Setting it here as
+        // well keeps any pre-bootstrap call (e.g. PricingCache.preloadAsync
+        // on the same launch) consistent with the user's last choice
+        // rather than always recording.
         ApiTracer.isTracingEnabled = true
         PricingCache.preloadAsync(application, viewModelScope)
         viewModelScope.launch(Dispatchers.IO) {
@@ -181,6 +192,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // Publish user-supplied default type paths to the global resolver so dispatch
             // (which doesn't see GeneralSettings directly) can fall back through them.
             ModelType.userDefaults = bs.first.defaultTypePaths
+            ApiTracer.isTracingEnabled = bs.first.tracingEnabled
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -328,6 +340,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateGeneralSettings(settings: GeneralSettings) {
         ModelType.userDefaults = settings.defaultTypePaths
+        ApiTracer.isTracingEnabled = settings.tracingEnabled
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }

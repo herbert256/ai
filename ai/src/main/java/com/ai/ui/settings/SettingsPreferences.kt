@@ -52,7 +52,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             openRouterApiKey = prefs.getString(KEY_OPENROUTER_API_KEY, "") ?: "",
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
-            defaultTypePaths = defaultTypePaths
+            defaultTypePaths = defaultTypePaths,
+            tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true)
         )
     }
 
@@ -64,6 +65,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AA_API_KEY, settings.artificialAnalysisApiKey)
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
+            putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
         }
     }
 
@@ -420,6 +422,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AA_API_KEY = "artificial_analysis_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
+        private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
