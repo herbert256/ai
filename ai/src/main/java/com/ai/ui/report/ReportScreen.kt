@@ -1937,7 +1937,7 @@ private fun CompactButton(
 /** Spinning ⏳ glyph used by the Meta button's in-flight indicator and
  *  any other "secondary run is happening" cue on the report screen. */
 @Composable
-private fun AnimatedHourglass(fontSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
+internal fun AnimatedHourglass(fontSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
     val transition = rememberInfiniteTransition(label = "secondary-hourglass")
     val angle by transition.animateFloat(
         initialValue = 0f, targetValue = 360f,

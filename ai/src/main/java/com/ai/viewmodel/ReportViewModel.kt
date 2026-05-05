@@ -854,28 +854,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }
                     if (sources.isEmpty()) return@launch
-                    val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
+                    // Launch one coroutine per answerer (model) so every L1
+                    // row on the cross detail screen flips to "running"
+                    // immediately. Each per-answerer coroutine processes
+                    // its sources sequentially — that keeps simultaneous
+                    // calls against any single provider's rate limit
+                    // capped at 1, while still letting different
+                    // answerers run in parallel. The 429 retry interceptor
+                    // (com.ai.data.RateLimitRetryInterceptor) handles
+                    // bursts beyond what the provider can sustain.
                     coroutineScope {
-                        successful.flatMap { answerer ->
-                            val provider = AppService.findById(answerer.provider) ?: return@flatMap emptyList()
-                            sources.mapNotNull source@{ source ->
-                                if (source.agentId == answerer.agentId) return@source null
-                                val resolvedBase = resolveSecondaryPrompt(
-                                    metaPrompt.text,
-                                    question = report.prompt,
-                                    results = "",
-                                    count = sources.size,
-                                    title = report.title
-                                )
-                                val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
-                                async {
-                                    sem.withPermit {
-                                        executeSecondaryTask(
-                                            context, reportId, SecondaryKind.META, metaPrompt,
-                                            provider, answerer.model, resolved, aiSettings, report,
-                                            crossSourceAgentId = source.agentId
-                                        )
-                                    }
+                        successful.map { answerer ->
+                            async {
+                                val provider = AppService.findById(answerer.provider) ?: return@async
+                                for (source in sources) {
+                                    if (source.agentId == answerer.agentId) continue
+                                    val resolvedBase = resolveSecondaryPrompt(
+                                        metaPrompt.text,
+                                        question = report.prompt,
+                                        results = "",
+                                        count = sources.size,
+                                        title = report.title
+                                    )
+                                    val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                    executeSecondaryTask(
+                                        context, reportId, SecondaryKind.META, metaPrompt,
+                                        provider, answerer.model, resolved, aiSettings, report,
+                                        crossSourceAgentId = source.agentId
+                                    )
                                 }
                             }
                         }.awaitAll()

@@ -473,7 +473,11 @@ private fun ColumnScope.CrossMetaDrillInView(
                     Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
                 }
                 pairResult.content.isNullOrBlank() -> {
-                    Text("⏳ Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                    }
                 }
                 else -> ContentWithThinkSections(analysis = pairResult.content)
             }
@@ -503,12 +507,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                 val ansModel = parts.getOrNull(1).orEmpty()
                 if (src.provider == ansPid && src.model == ansModel) return@items
                 val pairResult = latestByPair["$answererKey|${src.agentId}"]
-                val statusEmoji = when {
-                    pairResult == null -> "⏳"
-                    pairResult.errorMessage != null -> "❌"
-                    pairResult.content.isNullOrBlank() -> "⏳"
-                    else -> "✅"
-                }
+                val isPending = pairResult == null || (pairResult.errorMessage == null && pairResult.content.isNullOrBlank())
                 val srcProv = AppService.findById(src.provider)?.displayName ?: src.provider
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -516,7 +515,16 @@ private fun ColumnScope.CrossMetaDrillInView(
                         .padding(vertical = 10.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                    Box(
+                        modifier = Modifier.padding(end = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            isPending -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                            pairResult?.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            else -> Text("✅", fontSize = 16.sp)
+                        }
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         Text("$srcProv · ${src.model}", fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -563,24 +571,40 @@ private fun ColumnScope.CrossMetaDrillInView(
             val mdl = parts.getOrNull(1).orEmpty()
             val provName = AppService.findById(pid)?.displayName ?: pid
             // Pair status: count successful / total potential sources
-            // (every other successful agent).
+            // (every other successful agent). Rows with no disk presence
+            // and rows whose placeholder hasn't been filled yet both
+            // count as pending → animated hourglass while > 0.
             val totalSources = successful.count { !(it.provider == pid && it.model == mdl) }
-            val okCount = successful.count { src ->
-                if (src.provider == pid && src.model == mdl) return@count false
+            var okCount = 0
+            var errorCount = 0
+            successful.forEach { src ->
+                if (src.provider == pid && src.model == mdl) return@forEach
                 val res = latestByPair["$ak|${src.agentId}"]
-                res != null && res.errorMessage == null && !res.content.isNullOrBlank()
+                when {
+                    res == null -> Unit // not yet started → pending
+                    res.errorMessage != null -> errorCount++
+                    res.content.isNullOrBlank() -> Unit // placeholder, still running
+                    else -> okCount++
+                }
             }
-            val statusText = "$okCount / $totalSources"
+            val pendingCount = totalSources - okCount - errorCount
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable { selectedAnswererKey = ak }
                     .padding(vertical = 10.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (pendingCount > 0) {
+                    Box(modifier = Modifier.padding(end = 8.dp)) {
+                        com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                    }
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text("$provName · $mdl", fontSize = 14.sp, color = Color.White,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(statusText, fontSize = 11.sp, color = AppColors.TextTertiary,
+                    val errSuffix = if (errorCount > 0) " · ❌ $errorCount" else ""
+                    Text("$okCount / $totalSources$errSuffix",
+                        fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontFamily = FontFamily.Monospace)
                 }
                 Text(">", fontSize = 16.sp, color = AppColors.Blue)
