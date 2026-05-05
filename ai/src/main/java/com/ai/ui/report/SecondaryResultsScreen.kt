@@ -147,7 +147,15 @@ internal fun SecondaryResultsScreen(
     // user-given Meta-prompt name (or the legacy kind label for rows
     // pre-dating the Meta-prompt CRUD). No hardcoded plural labels —
     // the screen is driven entirely by what the bucket button said.
-    val title = nameFilter ?: com.ai.data.legacyKindDisplayName(kind)
+    val baseTitle = nameFilter ?: com.ai.data.legacyKindDisplayName(kind)
+    // Cross runs paint a "Cross level N" title that tracks the drill-in
+    // depth (L1 answerers → L2 sources → L3 split view). The drill-in
+    // reports its current level via onLevelChange below.
+    val crossRowsAll = filteredResults.filter { it.afterCrossOf == null }
+    val isCrossDrillIn = kind == SecondaryKind.META &&
+        crossRowsAll.any { it.crossSourceAgentId != null }
+    var crossLevel by rememberSaveable { mutableIntStateOf(1) }
+    val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
@@ -165,8 +173,8 @@ internal fun SecondaryResultsScreen(
         if (filteredResults.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val msg = if (showLanguagePicker && selectedLanguageName != null)
-                    "No ${title.lowercase()} for $selectedLanguageName yet"
-                else "No ${title.lowercase()} for this report"
+                    "No ${baseTitle.lowercase()} for $selectedLanguageName yet"
+                else "No ${baseTitle.lowercase()} for this report"
                 Text(msg, color = AppColors.TextSecondary, fontSize = 14.sp)
             }
             return@Column
@@ -180,17 +188,17 @@ internal fun SecondaryResultsScreen(
         // not the drill-in itself. Routing branches on the cross rows
         // alone so a lone combined row falls through to the chat-style
         // picker below.
-        val crossRows = filteredResults.filter { it.afterCrossOf == null }
         val combinedRows = filteredResults.filter { it.afterCrossOf != null }
-        if (kind == SecondaryKind.META && crossRows.any { it.crossSourceAgentId != null }) {
+        if (isCrossDrillIn) {
             CrossMetaDrillInView(
                 reportId = reportId,
-                results = crossRows,
+                results = crossRowsAll,
                 combinedRows = combinedRows,
                 afterCrossPrompts = afterCrossPrompts,
                 onRunAfterCross = onRunAfterCross,
                 onDelete = { id -> onDelete(id); refreshTick++ },
-                onNavigateToTraceFile = onNavigateToTraceFile
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onLevelChange = { crossLevel = it }
             )
             return@Column
         }
@@ -369,7 +377,12 @@ private fun ColumnScope.CrossMetaDrillInView(
     afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
-    onNavigateToTraceFile: (String) -> Unit
+    onNavigateToTraceFile: (String) -> Unit,
+    /** Called whenever the drill-in level changes (1 = answerers list,
+     *  2 = sources list for the chosen answerer, 3 = source/factcheck
+     *  split view). Lets the parent screen reflect the depth in its
+     *  TitleBar — "Cross level 1/2/3". */
+    onLevelChange: (Int) -> Unit = {}
 ) {
     val context = LocalContext.current
     // Load the parent report once so L1 / L2 can label rows by the
@@ -403,6 +416,15 @@ private fun ColumnScope.CrossMetaDrillInView(
 
     var selectedAnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedSourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Publish the current depth to the parent so its TitleBar reads
+    // "Cross level 1/2/3". Re-fires whenever either selection state
+    // flips (drill-in or back-pop).
+    val currentLevel = when {
+        selectedSourceAgentId != null && selectedAnswererKey != null -> 3
+        selectedAnswererKey != null -> 2
+        else -> 1
+    }
+    LaunchedEffect(currentLevel) { onLevelChange(currentLevel) }
 
     BackHandler(enabled = selectedSourceAgentId != null) { selectedSourceAgentId = null }
     BackHandler(enabled = selectedAnswererKey != null && selectedSourceAgentId == null) {
