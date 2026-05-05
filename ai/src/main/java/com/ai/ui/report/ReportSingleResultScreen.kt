@@ -59,6 +59,26 @@ fun ReportSingleResultScreen(
      *  (provider → model → params → session). */
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
+    var showContinuePicker by remember { mutableStateOf(false) }
+    if (showContinuePicker) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = {
+                showContinuePicker = false
+                onContinueWithCurrent(reportId, agentId)
+            },
+            onPickAgentPicker = {
+                showContinuePicker = false
+                onContinueWithAgentPicker(reportId, agentId)
+            },
+            onPickOnTheFly = {
+                showContinuePicker = false
+                onContinueWithOnTheFly(reportId, agentId)
+            },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
     BackHandler { onBack() }
     val context = LocalContext.current
     // Loaded asynchronously: getReport reads + parses the report JSON
@@ -232,41 +252,17 @@ fun ReportSingleResultScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("Call model API again", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            // "Continue in chat ..." card — three follow-up flows.
-            // Disabled when the response is empty / errored since
-            // there's nothing meaningful to seed any of them with.
+            // "Continue in chat" — opens an overlay picker with the
+            // three follow-up flows. Disabled when the response is
+            // empty / errored since there's nothing meaningful to seed
+            // any of them with.
             val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
-            Card(
+            Button(
+                onClick = { showContinuePicker = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-                    Text(
-                        "💬 Continue in chat ...",
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        color = AppColors.TextSecondary,
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    )
-                    ContinueRow(
-                        icon = "📜",
-                        title = "... with current history and model",
-                        enabled = canContinueInChat,
-                        onClick = { onContinueWithCurrent(reportId, agentId) }
-                    )
-                    ContinueRow(
-                        icon = "🤖",
-                        title = "... with this response only and select an agent",
-                        enabled = canContinueInChat,
-                        onClick = { onContinueWithAgentPicker(reportId, agentId) }
-                    )
-                    ContinueRow(
-                        icon = "🛠️",
-                        title = "... with this response only and configure on the fly",
-                        enabled = canContinueInChat,
-                        onClick = { onContinueWithOnTheFly(reportId, agentId) }
-                    )
-                }
-            }
+                enabled = canContinueInChat,
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) { Text("💬 Continue in chat", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
 
@@ -293,6 +289,52 @@ fun ReportSingleResultScreen(
                 }
             }
         )
+    }
+}
+
+/** Full-screen overlay picker for the three "Continue in chat …" flows
+ *  (current history & model / agent picker / configure on the fly).
+ *  Replaces the inline three-row card on [ReportSingleResultScreen] —
+ *  one tap opens this, second tap on a row navigates to the chat
+ *  flow. Mirrors the project's full-screen overlay pattern: invoked
+ *  from the parent via early-return so the parent's remember state
+ *  survives the round-trip. */
+@Composable
+private fun ContinueInChatPickerScreen(
+    onPickCurrent: () -> Unit,
+    onPickAgentPicker: () -> Unit,
+    onPickOnTheFly: () -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TitleBar(title = "Continue in chat", onBackClick = onBack, onAiClick = onNavigateHome)
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                "Pick how you want to continue in chat:",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            ContinueRow(
+                icon = "📜",
+                title = "with current history and model",
+                enabled = true,
+                onClick = onPickCurrent
+            )
+            ContinueRow(
+                icon = "🤖",
+                title = "with this response only and select an agent",
+                enabled = true,
+                onClick = onPickAgentPicker
+            )
+            ContinueRow(
+                icon = "🛠️",
+                title = "with this response only and configure on the fly",
+                enabled = true,
+                onClick = onPickOnTheFly
+            )
+        }
     }
 }
 
