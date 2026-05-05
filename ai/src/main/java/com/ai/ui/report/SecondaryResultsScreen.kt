@@ -594,9 +594,18 @@ private fun ColumnScope.CrossMetaDrillInView(
                     .padding(vertical = 10.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (pendingCount > 0) {
-                    Box(modifier = Modifier.padding(end = 8.dp)) {
-                        com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                // Status icon: spinning hourglass while any pair is still
+                // pending; ❌ once finished if any pair errored; ✅ when
+                // every pair resolved successfully. Same precedence as
+                // the cross-meta summary row on ReportScreen.
+                Box(
+                    modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    when {
+                        pendingCount > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                        errorCount > 0 -> Text("❌", fontSize = 16.sp)
+                        else -> Text("✅", fontSize = 16.sp)
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
