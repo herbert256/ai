@@ -837,6 +837,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val PREFS_NAME = "eval_prefs"
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val REPORT_CONCURRENCY_LIMIT = 4
+        /** Per-provider concurrency cap for cross-meta runs. Each
+         *  provider gets at most this many simultaneous requests in
+         *  flight; different providers run their own caps in parallel.
+         *  A 6-report cross run on 6 different providers therefore
+         *  runs up to 6 × CROSS_PER_PROVIDER_LIMIT calls concurrently. */
+        internal const val CROSS_PER_PROVIDER_LIMIT = 3
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)

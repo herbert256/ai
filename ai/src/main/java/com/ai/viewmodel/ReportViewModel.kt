@@ -880,20 +880,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             pending.add(PendingPair(answerer, source, placeholder))
                         }
                     }
-                    // Launch one coroutine per answerer so every L1 row
-                    // on the cross detail screen flips to "running"
-                    // immediately. Each per-answerer coroutine processes
-                    // its sources sequentially — that keeps simultaneous
-                    // calls against any single provider's rate limit
-                    // capped at 1, while still letting different
-                    // answerers run in parallel. The 429 retry interceptor
-                    // (com.ai.data.RateLimitRetryInterceptor) handles
-                    // bursts beyond what the provider can sustain.
+                    // Launch one coroutine per pair, gated by a
+                    // per-provider Semaphore(CROSS_PER_PROVIDER_LIMIT=3).
+                    // 6 reports on 6 different providers therefore run
+                    // up to 6 × 3 = 18 calls concurrently; pairs sharing
+                    // a provider queue behind that provider's 3-slot
+                    // window. Per-pair coroutines (rather than the older
+                    // per-answerer sequential loop) let us saturate any
+                    // single provider with concurrent same-model calls
+                    // when the report has multiple agents from one host.
+                    val semByProvider = pending
+                        .map { it.answerer.provider }
+                        .toSet()
+                        .associateWith { Semaphore(AppViewModel.CROSS_PER_PROVIDER_LIMIT) }
                     coroutineScope {
-                        pending.groupBy { it.answerer.agentId }.values.map { perAnswerer ->
+                        pending.map { item ->
                             async {
-                                val provider = AppService.findById(perAnswerer.first().answerer.provider) ?: return@async
-                                for (item in perAnswerer) {
+                                val provider = AppService.findById(item.answerer.provider) ?: return@async
+                                val sem = semByProvider[item.answerer.provider] ?: return@async
+                                sem.withPermit {
                                     val resolvedBase = resolveSecondaryPrompt(
                                         metaPrompt.text,
                                         question = report.prompt,
