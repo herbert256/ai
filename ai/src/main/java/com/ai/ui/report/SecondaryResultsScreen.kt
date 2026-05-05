@@ -57,7 +57,9 @@ internal fun SecondaryResultsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
-    var openId by remember { mutableStateOf<String?>(null) }
+    // rememberSaveable so the user can drill into a row, jump out to a
+    // trace, and return to the same row instead of the list root.
+    var openId by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(isBatching) {
         while (isBatching) {
             delay(500)

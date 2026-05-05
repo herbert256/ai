@@ -429,9 +429,11 @@ fun ReportsScreen(
     // card buttons. The kind is still useful for routing through
     // SecondaryResultsScreen (rendering picks the chat-type META path
     // vs the structured RERANK / MODERATION / TRANSLATE branches), so
-    // we carry both.
-    var listKind by remember { mutableStateOf<SecondaryKind?>(null) }
-    var listFilterByName by remember { mutableStateOf<String?>(null) }
+    // we carry both. rememberSaveable so navigating away (e.g. tapping
+    // a 🐞 → trace detail) and popping back lands on the same list,
+    // not the top of the report screen.
+    var listKind by rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
+    var listFilterByName by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
