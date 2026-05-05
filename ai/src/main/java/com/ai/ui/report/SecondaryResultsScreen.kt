@@ -26,6 +26,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -497,6 +498,26 @@ private fun ColumnScope.CrossMetaDrillInView(
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
         Text("Pick the source whose response you want to read.",
             fontSize = 11.sp, color = AppColors.TextTertiary)
+        // Total cost across this answerer's pairs.
+        val totalSourcesCost = remember(latestByPair, answererKey, successful) {
+            val parts = answererKey.split("|")
+            val ansPid = parts.getOrNull(0).orEmpty()
+            val ansModel = parts.getOrNull(1).orEmpty()
+            successful.sumOf { src ->
+                if (src.provider == ansPid && src.model == ansModel) 0.0
+                else latestByPair["$answererKey|${src.agentId}"]
+                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+            }
+        }
+        if (totalSourcesCost > 0.0) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Total", fontSize = 12.sp, color = AppColors.Blue,
+                    modifier = Modifier.weight(1f))
+                Text("${formatCents(totalSourcesCost)} ¢", fontSize = 12.sp,
+                    color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(successful, key = { it.agentId }) { src ->
@@ -528,6 +549,12 @@ private fun ColumnScope.CrossMetaDrillInView(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("$srcProv · ${src.model}", fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val pairCost = pairResult?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+                    if (pairCost > 0.0) {
+                        Text(formatCents(pairCost), fontSize = 11.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(end = 8.dp))
                     }
                     Text(">", fontSize = 16.sp, color = AppColors.Blue)
                 }
@@ -563,6 +590,23 @@ private fun ColumnScope.CrossMetaDrillInView(
     }
     Text("Pick the answerer (the model that produced the factcheck).",
         fontSize = 11.sp, color = AppColors.TextTertiary)
+    // Total cost across every pair (and the optional combine row,
+    // which lives in combinedRows). Mirrors the totals banner on the
+    // Report Result screen so the user sees the cross run's billable
+    // spend at the top.
+    val totalAnswerersCost = remember(latestByPair, combinedRows) {
+        latestByPair.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } +
+            combinedRows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+    }
+    if (totalAnswerersCost > 0.0) {
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Total", fontSize = 12.sp, color = AppColors.Blue,
+                modifier = Modifier.weight(1f))
+            Text("${formatCents(totalAnswerersCost)} ¢", fontSize = 12.sp,
+                color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+        }
+    }
     Spacer(modifier = Modifier.height(8.dp))
     LazyColumn(modifier = Modifier.weight(1f)) {
         items(answererKeys, key = { it }) { ak ->
@@ -588,6 +632,14 @@ private fun ColumnScope.CrossMetaDrillInView(
                 }
             }
             val pendingCount = totalSources - okCount - errorCount
+            // Sum the per-pair cost for this answerer across every
+            // source — surfaced inline so the user can see which model
+            // is driving the cross run's spend.
+            val rowCost = successful.sumOf { src ->
+                if (src.provider == pid && src.model == mdl) 0.0
+                else latestByPair["$ak|${src.agentId}"]
+                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+            }
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable { selectedAnswererKey = ak }
@@ -615,6 +667,11 @@ private fun ColumnScope.CrossMetaDrillInView(
                     Text("$okCount / $totalSources$errSuffix",
                         fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontFamily = FontFamily.Monospace)
+                }
+                if (rowCost > 0.0) {
+                    Text(formatCents(rowCost), fontSize = 11.sp,
+                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(end = 8.dp))
                 }
                 Text(">", fontSize = 16.sp, color = AppColors.Blue)
             }
