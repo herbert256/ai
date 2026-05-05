@@ -597,16 +597,54 @@ private fun ColumnScope.CrossMetaDrillInView(
         CombinedPreviewCard(latestCombined)
         Spacer(modifier = Modifier.height(8.dp))
     }
-    if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
-        Button(
-            onClick = { onRunAfterCross() },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) {
-            Text("Combine reports and all cross responses",
-                fontSize = 13.sp, maxLines = 1, softWrap = false)
+    // Bulk-delete the whole cross run — every per-pair factcheck plus
+    // any combine-reports follow-up. Confirmed via the dialog below
+    // since this drops a lot of work in one tap.
+    var confirmCrossDelete by remember { mutableStateOf(false) }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+            Button(
+                onClick = { onRunAfterCross() },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) {
+                Text("Combine reports and all cross responses",
+                    fontSize = 13.sp, maxLines = 1, softWrap = false)
+            }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = { confirmCrossDelete = true },
+            modifier = if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) Modifier else Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+        ) {
+            Text("Delete", fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    if (confirmCrossDelete) {
+        val totalRows = results.size + combinedRows.size
+        AlertDialog(
+            onDismissRequest = { confirmCrossDelete = false },
+            title = { Text("Delete cross run?") },
+            text = {
+                Text(
+                    "Drop every per-pair factcheck for this cross run" +
+                        (if (combinedRows.isNotEmpty()) " plus the combined-report follow-up" else "") +
+                        " — $totalRows rows. Can't be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCrossDelete = false
+                    (results + combinedRows).forEach { onDelete(it.id) }
+                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCrossDelete = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
     Text("Pick the answerer (the model that produced the factcheck).",
         fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -698,9 +736,6 @@ private fun ColumnScope.CrossMetaDrillInView(
             HorizontalDivider(color = AppColors.DividerDark)
         }
     }
-    // onDelete is reserved for a future bulk-delete affordance on
-    // the cross drill-in; not surfaced yet.
-    @Suppress("UNUSED_EXPRESSION") onDelete
 }
 
 /** Inline preview of the latest after_cross combined-report row,
