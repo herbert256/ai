@@ -304,20 +304,22 @@ fun ReportsScreen(
         suspend fun reload() {
             withContext(Dispatchers.IO) {
                 val all = SecondaryResultStorage.listForReport(context, rid)
-                // Cross-meta rows (the per-(answerer, source) factchecks plus the
-                // optional after_cross combine-reports row) collapse into a
-                // single summary row per Meta-prompt, mirroring how Translation
-                // collapses N per-call rows. They're filtered out of
-                // secondaryRuns so they don't render twice.
+                // Cross-meta pair rows (N×(M-1) per-(answerer, source)
+                // factchecks) collapse into a single summary row per
+                // cross prompt, mirroring how Translation collapses N
+                // per-call rows. After_cross combine-reports rows do
+                // NOT fold — each run is a standalone meta call so it
+                // keeps its own row in secondaryRuns alongside Compare /
+                // Summarize / etc.
                 secondaryRuns = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
-                    .filter { it.crossSourceAgentId == null && it.afterCrossOf == null }
+                    .filter { it.crossSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translationRunSummaries = buildTranslationRunSummaries(
                     all.filter { it.kind == SecondaryKind.TRANSLATE }
                 )
                 crossMetaSummaries = buildCrossMetaSummaries(
-                    all.filter { it.crossSourceAgentId != null || it.afterCrossOf != null }
+                    all.filter { it.crossSourceAgentId != null }
                 )
                 secondaryCounts = SecondaryResultStorage.countForReport(context, rid)
                 // Totals span every persisted secondary including
@@ -1562,11 +1564,10 @@ private fun ColumnScope.GenerationPhase(
                         else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
                     RowTypeCell("cross")
-                    val combinedSuffix = if (run.hasAfterCross) " · combined" else ""
                     val pendingSuffix = if (run.pendingCount > 0) " · ${run.pendingCount} pending" else ""
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            "${run.metaPromptName} · ${run.pairCount} pairs$combinedSuffix$pendingSuffix",
+                            "${run.metaPromptName} · ${run.pairCount} pairs$pendingSuffix",
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -1870,9 +1871,8 @@ private data class TranslationRunSummary(
 
 /** Single synthetic row for the agent list per cross-style Meta run. A
  *  cross click produces N×(M-1) per-pair factchecks (kind=META,
- *  crossSourceAgentId set) plus an optional combine-reports follow-up
- *  (kind=META, afterCrossOf set); collapsing them here keeps the result
- *  list at one line per user-initiated cross run, mirroring how
+ *  crossSourceAgentId set); collapsing them here keeps the result list
+ *  at one line per user-initiated cross run, mirroring how
  *  [TranslationRunSummary] collapses Translate's per-call rows. */
 private data class CrossMetaRunSummary(
     /** Meta-prompt display name — used both as the row label and as the
@@ -1886,38 +1886,29 @@ private data class CrossMetaRunSummary(
     val pendingCount: Int,
     val errorCount: Int,
     val totalCost: Double,
-    /** Whether the optional after_cross combine-reports row exists for
-     *  this prompt — surfaces "· combined" on the row label. */
-    val hasAfterCross: Boolean,
     /** Latest timestamp across the run; used to sort against the other
      *  meta rows. */
     val timestamp: Long
 )
 
-/** Group cross-meta + after_cross rows by Meta-prompt name. Pairs share
- *  a name with their combine-reports follow-up, so both fold into the
- *  same summary; the [CrossMetaRunSummary.hasAfterCross] flag records
- *  whether the combine row exists. Legacy rows missing `metaPromptName`
- *  fall back to `metaPromptId` to keep them grouped. */
+/** Group cross-meta pair rows by Meta-prompt name. After_cross rows are
+ *  excluded by the caller — each is its own row in secondaryRuns since
+ *  there's nothing to fold (one click → one row). Legacy rows missing
+ *  `metaPromptName` fall back to `metaPromptId` to keep them grouped. */
 private fun buildCrossMetaSummaries(rows: List<com.ai.data.SecondaryResult>): List<CrossMetaRunSummary> {
     if (rows.isEmpty()) return emptyList()
     return rows
         .groupBy { it.metaPromptName?.takeIf { n -> n.isNotBlank() } ?: (it.metaPromptId ?: "") }
         .filterKeys { it.isNotBlank() }
         .map { (name, items) ->
-            val pairs = items.filter { it.crossSourceAgentId != null }
-            val combined = items.filter { it.afterCrossOf != null }
-            val pending = (pairs + combined).count {
-                it.content.isNullOrBlank() && it.errorMessage == null
-            }
+            val pending = items.count { it.content.isNullOrBlank() && it.errorMessage == null }
             CrossMetaRunSummary(
                 metaPromptName = name,
                 kind = SecondaryKind.META,
-                pairCount = pairs.size,
+                pairCount = items.size,
                 pendingCount = pending,
-                errorCount = (pairs + combined).count { it.errorMessage != null },
+                errorCount = items.count { it.errorMessage != null },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
-                hasAfterCross = combined.isNotEmpty(),
                 timestamp = items.maxOf { it.timestamp }
             )
         }
