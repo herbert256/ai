@@ -673,8 +673,20 @@ fun ReportsScreen(
                             fontSize = 13.sp, color = AppColors.TextSecondary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        // Reports = answerers (one cross call per report-model);
+                        // responses per report = pairs ÷ reports (skips each
+                        // answerer's own response, so AllReports yields N-1).
+                        // Falls back to a flat "N calls" line when scope is
+                        // uneven enough that the grid math doesn't divide
+                        // cleanly.
+                        val gridText = if (counts.answerers > 0 && counts.pairs % counts.answerers == 0) {
+                            val perReport = counts.pairs / counts.answerers
+                            "${counts.answerers} report${if (counts.answerers == 1) "" else "s"} × $perReport response${if (perReport == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+                        } else {
+                            "${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+                        }
                         Text(
-                            "${counts.answerers} answerer${if (counts.answerers == 1) "" else "s"} × ${counts.sources} source${if (counts.sources == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}",
+                            gridText,
                             fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                             fontFamily = FontFamily.Monospace
                         )
