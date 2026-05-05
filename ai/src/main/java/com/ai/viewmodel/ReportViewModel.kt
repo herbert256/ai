@@ -854,8 +854,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }
                     if (sources.isEmpty()) return@launch
-                    // Launch one coroutine per answerer (model) so every L1
-                    // row on the cross detail screen flips to "running"
+                    // Pre-create every (answerer, source) placeholder
+                    // up-front so the Report Result screen's cross
+                    // summary row and the cross detail screen's L1/L2
+                    // counts read the *full* expected work immediately
+                    // (e.g. "30 pairs · 30 pending" for 6×5) and tick
+                    // down as calls complete — instead of waking up
+                    // with "6 pairs · 6 pending" because only the first
+                    // source per answerer had been seeded.
+                    data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
+                    val pending = mutableListOf<PendingPair>()
+                    for (answerer in successful) {
+                        val provider = AppService.findById(answerer.provider) ?: continue
+                        for (source in sources) {
+                            if (source.agentId == answerer.agentId) continue
+                            val agentName = "${provider.displayName} / ${answerer.model}"
+                            val placeholder = SecondaryResultStorage.create(
+                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
+                            ).copy(
+                                metaPromptId = metaPrompt.id,
+                                metaPromptName = metaPrompt.name,
+                                crossSourceAgentId = source.agentId
+                            )
+                            SecondaryResultStorage.save(context, placeholder)
+                            pending.add(PendingPair(answerer, source, placeholder))
+                        }
+                    }
+                    // Launch one coroutine per answerer so every L1 row
+                    // on the cross detail screen flips to "running"
                     // immediately. Each per-answerer coroutine processes
                     // its sources sequentially — that keeps simultaneous
                     // calls against any single provider's rate limit
@@ -864,11 +890,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // (com.ai.data.RateLimitRetryInterceptor) handles
                     // bursts beyond what the provider can sustain.
                     coroutineScope {
-                        successful.map { answerer ->
+                        pending.groupBy { it.answerer.agentId }.values.map { perAnswerer ->
                             async {
-                                val provider = AppService.findById(answerer.provider) ?: return@async
-                                for (source in sources) {
-                                    if (source.agentId == answerer.agentId) continue
+                                val provider = AppService.findById(perAnswerer.first().answerer.provider) ?: return@async
+                                for (item in perAnswerer) {
                                     val resolvedBase = resolveSecondaryPrompt(
                                         metaPrompt.text,
                                         question = report.prompt,
@@ -876,11 +901,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         count = sources.size,
                                         title = report.title
                                     )
-                                    val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                    val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
                                     executeSecondaryTask(
                                         context, reportId, SecondaryKind.META, metaPrompt,
-                                        provider, answerer.model, resolved, aiSettings, report,
-                                        crossSourceAgentId = source.agentId
+                                        provider, item.answerer.model, resolved, aiSettings, report,
+                                        crossSourceAgentId = item.source.agentId,
+                                        existingPlaceholder = item.placeholder
                                     )
                                 }
                             }
@@ -1147,21 +1173,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguageNative: String? = null,
         referenceLegend: String? = null,
         crossSourceAgentId: String? = null,
-        afterCrossOf: String? = null
+        afterCrossOf: String? = null,
+        /** Optional pre-created placeholder. When the caller has staged
+         *  a row up-front (cross-meta does this so all N×(M-1) pair
+         *  rows surface as ⏳ on the cross detail screen the moment the
+         *  run starts) we run against that row instead of creating a
+         *  fresh one — otherwise the placeholder duplicates and the
+         *  pre-created row never gets a result. */
+        existingPlaceholder: SecondaryResult? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.displayName} / $model$langSuffix"
-        val placeholder = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
-            .copy(
-                targetLanguage = targetLanguage,
-                targetLanguageNative = targetLanguageNative,
-                metaPromptId = metaPrompt.id,
-                metaPromptName = metaPrompt.name,
-                crossSourceAgentId = crossSourceAgentId,
-                afterCrossOf = afterCrossOf
-            )
-        SecondaryResultStorage.save(context, placeholder)
+        val placeholder = existingPlaceholder ?: run {
+            val fresh = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
+                .copy(
+                    targetLanguage = targetLanguage,
+                    targetLanguageNative = targetLanguageNative,
+                    metaPromptId = metaPrompt.id,
+                    metaPromptName = metaPrompt.name,
+                    crossSourceAgentId = crossSourceAgentId,
+                    afterCrossOf = afterCrossOf
+                )
+            SecondaryResultStorage.save(context, fresh)
+            fresh
+        }
 
         // Moderation runs through the dedicated /v1/moderations
         // endpoint — one batch call classifying every report response.
