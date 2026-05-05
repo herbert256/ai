@@ -75,6 +75,17 @@ internal fun SecondaryResultsScreen(
             }
         }
     }
+    // After_cross rows on this report regardless of nameFilter — the
+    // filter targets the cross prompt's name, but after_cross rows
+    // carry the (different) after_cross prompt's name. Loaded
+    // unconditionally so the cross detail screen can list every
+    // combine-reports follow-up that this report has spawned.
+    val afterCrossRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                .filter { it.afterCrossOf != null }
+        }
+    }
     // TRANSLATE rows on this report — drives the language picker for
     // chat-type META views. Languages not seen on TRANSLATE rows never
     // get a tab even if a per-language batch row exists, since the
@@ -128,7 +139,9 @@ internal fun SecondaryResultsScreen(
         perLang + overlaid
     }
 
-    val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
+    val openResult = openId?.let { id ->
+        results.firstOrNull { it.id == id } ?: afterCrossRows.firstOrNull { it.id == id }
+    }
     if (openResult != null) {
         SecondaryResultDetailScreen(
             result = openResult,
@@ -182,21 +195,19 @@ internal fun SecondaryResultsScreen(
 
         // Cross-type META: every cross row carries a crossSourceAgentId
         // pointing at the source whose response was factchecked. The
-        // L1 → L2 → L3 drill-in below replaces the flat picker. Rows
-        // tagged afterCrossOf are the after_cross combined output —
-        // they hand off to the inline preview inside CrossMetaDrillInView,
-        // not the drill-in itself. Routing branches on the cross rows
-        // alone so a lone combined row falls through to the chat-style
-        // picker below.
-        val combinedRows = filteredResults.filter { it.afterCrossOf != null }
+        // L1 → L2 → L3 drill-in below replaces the flat picker. The
+        // after_cross combine-reports rows live in afterCrossRows
+        // (loaded unconditionally above so the nameFilter doesn't hide
+        // them) and surface as the second list above the answerers.
         if (isCrossDrillIn) {
             CrossMetaDrillInView(
                 reportId = reportId,
                 results = crossRowsAll,
-                combinedRows = combinedRows,
+                combinedRows = afterCrossRows,
                 afterCrossPrompts = afterCrossPrompts,
                 onRunAfterCross = onRunAfterCross,
                 onDelete = { id -> onDelete(id); refreshTick++ },
+                onOpen = { id -> openId = id },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onLevelChange = { crossLevel = it }
             )
@@ -377,6 +388,10 @@ private fun ColumnScope.CrossMetaDrillInView(
     afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
+    /** Open a SecondaryResultDetailScreen for the given row id. Used by
+     *  the combined-reports list above the answerers — tapping a row
+     *  pops out the full content + delete / model / trace controls. */
+    onOpen: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit,
     /** Called whenever the drill-in level changes (1 = answerers list,
      *  2 = sources list for the chosen answerer, 3 = source/factcheck
@@ -614,11 +629,6 @@ private fun ColumnScope.CrossMetaDrillInView(
         // list stays full even when some pairs haven't run yet.
         successful.map { "${it.provider}|${it.model}" }.distinct()
     }
-    val latestCombined = remember(combinedRows) { combinedRows.maxByOrNull { it.timestamp } }
-    if (latestCombined != null) {
-        CombinedPreviewCard(latestCombined)
-        Spacer(modifier = Modifier.height(8.dp))
-    }
     // Bulk-delete the whole cross run — every per-pair factcheck plus
     // any combine-reports follow-up. Confirmed via the dialog below
     // since this drops a lot of work in one tap.
@@ -689,6 +699,61 @@ private fun ColumnScope.CrossMetaDrillInView(
     }
     Spacer(modifier = Modifier.height(8.dp))
     LazyColumn(modifier = Modifier.weight(1f)) {
+        // After_cross combine-reports follow-ups for this report. One
+        // row per run with the same status / cost grammar as the
+        // answerer list below so the L1 screen reads as two stacked
+        // lists. Tap → SecondaryResultDetailScreen (via onOpen).
+        if (combinedRows.isNotEmpty()) {
+            item(key = "ac-header") {
+                Text("Combined reports", fontSize = 12.sp,
+                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp))
+            }
+            val sortedCombined = combinedRows.sortedByDescending { it.timestamp }
+            items(sortedCombined, key = { "ac-${it.id}" }) { r ->
+                val acProv = AppService.findById(r.providerId)?.displayName ?: r.providerId
+                val acCost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+                val acLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onOpen(r.id) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            r.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            r.content.isNullOrBlank() -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                            else -> Text("✅", fontSize = 16.sp)
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("$acProv · ${r.model}", fontSize = 14.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (acLabel != null) {
+                            Text(acLabel, fontSize = 11.sp, color = AppColors.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (acCost > 0.0) {
+                        Text(formatCents(acCost), fontSize = 11.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(end = 8.dp))
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
+                HorizontalDivider(color = AppColors.DividerDark)
+            }
+            item(key = "ac-section-gap") {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Answerers", fontSize = 12.sp,
+                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp))
+            }
+        }
         items(answererKeys, key = { it }) { ak ->
             val parts = ak.split("|")
             val pid = parts.getOrNull(0).orEmpty()
@@ -756,37 +821,6 @@ private fun ColumnScope.CrossMetaDrillInView(
                 Text(">", fontSize = 16.sp, color = AppColors.Blue)
             }
             HorizontalDivider(color = AppColors.DividerDark)
-        }
-    }
-}
-
-/** Inline preview of the latest after_cross combined-report row,
- *  rendered above the L1 answerers list on the cross detail screen.
- *  Shows the same provider/model header + body that
- *  SecondaryResultDetailScreen does, just inline. Status placeholders
- *  match the L3 split view styling. */
-@Composable
-private fun CombinedPreviewCard(r: SecondaryResult) {
-    val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
-    val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text("Combined report", fontSize = 13.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold)
-            Text("$provider · ${r.model}", fontSize = 12.sp, color = AppColors.Blue,
-                fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
-            Spacer(modifier = Modifier.height(6.dp))
-            when {
-                r.errorMessage != null -> Text("❌ ${r.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
-                r.content.isNullOrBlank() -> Text("⏳ Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
-                else -> Box(modifier = Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
-                    ContentWithThinkSections(analysis = r.content)
-                }
-            }
         }
     }
 }
