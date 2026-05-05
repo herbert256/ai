@@ -435,7 +435,27 @@ private fun ColumnScope.CrossMetaDrillInView(
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
         ) {
-            Text("Source response", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Source response", fontSize = 13.sp, color = AppColors.Blue,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                // 🐞 → trace of the report-model call that produced the
+                // source response. Latest trace for (reportId, sourceAgent.model)
+                // — same lookup the per-row 🐞 on ReportScreen uses.
+                val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
+                    value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == reportId && it.model == sourceAgent.model }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                }
+                val srcTrace = srcTraceState.value
+                if (ApiTracer.isTracingEnabled && srcTrace != null) {
+                    Text("🐞", fontSize = 16.sp,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onNavigateToTraceFile(srcTrace) })
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             val srcBody = sourceAgent?.responseBody
             if (srcBody.isNullOrBlank()) {
