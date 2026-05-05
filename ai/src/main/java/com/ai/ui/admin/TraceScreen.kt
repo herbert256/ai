@@ -130,6 +130,22 @@ fun TraceListScreen(
             .filter { t -> selectedModel == null || t.model == selectedModel }
             .filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
     }
+    // Auto-collapse: when a 🐞 link lands here with preset filters
+    // (reportId / category / model) and the resulting list has exactly
+    // one entry, jump straight into that trace's detail view — saves
+    // the user a redundant tap on a list of one. The rememberSaveable
+    // flag survives the back-pop from the detail, so popping back drops
+    // the user on the list (with its one entry) rather than re-firing
+    // the auto-navigation. Only triggers on the initial load:
+    // narrowing manually to one row via the filter dropdowns is a
+    // user-driven slice and they may want to keep tweaking.
+    var autoSelected by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(allTraceFiles, traceFiles) {
+        if (!autoSelected && allTraceFiles.isNotEmpty() && traceFiles.size == 1) {
+            autoSelected = true
+            onSelectTrace(traceFiles[0].filename)
+        }
+    }
     val errorCount = remember(allTraceFiles) {
         allTraceFiles.count { it.statusCode == 0 || it.statusCode >= 400 }
     }
