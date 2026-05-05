@@ -418,6 +418,9 @@ fun ReportsScreen(
     // After_cross run model picker. Triggered from the cross detail
     // screen's "Combine reports and all cross responses" button.
     var afterCrossPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    // First step of the after_cross flow: pick which after_cross prompt
+    // to run. Once chosen we hand off to afterCrossPickerPrompt above.
+    var showAfterCrossPromptPicker by remember { mutableStateOf(false) }
     // Unified Meta screen overlay reached from the Actions card.
     var showMetaScreen by remember { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
@@ -848,7 +851,10 @@ fun ReportsScreen(
             isBatching = uiState.activeSecondaryBatches > 0,
             afterCrossPrompts = afterCrossList,
             onRunAfterCross = if (afterCrossList.isNotEmpty()) {
-                { afterCrossPickerPrompt = afterCrossList.first() }
+                {
+                    if (afterCrossList.size == 1) afterCrossPickerPrompt = afterCrossList.first()
+                    else showAfterCrossPromptPicker = true
+                }
             } else null,
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBack = { listKind = null; listFilterByName = null },
@@ -856,6 +862,42 @@ fun ReportsScreen(
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo
         )
+        if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
+            AlertDialog(
+                onDismissRequest = { showAfterCrossPromptPicker = false },
+                title = { Text("Select prompt") },
+                text = {
+                    Column {
+                        afterCrossList.forEach { prompt ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showAfterCrossPromptPicker = false
+                                        afterCrossPickerPrompt = prompt
+                                    }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp)
+                            ) {
+                                Text(
+                                    prompt.name,
+                                    fontSize = 14.sp,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showAfterCrossPromptPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
         return
     }
 
