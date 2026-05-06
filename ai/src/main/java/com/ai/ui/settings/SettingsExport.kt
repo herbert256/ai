@@ -152,7 +152,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         val cat = (e.category as String?)?.takeIf { it.isNotBlank() } ?: "meta"
         @Suppress("USELESS_CAST")
         val ag = (e.agent as String?)?.takeIf { it.isNotBlank() } ?: "*select"
-        InternalPrompt(e.id, e.name, e.type, e.reference, cat, ag, e.text)
+        InternalPrompt(e.id, e.name, e.type, e.reference, cat, ag, e.text, e.title)
     }
     // Fold legacy v11-v22 introPrompt / modelInfoPrompt / translatePrompt
     // GeneralSettings fields into matching InternalPrompt entries by

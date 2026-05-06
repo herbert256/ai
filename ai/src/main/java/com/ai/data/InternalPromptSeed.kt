@@ -21,6 +21,7 @@ object InternalPromptSeed {
     /** DTO mirroring one row in `assets/prompts.json`. */
     private data class Entry(
         val name: String = "",
+        val title: String = "",
         val type: String = "chat",
         val reference: Boolean = false,
         val category: String = "internal",
@@ -44,7 +45,8 @@ object InternalPromptSeed {
                     reference = it.reference,
                     category = it.category.ifBlank { "internal" },
                     agent = it.agent.ifBlank { "*select" },
-                    text = it.text
+                    text = it.text,
+                    title = it.title
                 )
             }
         } catch (e: Exception) {
@@ -91,7 +93,8 @@ object InternalPromptSeed {
                         reference = e.reference,
                         category = e.category.ifBlank { "internal" },
                         agent = e.agent.ifBlank { "*select" },
-                        text = e.text
+                        text = e.text,
+                        title = e.title
                     )
                 } else {
                     result.add(
@@ -102,7 +105,8 @@ object InternalPromptSeed {
                             reference = e.reference,
                             category = e.category.ifBlank { "internal" },
                             agent = e.agent.ifBlank { "*select" },
-                            text = e.text
+                            text = e.text,
+                            title = e.title
                         )
                     )
                 }

@@ -171,7 +171,12 @@ data class InternalPrompt(
     val reference: Boolean = false,
     val category: String = "internal",
     val agent: String = "*select",
-    val text: String = ""
+    val text: String = "",
+    /** Short human-readable label of what the prompt does. The
+     *  user-given [name] is the identifier; [title] is a one-line
+     *  description shown alongside it on Cross Level 1 and the
+     *  prompt-edit screen. */
+    val title: String = ""
 )
 
 /**

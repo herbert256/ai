@@ -1,6 +1,7 @@
 [
   {
     "name": "Rerank",
+    "title": "Rank every response by quality",
     "type": "rerank",
     "reference": false,
     "category": "meta",
@@ -9,6 +10,7 @@
   },
   {
     "name": "Summarize",
+    "title": "Synthesize all responses into one answer",
     "type": "chat",
     "reference": false,
     "category": "meta",
@@ -17,6 +19,7 @@
   },
   {
     "name": "Compare",
+    "title": "Find points of agreement and disagreement",
     "type": "chat",
     "reference": false,
     "category": "meta",
@@ -25,6 +28,7 @@
   },
   {
     "name": "Moderation",
+    "title": "Flag policy-violating responses",
     "type": "moderation",
     "reference": false,
     "category": "meta",
@@ -33,14 +37,16 @@
   },
   {
     "name": "Intro",
+    "title": "Brief two-sentence model introduction",
     "type": "chat",
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you\u0027re best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
+    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
   },
   {
     "name": "Model info",
+    "title": "Detailed model self-description",
     "type": "chat",
     "reference": false,
     "category": "internal",
@@ -49,6 +55,7 @@
   },
   {
     "name": "Translate",
+    "title": "Translate text into another language",
     "type": "chat",
     "reference": false,
     "category": "internal",
@@ -57,6 +64,7 @@
   },
   {
     "name": "factcheck",
+    "title": "Combine cross factchecks into one report",
     "type": "after_cross",
     "reference": false,
     "category": "after_cross",

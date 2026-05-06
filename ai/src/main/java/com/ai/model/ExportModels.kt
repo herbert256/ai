@@ -114,7 +114,8 @@ data class InternalPromptExport(
     val reference: Boolean = false,
     val category: String = "internal",
     val agent: String = "*select",
-    val text: String = ""
+    val text: String = "",
+    val title: String = ""
 )
 
 data class ApiKeyEntry(val service: String, val apiKey: String)

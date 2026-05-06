@@ -517,6 +517,9 @@ private fun ColumnScope.CrossMetaDrillInView(
     if (showPromptViewer && crossPrompt != null) {
         Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        if (crossPrompt.title.isNotBlank()) {
+            Text(crossPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             Text(crossPrompt.text, fontSize = 13.sp, color = AppColors.TextSecondary,
@@ -903,10 +906,13 @@ private fun ColumnScope.CrossMetaDrillInView(
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
-    // Cross prompt name heading
+    // Cross prompt name heading + optional title subline.
     if (crossPrompt != null) {
         Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        if (crossPrompt.title.isNotBlank()) {
+            Text(crossPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
+        }
         Spacer(modifier = Modifier.height(8.dp))
     }
 

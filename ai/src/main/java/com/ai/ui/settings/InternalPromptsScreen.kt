@@ -61,8 +61,9 @@ fun InternalPromptsListScreen(
         itemSubtitle = { ip ->
             val refTag = if (ip.type == "chat" && ip.reference) " · ref" else ""
             val agentTag = if (ip.agent != AGENT_SELECT && ip.agent.isNotBlank()) " · ${ip.agent}" else ""
-            val preview = ip.text.lineSequence().firstOrNull().orEmpty().take(60)
-            "${ip.category} · ${ip.type}$refTag$agentTag${if (preview.isBlank()) "" else " — $preview"}"
+            val tail = ip.title.takeIf { it.isNotBlank() }
+                ?: ip.text.lineSequence().firstOrNull().orEmpty().take(60)
+            "${ip.category} · ${ip.type}$refTag$agentTag${if (tail.isBlank()) "" else " — $tail"}"
         },
         onAdd = onAddInternalPrompt,
         onEdit = { onEditInternalPrompt(it.id) },
@@ -109,6 +110,7 @@ fun InternalPromptEditScreen(
     val isEditing = internalPrompt != null
 
     var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
+    var title by remember { mutableStateOf(internalPrompt?.title ?: "") }
     var type by remember { mutableStateOf(internalPrompt?.type?.takeIf { it in INTERNAL_TYPES } ?: "chat") }
     var category by remember { mutableStateOf(internalPrompt?.category?.takeIf { it in INTERNAL_CATEGORIES } ?: "internal") }
     var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
@@ -145,6 +147,14 @@ fun InternalPromptEditScreen(
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
                 isError = name.isNotBlank() && nameError != null,
                 supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
+            )
+
+            OutlinedTextField(
+                value = title, onValueChange = { title = it },
+                label = { Text("Title") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, colors = AppColors.outlinedFieldColors(),
+                supportingText = { Text("Short description shown alongside the name on Cross Level 1.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary) }
             )
 
             Text("Category", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -265,7 +275,7 @@ fun InternalPromptEditScreen(
         Button(
             onClick = {
                 val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(InternalPrompt(id, name.trim(), type, reference, category, agent, text))
+                onSave(InternalPrompt(id, name.trim(), type, reference, category, agent, text, title.trim()))
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
