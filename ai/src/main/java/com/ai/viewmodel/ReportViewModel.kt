@@ -899,20 +899,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val sem = semByProvider[item.answerer.provider] ?: return@async
                                 sem.withPermit {
-                                    val resolvedBase = resolveSecondaryPrompt(
-                                        metaPrompt.text,
-                                        question = report.prompt,
-                                        results = "",
-                                        count = sources.size,
-                                        title = report.title
-                                    )
-                                    val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
-                                    executeSecondaryTask(
-                                        context, reportId, SecondaryKind.META, metaPrompt,
-                                        provider, item.answerer.model, resolved, aiSettings, report,
-                                        crossSourceAgentId = item.source.agentId,
-                                        existingPlaceholder = item.placeholder
-                                    )
+                                    appViewModel.updateUiState {
+                                        it.copy(runningCrossPairs = it.runningCrossPairs + item.placeholder.id)
+                                    }
+                                    try {
+                                        val resolvedBase = resolveSecondaryPrompt(
+                                            metaPrompt.text,
+                                            question = report.prompt,
+                                            results = "",
+                                            count = sources.size,
+                                            title = report.title
+                                        )
+                                        val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
+                                        executeSecondaryTask(
+                                            context, reportId, SecondaryKind.META, metaPrompt,
+                                            provider, item.answerer.model, resolved, aiSettings, report,
+                                            crossSourceAgentId = item.source.agentId,
+                                            existingPlaceholder = item.placeholder
+                                        )
+                                    } finally {
+                                        appViewModel.updateUiState {
+                                            it.copy(runningCrossPairs = it.runningCrossPairs - item.placeholder.id)
+                                        }
+                                    }
                                 }
                             }
                         }.awaitAll()
@@ -922,6 +931,197 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
+    }
+
+    /** Re-launch a list of cross-pair placeholders. Re-uses the per-
+     *  provider semaphore + running-pair bookkeeping pattern from
+     *  [runCrossMetaPrompt], so the L1 progress bar / stats keep
+     *  reflecting "running" once a permit is held and "queued" while a
+     *  pair is waiting. The caller has already cleared each
+     *  placeholder's content/errorMessage on disk (so the row reads as
+     *  pending again). */
+    private fun rerunCrossPlaceholders(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        placeholders: List<SecondaryResult>
+    ): Job? {
+        if (placeholders.isEmpty()) return null
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return scope.launch(Dispatchers.IO) {
+            val cat = "Report meta: ${metaPrompt.name}"
+            try {
+                withTracerTags(reportId = reportId, category = cat) {
+                    val state = appViewModel.uiState.value
+                    val aiSettings = state.aiSettings
+                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                    val successful = report.agents.filter {
+                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }
+                    val sourceCount = successful.size
+                    val semByProvider = placeholders.map { it.providerId }.toSet()
+                        .associateWith { Semaphore(AppViewModel.CROSS_PER_PROVIDER_LIMIT) }
+                    coroutineScope {
+                        placeholders.map { ph ->
+                            async {
+                                val provider = AppService.findById(ph.providerId) ?: return@async
+                                val source = successful.firstOrNull { it.agentId == ph.crossSourceAgentId }
+                                    ?: return@async
+                                val sem = semByProvider[ph.providerId] ?: return@async
+                                sem.withPermit {
+                                    appViewModel.updateUiState {
+                                        it.copy(runningCrossPairs = it.runningCrossPairs + ph.id)
+                                    }
+                                    try {
+                                        val resolvedBase = resolveSecondaryPrompt(
+                                            metaPrompt.text,
+                                            question = report.prompt,
+                                            results = "",
+                                            count = sourceCount,
+                                            title = report.title
+                                        )
+                                        val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                        executeSecondaryTask(
+                                            context, reportId, SecondaryKind.META, metaPrompt,
+                                            provider, ph.model, resolved, aiSettings, report,
+                                            crossSourceAgentId = source.agentId,
+                                            existingPlaceholder = ph
+                                        )
+                                    } finally {
+                                        appViewModel.updateUiState {
+                                            it.copy(runningCrossPairs = it.runningCrossPairs - ph.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }.awaitAll()
+                    }
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+
+    /** Reset the given rows on disk so they look queued again (clears
+     *  content / errorMessage / token usage / costs / duration), then
+     *  feed them into [rerunCrossPlaceholders]. The cleared rows reuse
+     *  their original placeholder ids so the UI doesn't see them
+     *  vanish-and-reappear. */
+    private fun resetAndRelaunch(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        rows: List<SecondaryResult>
+    ): Job? {
+        if (rows.isEmpty()) return null
+        val reset = rows.map { r ->
+            r.copy(
+                content = null,
+                errorMessage = null,
+                tokenUsage = null,
+                inputCost = null,
+                outputCost = null,
+                durationMs = null
+            ).also { SecondaryResultStorage.save(context, it) }
+        }
+        return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, reset)
+    }
+
+    /** Re-enqueue cross-pair placeholders that look stuck — the row is
+     *  on disk as a pending placeholder (no content, no errorMessage)
+     *  but its id is *not* in [UiState.runningCrossPairs]. This is the
+     *  case after the app process is killed mid-run: the placeholders
+     *  survive on disk but the launching coroutines are gone. The Cross
+     *  L1 screen calls this on entry. */
+    fun resumeStaleCrossPairs(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt
+    ): Job? {
+        val running = appViewModel.uiState.value.runningCrossPairs
+        val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPrompt.id &&
+                    it.crossSourceAgentId != null &&
+                    it.afterCrossOf == null &&
+                    it.content.isNullOrBlank() &&
+                    it.errorMessage == null &&
+                    it.id !in running
+            }
+        return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, stale)
+    }
+
+    /** Re-run cross-pair rows that errored. Resets the rows on disk
+     *  (clears errorMessage so they read as queued again) and dispatches
+     *  via [rerunCrossPlaceholders]. */
+    fun rerunFailedCrossPairs(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt
+    ): Job? {
+        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPrompt.id &&
+                    it.crossSourceAgentId != null &&
+                    it.afterCrossOf == null &&
+                    it.errorMessage != null
+            }
+        return resetAndRelaunch(scope, context, reportId, metaPrompt, failed)
+    }
+
+    /** Drop every cross row + every after_cross row for this metaPromptId
+     *  on this report, then kick a fresh [runCrossMetaPrompt]. Used by
+     *  the Cross L1 "Rerun the complete Cross" button. */
+    fun rerunCompleteCross(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt
+    ): Job? {
+        SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                (it.metaPromptId == metaPrompt.id) &&
+                    (it.crossSourceAgentId != null || it.afterCrossOf == metaPrompt.id)
+            }
+            .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        return runCrossMetaPrompt(scope, context, reportId, metaPrompt)
+    }
+
+    /** Drop every cross-pair row for this report's metaPromptId where
+     *  the model appears as the answerer (providerId, model match) OR
+     *  as the source (the row's crossSourceAgentId points at an agent
+     *  whose (provider, model) matches). Other Cross runs on the same
+     *  report (different metaPromptId) are untouched. */
+    fun deleteCrossModel(
+        context: Context,
+        reportId: String,
+        metaPromptId: String,
+        providerId: String,
+        model: String
+    ) {
+        val report = ReportStorage.getReport(context, reportId) ?: return
+        val matchingAgentIds = report.agents
+            .filter { it.provider == providerId && it.model == model }
+            .map { it.agentId }
+            .toSet()
+        SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPromptId &&
+                    it.crossSourceAgentId != null &&
+                    it.afterCrossOf == null &&
+                    (
+                        (it.providerId == providerId && it.model == model) ||
+                            (it.crossSourceAgentId in matchingAgentIds)
+                    )
+            }
+            .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
     /** Combines a cross-type run's per-pair factchecks plus every

@@ -47,6 +47,7 @@ fun ReportsScreenNav(
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
@@ -162,7 +163,20 @@ fun ReportsScreenNav(
         onConsumeTranslation = { runId -> reportViewModel.consumeTranslationRun(runId) },
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
-        onContinueWithOnTheFly = onContinueWithOnTheFly
+        onContinueWithOnTheFly = onContinueWithOnTheFly,
+        onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+        onResumeStaleCross = { rid, mp ->
+            reportViewModel.resumeStaleCrossPairs(scope, context, rid, mp)
+        },
+        onRestartFailedCross = { rid, mp ->
+            reportViewModel.rerunFailedCrossPairs(scope, context, rid, mp)
+        },
+        onRerunCompleteCross = { rid, mp ->
+            reportViewModel.rerunCompleteCross(scope, context, rid, mp)
+        },
+        onDeleteCrossModel = { rid, pid, prov, model ->
+            reportViewModel.deleteCrossModel(context, rid, pid, prov, model)
+        }
     )
 }
 
@@ -254,7 +268,12 @@ fun ReportsScreen(
     onConsumeTranslation: (String) -> Unit = {},
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
-    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    onNavigateToInternalPromptEdit: (String) -> Unit = {},
+    onResumeStaleCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRestartFailedCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRerunCompleteCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onDeleteCrossModel: (String, String, String, String) -> Unit = { _, _, _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -848,12 +867,19 @@ fun ReportsScreen(
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
         val afterCrossList = aiSettings.internalPrompts.filter { it.type == "after_cross" }
+        val crossPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
+            aiSettings.internalPrompts.firstOrNull {
+                it.type == "cross" && it.name == listFilterByName
+            }
+        } else null
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
             nameFilter = listFilterByName,
             isBatching = uiState.activeSecondaryBatches > 0,
+            runningCrossPairs = uiState.runningCrossPairs,
             afterCrossPrompts = afterCrossList,
+            crossPrompt = crossPrompt,
             onRunAfterCross = if (afterCrossList.isNotEmpty()) {
                 {
                     if (afterCrossList.size == 1) afterCrossPickerPrompt = afterCrossList.first()
@@ -864,7 +890,18 @@ fun ReportsScreen(
             onBack = { listKind = null; listFilterByName = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+            onResumeStaleCross = { mp -> onResumeStaleCross(rid, mp) },
+            onRestartFailedCross = { mp -> onRestartFailedCross(rid, mp) },
+            onRerunCompleteCross = { mp ->
+                onRerunCompleteCross(rid, mp)
+                secondaryRefreshTick++
+            },
+            onDeleteCrossModel = { mpid, prov, model ->
+                onDeleteCrossModel(rid, mpid, prov, model)
+                secondaryRefreshTick++
+            }
         )
         if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
             AlertDialog(

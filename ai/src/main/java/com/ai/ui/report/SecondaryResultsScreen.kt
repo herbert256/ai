@@ -46,13 +46,20 @@ internal fun SecondaryResultsScreen(
     kind: SecondaryKind,
     nameFilter: String? = null,
     isBatching: Boolean = false,
+    runningCrossPairs: Set<String> = emptySet(),
     afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    crossPrompt: com.ai.model.InternalPrompt? = null,
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToInternalPromptEdit: (String) -> Unit = {},
+    onResumeStaleCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRestartFailedCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRerunCompleteCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onDeleteCrossModel: (String, String, String) -> Unit = { _, _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -207,10 +214,18 @@ internal fun SecondaryResultsScreen(
                 results = crossRowsAll,
                 combinedRows = afterCrossRows,
                 afterCrossPrompts = afterCrossPrompts,
+                crossPrompt = crossPrompt,
+                runningCrossPairs = runningCrossPairs,
                 onRunAfterCross = onRunAfterCross,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onOpen = { id -> openId = id },
                 onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+                onResumeStaleCross = onResumeStaleCross,
+                onRestartFailedCross = onRestartFailedCross,
+                onRerunCompleteCross = onRerunCompleteCross,
+                onDeleteCrossModel = onDeleteCrossModel,
                 onLevelChange = { crossLevel = it }
             )
             return@Column
@@ -373,14 +388,35 @@ private fun ColumnScope.MetaResultsPickerView(
     }
 }
 
+/** Role-aware row in the L2 list — built by [CrossMetaDrillInView]
+ *  and passed to [OnePageView] / used for prev-next stepping on L3. */
+private data class L2Row(
+    /** Stable key: source.agentId for Responder, "$pid|$mdl" for
+     *  Initiator. */
+    val key: String,
+    val provider: String,
+    val model: String,
+    /** "$answererPid|$answererMdl|$srcAgentId" — the pair the row maps
+     *  to on L3. */
+    val l3PairKey: String,
+    val pair: SecondaryResult?
+)
+
 /** L1 → L2 → L3 drill-in for cross-type META results.
  *  L1: list of every successful report-model that produced at least
- *      one factcheck row (the "answerer").
- *  L2: for the chosen answerer, list of every source model whose
- *      response was factchecked.
+ *      one factcheck row (the "answerer"), with progress bars + stats
+ *      + a button row for restart-failed / show-prompt / edit-prompt
+ *      / rerun-complete / delete-cross.
+ *  L2: for the chosen model, list rows according to the active
+ *      [Role]: Responder lists every source the model factchecked,
+ *      Initiator lists every answerer that factchecked the model.
+ *      A "One page view" button stitches the role-aware content into
+ *      a single scrollable page.
  *  L3: split view — top half shows the source's report response,
  *      bottom half shows the answerer's factcheck content (or a
- *      ⏳ / ❌ / "(no result)" placeholder if missing).
+ *      ⏳ / 🕓 / ❌ / "(no result)" placeholder if missing). Previous /
+ *      Next at the bottom step through the L2 list in role-aware
+ *      order.
  */
 @Composable
 private fun ColumnScope.CrossMetaDrillInView(
@@ -388,6 +424,8 @@ private fun ColumnScope.CrossMetaDrillInView(
     results: List<SecondaryResult>,
     combinedRows: List<SecondaryResult> = emptyList(),
     afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    crossPrompt: com.ai.model.InternalPrompt? = null,
+    runningCrossPairs: Set<String> = emptySet(),
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Open a SecondaryResultDetailScreen for the given row id. Used by
@@ -395,6 +433,12 @@ private fun ColumnScope.CrossMetaDrillInView(
      *  pops out the full content + delete / model / trace controls. */
     onOpen: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToInternalPromptEdit: (String) -> Unit = {},
+    onResumeStaleCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRestartFailedCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRerunCompleteCross: (com.ai.model.InternalPrompt) -> Unit = {},
+    onDeleteCrossModel: (String, String, String) -> Unit = { _, _, _ -> },
     /** Called whenever the drill-in level changes (1 = answerers list,
      *  2 = sources list for the chosen answerer, 3 = source/factcheck
      *  split view). Lets the parent screen reflect the depth in its
@@ -431,34 +475,133 @@ private fun ColumnScope.CrossMetaDrillInView(
         byKey
     }
 
-    var selectedAnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedSourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
-    // Publish the current depth to the parent so its TitleBar reads
-    // "Cross level 1/2/3". Re-fires whenever either selection state
-    // flips (drill-in or back-pop).
+    // Re-enqueue placeholders that survived an app kill (no content,
+    // no error, and not currently in flight). The viewmodel filters by
+    // metaPromptId so other Cross runs on the same report aren't
+    // touched. No-op when crossPrompt is null (legacy rows without a
+    // metaPromptId).
+    LaunchedEffect(reportId, crossPrompt?.id) {
+        crossPrompt?.let { onResumeStaleCross(it) }
+    }
+
+    var selectedModelKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // L2 role state — Responder = this model is the answerer (existing
+    // behaviour); Initiator = this model is the source. Saved so the
+    // user can drill out and back without losing the toggle.
+    var selectedRole by rememberSaveable { mutableStateOf("Responder") }
+    var l3AnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var l3SourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Full-screen overlays inside this view — `if (showX) { X(); return }`
+    // pattern documented in CLAUDE.md so the parent's rememberSaveable
+    // state survives.
+    var showPromptViewer by rememberSaveable { mutableStateOf(false) }
+    var showOnePageView by rememberSaveable { mutableStateOf(false) }
+
     val currentLevel = when {
-        selectedSourceAgentId != null && selectedAnswererKey != null -> 3
-        selectedAnswererKey != null -> 2
+        l3AnswererKey != null && l3SourceAgentId != null -> 3
+        selectedModelKey != null -> 2
         else -> 1
     }
     LaunchedEffect(currentLevel) { onLevelChange(currentLevel) }
 
-    BackHandler(enabled = selectedSourceAgentId != null) { selectedSourceAgentId = null }
-    BackHandler(enabled = selectedAnswererKey != null && selectedSourceAgentId == null) {
-        selectedAnswererKey = null
+    BackHandler(enabled = showPromptViewer) { showPromptViewer = false }
+    BackHandler(enabled = showOnePageView) { showOnePageView = false }
+    BackHandler(enabled = !showPromptViewer && !showOnePageView && currentLevel == 3) {
+        l3AnswererKey = null; l3SourceAgentId = null
+    }
+    BackHandler(enabled = !showPromptViewer && !showOnePageView && currentLevel == 2) {
+        selectedModelKey = null
     }
 
-    // L3 — split view
-    val srcAgentId = selectedSourceAgentId
-    val answererKey = selectedAnswererKey
-    if (srcAgentId != null && answererKey != null) {
-        val pairResult = latestByPair["$answererKey|$srcAgentId"]
-        val sourceAgent = agentsById[srcAgentId]
+    // Read-only prompt viewer overlay
+    if (showPromptViewer && crossPrompt != null) {
+        Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
+            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Text(crossPrompt.text, fontSize = 13.sp, color = AppColors.TextSecondary,
+                fontFamily = FontFamily.Monospace)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { showPromptViewer = false },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) { Text("Close", fontSize = 13.sp) }
+        return
+    }
+
+    // Stat / status helpers shared between L1 / L2.
+    fun rowState(row: SecondaryResult?): String = when {
+        row == null -> "queued"
+        row.errorMessage != null -> "errored"
+        !row.content.isNullOrBlank() -> "done"
+        row.id in runningCrossPairs -> "running"
+        else -> "queued"
+    }
+
+    // Build the role-aware ordered list for L2 / L3 stepping.
+    val activeKey = selectedModelKey
+    val activePid = activeKey?.split("|")?.getOrNull(0).orEmpty()
+    val activeMdl = activeKey?.split("|")?.getOrNull(1).orEmpty()
+    val activeAgents = remember(successful, activeKey) {
+        if (activeKey == null) emptyList()
+        else successful.filter { it.provider == activePid && it.model == activeMdl }
+    }
+    val activeAgentIds = activeAgents.map { it.agentId }.toSet()
+
+    // L2 list rows — ordering depends on role.
+    val l2Rows: List<L2Row> = remember(activeKey, selectedRole, latestByPair, successful, results) {
+        if (activeKey == null) emptyList()
+        else if (selectedRole == "Responder") {
+            // sources = every successful agent except this model itself
+            successful
+                .filter { it.agentId !in activeAgentIds }
+                .map { src ->
+                    val pair = latestByPair["$activeKey|${src.agentId}"]
+                    L2Row(
+                        key = src.agentId,
+                        provider = src.provider, model = src.model,
+                        l3PairKey = "$activeKey|${src.agentId}",
+                        pair = pair
+                    )
+                }
+        } else {
+            // Initiator — list answerers (provider, model) that have a
+            // row whose crossSourceAgentId matches one of this model's
+            // agents. De-dup by answerer (provider, model); use the
+            // first matching active agent as the canonical source for
+            // L3 drill-in.
+            val canonicalSrc = activeAgents.firstOrNull()?.agentId
+            results
+                .filter { it.crossSourceAgentId in activeAgentIds && it.afterCrossOf == null }
+                .groupBy { "${it.providerId}|${it.model}" }
+                .map { (ans, rows) ->
+                    val parts = ans.split("|")
+                    val pid = parts.getOrNull(0).orEmpty()
+                    val mdl = parts.getOrNull(1).orEmpty()
+                    val pair = rows.maxByOrNull { it.timestamp }
+                    L2Row(
+                        key = ans,
+                        provider = pid, model = mdl,
+                        l3PairKey = "$ans|${canonicalSrc ?: ""}",
+                        pair = pair
+                    )
+                }
+        }
+    }
+
+    // ===== L3 (split view) — needs l2Rows for prev/next =====
+    val srcAgentIdL3 = l3SourceAgentId
+    val answererKeyL3 = l3AnswererKey
+    if (srcAgentIdL3 != null && answererKeyL3 != null) {
+        val pairResult = latestByPair["$answererKeyL3|$srcAgentIdL3"]
+        val sourceAgent = agentsById[srcAgentIdL3]
         val sourceLabel = sourceAgent?.let {
             val pn = AppService.findById(it.provider)?.displayName ?: it.provider
             "$pn / ${it.model}"
-        } ?: srcAgentId
-        val answererLabel = answererKey.split("|").let { parts ->
+        } ?: srcAgentIdL3
+        val answererLabel = answererKeyL3.split("|").let { parts ->
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
             val pn = AppService.findById(pid)?.displayName ?: pid
@@ -477,9 +620,6 @@ private fun ColumnScope.CrossMetaDrillInView(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Source response", fontSize = 13.sp, color = AppColors.Blue,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                // 🐞 → trace of the report-model call that produced the
-                // source response. Latest trace for (reportId, sourceAgent.model)
-                // — same lookup the per-row 🐞 on ReportScreen uses.
                 val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
                     value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
                         ApiTracer.getTraceFiles()
@@ -513,8 +653,6 @@ private fun ColumnScope.CrossMetaDrillInView(
                 Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 val tf = pairResult?.let { res ->
-                    // closest-timestamp trace, same lookup other detail
-                    // screens use.
                     val all = ApiTracer.getTraceFiles()
                         .filter { it.reportId == reportId && it.model == res.model }
                     all.minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
@@ -534,84 +672,309 @@ private fun ColumnScope.CrossMetaDrillInView(
                 }
                 pairResult.content.isNullOrBlank() -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        if (pairResult.id in runningCrossPairs) {
+                            com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        } else {
+                            Text("🕓", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        }
                     }
                 }
                 else -> ContentWithThinkSections(analysis = pairResult.content)
             }
         }
+        // Previous / Next — step through the L2 list in role-aware order.
+        // The current pair is identified by l3PairKey. Disabled at ends.
+        Spacer(modifier = Modifier.height(8.dp))
+        val currentPairKey = "$answererKeyL3|$srcAgentIdL3"
+        val currentIdx = l2Rows.indexOfFirst { it.l3PairKey == currentPairKey }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    val prev = l2Rows.getOrNull(currentIdx - 1) ?: return@Button
+                    val parts = prev.l3PairKey.split("|")
+                    val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
+                    val src = parts.getOrNull(2).orEmpty()
+                    l3AnswererKey = ans
+                    l3SourceAgentId = src
+                },
+                enabled = currentIdx > 0,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Previous", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    val next = l2Rows.getOrNull(currentIdx + 1) ?: return@Button
+                    val parts = next.l3PairKey.split("|")
+                    val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
+                    val src = parts.getOrNull(2).orEmpty()
+                    l3AnswererKey = ans
+                    l3SourceAgentId = src
+                },
+                enabled = currentIdx >= 0 && currentIdx < l2Rows.size - 1,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Next", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        }
         return
     }
 
-    // L2 — sources list, given the chosen answerer
-    if (answererKey != null) {
-        val answererLabel = answererKey.split("|").let { parts ->
-            val pid = parts.getOrNull(0).orEmpty()
-            val mdl = parts.getOrNull(1).orEmpty()
-            val pn = AppService.findById(pid)?.displayName ?: pid
-            "$pn / $mdl"
-        }
-        Text("Answerer: $answererLabel", fontSize = 13.sp, color = AppColors.Blue,
-            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-        Text("Pick the source whose response you want to read.",
-            fontSize = 11.sp, color = AppColors.TextTertiary)
-        // Total cost across this answerer's pairs.
-        val totalSourcesCost = remember(latestByPair, answererKey, successful) {
-            val parts = answererKey.split("|")
-            val ansPid = parts.getOrNull(0).orEmpty()
-            val ansModel = parts.getOrNull(1).orEmpty()
-            successful.sumOf { src ->
-                if (src.provider == ansPid && src.model == ansModel) 0.0
-                else latestByPair["$answererKey|${src.agentId}"]
-                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+    // ===== L2 (one-page view overlay) =====
+    if (showOnePageView && activeKey != null) {
+        OnePageView(
+            reportId = reportId,
+            role = selectedRole,
+            activePid = activePid,
+            activeMdl = activeMdl,
+            activeAgents = activeAgents,
+            l2Rows = l2Rows,
+            agentsById = agentsById,
+            onClose = { showOnePageView = false },
+            onNavigateToTraceFile = onNavigateToTraceFile
+        )
+        return
+    }
+
+    // ===== L2 (role-aware list) =====
+    if (activeKey != null) {
+        val provName = AppService.findById(activePid)?.displayName ?: activePid
+        val activeProviderService = AppService.findById(activePid)
+        var confirmModelDelete by remember { mutableStateOf(false) }
+        // First line: provider / model
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("$provName / $activeMdl", fontSize = 14.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            // 🐞 only in Initiator role — opens the trace of this
+            // model's report-agent run (the call that produced the
+            // source response).
+            if (selectedRole == "Initiator") {
+                val firstAgent = activeAgents.firstOrNull()
+                val modelTraceState = produceState<String?>(initialValue = null, reportId, firstAgent?.model) {
+                    value = if (firstAgent == null) null else withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == reportId && it.model == firstAgent.model }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                }
+                val tr = modelTraceState.value
+                if (ApiTracer.isTracingEnabled && tr != null) {
+                    Text("🐞", fontSize = 18.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                            .clickable { onNavigateToTraceFile(tr) })
+                }
             }
-        }
-        if (totalSourcesCost > 0.0) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Total", fontSize = 12.sp, color = AppColors.Blue,
-                    modifier = Modifier.weight(1f))
-                Text("${formatCents(totalSourcesCost)} ¢", fontSize = 12.sp,
-                    color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            // ℹ — Model Info for the active model.
+            if (activeProviderService != null) {
+                Text("ℹ", fontSize = 18.sp, color = AppColors.Blue,
+                    modifier = Modifier.padding(start = 8.dp)
+                        .clickable { onNavigateToModelInfo(activeProviderService, activeMdl) })
             }
+            // 🗑 — drop the model from this Cross (both roles).
+            Text("🗑", fontSize = 18.sp, color = AppColors.Red,
+                modifier = Modifier.padding(start = 8.dp)
+                    .clickable { confirmModelDelete = true })
+        }
+        // Second line: Role + Switch role button
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 4.dp)) {
+            Text("Role: $selectedRole", fontSize = 12.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.weight(1f))
+            Button(
+                onClick = { selectedRole = if (selectedRole == "Responder") "Initiator" else "Responder" },
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 32.dp)
+            ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(successful, key = { it.agentId }) { src ->
-                // Skip the answerer itself — a model never factchecks
-                // its own response.
-                val parts = answererKey.split("|")
-                val ansPid = parts.getOrNull(0).orEmpty()
-                val ansModel = parts.getOrNull(1).orEmpty()
-                if (src.provider == ansPid && src.model == ansModel) return@items
-                val pairResult = latestByPair["$answererKey|${src.agentId}"]
-                val isPending = pairResult == null || (pairResult.errorMessage == null && pairResult.content.isNullOrBlank())
-                val srcProv = AppService.findById(src.provider)?.displayName ?: src.provider
+        // Per-model total cost
+        val totalCost = l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
+        if (totalCost > 0.0) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Total", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+                Text("${formatCents(totalCost)} ¢", fontSize = 12.sp,
+                    color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        if (l2Rows.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (selectedRole == "Responder") "No factchecks for this model yet"
+                    else "No other model has factchecked this one yet",
+                    color = AppColors.TextTertiary, fontSize = 13.sp
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(l2Rows, key = { it.key }) { row ->
+                    val rowProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    val state = rowState(row.pair)
+                    val cost = row.pair?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable {
+                                val parts = row.l3PairKey.split("|")
+                                val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
+                                val src = parts.getOrNull(2).orEmpty()
+                                if (src.isNotBlank()) {
+                                    l3AnswererKey = ans
+                                    l3SourceAgentId = src
+                                }
+                            }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when (state) {
+                                "running" -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                                "queued" -> Text("🕓", fontSize = 16.sp)
+                                "errored" -> Text("❌", fontSize = 16.sp)
+                                else -> Text("✅", fontSize = 16.sp)
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("$rowProv · ${row.model}", fontSize = 14.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        if (cost > 0.0) {
+                            Text(formatCents(cost), fontSize = 11.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 8.dp))
+                        }
+                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+            }
+        }
+        // Bottom button — One page view
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { showOnePageView = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) { Text("One page view", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+
+        if (confirmModelDelete) {
+            AlertDialog(
+                onDismissRequest = { confirmModelDelete = false },
+                title = { Text("Delete this model from the cross?") },
+                text = {
+                    Text("Drop every factcheck row where $provName / $activeMdl is " +
+                        "either the answerer or the source. Other Cross runs on this " +
+                        "report are not affected. Can't be undone.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmModelDelete = false
+                        crossPrompt?.let { onDeleteCrossModel(it.id, activePid, activeMdl) }
+                        selectedModelKey = null
+                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmModelDelete = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+        return
+    }
+
+    // ===== L1 — model rows + progress / stats / actions =====
+    val modelKeys = remember(latestByPair, successful) {
+        successful.map { "${it.provider}|${it.model}" }.distinct()
+    }
+
+    // Stats — derived from the cross rows + running set.
+    val totalPairs = results.size
+    val doneCount = results.count { it.errorMessage == null && !it.content.isNullOrBlank() }
+    val erroredCount = results.count { it.errorMessage != null }
+    val runningCount = results.count { it.id in runningCrossPairs && it.errorMessage == null && it.content.isNullOrBlank() }
+    val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
+    val pendingCount = runningCount + queuedCount
+
+    // Cross prompt name heading
+    if (crossPrompt != null) {
+        Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
+            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+
+    // Top progress bar — total expected pairs.
+    if (pendingCount > 0 && totalPairs > 0) {
+        val finished = (doneCount + erroredCount).toFloat() / totalPairs
+        LinearProgressIndicator(
+            progress = { finished },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            color = AppColors.Orange,
+            trackColor = AppColors.DividerDark
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+
+    // Total cost banner.
+    val totalAnswerersCost = remember(latestByPair, combinedRows) {
+        latestByPair.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } +
+            combinedRows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+    }
+    if (totalAnswerersCost > 0.0) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Total", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+            Text("${formatCents(totalAnswerersCost)} ¢", fontSize = 12.sp,
+                color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+    }
+
+    LazyColumn(modifier = Modifier.weight(1f)) {
+        // After_cross combine-reports follow-ups for this report.
+        if (combinedRows.isNotEmpty()) {
+            item(key = "ac-header") {
+                Text("Combined reports", fontSize = 12.sp,
+                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp))
+            }
+            val sortedCombined = combinedRows.sortedByDescending { it.timestamp }
+            items(sortedCombined, key = { "ac-${it.id}" }) { row ->
+                val acProv = AppService.findById(row.providerId)?.displayName ?: row.providerId
+                val acCost = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)
+                val acLabel = row.metaPromptName?.takeIf { it.isNotBlank() }
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .clickable { selectedSourceAgentId = src.agentId }
+                        .clickable { onOpen(row.id) }
                         .padding(vertical = 10.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        modifier = Modifier.padding(end = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                        contentAlignment = Alignment.Center) {
                         when {
-                            isPending -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
-                            pairResult?.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            row.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            row.content.isNullOrBlank() ->
+                                if (row.id in runningCrossPairs) com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                                else Text("🕓", fontSize = 16.sp)
                             else -> Text("✅", fontSize = 16.sp)
                         }
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("$srcProv · ${src.model}", fontSize = 14.sp, color = Color.White,
+                        Text("$acProv · ${row.model}", fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (acLabel != null) {
+                            Text(acLabel, fontSize = 11.sp, color = AppColors.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                    val pairCost = pairResult?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
-                    if (pairCost > 0.0) {
-                        Text(formatCents(pairCost), fontSize = 11.sp,
+                    if (acCost > 0.0) {
+                        Text(formatCents(acCost), fontSize = 11.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(end = 8.dp))
                     }
@@ -619,42 +982,163 @@ private fun ColumnScope.CrossMetaDrillInView(
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
-        }
-        return
-    }
-
-    // L1 — answerers list. One row per (provider, model) that produced
-    // at least one factcheck on this report. Status summary shows
-    // pair-completion as ok/total.
-    val answererKeys = remember(latestByPair, successful) {
-        // Build the set of every successful (provider, model) so the
-        // list stays full even when some pairs haven't run yet.
-        successful.map { "${it.provider}|${it.model}" }.distinct()
-    }
-    // Bulk-delete the whole cross run — every per-pair factcheck plus
-    // any combine-reports follow-up. Confirmed via the dialog below
-    // since this drops a lot of work in one tap.
-    var confirmCrossDelete by remember { mutableStateOf(false) }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
-            Button(
-                onClick = { onRunAfterCross() },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) {
-                Text("Combine reports and all cross responses",
-                    fontSize = 13.sp, maxLines = 1, softWrap = false)
+            item(key = "ac-section-gap") {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Models", fontSize = 12.sp,
+                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp))
             }
         }
-        Button(
-            onClick = { confirmCrossDelete = true },
-            modifier = if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) Modifier else Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-        ) {
-            Text("Delete", fontSize = 13.sp, maxLines = 1, softWrap = false)
+        items(modelKeys, key = { it }) { ak ->
+            val parts = ak.split("|")
+            val pid = parts.getOrNull(0).orEmpty()
+            val mdl = parts.getOrNull(1).orEmpty()
+            val provName = AppService.findById(pid)?.displayName ?: pid
+            // Per-row pair status — for the answerer view (each model's
+            // own factchecks of every other source).
+            val totalSources = successful.count { !(it.provider == pid && it.model == mdl) }
+            var rowOk = 0; var rowErr = 0; var rowRun = 0
+            successful.forEach { src ->
+                if (src.provider == pid && src.model == mdl) return@forEach
+                val res = latestByPair["$ak|${src.agentId}"]
+                when {
+                    res == null -> Unit
+                    res.errorMessage != null -> rowErr++
+                    !res.content.isNullOrBlank() -> rowOk++
+                    res.id in runningCrossPairs -> rowRun++
+                }
+            }
+            val rowFinished = rowOk + rowErr
+            val rowPending = (totalSources - rowFinished).coerceAtLeast(0)
+            val rowCost = successful.sumOf { src ->
+                if (src.provider == pid && src.model == mdl) 0.0
+                else latestByPair["$ak|${src.agentId}"]
+                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { selectedModelKey = ak; selectedRole = "Responder" }
+                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                    contentAlignment = Alignment.Center) {
+                    when {
+                        rowRun > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                        rowPending > 0 -> Text("🕓", fontSize = 16.sp)
+                        rowErr > 0 -> Text("❌", fontSize = 16.sp)
+                        else -> Text("✅", fontSize = 16.sp)
+                    }
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("$provName · $mdl", fontSize = 14.sp, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (rowPending > 0 && totalSources > 0) {
+                        // Per-row progress bar replaces the legacy "X / Y" text.
+                        LinearProgressIndicator(
+                            progress = { rowFinished.toFloat() / totalSources },
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp).height(4.dp),
+                            color = AppColors.Orange,
+                            trackColor = AppColors.DividerDark
+                        )
+                    } else if (rowErr > 0) {
+                        Text("$rowOk / $totalSources · ❌ $rowErr",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace)
+                    }
+                }
+                if (rowCost > 0.0) {
+                    Text(formatCents(rowCost), fontSize = 11.sp,
+                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(end = 8.dp))
+                }
+                Text(">", fontSize = 16.sp, color = AppColors.Blue)
+            }
+            HorizontalDivider(color = AppColors.DividerDark)
         }
     }
-    Spacer(modifier = Modifier.height(12.dp))
+
+    // Stats panel
+    Spacer(modifier = Modifier.height(8.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        StatRow("Total API calls", totalPairs.toString(), AppColors.Blue)
+        StatRow("Done", doneCount.toString(), AppColors.Green)
+        StatRow("Errored", erroredCount.toString(),
+            if (erroredCount > 0) AppColors.Red else AppColors.TextTertiary)
+        StatRow("Running", runningCount.toString(), AppColors.Orange)
+        StatRow("Queued", queuedCount.toString(), AppColors.TextTertiary)
+    }
+
+    // Action buttons
+    var confirmRerunComplete by remember { mutableStateOf(false) }
+    var confirmCrossDelete by remember { mutableStateOf(false) }
+    Spacer(modifier = Modifier.height(8.dp))
+    if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+        Button(
+            onClick = { onRunAfterCross() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) {
+            Text("Combine reports and all cross responses",
+                fontSize = 13.sp, maxLines = 1, softWrap = false)
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+    }
+    Button(
+        onClick = { crossPrompt?.let { onRestartFailedCross(it) } },
+        enabled = crossPrompt != null && erroredCount > 0,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+    ) { Text("Restart all failed API calls", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    Spacer(modifier = Modifier.height(6.dp))
+    Button(
+        onClick = { showPromptViewer = true },
+        enabled = crossPrompt != null,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+    ) { Text("Show the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    Spacer(modifier = Modifier.height(6.dp))
+    Button(
+        onClick = { crossPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
+        enabled = crossPrompt != null,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+    ) { Text("Edit the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    Spacer(modifier = Modifier.height(6.dp))
+    Button(
+        onClick = { confirmRerunComplete = true },
+        enabled = crossPrompt != null,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+    ) { Text("Rerun the complete Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    Spacer(modifier = Modifier.height(6.dp))
+    Button(
+        onClick = { confirmCrossDelete = true },
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+    ) { Text("Delete this Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+
+    if (confirmRerunComplete) {
+        AlertDialog(
+            onDismissRequest = { confirmRerunComplete = false },
+            title = { Text("Rerun the complete Cross?") },
+            text = {
+                Text("Delete every cross row and start a fresh run. " +
+                    "Combined-report follow-ups for this prompt will also be dropped.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRerunComplete = false
+                    crossPrompt?.let { onRerunCompleteCross(it) }
+                }) { Text("Rerun", color = AppColors.Orange, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRerunComplete = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
+    }
     if (confirmCrossDelete) {
         val totalRows = results.size + combinedRows.size
         AlertDialog(
@@ -680,149 +1164,124 @@ private fun ColumnScope.CrossMetaDrillInView(
             }
         )
     }
-    Text("Pick the answerer (the model that produced the factcheck).",
-        fontSize = 11.sp, color = AppColors.TextTertiary)
-    // Total cost across every pair (and the optional combine row,
-    // which lives in combinedRows). Mirrors the totals banner on the
-    // Report Result screen so the user sees the cross run's billable
-    // spend at the top.
-    val totalAnswerersCost = remember(latestByPair, combinedRows) {
-        latestByPair.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } +
-            combinedRows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+}
+
+@Composable
+private fun StatRow(label: String, value: String, valueColor: Color) {
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 11.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 11.sp, color = valueColor, fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.SemiBold)
     }
-    if (totalAnswerersCost > 0.0) {
-        Spacer(modifier = Modifier.height(4.dp))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Total", fontSize = 12.sp, color = AppColors.Blue,
+}
+
+/** L2 "One page view" overlay. Lays out the role-aware content as a
+ *  single scrollable page so the user can read every source response
+ *  + factcheck side-by-side without drilling into L3.
+ *
+ *  Responder (active model is the answerer): for every source on L2,
+ *  show the source's report response followed by the active model's
+ *  factcheck of it.
+ *  Initiator (active model is the source): show the active model's
+ *  report response once at the top, then for each answerer on L2 show
+ *  that answerer's factcheck. */
+@Composable
+private fun OnePageView(
+    reportId: String,
+    role: String,
+    activePid: String,
+    activeMdl: String,
+    activeAgents: List<com.ai.data.ReportAgent>,
+    l2Rows: List<L2Row>,
+    agentsById: Map<String, com.ai.data.ReportAgent>,
+    onClose: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit
+) {
+    BackHandler { onClose() }
+    val provName = AppService.findById(activePid)?.displayName ?: activePid
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+            Text("$provName / $activeMdl", fontSize = 14.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            Text("${formatCents(totalAnswerersCost)} ¢", fontSize = 12.sp,
-                color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.padding(end = 8.dp))
+            Button(
+                onClick = onClose,
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) { Text("Close", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-    LazyColumn(modifier = Modifier.weight(1f)) {
-        // After_cross combine-reports follow-ups for this report. One
-        // row per run with the same status / cost grammar as the
-        // answerer list below so the L1 screen reads as two stacked
-        // lists. Tap → SecondaryResultDetailScreen (via onOpen).
-        if (combinedRows.isNotEmpty()) {
-            item(key = "ac-header") {
-                Text("Combined reports", fontSize = 12.sp,
-                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 4.dp))
-            }
-            val sortedCombined = combinedRows.sortedByDescending { it.timestamp }
-            items(sortedCombined, key = { "ac-${it.id}" }) { r ->
-                val acProv = AppService.findById(r.providerId)?.displayName ?: r.providerId
-                val acCost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
-                val acLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable { onOpen(r.id) }
-                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.padding(end = 8.dp).width(20.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        when {
-                            r.errorMessage != null -> Text("❌", fontSize = 16.sp)
-                            r.content.isNullOrBlank() -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
-                            else -> Text("✅", fontSize = 16.sp)
-                        }
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("$acProv · ${r.model}", fontSize = 14.sp, color = Color.White,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (acLabel != null) {
-                            Text(acLabel, fontSize = 11.sp, color = AppColors.TextTertiary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    if (acCost > 0.0) {
-                        Text(formatCents(acCost), fontSize = 11.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(end = 8.dp))
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+        HorizontalDivider(color = AppColors.DividerDark)
+        Column(modifier = Modifier.weight(1f).fillMaxWidth()
+            .verticalScroll(rememberScrollState()).padding(8.dp)) {
+            if (role == "Initiator") {
+                val srcAgent = activeAgents.firstOrNull()
+                val srcBody = srcAgent?.responseBody
+                Text("$provName / $activeMdl — report response",
+                    fontSize = 13.sp, color = AppColors.Blue,
+                    fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(4.dp))
+                if (srcBody.isNullOrBlank()) {
+                    Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                } else {
+                    ContentWithThinkSections(analysis = srcBody)
                 }
-                HorizontalDivider(color = AppColors.DividerDark)
-            }
-            item(key = "ac-section-gap") {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("Answerers", fontSize = 12.sp,
-                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 4.dp))
-            }
-        }
-        items(answererKeys, key = { it }) { ak ->
-            val parts = ak.split("|")
-            val pid = parts.getOrNull(0).orEmpty()
-            val mdl = parts.getOrNull(1).orEmpty()
-            val provName = AppService.findById(pid)?.displayName ?: pid
-            // Pair status: count successful / total potential sources
-            // (every other successful agent). Rows with no disk presence
-            // and rows whose placeholder hasn't been filled yet both
-            // count as pending → animated hourglass while > 0.
-            val totalSources = successful.count { !(it.provider == pid && it.model == mdl) }
-            var okCount = 0
-            var errorCount = 0
-            successful.forEach { src ->
-                if (src.provider == pid && src.model == mdl) return@forEach
-                val res = latestByPair["$ak|${src.agentId}"]
-                when {
-                    res == null -> Unit // not yet started → pending
-                    res.errorMessage != null -> errorCount++
-                    res.content.isNullOrBlank() -> Unit // placeholder, still running
-                    else -> okCount++
-                }
-            }
-            val pendingCount = totalSources - okCount - errorCount
-            // Sum the per-pair cost for this answerer across every
-            // source — surfaced inline so the user can see which model
-            // is driving the cross run's spend.
-            val rowCost = successful.sumOf { src ->
-                if (src.provider == pid && src.model == mdl) 0.0
-                else latestByPair["$ak|${src.agentId}"]
-                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth()
-                    .clickable { selectedAnswererKey = ak }
-                    .padding(vertical = 10.dp, horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Status icon: spinning hourglass while any pair is still
-                // pending; ❌ once finished if any pair errored; ✅ when
-                // every pair resolved successfully. Same precedence as
-                // the cross-meta summary row on ReportScreen.
-                Box(
-                    modifier = Modifier.padding(end = 8.dp).width(20.dp),
-                    contentAlignment = Alignment.Center
-                ) {
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 12.dp))
+                l2Rows.forEach { row ->
+                    val ansProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    Text("$ansProv / ${row.model} — factcheck",
+                        fontSize = 13.sp, color = AppColors.Green,
+                        fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val pair = row.pair
                     when {
-                        pendingCount > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
-                        errorCount > 0 -> Text("❌", fontSize = 16.sp)
-                        else -> Text("✅", fontSize = 16.sp)
+                        pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                        pair.errorMessage != null ->
+                            Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                        pair.content.isNullOrBlank() ->
+                            Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        else -> ContentWithThinkSections(analysis = pair.content)
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = AppColors.DividerDark)
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("$provName · $mdl", fontSize = 14.sp, color = Color.White,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val errSuffix = if (errorCount > 0) " · ❌ $errorCount" else ""
-                    Text("$okCount / $totalSources$errSuffix",
-                        fontSize = 11.sp, color = AppColors.TextTertiary,
-                        fontFamily = FontFamily.Monospace)
+            } else {
+                l2Rows.forEach { row ->
+                    val src = agentsById[row.key]
+                    val srcProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    Text("$srcProv / ${row.model} — report response",
+                        fontSize = 13.sp, color = AppColors.Blue,
+                        fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val srcBody = src?.responseBody
+                    if (srcBody.isNullOrBlank()) {
+                        Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                    } else {
+                        ContentWithThinkSections(analysis = srcBody)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
+                        fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    val pair = row.pair
+                    when {
+                        pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                        pair.errorMessage != null ->
+                            Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                        pair.content.isNullOrBlank() ->
+                            Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        else -> ContentWithThinkSections(analysis = pair.content)
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = AppColors.DividerDark)
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
-                if (rowCost > 0.0) {
-                    Text(formatCents(rowCost), fontSize = 11.sp,
-                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(end = 8.dp))
-                }
-                Text(">", fontSize = 16.sp, color = AppColors.Blue)
             }
-            HorizontalDivider(color = AppColors.DividerDark)
         }
     }
 }

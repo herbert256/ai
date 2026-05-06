@@ -70,7 +70,8 @@ fun SettingsScreen(
     onLoadBundledPrompts: () -> Int = { 0 },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
-    initialEditingAgentId: String? = null
+    initialEditingAgentId: String? = null,
+    initialEditingInternalPromptId: String? = null
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
     var selectedProvider by remember { mutableStateOf(initialProviderId?.let { AppService.findById(it) }) }
@@ -79,7 +80,7 @@ fun SettingsScreen(
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
-    var editingInternalPromptId by remember { mutableStateOf<String?>(null) }
+    var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }

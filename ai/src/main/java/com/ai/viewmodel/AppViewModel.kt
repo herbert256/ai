@@ -144,6 +144,15 @@ data class UiState(
     // Meta button's hourglass and the Meta screen's poll loop key off
     // this being > 0.
     val activeSecondaryBatches: Int = 0,
+    // Placeholder ids of cross-meta pairs that currently hold a
+    // semaphore permit (i.e. the API call is actually in flight). A
+    // pair whose placeholder is on disk but whose id is *not* in this
+    // set is queued (or stale, if the launching coroutine never ran —
+    // see ReportViewModel.resumeStaleCrossPairs). Cleared on app
+    // restart since the launches don't survive process death; the
+    // Cross L1 screen runs a stale-pair sweep on entry to re-enqueue
+    // anything left as a placeholder.
+    val runningCrossPairs: Set<String> = emptySet(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null

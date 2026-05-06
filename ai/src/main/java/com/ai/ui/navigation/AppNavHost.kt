@@ -301,6 +301,9 @@ fun AppNavHost(
                     navController.navigate(NavRoutes.traceListForReportCategory(rid, cat))
                 },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToInternalPromptEdit = { id ->
+                    navController.navigate(NavRoutes.settingsInternalPromptEdit(id))
+                },
                 onContinueWithCurrent = { rid, aid ->
                     scope.launch {
                         val sessionId = continueReportInChat(
@@ -790,6 +793,16 @@ fun AppNavHost(
                 initialSubScreen = SettingsSubScreen.AI_AGENT_EDIT,
                 initialEditingAgentId = aid)
         }
+        composable(NavRoutes.SETTINGS_INTERNAL_PROMPT_EDIT) { entry ->
+            val pid = entry.arguments?.getString("promptId")
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT,
+                initialEditingInternalPromptId = pid)
+        }
         composable(NavRoutes.AI_API_TEST) {
             ApiTestScreen(onBackClick = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) }, viewModel = appViewModel)
@@ -811,7 +824,8 @@ fun SettingsScreenNav(
     onNavigateToProviderAdmin: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
-    initialEditingAgentId: String? = null
+    initialEditingAgentId: String? = null,
+    initialEditingInternalPromptId: String? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SettingsScreen(
@@ -837,7 +851,8 @@ fun SettingsScreenNav(
         onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
         initialSubScreen = initialSubScreen,
         initialProviderId = initialProviderId,
-        initialEditingAgentId = initialEditingAgentId
+        initialEditingAgentId = initialEditingAgentId,
+        initialEditingInternalPromptId = initialEditingInternalPromptId
     )
 }
 
