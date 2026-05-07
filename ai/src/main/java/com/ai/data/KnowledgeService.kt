@@ -222,7 +222,20 @@ object KnowledgeService {
         for (kb in kbs) {
             if (kb.embedderProviderId != first.embedderProviderId || kb.embedderModel != first.embedderModel) continue
             val sourceById = kb.sources.associateBy { it.id }
+            // Skip whole KBs whose stored embeddings disagree with the
+            // query dim — cosine() would silently return 0.0 for every
+            // chunk, hiding "no hits because dim mismatch" behind "no
+            // hits because nothing was relevant". Surface the mismatch
+            // in logcat so the cause is at least diagnosable. The
+            // KnowledgeBase.embedderModel filter above already catches
+            // the common case; this guards against a chunk written
+            // before a model swap still living on disk.
+            var dimSurprise: Int? = null
             KnowledgeStore.forEachChunk(context, kb.id) { c ->
+                if (c.embedding.size != queryVec.size) {
+                    if (dimSurprise == null) dimSurprise = c.embedding.size
+                    return@forEachChunk
+                }
                 val sim = EmbeddingsStore.cosine(queryVec, c.embedding)
                 val src = sourceById[c.sourceId]?.name ?: "?"
                 val candidate = Scored(Hit(kb.id, kb.name, src, c.text, sim), sim)
@@ -230,6 +243,13 @@ object KnowledgeService {
                 else if (sim > heap.peek().score) {
                     heap.poll(); heap.offer(candidate)
                 }
+            }
+            dimSurprise?.let {
+                android.util.Log.w(
+                    "KnowledgeService",
+                    "KB '${kb.name}' (${kb.id}) has chunks with dim=$it; query dim=${queryVec.size}. " +
+                        "Re-index the KB with the current embedder."
+                )
             }
         }
         // Top-K + token budget. Heap iteration order is undefined, so
