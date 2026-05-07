@@ -1216,16 +1216,32 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     crossJobsForReport.forEach { it.join() }
                     val crossRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter { it.crossSourceAgentId != null }
-                    val byPair = LinkedHashMap<String, SecondaryResult>()
+                    // Bucket cross rows by (providerId, model, sourceAgentId).
+                    // Two report rows can legitimately share (provider,
+                    // model) — e.g. an Agent UUID row and a swarm:provider:model
+                    // row pointing at the same model under different
+                    // agentIds. Bucketing into a list keeps every
+                    // matching row, and the answerer-side resolution
+                    // below picks the best-fit row per (other.provider,
+                    // other.model, other.agentId, source.agentId).
+                    val byPair = LinkedHashMap<String, MutableList<SecondaryResult>>()
                     crossRows.sortedBy { it.timestamp }.forEach { r ->
                         val src = r.crossSourceAgentId ?: return@forEach
-                        byPair["${r.providerId}|${r.model}|$src"] = r
+                        byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
                     }
+                    val consumed = HashSet<String>()
                     val perReport: List<Pair<String, List<String>>> = successful.map { source ->
                         val factchecks = successful.mapNotNull other@{ other ->
                             if (other.agentId == source.agentId) return@other null
-                            val row = byPair["${other.provider}|${other.model}|${source.agentId}"]
+                            // Pick the next un-consumed row for this
+                            // (provider, model, source) bucket so two
+                            // distinct other-agents sharing (provider,
+                            // model) each get their own factcheck.
+                            val bucket = byPair["${other.provider}|${other.model}|${source.agentId}"]
                                 ?: return@other null
+                            val row = bucket.firstOrNull { it.id !in consumed }
+                                ?: return@other null
+                            consumed += row.id
                             if (row.errorMessage != null) return@other null
                             val c = row.content
                             if (c.isNullOrBlank()) null else c.trim()
