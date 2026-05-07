@@ -847,6 +847,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPrompt: com.ai.model.InternalPrompt,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ): Job? {
+        // Dedupe against an already-running cross for this
+        // (report, metaPrompt) — a UI double-tap on the launch
+        // button or a second caller via a separate path would
+        // otherwise create a parallel batch with its own
+        // placeholders, doubling pairs and cost.
+        crossJobs[crossJobKey(reportId, metaPrompt.id)]?.let { existing ->
+            if (existing.isActive) return existing
+        }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val job = scope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
