@@ -127,25 +127,41 @@ fun ChatManageScreen(
     if (confirmDelete) {
         val days = daysText.toIntOrNull() ?: 0
         val cutoff = System.currentTimeMillis() - days * 24L * 3600L * 1000L
-        val candidates = remember(daysText) {
-            ChatHistoryManager.getAllSessions().filter { !it.pinned && it.updatedAt < cutoff }
+        // Off the UI thread — getAllSessions() reads + parses every
+        // chat-history JSON synchronously and could hitch / ANR for
+        // long histories.
+        val candidates by produceState<List<com.ai.data.ChatSession>?>(initialValue = null, daysText) {
+            value = withContext(Dispatchers.IO) {
+                ChatHistoryManager.getAllSessions().filter { !it.pinned && it.updatedAt < cutoff }
+            }
         }
+        val candidateList = candidates
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete ${candidates.size} chats?") },
+            title = {
+                Text(
+                    if (candidateList == null) "Loading…"
+                    else "Delete ${candidateList.size} chats?"
+                )
+            },
             text = { Text("Chats older than $days days (pinned excluded). This cannot be undone.") },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    working = true
-                    scope.launch {
-                        val n = withContext(Dispatchers.IO) {
-                            candidates.also { it.forEach { c -> ChatHistoryManager.deleteSession(c.id) } }.size
+                TextButton(
+                    enabled = candidateList != null,
+                    onClick = {
+                        val toDelete = candidateList ?: return@TextButton
+                        confirmDelete = false
+                        working = true
+                        scope.launch {
+                            val n = withContext(Dispatchers.IO) {
+                                toDelete.forEach { c -> ChatHistoryManager.deleteSession(c.id) }
+                                toDelete.size
+                            }
+                            status = "Deleted $n chats."
+                            working = false
                         }
-                        status = "Deleted $n chats."
-                        working = false
                     }
-                }) { Text("Delete", color = AppColors.Red) }
+                ) { Text("Delete", color = AppColors.Red) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
