@@ -1202,6 +1202,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
+                    // Wait for any in-flight cross runs on this report
+                    // to finish before reading their per-pair rows —
+                    // otherwise the combine call would build its
+                    // payload from an arbitrary partial subset of
+                    // factchecks while the user thinks the report is
+                    // "all of them". Each cross run is keyed by its
+                    // own metaPromptId; a snapshot of the active jobs
+                    // for THIS report is enough.
+                    val crossJobsForReport = crossJobs.entries
+                        .filter { it.key.startsWith("$reportId|") }
+                        .map { it.value }
+                    crossJobsForReport.forEach { it.join() }
                     val crossRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter { it.crossSourceAgentId != null }
                     val byPair = LinkedHashMap<String, SecondaryResult>()
