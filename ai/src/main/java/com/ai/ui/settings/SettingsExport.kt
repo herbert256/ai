@@ -19,7 +19,7 @@ private val gson = createAppGson()
 // ===== Import Functions =====
 
 /**
- * Import AI configuration from a file URI. Accepts versions 11-21.
+ * Import AI configuration from a file URI. Accepts versions 11-23.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings): ConfigImportResult? {
     return try {
@@ -41,7 +41,7 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings
 }
 
 /**
- * Import AI configuration from clipboard JSON text. Accepts versions 11-21.
+ * Import AI configuration from clipboard JSON text. Accepts versions 11-23.
  */
 fun importAiConfigFromClipboard(context: Context, json: String, currentSettings: Settings): ConfigImportResult? {
     return try {

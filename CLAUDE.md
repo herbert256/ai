@@ -176,7 +176,7 @@ Two non-obvious conventions:
   back-off** and has an explicit `Looper.myLooper() ==
   getMainLooper()` guard. Don't remove the guard — it prevents
   the retry from ANR-ing the UI.
-- **Export version is `21`.** Import accepts `11..21`. Bump only
+- **Export version is `23`.** Import accepts `11..23`. Bump only
   when adding/removing a top-level field.
 
 ## Memory & plans

@@ -262,7 +262,7 @@ correctness here.
   them. New prefs files won't survive a restore unless added to
   `BackupManager.PREFS_TO_BACKUP`. See
   [backup-restore.md](backup-restore.md).
-- **Export version is `21`.** Import accepts `11..21`. Bump the
+- **Export version is `23`.** Import accepts `11..23`. Bump the
   version only when adding/removing a top-level field; new optional
   fields don't require a bump if old importers can ignore them
   safely.
