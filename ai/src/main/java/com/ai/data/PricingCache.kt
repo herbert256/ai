@@ -340,12 +340,23 @@ object PricingCache {
 
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
-        findTogetherPricing(provider, model)?.let { return it }
-        findOpenRouterPricing(provider, model)?.let { return it }
+        // Mirror getPricing's precedence exactly (provider self-report
+        // first, then curated tiers, then the OpenRouter cross-provider
+        // fallback, then Helicone, then DEFAULT) but skip the manual
+        // override step. Used by cleanupRedundantManualOverrides to
+        // decide whether an override would still win the live lookup;
+        // the previous implementation consulted OpenRouter ahead of
+        // LiteLLM unconditionally, so cleanup deleted overrides that
+        // getPricing would never have lost to OpenRouter.
+        val isOpenRouter = provider.id == "OPENROUTER"
+        val isTogether = provider.id == "TOGETHER"
+        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         findHeliconePricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
     }
