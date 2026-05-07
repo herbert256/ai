@@ -340,7 +340,8 @@ fun ChatSessionScreen(
         mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.knowledgeBaseIds.orEmpty())
     }
     var showKbDialog by remember { mutableStateOf(false) }
-    val availableKbs = remember { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
+    val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val availableKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
 
     fun saveSession(msgs: List<ChatMessage>) {
         // Persist the current chip state alongside the original

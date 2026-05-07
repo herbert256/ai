@@ -41,10 +41,13 @@ fun HistoryScreenNav(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var allReports by remember { mutableStateOf(emptyList<Report>()) }
-    LaunchedEffect(Unit) {
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    LaunchedEffect(refreshTick) {
         // getAllReports re-reads + parses every report JSON, including
         // any image-attached reports which can be MB-sized. Off the UI
-        // thread so the History screen opens without jank.
+        // thread so the History screen opens without jank. Re-fires on
+        // every ON_RESUME so navigating away to delete / regenerate a
+        // report and coming back shows the updated list.
         allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
     }
     var searchTitle by remember { mutableStateOf("") }

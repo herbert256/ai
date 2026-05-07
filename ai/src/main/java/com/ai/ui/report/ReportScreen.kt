@@ -1215,7 +1215,8 @@ private fun ColumnScope.SelectionPhase(
     // it via the per-call Report at dispatch time.
     val ctx = LocalContext.current
     var showKbDialog by remember { mutableStateOf(false) }
-    val allKbs = remember { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
+    val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val allKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
     if (allKbs.isNotEmpty()) {
         OutlinedButton(
             onClick = { showKbDialog = true },

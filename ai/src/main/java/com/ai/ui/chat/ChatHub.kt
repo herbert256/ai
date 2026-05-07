@@ -42,7 +42,8 @@ fun ChatsHubScreen(
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
-    val installedLocalLlms = remember { com.ai.data.LocalLlm.availableLlms(context) }
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val installedLocalLlms = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context) }
 
     val hasAgents = remember(aiSettings.agents) {
         aiSettings.agents.any {

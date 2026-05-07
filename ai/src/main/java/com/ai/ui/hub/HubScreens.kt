@@ -163,10 +163,15 @@ fun ReportsHubScreen(
     onStartWithPhoto: (mime: String, base64: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
-    val hasPromptHistory = remember {
+    // Re-fetch on every ON_RESUME — without this, navigating into a
+    // detail screen and popping back left a stale cached list (the
+    // composable is preserved across the trip and remember{} would
+    // never re-evaluate). Keys all the disk reads through one tick.
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val hasPromptHistory = remember(refreshTick) {
         SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir).loadPromptHistory().isNotEmpty()
     }
-    val allReports = remember { ReportStorage.getAllReports(context) }
+    val allReports = remember(refreshTick) { ReportStorage.getAllReports(context) }
     val hasPreviousReports = allReports.isNotEmpty()
     val pinnedReports = remember(allReports) { allReports.filter { it.pinned } }
     val recentReports = remember(allReports) { allReports.filter { !it.pinned }.take(3) }

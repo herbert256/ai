@@ -12,6 +12,25 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Returns a state that increments every time the host's
+ *  [androidx.lifecycle.Lifecycle] reaches [Lifecycle.State.RESUMED].
+ *  Drop into a screen and key your `produceState` / disk read on it
+ *  so the data refreshes when the user navigates back to a hub
+ *  whose composable was preserved across the trip. */
+@Composable
+fun resumeRefreshTick(): Int {
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    var tick by remember { mutableStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) tick++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return tick
+}
+
 /** Card that starts collapsed — the title row is always visible and
  *  acts as a click target; tapping reveals [content]. */
 @Composable

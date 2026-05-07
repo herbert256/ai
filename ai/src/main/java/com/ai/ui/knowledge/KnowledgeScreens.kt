@@ -55,8 +55,11 @@ fun KnowledgeListScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    // Re-key on each ON_RESUME so creating / deleting / re-indexing a
+    // KB elsewhere is reflected when the user returns to the list.
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
     var refreshTick by remember { mutableStateOf(0) }
-    val kbs by produceState<List<KnowledgeBase>>(initialValue = emptyList(), refreshTick) {
+    val kbs by produceState<List<KnowledgeBase>>(initialValue = emptyList(), refreshTick, resumeTick) {
         value = withContext(Dispatchers.IO) { KnowledgeStore.listKnowledgeBases(context) }
     }
 
