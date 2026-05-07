@@ -127,16 +127,17 @@ fun AppNavHost(
                 onSharedContentHandled()
             },
             onSendToKnowledge = {
-                appViewModel.updateUiState { it.copy(pendingKnowledgeUris = sharedContent.uris) }
-                // URLs land in the AI_KNOWLEDGE list screen as the
-                // "type a URL" path on a new KB; the URL itself
-                // travels via chatStarterText? No — keep that for
-                // chat. URLs go through pendingKnowledgeUris too;
-                // the Knowledge screen branches on `content://` vs
-                // `http://` schemes when it consumes the queue.
-                if (sharedContent.isUrl && sharedContent.uris.isEmpty()) {
-                    appViewModel.updateUiState { it.copy(pendingKnowledgeUris = listOf(sharedContent.text!!.trim())) }
-                }
+                // Build the queue once: any attachment URIs + the URL
+                // text (when present). The previous flow first wrote
+                // the uri list, then conditionally overwrote it with
+                // a URL-only list ONLY when uris was empty — a share
+                // carrying both `text=https://…` AND a PDF therefore
+                // dropped the URL silently. Knowledge consumes the
+                // queue and branches on content:// vs http:// per
+                // entry, so the merged list is fine.
+                val urlText = if (sharedContent.isUrl) sharedContent.text?.trim().orEmpty() else ""
+                val queue = sharedContent.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })
+                appViewModel.updateUiState { it.copy(pendingKnowledgeUris = queue) }
                 navController.navigate(NavRoutes.AI_KNOWLEDGE) {
                     popUpTo(NavRoutes.AI) { inclusive = false }
                 }
