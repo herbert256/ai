@@ -177,6 +177,14 @@ object BackupManager {
         return try {
             tempZip.outputStream().use { out -> input.copyTo(out) }
             val version = readManifestVersion(tempZip)
+            // Sentinel -1 = manifest.json not present (or its
+            // "version" field unreadable). Reject — without that
+            // positive proof of "this is an AI-app backup" we'd
+            // otherwise wipe filesDir and write whatever the random
+            // zip happened to contain.
+            if (version < 1) {
+                throw IllegalStateException("Backup is missing a recognizable manifest.json — refusing to restore.")
+            }
             if (version > MANIFEST_VERSION) {
                 throw IllegalStateException("Backup is from a newer app version ($version). Please update the app.")
             }
