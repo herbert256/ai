@@ -46,9 +46,24 @@ private const val AGENT_SELECT = "*select"
  *  consult [Settings.agents]. */
 private const val AGENT_NA = "*n/a"
 
+/** Display label for each [InternalPrompt.category] surfaced as a
+ *  separate CRUD card on Prompt Management. */
+fun categoryDisplayName(category: String): String = when (category) {
+    "meta" -> "Meta prompts"
+    "cross_out" -> "Cross fan-out prompts"
+    "cross_in" -> "Cross fan-in prompts"
+    "internal" -> "Other internal prompts"
+    else -> category
+}
+
 @Composable
 fun InternalPromptsListScreen(
     aiSettings: Settings,
+    /** Pin the list to a single [InternalPrompt.category]. The screen
+     *  filters [Settings.internalPrompts] on this value, titles itself
+     *  from [categoryDisplayName], and forwards the same value through
+     *  to the edit screen so new rows are saved into this bucket. */
+    categoryFilter: String,
     onBackToPromptsSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
@@ -60,26 +75,36 @@ fun InternalPromptsListScreen(
     onLoadBundledPrompts: () -> Int = { 0 }
 ) {
     var loadStatus by remember { mutableStateOf<String?>(null) }
+    val label = categoryDisplayName(categoryFilter)
     CrudListScreen(
-        title = "Internal Prompts",
-        items = aiSettings.internalPrompts,
-        addLabel = "Add Internal Prompt",
-        emptyMessage = "No Internal prompts configured",
+        title = label,
+        items = aiSettings.internalPrompts.filter { it.category == categoryFilter },
+        addLabel = "Add ${label.lowercase().removeSuffix("s")}",
+        emptyMessage = "No ${label.lowercase()} configured",
         sortKey = { it.name },
         itemTitle = { it.name },
         itemSubtitle = { ip ->
-            val refTag = if (ip.type == "chat" && ip.reference) " · ref" else ""
-            val agentTag = if (ip.agent != AGENT_SELECT && ip.agent.isNotBlank()) " · ${ip.agent}" else ""
+            val parts = buildList {
+                if (ip.type != "N/A") add(ip.type)
+                if (ip.type == "chat" && ip.reference) add("ref")
+                if (ip.agent != AGENT_SELECT && ip.agent.isNotBlank()) add(ip.agent)
+            }
             val tail = ip.title.takeIf { it.isNotBlank() }
                 ?: ip.text.lineSequence().firstOrNull().orEmpty().take(60)
-            "${ip.category} · ${ip.type}$refTag$agentTag${if (tail.isBlank()) "" else " — $tail"}"
+            val head = parts.joinToString(" · ")
+            when {
+                head.isBlank() && tail.isBlank() -> ""
+                head.isBlank() -> tail
+                tail.isBlank() -> head
+                else -> "$head — $tail"
+            }
         },
         onAdd = onAddInternalPrompt,
         onEdit = { onEditInternalPrompt(it.id) },
         onDelete = { ip -> onSave(aiSettings.removeInternalPrompt(ip.id)) },
         onBack = onBackToPromptsSetup,
         onHome = onBackToHome,
-        deleteEntityType = "Internal Prompt",
+        deleteEntityType = label.removeSuffix("s"),
         deleteEntityName = { it.name },
         itemKey = { it.id },
         headerContent = {
@@ -111,19 +136,36 @@ fun InternalPromptEditScreen(
     internalPrompt: InternalPrompt?,
     existingNames: Set<String>,
     agentNames: List<String>,
+    /** Pin the [InternalPrompt.category] to this value and hide the
+     *  Category picker. cross_out / cross_in additionally hide the
+     *  Type picker since their only valid type is `N/A`. */
+    fixedCategory: String,
     onSave: (InternalPrompt) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
+    val isCrossCategory = fixedCategory in CROSS_CATEGORIES
+    val initialType = when {
+        isCrossCategory -> "N/A"
+        internalPrompt?.type?.takeIf { it in INTERNAL_TYPES && it != "N/A" } != null -> internalPrompt.type
+        else -> "chat"
+    }
 
     var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
     var title by remember { mutableStateOf(internalPrompt?.title ?: "") }
-    var type by remember { mutableStateOf(internalPrompt?.type?.takeIf { it in INTERNAL_TYPES } ?: "chat") }
-    var category by remember { mutableStateOf(internalPrompt?.category?.takeIf { it in INTERNAL_CATEGORIES } ?: "internal") }
+    var type by remember { mutableStateOf(initialType) }
+    val category = fixedCategory
     var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
-    var agent by remember { mutableStateOf(internalPrompt?.agent?.ifBlank { AGENT_SELECT } ?: AGENT_SELECT) }
+    var agent by remember {
+        mutableStateOf(
+            when {
+                fixedCategory == "cross_out" -> AGENT_NA
+                else -> internalPrompt?.agent?.ifBlank { AGENT_SELECT } ?: AGENT_SELECT
+            }
+        )
+    }
     var text by remember { mutableStateOf(internalPrompt?.text ?: "") }
 
     val nameError = when {
@@ -136,27 +178,14 @@ fun InternalPromptEditScreen(
     // the user switches type so the persisted value can't disagree
     // with the executor's behaviour.
     LaunchedEffect(type) { if (type != "chat" && reference) reference = false }
-    // Keep type in sync with category: cross categories force N/A,
-    // and flipping back to a non-cross category resets a stale N/A
-    // to the default chat type.
-    LaunchedEffect(category) {
-        if (category in CROSS_CATEGORIES) {
-            if (type != "N/A") type = "N/A"
-        } else if (type == "N/A") {
-            type = "chat"
-        }
-    }
-    // cross_out prompts never consult Settings.agents — pin the
-    // agent to the *n/a sentinel. cross_in runs once on a picked
-    // model so it stays editable.
-    LaunchedEffect(category) { if (category == "cross_out") agent = AGENT_NA }
 
     var agentMenuOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = if (isEditing) "Edit Internal Prompt" else "Add Internal Prompt", onBackClick = onBack, onAiClick = onNavigateHome)
+        val singular = categoryDisplayName(fixedCategory).removeSuffix("s")
+        TitleBar(title = if (isEditing) "Edit $singular" else "Add $singular", onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -176,52 +205,31 @@ fun InternalPromptEditScreen(
                     fontSize = 11.sp, color = AppColors.TextTertiary) }
             )
 
-            Text("Category", fontSize = 12.sp, color = AppColors.TextTertiary)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                INTERNAL_CATEGORIES.forEach { c ->
-                    FilterChip(
-                        selected = category == c,
-                        onClick = { category = c },
-                        label = { Text(c) }
-                    )
+            if (!isCrossCategory) {
+                Text("Type", fontSize = 12.sp, color = AppColors.TextTertiary)
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    INTERNAL_TYPES.filter { it != "N/A" }.forEach { t ->
+                        FilterChip(
+                            selected = type == t,
+                            onClick = { type = t },
+                            label = { Text(t) }
+                        )
+                    }
                 }
+                Text(
+                    when (type) {
+                        "rerank" -> "Routes to a rerank API model (currently Cohere). Template body is unused — rerank uses the report prompt as the query and the per-agent responses as documents."
+                        "moderation" -> "Routes to a moderation API model (currently Mistral). Template body is unused — the moderation endpoint takes the per-agent responses as inputs."
+                        else -> "Runs as a chat completion. Template body supports @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
+                    },
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
             }
-            Text(
-                when (category) {
-                    "meta" -> "Surfaces in the Meta button popup on the Report Result screen — chat / rerank / moderation prompts that run on the full set of report responses."
-                    "cross_out" -> "Surfaces in the Cross button popup on the Report Result screen. Runs across every pair of report-models. Template body supports @RESPONSE@ (replaced per-call with each source model's response) plus @QUESTION@, @TITLE@, @DATE@, @COUNT@. N×(N-1) calls."
-                    "cross_in" -> "Surfaces as the *Combine reports and all cross responses* button on the Cross detail screen. Runs once on a picked model. Template supports @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses per report) plus the iterable block `\\n\\n***Report*** @REPORT@@RESPONSES@` (repeated N times) where @RESPONSE@ inside @RESPONSES@ is each factcheck content."
-                    else -> "Internal template used by an app feature (e.g. Translate, Model info)."
-                },
-                fontSize = 11.sp, color = AppColors.TextTertiary
-            )
-
-            Text("Type", fontSize = 12.sp, color = AppColors.TextTertiary)
-            val visibleTypes = if (category in CROSS_CATEGORIES) listOf("N/A")
-                else INTERNAL_TYPES.filter { it != "N/A" }
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                visibleTypes.forEach { t ->
-                    FilterChip(
-                        selected = type == t,
-                        onClick = { type = t },
-                        label = { Text(t) }
-                    )
-                }
-            }
-            Text(
-                when (type) {
-                    "rerank" -> "Routes to a rerank API model (currently Cohere). Template body is unused — rerank uses the report prompt as the query and the per-agent responses as documents."
-                    "moderation" -> "Routes to a moderation API model (currently Mistral). Template body is unused — the moderation endpoint takes the per-agent responses as inputs."
-                    "N/A" -> "Used for cross_out and cross_in rows; the executor reads the prompt body, not the type."
-                    else -> "Runs as a chat completion. Template body supports @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
-                },
-                fontSize = 11.sp, color = AppColors.TextTertiary
-            )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(
@@ -283,11 +291,19 @@ fun InternalPromptEditScreen(
 
             OutlinedTextField(
                 value = text, onValueChange = { text = it },
-                label = { Text("Template body (placeholder reference is in the category description above)") },
+                label = { Text("Template body") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8, maxLines = 22,
-                enabled = type == "chat" || category in CROSS_CATEGORIES,
+                enabled = type == "chat" || isCrossCategory,
                 colors = AppColors.outlinedFieldColors()
+            )
+            Text(
+                when (fixedCategory) {
+                    "cross_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
+                    "cross_in" -> "Placeholders: @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
+                    else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@. rerank / moderation rows ignore the body."
+                },
+                fontSize = 11.sp, color = AppColors.TextTertiary
             )
             Text("${text.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)
         }

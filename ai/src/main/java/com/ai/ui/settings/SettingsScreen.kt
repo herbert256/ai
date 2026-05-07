@@ -81,6 +81,20 @@ fun SettingsScreen(
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
     var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }
+    // Which Internal Prompts CRUD bucket is currently open. Set by the
+    // four cards on Prompt Management; the AI_INTERNAL_PROMPTS list
+    // and AI_INTERNAL_PROMPT_EDIT screens filter / pin on it. When the
+    // caller deep-links into AI_INTERNAL_PROMPT_EDIT (e.g. Cross L1's
+    // "Edit the used Cross prompt") we derive the bucket from the
+    // prompt being edited so the edit screen pins the right category.
+    var selectedInternalCategory by remember {
+        mutableStateOf(
+            initialEditingInternalPromptId
+                ?.let { aiSettings.getInternalPromptById(it) }
+                ?.category
+                ?: "internal"
+        )
+    }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }
@@ -256,7 +270,11 @@ fun SettingsScreen(
             PromptsSetupScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it }
+                onNavigate = { currentSubScreen = it },
+                onOpenInternalPrompts = { cat ->
+                    selectedInternalCategory = cat
+                    currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS
+                }
             )
         }
         SettingsSubScreen.AI_LOCAL_MODELS_SETUP -> {
@@ -391,7 +409,9 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_INTERNAL_PROMPTS -> {
             InternalPromptsListScreen(
-                aiSettings = aiSettings, onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
+                aiSettings = aiSettings,
+                categoryFilter = selectedInternalCategory,
+                onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
                 onAddInternalPrompt = { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
                 onEditInternalPrompt = { editingInternalPromptId = it; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
                 onLoadBundledPrompts = onLoadBundledPrompts
@@ -403,6 +423,7 @@ fun SettingsScreen(
                 internalPrompt = ip,
                 existingNames = aiSettings.internalPrompts.filter { it.id != (ip?.id ?: "") }.map { it.name.lowercase() }.toSet(),
                 agentNames = aiSettings.agents.map { it.name },
+                fixedCategory = selectedInternalCategory,
                 onSave = { saved ->
                     val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
                     else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)
