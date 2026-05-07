@@ -1153,8 +1153,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         model: String
     ) {
         val report = ReportStorage.getReport(context, reportId) ?: return
+        // Provider ids are looked up via AppService.findById (case-
+        // insensitive); the on-disk values can be either case
+        // depending on when the row was written. Compare equalsIgnoreCase
+        // so a UI delete with a re-cased id still matches.
         val matchingAgentIds = report.agents
-            .filter { it.provider == providerId && it.model == model }
+            .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
             .map { it.agentId }
             .toSet()
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
@@ -1163,7 +1167,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     it.crossSourceAgentId != null &&
                     it.afterCrossOf == null &&
                     (
-                        (it.providerId == providerId && it.model == model) ||
+                        (it.providerId.equals(providerId, ignoreCase = true) && it.model == model) ||
                             (it.crossSourceAgentId in matchingAgentIds)
                     )
             }
