@@ -210,11 +210,16 @@ object LocalEmbedder {
         val started = System.currentTimeMillis()
         return try {
             val embedder = getEmbedder(context, modelName)
-            val out = inputs.map { input ->
-                val r = embedder.embed(input)
-                val embedding: Embedding = r.embeddingResult().embeddings().first()
-                val floats = embedding.floatEmbedding()
-                List(floats.size) { i -> floats[i].toDouble() }
+            // Native TextEmbedder handle is not thread-safe — two
+            // parallel index/rerank batches would otherwise corrupt
+            // runtime state. Serialise per-embedder.
+            val out = synchronized(embedder) {
+                inputs.map { input ->
+                    val r = embedder.embed(input)
+                    val embedding: Embedding = r.embeddingResult().embeddings().first()
+                    val floats = embedding.floatEmbedding()
+                    List(floats.size) { i -> floats[i].toDouble() }
+                }
             }
             recordLocalTrace(modelName, inputs, outputDims = out.firstOrNull()?.size ?: 0,
                 durationMs = System.currentTimeMillis() - started, error = null)

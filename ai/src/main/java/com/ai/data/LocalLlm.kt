@@ -118,12 +118,16 @@ object LocalLlm {
     }
 
     /** Synchronously generate a response for [prompt]. Records one
-     *  trace entry per call. Returns null on failure. */
+     *  trace entry per call. Returns null on failure. The native
+     *  LlmInference handle is not thread-safe, so calls are
+     *  serialised per-engine — two parallel report agents pointing at
+     *  the same `.task` file would otherwise corrupt the runtime
+     *  state. */
     fun generate(context: Context, modelName: String, prompt: String): String? {
         val started = System.currentTimeMillis()
         return try {
             val engine = getEngine(context, modelName)
-            val out = engine.generateResponse(prompt)
+            val out = synchronized(engine) { engine.generateResponse(prompt) }
             recordTrace(modelName, prompt, out, durationMs = System.currentTimeMillis() - started, error = null)
             out
         } catch (e: Exception) {
