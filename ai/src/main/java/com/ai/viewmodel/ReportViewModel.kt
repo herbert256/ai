@@ -1072,6 +1072,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     it.afterCrossOf == null &&
                     it.content.isNullOrBlank() &&
                     it.errorMessage == null &&
+                    // durationMs is stamped on every successful + errored
+                    // save and cleared by resetAndRelaunch. A row with
+                    // durationMs set but blank content is a successful
+                    // empty-body completion — re-firing it would
+                    // duplicate-bill the user (same fix as the L1 stats
+                    // classifier in SecondaryResultsScreen).
+                    it.durationMs == null &&
                     it.id !in running
             }
         return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, stale)
