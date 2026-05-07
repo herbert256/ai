@@ -291,8 +291,23 @@ object PricingCache {
 
     /** Synchronous load — caller MUST be off the main thread. Used by
      *  bootstrap migrations that need LiteLLM / models.dev populated
-     *  before running [Settings.recomputeAllCapabilities]. */
+     *  before running [Settings.recomputeAllCapabilities]. If a
+     *  caller mistakenly invokes this on the main thread, ensureLoaded
+     *  short-circuits without actually loading; flipping
+     *  preloadCompleted=true regardless would silently disable the
+     *  cold-start safety net that returns DEFAULT_PRICING during the
+     *  preload window. Detect the misuse, log loudly, and leave the
+     *  flag alone so subsequent main-thread getPricing calls keep
+     *  returning DEFAULT until a real off-thread load completes. */
     fun ensureLoadedBlocking(context: Context) {
+        if (isMainThread()) {
+            android.util.Log.e(
+                "PricingCache",
+                "ensureLoadedBlocking invoked on the main thread — refusing to mark preload complete. " +
+                    "Move the call to Dispatchers.IO."
+            )
+            return
+        }
         ensureLoaded(context)
         preloadCompleted = true
     }
