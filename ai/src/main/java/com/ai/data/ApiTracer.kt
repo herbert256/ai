@@ -74,7 +74,11 @@ object ApiTracer {
             val seq = fileSequence.incrementAndGet().toString(36)
             val filename = "${trace.hostname}_${ts}_${seq}.json"
             try {
-                File(dir, filename).writeText(gson.toJson(trace))
+                // Atomic so a process death mid-write leaves no
+                // half-JSON behind — the streaming parser silently
+                // drops corrupt trace files, which would otherwise
+                // make traces vanish from the listing.
+                File(dir, filename).writeTextAtomic(gson.toJson(trace))
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
                         filename, trace.hostname, trace.timestamp,
