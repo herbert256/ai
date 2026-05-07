@@ -153,6 +153,20 @@ object KnowledgeService {
         progress.onProgress("Saving…", total, total)
 
         val embeddingDim = vectors.firstOrNull()?.size ?: 0
+        // The embed call returned the right-shaped outer list but an
+        // individual entry can come back empty when the provider
+        // emitted a null embedding for a row (or our loader fell
+        // through to `?: emptyList()`). An empty / dim-mismatched
+        // chunk silently scores 0.0 in cosine on every retrieval, so
+        // the source row would persist as "indexed" but have invisible
+        // chunks. Refuse to save in that case so the user gets a
+        // surfaced error and can retry.
+        if (embeddingDim == 0) error("Embedder returned empty vectors for $displayName")
+        vectors.forEachIndexed { i, v ->
+            if (v.size != embeddingDim) {
+                error("Embedder returned dim ${v.size} on chunk $i (expected $embeddingDim) for $displayName")
+            }
+        }
         val chunks = pieces.mapIndexed { i, t ->
             KnowledgeChunk(
                 id = UUID.randomUUID().toString(),
