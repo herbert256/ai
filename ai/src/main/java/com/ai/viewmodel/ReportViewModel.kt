@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
+
+    // Active cross-meta jobs keyed by "$reportId|$metaPromptId". Used
+    // by rerunCompleteCross / rerunFailedCrossPairs / resumeStaleCrossPairs
+    // so the destructive "wipe + rerun" paths can cancel and join the
+    // existing run before deleting placeholders. Without this, surviving
+    // coroutines from the previous run kept calling
+    // SecondaryResultStorage.save on the just-deleted ids, resurrecting
+    // zombie rows alongside the freshly-created placeholders and
+    // double-billing the user.
+    private val crossJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun crossJobKey(reportId: String, metaPromptId: String) = "$reportId|$metaPromptId"
+    private fun registerCrossJob(reportId: String, metaPromptId: String, job: Job) {
+        val key = crossJobKey(reportId, metaPromptId)
+        crossJobs[key] = job
+        job.invokeOnCompletion { crossJobs.remove(key, job) }
+    }
 
     // Separate flow from UiState so per-task completions don't force the UiState equality
     // checker to re-compare every other field. UI subscribers observe this independently.
@@ -831,7 +848,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ): Job? {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -931,6 +948,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
+        registerCrossJob(reportId, metaPrompt.id, job)
+        return job
     }
 
     /** Re-launch a list of cross-pair placeholders. Re-uses the per-
@@ -949,7 +968,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         if (placeholders.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -1003,6 +1022,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
+        registerCrossJob(reportId, metaPrompt.id, job)
+        return job
     }
 
     /** Reset the given rows on disk so they look queued again (clears
@@ -1085,13 +1106,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
     ): Job? {
-        SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                (it.metaPromptId == metaPrompt.id) &&
-                    (it.crossSourceAgentId != null || it.afterCrossOf == metaPrompt.id)
+        // Cancel + join any in-flight cross run for this (report,
+        // metaPrompt) before deleting placeholders. Without this,
+        // surviving coroutines would call SecondaryResultStorage.save
+        // on the just-deleted ids, resurrecting zombie rows beside
+        // the freshly-created placeholders and double-billing.
+        return scope.launch(Dispatchers.IO) {
+            crossJobs[crossJobKey(reportId, metaPrompt.id)]?.let { existing ->
+                existing.cancelAndJoin()
             }
-            .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-        return runCrossMetaPrompt(scope, context, reportId, metaPrompt)
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                .filter {
+                    (it.metaPromptId == metaPrompt.id) &&
+                        (it.crossSourceAgentId != null || it.afterCrossOf == metaPrompt.id)
+                }
+                .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            runCrossMetaPrompt(scope, context, reportId, metaPrompt)?.join()
+        }
     }
 
     /** Drop every cross-pair row for this report's metaPromptId where
