@@ -261,7 +261,15 @@ object ReportStorage {
     }
 
     private fun saveReport(report: Report) {
-        File(reportsDir ?: return, "${report.id}.json").writeTextAtomic(gson.toJson(report))
+        val ok = File(reportsDir ?: return, "${report.id}.json")
+            .writeTextAtomic(gson.toJson(report))
+        if (!ok) {
+            // Surface the failure in logcat — disk-full or permission
+            // races would otherwise leave the in-memory state diverged
+            // from disk until the next reload, where the fresh load
+            // would silently hand back the pre-update report.
+            android.util.Log.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
+        }
     }
 
     /** Set a report's [Report.timestamp] to the current wall-clock time
