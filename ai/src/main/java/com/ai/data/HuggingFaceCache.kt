@@ -27,6 +27,10 @@ object HuggingFaceCache {
     private const val TTL_MS = 7L * 24 * 60 * 60 * 1000
 
     private val gson = createAppGson()
+    // Serialise put / clear so two parallel Model Info opens for
+    // different (provider, model) pairs can't race a load-modify-save
+    // cycle and overwrite each other's entries.
+    private val lock = Any()
 
     /** One stored result. [info] is null when the previous lookup found
      *  nothing (404 / error / no API key) — that null is meaningful and
@@ -59,12 +63,16 @@ object HuggingFaceCache {
     }
 
     fun put(context: Context, providerId: String, modelId: String, info: HuggingFaceModelInfo?) {
-        val entries = load(context)
-        entries[key(providerId, modelId)] = Entry(System.currentTimeMillis(), info)
-        save(context, entries)
+        synchronized(lock) {
+            val entries = load(context)
+            entries[key(providerId, modelId)] = Entry(System.currentTimeMillis(), info)
+            save(context, entries)
+        }
     }
 
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { remove(KEY_ENTRIES) }
+        synchronized(lock) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { remove(KEY_ENTRIES) }
+        }
     }
 }
