@@ -1329,6 +1329,194 @@ private fun ColumnScope.GenerationPhase(
             ?: result.service.defaultModel
     }
 
+    // ===== Action row (lives at the top of the page) =====
+    // While the run is in flight: STOP / Background. Once complete:
+    // a single FlowRow of CompactButtons. View / Edit each fan out
+    // into a popup picker; the rest fire directly. The legacy
+    // View / Edit / Actions sectioned cards have collapsed into
+    // this row.
+    @OptIn(ExperimentalLayoutApi::class)
+    @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            content = content
+        )
+    }
+    if (!isComplete) {
+        ActionRow {
+            CompactButton(onClick = onStop, color = AppColors.Red, text = "STOP")
+            CompactButton(onClick = onContinueInBackground, color = AppColors.SurfaceDark, text = "Background")
+        }
+    } else {
+        // Read the persisted pinned flag so the button toggles between
+        // "Pin" and "Unpin" rather than always saying the same thing.
+        // Re-keyed when the user taps the button (currentReportId
+        // doesn't change but the report file does).
+        var pinTick by remember(currentReportId) { mutableStateOf(0) }
+        val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
+            value = currentReportId?.let { rid ->
+                withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
+            } ?: false
+        }
+        var showViewPicker by remember { mutableStateOf(false) }
+        var showEditPicker by remember { mutableStateOf(false) }
+        var showMetaPicker by remember { mutableStateOf(false) }
+        var showCrossPicker by remember { mutableStateOf(false) }
+        // Per-Meta-prompt viewer buckets — one row per unique prompt
+        // name with at least one persisted secondary on this report.
+        // Re-derived as batches finish; surfaced inside the View popup.
+        val viewBuckets = remember(secondaryRuns) { buildViewBuckets(secondaryRuns) }
+        ActionRow {
+            CompactButton(onClick = { showViewPicker = true }, color = AppColors.Purple, text = "View")
+            CompactButton(onClick = { showEditPicker = true }, color = AppColors.Indigo, text = "Edit")
+            CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
+            CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
+            CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
+            CompactButton(
+                onClick = { onTogglePin(); pinTick++ },
+                color = AppColors.Orange,
+                text = if (isPinned) "Unpin" else "Pin"
+            )
+            CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
+            CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
+            CompactButton(
+                onClick = { showMetaPicker = true },
+                color = AppColors.Orange,
+                text = "Meta",
+                enabled = metaPrompts.isNotEmpty()
+            )
+            CompactButton(
+                onClick = { showCrossPicker = true },
+                color = AppColors.Orange,
+                text = "Cross",
+                enabled = crossPrompts.isNotEmpty()
+            )
+        }
+
+        if (showViewPicker) {
+            val items = buildList<Pair<String, () -> Unit>> {
+                add("Reports" to onViewResults)
+                add("Prompt" to onViewPrompt)
+                add("Costs" to onViewCosts)
+                viewBuckets.forEach { (name, kind, _) ->
+                    add(name to { onViewSecondaryName(name, kind) })
+                }
+            }
+            AlertDialog(
+                onDismissRequest = { showViewPicker = false },
+                title = { Text("View") },
+                text = {
+                    Column {
+                        items.forEach { (label, click) ->
+                            Text(
+                                label, fontSize = 15.sp, color = Color.White,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { showViewPicker = false; click() }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showViewPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+
+        if (showEditPicker) {
+            val items = listOf<Pair<String, () -> Unit>>(
+                "Prompt" to onEditPrompt,
+                "Title" to onEditTitle,
+                "Models" to onEditModels,
+                "Parameters" to onEditParameters
+            )
+            AlertDialog(
+                onDismissRequest = { showEditPicker = false },
+                title = { Text("Edit") },
+                text = {
+                    Column {
+                        items.forEach { (label, click) ->
+                            Text(
+                                label, fontSize = 15.sp, color = Color.White,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { showEditPicker = false; click() }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showEditPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+
+        if (showMetaPicker) {
+            AlertDialog(
+                onDismissRequest = { showMetaPicker = false },
+                title = { Text("Meta") },
+                text = {
+                    Column {
+                        metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                            Text(
+                                mp.name, fontSize = 15.sp, color = Color.White,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        showMetaPicker = false
+                                        onLaunchMetaPrompt(mp)
+                                    }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showMetaPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+
+        if (showCrossPicker) {
+            AlertDialog(
+                onDismissRequest = { showCrossPicker = false },
+                title = { Text("Cross") },
+                text = {
+                    Column {
+                        crossPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                            Text(
+                                mp.name, fontSize = 15.sp, color = Color.White,
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        showCrossPicker = false
+                                        onLaunchCrossPrompt(mp)
+                                    }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showCrossPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
     // Pending-changes banner: surfaces edits the user made (prompt / models / parameters)
     // since the report ran, so they know a Regenerate is needed to see the new outputs.
     val pendingPrompt = uiState.hasPendingPromptChange
@@ -1736,165 +1924,6 @@ private fun ColumnScope.GenerationPhase(
 
     }
 
-    Spacer(modifier = Modifier.height(4.dp))
-
-    // Action buttons. Every action row uses [CompactButton] — text-
-    // sized, slim vertical padding, and a [FlowRow] so wide rows wrap
-    // gracefully on narrow viewports instead of squeezing each button
-    // into a tiny column.
-    if (!isComplete) {
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            CompactButton(onClick = onStop, color = AppColors.Red, text = "STOP")
-            CompactButton(onClick = onContinueInBackground, color = AppColors.SurfaceDark, text = "Background")
-        }
-    } else {
-        val secondaryRunning = uiState.activeSecondaryBatches > 0
-
-        @OptIn(ExperimentalLayoutApi::class)
-        @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                content = content
-            )
-        }
-        @Composable fun SectionLabel(text: String) {
-            Text(text, fontSize = 10.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
-        }
-
-        SectionLabel("View")
-        ActionRow {
-            CompactButton(onClick = onViewResults, color = AppColors.Purple, text = "Reports")
-            CompactButton(onClick = onViewPrompt, color = AppColors.Blue, text = "Prompt")
-            CompactButton(onClick = onViewCosts, color = AppColors.Green, text = "Costs")
-            // Trace lives at the top of the screen as a 🐞 icon next to
-            // the totals banner — see the showTotals row above.
-            // Per-Meta-prompt viewers — one button per unique prompt
-            // name that has at least one row on this report. Legacy
-            // rows (no metaPromptName) bucket under their kind label.
-            // Buttons appear/disappear as batches finish, and they live
-            // in the same FlowRow so the line wraps when needed.
-            val viewBuckets = remember(secondaryRuns) { buildViewBuckets(secondaryRuns) }
-            viewBuckets.forEach { (name, kind, _) ->
-                CompactButton(onClick = { onViewSecondaryName(name, kind) }, color = AppColors.Orange, text = name)
-            }
-        }
-
-        SectionLabel("Edit")
-        ActionRow {
-            CompactButton(onClick = onEditPrompt, color = AppColors.Indigo, text = "Prompt")
-            CompactButton(onClick = onEditTitle, color = AppColors.Indigo, text = "Title")
-            CompactButton(onClick = onEditModels, color = AppColors.Purple, text = "Models")
-            CompactButton(onClick = onEditParameters, color = AppColors.Blue, text = "Parameters")
-        }
-
-        SectionLabel("Actions")
-        // Read the persisted pinned flag so the button toggles between
-        // "Pin" and "Unpin" rather than always saying the same thing.
-        // Re-keyed when the user taps the button (currentReportId
-        // doesn't change but the report file does).
-        var pinTick by remember(currentReportId) { mutableStateOf(0) }
-        val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
-            value = currentReportId?.let { rid ->
-                withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
-            } ?: false
-        }
-        // Meta + Cross picker popups — both list user-managed prompts
-        // filtered by category. Meta = chat / rerank / moderation (full
-        // set scope); Cross = cross_out (per-pair fan-out via the
-        // scope screen + confirm dialog).
-        var showMetaPicker by remember { mutableStateOf(false) }
-        var showCrossPicker by remember { mutableStateOf(false) }
-        ActionRow {
-            CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
-            CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
-            CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
-            CompactButton(
-                onClick = { onTogglePin(); pinTick++ },
-                color = AppColors.Orange,
-                text = if (isPinned) "Unpin" else "Pin"
-            )
-            CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
-            CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
-            CompactButton(
-                onClick = { showMetaPicker = true },
-                color = AppColors.Orange,
-                text = "Meta",
-                enabled = metaPrompts.isNotEmpty()
-            )
-            CompactButton(
-                onClick = { showCrossPicker = true },
-                color = AppColors.Orange,
-                text = "Cross",
-                enabled = crossPrompts.isNotEmpty()
-            )
-        }
-
-        if (showMetaPicker) {
-            AlertDialog(
-                onDismissRequest = { showMetaPicker = false },
-                title = { Text("Meta") },
-                text = {
-                    Column {
-                        metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
-                            Text(
-                                mp.name,
-                                fontSize = 15.sp,
-                                color = Color.White,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        showMetaPicker = false
-                                        onLaunchMetaPrompt(mp)
-                                    }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showMetaPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
-                }
-            )
-        }
-
-        if (showCrossPicker) {
-            AlertDialog(
-                onDismissRequest = { showCrossPicker = false },
-                title = { Text("Cross") },
-                text = {
-                    Column {
-                        crossPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
-                            Text(
-                                mp.name,
-                                fontSize = 15.sp,
-                                color = Color.White,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        showCrossPicker = false
-                                        onLaunchCrossPrompt(mp)
-                                    }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showCrossPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
-                }
-            )
-        }
-    }
 }
 
 /** Group non-translate Meta rows by user-given prompt name (or, for
