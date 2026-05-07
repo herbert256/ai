@@ -71,7 +71,14 @@ fun SettingsScreen(
     initialEditingInternalPromptId: String? = null
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
-    var selectedProvider by remember { mutableStateOf(initialProviderId?.let { AppService.findById(it) }) }
+    // Re-resolve the deep-linked provider id whenever ProviderRegistry
+    // gets fresh entries (key on AppService.entries.size). Without this
+    // a cold-launch deep link to AI_PROVIDER_EDIT could find the lookup
+    // returning null pre-bootstrap, and the `?: goBack()` fallback in
+    // the edit screen would bounce the user straight out of Settings.
+    var selectedProvider by remember(initialProviderId, AppService.entries.size) {
+        mutableStateOf(initialProviderId?.let { AppService.findById(it) })
+    }
     var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
     var editingFlockId by remember { mutableStateOf<String?>(null) }
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
