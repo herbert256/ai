@@ -899,11 +899,22 @@ private fun ColumnScope.CrossMetaDrillInView(
         successful.map { "${it.provider}|${it.model}" }.distinct()
     }
 
-    // Stats — derived from the cross rows + running set.
+    // Stats — derived from the cross rows + running set. A row counts
+    // as processed once the executor has stamped durationMs (set on
+    // every successful and errored save, cleared by resetAndRelaunch).
+    // Without that signal, a successful call that returned an empty
+    // body (no text, no error) would slip past the content-non-blank
+    // check, get dropped from runningCrossPairs in the finally block,
+    // and silently land in Queued instead of Done.
     val totalPairs = results.size
-    val doneCount = results.count { it.errorMessage == null && !it.content.isNullOrBlank() }
+    val doneCount = results.count {
+        it.errorMessage == null && (!it.content.isNullOrBlank() || it.durationMs != null)
+    }
     val erroredCount = results.count { it.errorMessage != null }
-    val runningCount = results.count { it.id in runningCrossPairs && it.errorMessage == null && it.content.isNullOrBlank() }
+    val runningCount = results.count {
+        it.id in runningCrossPairs && it.errorMessage == null
+            && it.content.isNullOrBlank() && it.durationMs == null
+    }
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
@@ -1011,7 +1022,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                 when {
                     res == null -> Unit
                     res.errorMessage != null -> rowErr++
-                    !res.content.isNullOrBlank() -> rowOk++
+                    !res.content.isNullOrBlank() || res.durationMs != null -> rowOk++
                     res.id in runningCrossPairs -> rowRun++
                 }
             }
