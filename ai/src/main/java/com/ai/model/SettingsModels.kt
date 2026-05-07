@@ -645,7 +645,11 @@ data class Settings(
                 p.topP ?: acc.topP, p.topK ?: acc.topK,
                 p.frequencyPenalty ?: acc.frequencyPenalty, p.presencePenalty ?: acc.presencePenalty,
                 p.systemPrompt ?: acc.systemPrompt, p.stopSequences ?: acc.stopSequences,
-                p.seed ?: acc.seed, p.responseFormatJson || acc.responseFormatJson, p.searchEnabled || acc.searchEnabled, p.returnCitations,
+                p.seed ?: acc.seed, p.responseFormatJson || acc.responseFormatJson, p.searchEnabled || acc.searchEnabled,
+                // returnCitations defaults to true; combine with AND
+                // so an explicit opt-out anywhere in the preset chain
+                // is honoured (mirrors AnalysisRepository.mergeParameters).
+                p.returnCitations && acc.returnCitations,
                 p.searchRecency ?: acc.searchRecency,
                 p.webSearchTool || acc.webSearchTool,
                 p.reasoningEffort ?: acc.reasoningEffort

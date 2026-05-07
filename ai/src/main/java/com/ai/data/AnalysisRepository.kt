@@ -119,7 +119,12 @@ class AnalysisRepository {
             seed = overrideParams.seed ?: agentParams.seed,
             responseFormatJson = overrideParams.responseFormatJson || agentParams.responseFormatJson,
             searchEnabled = overrideParams.searchEnabled || agentParams.searchEnabled,
-            returnCitations = overrideParams.returnCitations,
+            // returnCitations defaults to true (the default-true sibling
+            // of the default-false flags above). Use AND so an explicit
+            // opt-out on either side wins — otherwise an override that
+            // simply left the field at default true would silently
+            // re-enable citations for an agent that had them disabled.
+            returnCitations = overrideParams.returnCitations && agentParams.returnCitations,
             searchRecency = overrideParams.searchRecency ?: agentParams.searchRecency,
             webSearchTool = overrideParams.webSearchTool || agentParams.webSearchTool,
             reasoningEffort = overrideParams.reasoningEffort ?: agentParams.reasoningEffort
