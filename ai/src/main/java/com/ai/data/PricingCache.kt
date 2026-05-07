@@ -1560,8 +1560,13 @@ object PricingCache {
                     if (model.pricing != null) pricingEntries.add(ModelPricingEntry(aiService.id, parts[1], model.pricing))
                     if (model.supported_parameters != null) parametersEntries.add(ModelSupportedParametersEntry(aiService.id, parts[1], model.supported_parameters))
                 }
-                java.io.File(context.filesDir, "model_pricing.json").writeText(gson.toJson(pricingEntries))
-                java.io.File(context.filesDir, "model_supported_parameters.json").writeText(gson.toJson(parametersEntries))
+                // Atomic — process death mid-write would otherwise
+                // truncate the cache; the supported-parameters loader
+                // catches the parse exception and falls back to an
+                // empty map, so every report would send every parameter
+                // regardless of model support until the next refresh.
+                java.io.File(context.filesDir, "model_pricing.json").writeTextAtomic(gson.toJson(pricingEntries))
+                java.io.File(context.filesDir, "model_supported_parameters.json").writeTextAtomic(gson.toJson(parametersEntries))
                 clearSupportedParametersCache()
                 Pair(pricingEntries.size, parametersEntries.size)
             } catch (e: Exception) { android.util.Log.e("PricingCache", "Failed: ${e.message}"); null }
