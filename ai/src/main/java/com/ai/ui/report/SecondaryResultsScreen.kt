@@ -670,11 +670,12 @@ private fun ColumnScope.CrossMetaDrillInView(
                             .minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
                     }
                 }
-                if (ApiTracer.isTracingEnabled && tf != null) {
+                val tfNonNull = tf
+                if (ApiTracer.isTracingEnabled && tfNonNull != null) {
                     Text("🐞", fontSize = 16.sp,
                         modifier = Modifier
                             .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(tf) })
+                            .clickable { onNavigateToTraceFile(tfNonNull) })
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
