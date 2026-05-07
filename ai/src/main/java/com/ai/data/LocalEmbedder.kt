@@ -100,10 +100,21 @@ object LocalEmbedder {
                     }
                 }
             }
-            if (target.exists()) target.delete()
-            if (!tmp.renameTo(target)) {
-                tmp.delete()
-                throw java.io.IOException("Could not move ${tmp.name} into place")
+            // Atomic move — the previous flow deleted target first
+            // and then renamed; a rename failure left the user with
+            // neither the new file nor the old one. Files.move with
+            // REPLACE_EXISTING + ATOMIC_MOVE swaps in one FS op.
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
             }
             recordDownloadTrace(spec, target.length(), System.currentTimeMillis() - started, error = null)
             true
