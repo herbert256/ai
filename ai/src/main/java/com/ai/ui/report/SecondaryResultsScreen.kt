@@ -52,6 +52,11 @@ internal fun SecondaryResultsScreen(
     crossPrompt: com.ai.model.InternalPrompt? = null,
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
+    /** Bulk variant — fires off all deletes at once on Dispatchers.IO
+     *  rather than calling onDelete() in a tight main-thread loop.
+     *  Used by the "Delete this Cross" confirm dialog where N can be
+     *  several hundred (≈ N(N-1) per-pair rows + combined rows). */
+    onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
@@ -64,7 +69,7 @@ internal fun SecondaryResultsScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    var refreshTick by remember { mutableStateOf(0) }
+    var refreshTick by remember { mutableIntStateOf(0) }
     // rememberSaveable so the user can drill into a row, jump out to a
     // trace, and return to the same row instead of the list root.
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -74,15 +79,24 @@ internal fun SecondaryResultsScreen(
             refreshTick++
         }
     }
-    val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, kind, nameFilter, refreshTick) {
+    // Single disk pass per refreshTick. Previously three separate
+    // produceStates each called SecondaryResultStorage.listForReport,
+    // which re-parses every JSON file in the report's secondary dir
+    // regardless of the requested kind (kind filtering is post-parse).
+    // For an N-agent Cross run that's 3 × N(N-1) re-parses every
+    // 500 ms while batching. One read, three derived views.
+    val allRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
         value = withContext(Dispatchers.IO) {
-            val all = SecondaryResultStorage.listForReport(context, reportId, kind)
-            if (nameFilter == null) all
-            else all.filter {
-                val rowName = it.metaPromptName?.takeIf { n -> n.isNotBlank() }
-                    ?: com.ai.data.legacyKindDisplayName(it.kind)
-                rowName == nameFilter
-            }
+            SecondaryResultStorage.listForReport(context, reportId, kind = null)
+        }
+    }
+    val results = remember(allRows, kind, nameFilter) {
+        val sameKind = allRows.filter { it.kind == kind }
+        if (nameFilter == null) sameKind
+        else sameKind.filter {
+            val rowName = it.metaPromptName?.takeIf { n -> n.isNotBlank() }
+                ?: com.ai.data.legacyKindDisplayName(it.kind)
+            rowName == nameFilter
         }
     }
     // After_cross rows on this report regardless of nameFilter — the
@@ -90,21 +104,15 @@ internal fun SecondaryResultsScreen(
     // carry the (different) after_cross prompt's name. Loaded
     // unconditionally so the cross detail screen can list every
     // combine-reports follow-up that this report has spawned.
-    val afterCrossRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
-        value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                .filter { it.afterCrossOf != null }
-        }
+    val afterCrossRows = remember(allRows) {
+        allRows.filter { it.kind == SecondaryKind.META && it.afterCrossOf != null }
     }
     // TRANSLATE rows on this report — drives the language picker for
     // chat-type META views. Languages not seen on TRANSLATE rows never
     // get a tab even if a per-language batch row exists, since the
     // spec is "show the picker iff there are translations."
-    val translates by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
-        value = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                .filter { !it.targetLanguage.isNullOrBlank() }
-        }
+    val translates = remember(allRows) {
+        allRows.filter { it.kind == SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
     }
     val showLanguagePicker = kind == SecondaryKind.META && translates.isNotEmpty()
     val languages = remember(translates) { buildLangTabs(translates) }
@@ -178,6 +186,12 @@ internal fun SecondaryResultsScreen(
     val isCrossDrillIn = kind == SecondaryKind.META &&
         crossRowsAll.any { it.crossSourceAgentId != null }
     var crossLevel by rememberSaveable { mutableIntStateOf(1) }
+    // Reset the level back to 1 whenever the user is no longer in a
+    // cross drill-in (different prompt, or the screen reverts to a
+    // non-cross bucket). Without this, opening Cross-A → drilling to
+    // L3 → backing out → opening Cross-B paints "Cross level 3" on
+    // the fresh L1 view until the user taps a row.
+    LaunchedEffect(isCrossDrillIn, nameFilter) { if (!isCrossDrillIn) crossLevel = 1 }
     val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
@@ -219,6 +233,7 @@ internal fun SecondaryResultsScreen(
                 runningCrossPairs = runningCrossPairs,
                 onRunAfterCross = onRunAfterCross,
                 onDelete = { id -> onDelete(id); refreshTick++ },
+                onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
                 onOpen = { id -> openId = id },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToModelInfo = onNavigateToModelInfo,
@@ -429,6 +444,8 @@ private fun ColumnScope.CrossMetaDrillInView(
     runningCrossPairs: Set<String> = emptySet(),
     onRunAfterCross: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
+    /** Bulk variant for the per-cross delete sweep. */
+    onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
     /** Open a SecondaryResultDetailScreen for the given row id. Used by
      *  the combined-reports list above the answerers — tapping a row
      *  pops out the full content + delete / model / trace controls. */
@@ -466,9 +483,12 @@ private fun ColumnScope.CrossMetaDrillInView(
     val agentsById = remember(successful) { successful.associateBy { it.agentId } }
 
     // Latest-by-timestamp result per (answerer.providerId, answerer.model, sourceAgentId).
+    // Ties on millisecond timestamp resolve by id so the survivor is
+    // deterministic regardless of filesystem listing order — burst
+    // retries can stamp two rows in the same ms.
     val latestByPair = remember(results) {
         val byKey = LinkedHashMap<String, SecondaryResult>()
-        results.sortedBy { it.timestamp }.forEach { row ->
+        results.sortedWith(compareBy({ it.timestamp }, { it.id })).forEach { row ->
             val src = row.crossSourceAgentId ?: return@forEach
             val key = "${row.providerId}|${row.model}|$src"
             byKey[key] = row // last write wins → newest
@@ -492,6 +512,16 @@ private fun ColumnScope.CrossMetaDrillInView(
     var selectedRole by rememberSaveable { mutableStateOf("Responder") }
     var l3AnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
     var l3SourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Switching between Cross prompts on the same report keeps the
+    // composable instance alive — without this, the L2 role + drill-in
+    // selection from Prompt A would carry over to a freshly opened
+    // Prompt B (whose agent set may not even contain the carried key).
+    LaunchedEffect(crossPrompt?.id) {
+        selectedRole = "Responder"
+        selectedModelKey = null
+        l3AnswererKey = null
+        l3SourceAgentId = null
+    }
     // Full-screen overlays inside this view — `if (showX) { X(); return }`
     // pattern documented in CLAUDE.md so the parent's rememberSaveable
     // state survives.
@@ -538,6 +568,12 @@ private fun ColumnScope.CrossMetaDrillInView(
     // Stat / status helpers shared between L1 / L2. A row with
     // durationMs stamped but blank content is a successful empty-body
     // completion — same classifier fix as the L1 stats counters.
+    // Classifier order: errored → done (terminal: any of content set
+    // or durationMs stamped) → running (only while still in flight) →
+    // queued. Done has to come before running so a row that finished
+    // with an empty body (durationMs set, content blank) doesn't
+    // briefly read as "running" if the executor's finally hasn't
+    // dropped its id from runningCrossPairs yet.
     fun rowState(row: SecondaryResult?): String = when {
         row == null -> "queued"
         row.errorMessage != null -> "errored"
@@ -905,8 +941,20 @@ private fun ColumnScope.CrossMetaDrillInView(
     }
 
     // ===== L1 — model rows + progress / stats / actions =====
-    val modelKeys = remember(latestByPair, successful) {
-        successful.map { "${it.provider}|${it.model}" }.distinct()
+    // Keep `successful` as the only key — the row list shape only
+    // depends on which agents are alive, not on every per-pair update.
+    // Orphan keys (rows whose answerer's report-agent later failed) are
+    // appended below so their factchecks remain visible.
+    val orphanKeys = remember(latestByPair, successful) {
+        val live = successful.map { "${it.provider}|${it.model}" }.toHashSet()
+        latestByPair.values
+            .map { "${it.providerId}|${it.model}" }
+            .toSet()
+            .minus(live)
+            .toList()
+    }
+    val modelKeys = remember(successful, orphanKeys) {
+        successful.map { "${it.provider}|${it.model}" }.distinct() + orphanKeys
     }
 
     // Stats — derived from the cross rows + running set. A row counts
@@ -915,16 +963,26 @@ private fun ColumnScope.CrossMetaDrillInView(
     // Without that signal, a successful call that returned an empty
     // body (no text, no error) would slip past the content-non-blank
     // check, get dropped from runningCrossPairs in the finally block,
-    // and silently land in Queued instead of Done.
-    val totalPairs = results.size
-    val doneCount = results.count {
-        it.errorMessage == null && (!it.content.isNullOrBlank() || it.durationMs != null)
+    // and silently land in Queued instead of Done. Memoized so the
+    // four passes only re-run when the inputs actually change instead
+    // of on every recomposition (e.g., L2 ↔ L1 navigation, prompt
+    // viewer overlay open/close).
+    data class Stats(val total: Int, val done: Int, val errored: Int, val running: Int)
+    val stats = remember(results, runningCrossPairs) {
+        var done = 0; var errored = 0; var running = 0
+        results.forEach { r ->
+            when {
+                r.errorMessage != null -> errored++
+                !r.content.isNullOrBlank() || r.durationMs != null -> done++
+                r.id in runningCrossPairs -> running++
+            }
+        }
+        Stats(results.size, done, errored, running)
     }
-    val erroredCount = results.count { it.errorMessage != null }
-    val runningCount = results.count {
-        it.id in runningCrossPairs && it.errorMessage == null
-            && it.content.isNullOrBlank() && it.durationMs == null
-    }
+    val totalPairs = stats.total
+    val doneCount = stats.done
+    val erroredCount = stats.errored
+    val runningCount = stats.running
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
@@ -948,6 +1006,61 @@ private fun ColumnScope.CrossMetaDrillInView(
             trackColor = AppColors.DividerDark
         )
         Spacer(modifier = Modifier.height(8.dp))
+    }
+
+    // Per-row aggregated counters + cost. Hoisted out of the
+    // LazyColumn item body so the O(N²) inner scan only runs when
+    // one of its inputs actually changes (latestByPair, successful,
+    // runningCrossPairs, orphan list). Without this, every
+    // recomposition — and there are many during a live batch as
+    // runningCrossPairs mutates 2× per pair — re-scanned the full
+    // grid for every visible row.
+    data class L1RowStats(
+        val ok: Int, val err: Int, val run: Int,
+        val totalSources: Int, val cost: Double
+    )
+    val rowStatsByKey = remember(modelKeys, latestByPair, successful, runningCrossPairs, orphanKeys) {
+        val orphanSet = orphanKeys.toHashSet()
+        modelKeys.associateWith { ak ->
+            val parts = ak.split("|")
+            val pid = parts.getOrNull(0).orEmpty()
+            val mdl = parts.getOrNull(1).orEmpty()
+            if (ak in orphanSet) {
+                // Orphan answerers — the report-agent failed after
+                // factchecks landed on disk. Iterate the rows that
+                // already exist in latestByPair (all are this model's
+                // answerer rows).
+                var ok = 0; var err = 0; var run = 0; var cost = 0.0; var total = 0
+                latestByPair.values.forEach { res ->
+                    if (res.providerId != pid || res.model != mdl) return@forEach
+                    total++
+                    cost += (res.inputCost ?: 0.0) + (res.outputCost ?: 0.0)
+                    when {
+                        res.errorMessage != null -> err++
+                        !res.content.isNullOrBlank() || res.durationMs != null -> ok++
+                        res.id in runningCrossPairs -> run++
+                    }
+                }
+                L1RowStats(ok, err, run, total, cost)
+            } else {
+                var ok = 0; var err = 0; var run = 0; var cost = 0.0
+                var total = 0
+                successful.forEach { src ->
+                    if (src.provider == pid && src.model == mdl) return@forEach
+                    total++
+                    val res = latestByPair["$ak|${src.agentId}"]
+                    if (res != null) {
+                        cost += (res.inputCost ?: 0.0) + (res.outputCost ?: 0.0)
+                        when {
+                            res.errorMessage != null -> err++
+                            !res.content.isNullOrBlank() || res.durationMs != null -> ok++
+                            res.id in runningCrossPairs -> run++
+                        }
+                    }
+                }
+                L1RowStats(ok, err, run, total, cost)
+            }
+        }
     }
 
     // Total cost banner.
@@ -1017,32 +1130,17 @@ private fun ColumnScope.CrossMetaDrillInView(
                     modifier = Modifier.padding(bottom = 4.dp))
             }
         }
+        val orphanSetForRender = orphanKeys.toHashSet()
         items(modelKeys, key = { it }) { ak ->
             val parts = ak.split("|")
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
             val provName = AppService.findById(pid)?.displayName ?: pid
-            // Per-row pair status — for the answerer view (each model's
-            // own factchecks of every other source).
-            val totalSources = successful.count { !(it.provider == pid && it.model == mdl) }
-            var rowOk = 0; var rowErr = 0; var rowRun = 0
-            successful.forEach { src ->
-                if (src.provider == pid && src.model == mdl) return@forEach
-                val res = latestByPair["$ak|${src.agentId}"]
-                when {
-                    res == null -> Unit
-                    res.errorMessage != null -> rowErr++
-                    !res.content.isNullOrBlank() || res.durationMs != null -> rowOk++
-                    res.id in runningCrossPairs -> rowRun++
-                }
-            }
-            val rowFinished = rowOk + rowErr
-            val rowPending = (totalSources - rowFinished).coerceAtLeast(0)
-            val rowCost = successful.sumOf { src ->
-                if (src.provider == pid && src.model == mdl) 0.0
-                else latestByPair["$ak|${src.agentId}"]
-                    ?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
-            }
+            val rs = rowStatsByKey[ak] ?: L1RowStats(0, 0, 0, 0, 0.0)
+            val rowFinished = rs.ok + rs.err
+            val rowPending = (rs.totalSources - rowFinished).coerceAtLeast(0)
+            val isOrphan = ak in orphanSetForRender
+            val labelColor = if (isOrphan) AppColors.TextDisabled else Color.White
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable { selectedModelKey = ak; selectedRole = "Responder" }
@@ -1052,31 +1150,35 @@ private fun ColumnScope.CrossMetaDrillInView(
                 Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
                     contentAlignment = Alignment.Center) {
                     when {
-                        rowRun > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                        // Orphan = source-of-truth report-agent has
+                        // failed; the row only exists because past
+                        // factchecks survived the agent's regression.
+                        isOrphan -> Text("🚫", fontSize = 16.sp)
+                        rs.run > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
                         rowPending > 0 -> Text("🕓", fontSize = 16.sp)
-                        rowErr > 0 -> Text("❌", fontSize = 16.sp)
+                        rs.err > 0 -> Text("❌", fontSize = 16.sp)
                         else -> Text("✅", fontSize = 16.sp)
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("$provName · $mdl", fontSize = 14.sp, color = Color.White,
+                    Text("$provName · $mdl", fontSize = 14.sp, color = labelColor,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (rowPending > 0 && totalSources > 0) {
+                    if (rowPending > 0 && rs.totalSources > 0) {
                         // Per-row progress bar replaces the legacy "X / Y" text.
                         LinearProgressIndicator(
-                            progress = { rowFinished.toFloat() / totalSources },
+                            progress = { rowFinished.toFloat() / rs.totalSources },
                             modifier = Modifier.fillMaxWidth().padding(top = 2.dp).height(4.dp),
                             color = AppColors.Orange,
                             trackColor = AppColors.DividerDark
                         )
-                    } else if (rowErr > 0) {
-                        Text("$rowOk / $totalSources · ❌ $rowErr",
+                    } else if (rs.err > 0) {
+                        Text("${rs.ok} / ${rs.totalSources} · ❌ ${rs.err}",
                             fontSize = 11.sp, color = AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace)
                     }
                 }
-                if (rowCost > 0.0) {
-                    Text(formatCents(rowCost), fontSize = 11.sp,
+                if (rs.cost > 0.0) {
+                    Text(formatCents(rs.cost), fontSize = 11.sp,
                         color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(end = 8.dp))
                 }
@@ -1185,7 +1287,7 @@ private fun ColumnScope.CrossMetaDrillInView(
             confirmButton = {
                 TextButton(onClick = {
                     confirmCrossDelete = false
-                    (results + combinedRows).forEach { onDelete(it.id) }
+                    onBulkDelete((results + combinedRows).map { it.id })
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = {

@@ -54,6 +54,7 @@ fun ReportsScreenNav(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
+    val runningCrossPairs by viewModel.runningCrossPairs.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -87,6 +88,7 @@ fun ReportsScreenNav(
     ReportsScreen(
         uiState = uiState,
         reportsAgentResults = agentResults,
+        runningCrossPairs = runningCrossPairs,
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(scope, context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -229,6 +231,7 @@ private fun decodeSavedReportModelSelection(selection: String, aiSettings: Setti
 fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
+    runningCrossPairs: Set<String> = emptySet(),
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onStop: () -> Unit,
@@ -278,6 +281,7 @@ fun ReportsScreen(
     val context = LocalContext.current
     val activity = context as? Activity
     val aiSettings = uiState.aiSettings
+    val scope = rememberCoroutineScope()
 
     val reportsTotal = uiState.genericReportsTotal
     val reportsProgress = uiState.genericReportsProgress
@@ -877,7 +881,7 @@ fun ReportsScreen(
             kind = openListKind,
             nameFilter = listFilterByName,
             isBatching = uiState.activeSecondaryBatches > 0,
-            runningCrossPairs = uiState.runningCrossPairs,
+            runningCrossPairs = runningCrossPairs,
             afterCrossPrompts = afterCrossList,
             crossPrompt = crossPrompt,
             onRunAfterCross = if (afterCrossList.isNotEmpty()) {
@@ -887,6 +891,16 @@ fun ReportsScreen(
                 }
             } else null,
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
+            onBulkDelete = { ids ->
+                // Off-thread sweep — N can be hundreds (≈ N(N-1) for
+                // a Cross with N agents). Doing this serially on the
+                // main thread would freeze the UI; one refresh tick
+                // at the end picks up the now-empty directory.
+                scope.launch(Dispatchers.IO) {
+                    ids.forEach { onDeleteSecondary(rid, it) }
+                    withContext(Dispatchers.Main) { secondaryRefreshTick++ }
+                }
+            },
             onBack = { listKind = null; listFilterByName = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,

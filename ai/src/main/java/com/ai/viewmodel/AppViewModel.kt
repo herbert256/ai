@@ -144,15 +144,6 @@ data class UiState(
     // Meta button's hourglass and the Meta screen's poll loop key off
     // this being > 0.
     val activeSecondaryBatches: Int = 0,
-    // Placeholder ids of cross-meta pairs that currently hold a
-    // semaphore permit (i.e. the API call is actually in flight). A
-    // pair whose placeholder is on disk but whose id is *not* in this
-    // set is queued (or stale, if the launching coroutine never ran —
-    // see ReportViewModel.resumeStaleCrossPairs). Cleared on app
-    // restart since the launches don't survive process death; the
-    // Cross L1 screen runs a stale-pair sweep on entry to re-enqueue
-    // anything left as a placeholder.
-    val runningCrossPairs: Set<String> = emptySet(),
     // Chat
     val chatParameters: ChatParameters = ChatParameters(),
     val dualChatConfig: DualChatConfig? = null
@@ -198,6 +189,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    // Hot-mutating cross-pair set lives outside UiState so per-task
+    // start/finish updates (5–15 Hz during a Cross batch) don't
+    // recompose every consumer that reads any other UiState field.
+    // Subscribers that actually care (the Cross L1 / L2 / L3 screens,
+    // the Run-button hourglass) collect this flow directly.
+    private val _runningCrossPairs = MutableStateFlow<Set<String>>(emptySet())
+    val runningCrossPairs: StateFlow<Set<String>> = _runningCrossPairs.asStateFlow()
+    internal fun updateRunningCrossPairs(block: (Set<String>) -> Set<String>) {
+        _runningCrossPairs.update(block)
+    }
 
     init {
         // Tracing default is true; the bootstrap below overrides it with

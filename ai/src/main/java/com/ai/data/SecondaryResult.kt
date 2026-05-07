@@ -97,6 +97,17 @@ object SecondaryResultStorage {
     private val lock = ReentrantLock()
     @Volatile private var rootDir: File? = null
 
+    /** Per-report cache of the full row list keyed on directory mtime
+     *  + file count. The Cross L1 screen polls this every 500 ms while
+     *  batching, and three sibling derived views all want the same
+     *  list. With the cache, sibling reads inside one tick share work,
+     *  and idle paints (no save in between) are O(1). The mtime check
+     *  catches every save / delete because both bump the directory
+     *  mtime; the count check is belt-and-braces against an mtime
+     *  collision (two writes in the same coarse-grained ms). */
+    private data class ListSnapshot(val mtime: Long, val count: Int, val rows: List<SecondaryResult>)
+    @Volatile private var listCache: HashMap<String, ListSnapshot> = HashMap()
+
     fun init(context: Context) {
         if (rootDir == null) lock.withLock {
             if (rootDir == null) {
@@ -156,11 +167,19 @@ object SecondaryResultStorage {
         return lock.withLock {
             val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyList()
             if (!dir.exists()) return@withLock emptyList()
-            dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
-                try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
-            }?.let { items ->
-                if (kind != null) items.filter { it.kind == kind } else items
-            }?.sortedBy { it.timestamp } ?: emptyList()
+            val files = dir.listFiles { f -> f.extension == "json" } ?: return@withLock emptyList()
+            val mtime = dir.lastModified()
+            val cached = listCache[reportId]
+            val rows = if (cached != null && cached.mtime == mtime && cached.count == files.size) {
+                cached.rows
+            } else {
+                val parsed = files.mapNotNull { file ->
+                    try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
+                }.sortedBy { it.timestamp }
+                listCache[reportId] = ListSnapshot(mtime, files.size, parsed)
+                parsed
+            }
+            if (kind != null) rows.filter { it.kind == kind } else rows
         }
     }
 

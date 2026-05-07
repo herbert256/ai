@@ -46,6 +46,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { crossJobs.remove(key, job) }
     }
 
+    // Tracks in-flight resumeStaleCrossPairs scans per (reportId,
+    // metaPromptId). The L1 screen fires resumeStaleCrossPairs from a
+    // LaunchedEffect that re-keys whenever crossPrompt changes
+    // identity — and crossPrompt is recomputed on every aiSettings
+    // change (i.e., any settings save, even unrelated ones). Without a
+    // guard, touching Settings while a Cross is running would re-issue
+    // the listForReport scan + recovery enqueue, stacking duplicate
+    // work on the executor's semaphore.
+    private val staleResumeScans = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     // Separate flow from UiState so per-task completions don't force the UiState equality
     // checker to re-compare every other field. UI subscribers observe this independently.
     private val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
@@ -924,9 +934,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val sem = semByProvider[item.answerer.provider] ?: return@async
                                 sem.withPermit {
-                                    appViewModel.updateUiState {
-                                        it.copy(runningCrossPairs = it.runningCrossPairs + item.placeholder.id)
-                                    }
+                                    appViewModel.updateRunningCrossPairs { it + item.placeholder.id }
                                     try {
                                         val resolvedBase = resolveSecondaryPrompt(
                                             metaPrompt.text,
@@ -943,9 +951,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             existingPlaceholder = item.placeholder
                                         )
                                     } finally {
-                                        appViewModel.updateUiState {
-                                            it.copy(runningCrossPairs = it.runningCrossPairs - item.placeholder.id)
-                                        }
+                                        appViewModel.updateRunningCrossPairs { it - item.placeholder.id }
                                     }
                                 }
                             }
@@ -998,9 +1004,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     ?: return@async
                                 val sem = semByProvider[ph.providerId] ?: return@async
                                 sem.withPermit {
-                                    appViewModel.updateUiState {
-                                        it.copy(runningCrossPairs = it.runningCrossPairs + ph.id)
-                                    }
+                                    appViewModel.updateRunningCrossPairs { it + ph.id }
                                     try {
                                         val resolvedBase = resolveSecondaryPrompt(
                                             metaPrompt.text,
@@ -1017,9 +1021,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             existingPlaceholder = ph
                                         )
                                     } finally {
-                                        appViewModel.updateUiState {
-                                            it.copy(runningCrossPairs = it.runningCrossPairs - ph.id)
-                                        }
+                                        appViewModel.updateRunningCrossPairs { it - ph.id }
                                     }
                                 }
                             }
@@ -1062,7 +1064,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Re-enqueue cross-pair placeholders that look stuck — the row is
      *  on disk as a pending placeholder (no content, no errorMessage)
-     *  but its id is *not* in [UiState.runningCrossPairs]. This is the
+     *  but its id is *not* in [AppViewModel.runningCrossPairs]. This is the
      *  case after the app process is killed mid-run: the placeholders
      *  survive on disk but the launching coroutines are gone. The Cross
      *  L1 screen calls this on entry. */
@@ -1072,24 +1074,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
     ): Job? {
-        val running = appViewModel.uiState.value.runningCrossPairs
-        val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPrompt.id &&
-                    it.crossSourceAgentId != null &&
-                    it.afterCrossOf == null &&
-                    it.content.isNullOrBlank() &&
-                    it.errorMessage == null &&
-                    // durationMs is stamped on every successful + errored
-                    // save and cleared by resetAndRelaunch. A row with
-                    // durationMs set but blank content is a successful
-                    // empty-body completion — re-firing it would
-                    // duplicate-bill the user (same fix as the L1 stats
-                    // classifier in SecondaryResultsScreen).
-                    it.durationMs == null &&
-                    it.id !in running
+        val key = crossJobKey(reportId, metaPrompt.id)
+        // Drop the call if a previous resume scan for the same
+        // (report, prompt) is already in flight. The L1 LaunchedEffect
+        // can re-key spuriously when aiSettings flows a new copy.
+        if (!staleResumeScans.add(key)) return null
+        val job = scope.launch(Dispatchers.IO) {
+            try {
+                val running = appViewModel.runningCrossPairs.value
+                val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPrompt.id &&
+                            it.crossSourceAgentId != null &&
+                            it.afterCrossOf == null &&
+                            it.content.isNullOrBlank() &&
+                            it.errorMessage == null &&
+                            // durationMs is stamped on every successful + errored
+                            // save and cleared by resetAndRelaunch. A row with
+                            // durationMs set but blank content is a successful
+                            // empty-body completion — re-firing it would
+                            // duplicate-bill the user (same fix as the L1 stats
+                            // classifier in SecondaryResultsScreen).
+                            it.durationMs == null &&
+                            it.id !in running
+                    }
+                if (stale.isNotEmpty()) {
+                    rerunCrossPlaceholders(scope, context, reportId, metaPrompt, stale)
+                }
+            } finally {
+                staleResumeScans.remove(key)
             }
-        return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, stale)
+        }
+        return job
     }
 
     /** Re-run cross-pair rows that errored. Resets the rows on disk
