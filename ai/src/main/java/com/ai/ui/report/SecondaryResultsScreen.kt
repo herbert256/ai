@@ -535,11 +535,13 @@ private fun ColumnScope.CrossMetaDrillInView(
         return
     }
 
-    // Stat / status helpers shared between L1 / L2.
+    // Stat / status helpers shared between L1 / L2. A row with
+    // durationMs stamped but blank content is a successful empty-body
+    // completion — same classifier fix as the L1 stats counters.
     fun rowState(row: SecondaryResult?): String = when {
         row == null -> "queued"
         row.errorMessage != null -> "errored"
-        !row.content.isNullOrBlank() -> "done"
+        !row.content.isNullOrBlank() || row.durationMs != null -> "done"
         row.id in runningCrossPairs -> "running"
         else -> "queued"
     }
