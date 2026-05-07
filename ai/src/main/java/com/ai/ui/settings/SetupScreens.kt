@@ -185,20 +185,15 @@ fun WorkersSetupScreen(
 
 // ===== Prompts Setup hub =====
 
-/** Sub-hub under AI Setup that groups every prompt-management entry
- *  point: System Prompts (reusable system messages) plus the four
- *  category-scoped Internal Prompts CRUDs (Meta / Cross fan-out /
- *  Cross fan-in / Other internal). Same pattern as
- *  [WorkersSetupScreen] and [ModelsSetupScreen]. */
+/** Sub-hub under AI Setup that groups the two prompt-management entry
+ *  points (System Prompts and the Internal Prompts hub). Same pattern
+ *  as [WorkersSetupScreen] and [ModelsSetupScreen]. */
 @Composable
 fun PromptsSetupScreen(
     aiSettings: Settings,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit,
-    /** Set the category that the AI_INTERNAL_PROMPTS list + edit
-     *  screens filter on, then navigate to the list. */
-    onOpenInternalPrompts: (String) -> Unit
+    onNavigate: (SettingsSubScreen) -> Unit
 ) {
     BackHandler { onBack() }
     Column(
@@ -207,11 +202,38 @@ fun PromptsSetupScreen(
         TitleBar(title = "Prompt management", onBackClick = onBack, onAiClick = onBackToHome)
         Spacer(modifier = Modifier.height(12.dp))
 
-        fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
-
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
+            ModelsSetupNavCard("🧩", "Internal Prompts", "Meta, Cross fan-out, Cross fan-in, and Other internal prompts", "${aiSettings.internalPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB) })
+        }
+    }
+}
+
+/** Sub-hub under Prompt Management that groups the four category-
+ *  scoped Internal Prompts CRUDs (Meta / Cross fan-out / Cross fan-in
+ *  / Other internal). Each card opens the same list screen pinned to
+ *  one [com.ai.model.InternalPrompt.category]. */
+@Composable
+fun InternalPromptsHubScreen(
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    /** Set the category that the AI_INTERNAL_PROMPTS list + edit
+     *  screens filter on, then navigate to the list. */
+    onOpenInternalPrompts: (String) -> Unit
+) {
+    BackHandler { onBack() }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(title = "Internal prompts", onBackClick = onBack, onAiClick = onBackToHome)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Cross fan-out prompts", "Run across every pair of report-models", "${countByCategory("cross_out")}",

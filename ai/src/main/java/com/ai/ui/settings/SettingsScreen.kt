@@ -30,6 +30,7 @@ enum class SettingsSubScreen {
     AI_SWARMS, AI_SWARM_EDIT,
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
+    AI_INTERNAL_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_PROMPTS_SETUP,
@@ -123,7 +124,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
-            SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS_SETUP,
@@ -266,7 +268,13 @@ fun SettingsScreen(
             PromptsSetupScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it },
+                onNavigate = { currentSubScreen = it }
+            )
+        }
+        SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> {
+            InternalPromptsHubScreen(
+                aiSettings = aiSettings,
+                onBack = goBack, onBackToHome = onNavigateHome,
                 onOpenInternalPrompts = { cat ->
                     selectedInternalCategory = cat
                     currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS
