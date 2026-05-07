@@ -163,7 +163,7 @@ object KnowledgeStore {
         lock.withLock {
             val chunksDir = File(kbDir, CHUNKS_DIR).also { it.mkdirs() }
             val chunkFile = File(chunksDir, "${source.id}.json")
-            chunkFile.writeText(gson.toJson(chunks))
+            chunkFile.writeTextAtomic(gson.toJson(chunks))
             val current = loadKb(kbDir)
             val replaced = current.sources.filter { it.id != source.id } + source.copy(
                 chunkCount = chunks.size,
@@ -214,6 +214,6 @@ object KnowledgeStore {
     }
 
     private fun saveManifest(kbDir: File, kb: KnowledgeBase) {
-        File(kbDir, MANIFEST).writeText(gson.toJson(kb))
+        File(kbDir, MANIFEST).writeTextAtomic(gson.toJson(kb))
     }
 }
