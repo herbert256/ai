@@ -1647,63 +1647,6 @@ private fun ColumnScope.GenerationPhase(
     }
 
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-        displayRows.forEach { row ->
-            val agentId = row.rowId
-            val result = reportsAgentResults[agentId]
-            val displayName = row.displayName
-
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
-                if (result != null) Modifier.clickable { onViewAgent(agentId) } else Modifier
-            ), verticalAlignment = Alignment.CenterVertically) {
-                // Status icon - newly-staged rows get a NEW badge (no result yet because
-                // the user hasn't re-run); pending hourglass spins; success/failure static.
-                if (row.isNew) {
-                    Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                } else if (result == null) {
-                    val transition = rememberInfiniteTransition(label = "hourglass")
-                    val angle by transition.animateFloat(
-                        initialValue = 0f, targetValue = 360f,
-                        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                        label = "hourglass-rotation"
-                    )
-                    Text(text = "\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
-                } else {
-                    Text(
-                        text = if (result.isSuccess) "\u2705" else "\u274C",
-                        fontSize = 16.sp, modifier = Modifier.width(24.dp)
-                    )
-                }
-                RowTypeCell("report")
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                if (result?.tokenUsage != null) {
-                    val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
-                    Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                }
-                // Latest-trace 🐞 for this (reportId, model) — only
-                // rendered when a trace exists. Mirrors the lookup that
-                // ReportSingleResultScreen does, just inline so the user
-                // can jump from the row without drilling in.
-                val rowModel = result?.let { resolveModelForResult(agentId, it) } ?: row.displayName
-                val rowTrace by produceState<String?>(initialValue = null, currentReportId, rowModel, result) {
-                    val rid = currentReportId
-                    value = if (rid == null || result == null) null else withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == rid && it.model == rowModel }
-                            .maxByOrNull { it.timestamp }?.filename
-                    }
-                }
-                if (ApiTracer.isTracingEnabled) rowTrace?.let { tf ->
-                    Text("🐞", fontSize = 14.sp,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(tf) })
-                }
-            }
-            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-        }
-
         // Meta runs \u2014 one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status
@@ -1920,6 +1863,63 @@ private fun ColumnScope.GenerationPhase(
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
+        }
+
+        displayRows.forEach { row ->
+            val agentId = row.rowId
+            val result = reportsAgentResults[agentId]
+            val displayName = row.displayName
+
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
+                if (result != null) Modifier.clickable { onViewAgent(agentId) } else Modifier
+            ), verticalAlignment = Alignment.CenterVertically) {
+                // Status icon - newly-staged rows get a NEW badge (no result yet because
+                // the user hasn't re-run); pending hourglass spins; success/failure static.
+                if (row.isNew) {
+                    Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                } else if (result == null) {
+                    val transition = rememberInfiniteTransition(label = "hourglass")
+                    val angle by transition.animateFloat(
+                        initialValue = 0f, targetValue = 360f,
+                        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                        label = "hourglass-rotation"
+                    )
+                    Text(text = "\u23F3", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                } else {
+                    Text(
+                        text = if (result.isSuccess) "\u2705" else "\u274C",
+                        fontSize = 16.sp, modifier = Modifier.width(24.dp)
+                    )
+                }
+                RowTypeCell("report")
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (result?.tokenUsage != null) {
+                    val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
+                    Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                }
+                // Latest-trace 🐞 for this (reportId, model) — only
+                // rendered when a trace exists. Mirrors the lookup that
+                // ReportSingleResultScreen does, just inline so the user
+                // can jump from the row without drilling in.
+                val rowModel = result?.let { resolveModelForResult(agentId, it) } ?: row.displayName
+                val rowTrace by produceState<String?>(initialValue = null, currentReportId, rowModel, result) {
+                    val rid = currentReportId
+                    value = if (rid == null || result == null) null else withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == rid && it.model == rowModel }
+                            .maxByOrNull { it.timestamp }?.filename
+                    }
+                }
+                if (ApiTracer.isTracingEnabled) rowTrace?.let { tf ->
+                    Text("🐞", fontSize = 14.sp,
+                        modifier = Modifier
+                            .padding(start = 6.dp)
+                            .clickable { onNavigateToTraceFile(tf) })
+                }
+            }
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
     }
