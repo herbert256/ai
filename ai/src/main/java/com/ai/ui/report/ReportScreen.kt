@@ -642,7 +642,7 @@ fun ReportsScreen(
                 pendingSecondaryScope = chosenScope
                 pendingLanguageScope = chosenLangScope
                 secondaryScopeMetaPrompt = null
-                if (scopeMetaPrompt.type == "cross") {
+                if (scopeMetaPrompt.category == "cross_out") {
                     // No model picker for cross — answerers are always
                     // every successful report-model. Jump straight to
                     // the call-count confirm dialog.
@@ -866,10 +866,10 @@ fun ReportsScreen(
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
-        val afterCrossList = aiSettings.internalPrompts.filter { it.type == "after_cross" }
+        val afterCrossList = aiSettings.internalPrompts.filter { it.category == "cross_in" }
         val crossPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
             aiSettings.internalPrompts.firstOrNull {
-                it.type == "cross" && it.name == listFilterByName
+                it.category == "cross_out" && it.name == listFilterByName
             }
         } else null
         SecondaryResultsScreen(
@@ -942,14 +942,13 @@ fun ReportsScreen(
         return
     }
 
-    // Helper used by both the new Meta card and the Meta hub's "Add"
-    // list — applies the chat / non-chat scope-skip rule and stamps
-    // the launching MetaPrompt into the right state.
+    // Helper used by the Meta card and the Meta hub's "Add" list.
+    // Meta-category prompts are chat / rerank / moderation; chat
+    // goes through the scope screen, the rest skip straight to the
+    // model picker. cross_out prompts have their own button + popup
+    // and are routed via launchCrossPrompt below.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        if (mp.type == "chat" || mp.type == "cross") {
-            // Cross goes through the same scope screen so the user can
-            // pick which sources to factcheck; the screen itself hides
-            // the language picker for cross.
+        if (mp.type == "chat") {
             secondaryScopeMetaPrompt = mp
         } else {
             // Rerank / moderation always operate on the full set — no scope step.
@@ -957,6 +956,13 @@ fun ReportsScreen(
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             secondaryPickerMetaPrompt = mp
         }
+    }
+    // cross_out prompts always run the scope screen → confirm dialog
+    // → runCrossMetaPrompt path. The scope screen hides the language
+    // picker and the post-scope routing on line 645 jumps straight to
+    // the call-count confirm dialog when category == "cross_out".
+    val launchCrossPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
+        secondaryScopeMetaPrompt = mp
     }
 
     if (showMetaScreen && currentReportId != null) {
@@ -1115,6 +1121,8 @@ fun ReportsScreen(
                 onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
                 onLaunchMetaPrompt = launchMetaPrompt,
+                crossPrompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
+                onLaunchCrossPrompt = launchCrossPrompt,
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
             )
@@ -1302,6 +1310,8 @@ private fun ColumnScope.GenerationPhase(
     onOpenMeta: () -> Unit = {},
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = {},
+    crossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    onLaunchCrossPrompt: (com.ai.model.InternalPrompt) -> Unit = {},
     /** Open a single trace file in the trace detail view. Wired to the
      *  per-row 🐞 icons next to agent / secondary rows. */
     onNavigateToTraceFile: (String) -> Unit = {},
@@ -1792,11 +1802,12 @@ private fun ColumnScope.GenerationPhase(
                 withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
             } ?: false
         }
-        // Meta picker popup — replaces the per-prompt button row that
-        // used to live below this card. The popup lists every
-        // user-managed Meta prompt; tapping a row dismisses and fires
-        // the same launchMetaPrompt callback the old buttons used.
+        // Meta + Cross picker popups — both list user-managed prompts
+        // filtered by category. Meta = chat / rerank / moderation (full
+        // set scope); Cross = cross_out (per-pair fan-out via the
+        // scope screen + confirm dialog).
         var showMetaPicker by remember { mutableStateOf(false) }
+        var showCrossPicker by remember { mutableStateOf(false) }
         ActionRow {
             CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
             CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
@@ -1813,6 +1824,12 @@ private fun ColumnScope.GenerationPhase(
                 color = AppColors.Orange,
                 text = "Meta",
                 enabled = metaPrompts.isNotEmpty()
+            )
+            CompactButton(
+                onClick = { showCrossPicker = true },
+                color = AppColors.Orange,
+                text = "Cross",
+                enabled = crossPrompts.isNotEmpty()
             )
         }
 
@@ -1841,6 +1858,37 @@ private fun ColumnScope.GenerationPhase(
                 confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { showMetaPicker = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
+
+        if (showCrossPicker) {
+            AlertDialog(
+                onDismissRequest = { showCrossPicker = false },
+                title = { Text("Cross") },
+                text = {
+                    Column {
+                        crossPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                            Text(
+                                mp.name,
+                                fontSize = 15.sp,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showCrossPicker = false
+                                        onLaunchCrossPrompt(mp)
+                                    }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showCrossPicker = false }) {
                         Text("Cancel", maxLines = 1, softWrap = false)
                     }
                 }

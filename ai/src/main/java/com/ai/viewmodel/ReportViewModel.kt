@@ -1075,9 +1075,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return resetAndRelaunch(scope, context, reportId, metaPrompt, failed)
     }
 
-    /** Drop every cross row + every after_cross row for this metaPromptId
-     *  on this report, then kick a fresh [runCrossMetaPrompt]. Used by
-     *  the Cross L1 "Rerun the complete Cross" button. */
+    /** Drop every cross_out pair-row + every cross_in combine-row for this
+     *  metaPromptId on this report, then kick a fresh
+     *  [runCrossMetaPrompt]. Used by the Cross L1 "Rerun the complete
+     *  Cross" button. */
     fun rerunCompleteCross(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,

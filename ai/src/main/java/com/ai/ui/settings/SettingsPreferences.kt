@@ -85,12 +85,28 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // with those properties as runtime null. Patch them up to
             // "meta" / "*select" — the legacy data was always
             // meta-eligible, never bound to a specific agent.
+            //
+            // The same map also runs the one-shot rename for the cross
+            // schema overhaul: type=cross / type=after_cross / category=
+            // after_cross are obsolete; cross flows are now keyed on
+            // category=cross_out / category=cross_in with type=N/A.
             internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { ip ->
                 @Suppress("USELESS_CAST")
-                val cat = (ip.category as String?) ?: "meta"
+                val cat0 = (ip.category as String?) ?: "meta"
                 @Suppress("USELESS_CAST")
                 val ag = (ip.agent as String?) ?: "*select"
-                if (cat == ip.category && ag == ip.agent) ip else ip.copy(category = cat, agent = ag)
+                @Suppress("USELESS_CAST")
+                val ty0 = (ip.type as String?) ?: "chat"
+                @Suppress("USELESS_CAST")
+                val ttl = (ip.title as String?) ?: ""
+                val (cat, ty) = when {
+                    cat0 == "after_cross" || ty0 == "after_cross" -> "cross_in" to "N/A"
+                    cat0 == "meta" && ty0 == "cross" -> "cross_out" to "N/A"
+                    ty0 == "cross" -> "cross_out" to "N/A"
+                    else -> cat0 to ty0
+                }
+                if (cat == ip.category && ag == ip.agent && ty == ip.type && ttl == ip.title) ip
+                else ip.copy(category = cat, agent = ag, type = ty, title = ttl)
             },
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),

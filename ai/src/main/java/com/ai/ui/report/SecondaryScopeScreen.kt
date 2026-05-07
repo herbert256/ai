@@ -49,12 +49,12 @@ internal fun SecondaryScopeScreen(
     BackHandler { onBack() }
     val kindLabel = metaPrompt.name
     val isChatType = metaPrompt.type == "chat"
-    // Cross-type meta also picks a subset of report-models as
+    // cross_out prompts also pick a subset of report-models as
     // "sources" (the answerer set is always the full successful list).
     // Top-Ranked / Manual scope therefore make sense for both chat and
-    // cross. Language fan-out, however, stays chat-only — cross
+    // cross_out. Language fan-out, however, stays chat-only — cross
     // always runs on the original.
-    val supportsSubsetScope = isChatType || metaPrompt.type == "cross"
+    val supportsSubsetScope = isChatType || metaPrompt.category == "cross_out"
     var scopeMode by remember { mutableStateOf(ScopeMode.ALL) }
     var countText by remember {
         mutableStateOf(minOf(3, totalReports.coerceAtLeast(1)).toString())
