@@ -81,7 +81,10 @@ object LocalLlm {
     )
 
     private fun getEngine(context: Context, modelName: String): LlmInference {
-        return instances.getOrPut(modelName) {
+        // Use computeIfAbsent (atomic) instead of getOrPut (lambda may
+        // run on multiple threads, leaking the losing instance — each
+        // LlmInference holds hundreds of MB of native memory).
+        return instances.computeIfAbsent(modelName) {
             val file = llmFile(context, modelName)
                 ?: throw IllegalStateException("Local LLM $modelName.task not found in local_llms/")
             // Conservative defaults — keeps memory in check on phones

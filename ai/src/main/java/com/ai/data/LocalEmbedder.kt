@@ -167,7 +167,9 @@ object LocalEmbedder {
      *  exists, so we hold one instance per model and reuse it across
      *  embed calls. */
     private fun getEmbedder(context: Context, modelName: String): TextEmbedder {
-        return instances.getOrPut(modelName) {
+        // Use computeIfAbsent (atomic) instead of getOrPut (lambda may
+        // run on multiple threads, leaking the losing native handle).
+        return instances.computeIfAbsent(modelName) {
             val file = modelFile(context, modelName)
                 ?: throw IllegalStateException("Local model $modelName.tflite not found in local_models/")
             val options = TextEmbedder.TextEmbedderOptions.builder()
