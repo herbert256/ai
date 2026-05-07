@@ -527,7 +527,14 @@ private fun SettingsMainScreen(
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail, tracingEnabled = tracingEnabled
         )
-        if (updated != generalSettings) onSave(updated)
+        if (updated != generalSettings) {
+            // Debounce keystrokes — every character used to fire a
+            // disk write through onSave. Wait 400ms of quiet before
+            // persisting; cancellation on a re-key swallows the
+            // pending save automatically.
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
     }
 
     Column(
