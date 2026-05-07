@@ -359,10 +359,21 @@ fun ChatSessionScreen(
         )
     }
 
-    // System prompt initialization
+    // System prompt initialization. Replace any existing system
+    // message in-place so a parameter swap mid-session (e.g.
+    // configure-on-the-fly Chat that recomputes a preset) actually
+    // takes effect on the next call. The previous flow only seeded
+    // when `messages` was empty, so a new system prompt arriving
+    // after the first user/assistant turn was silently ignored.
     LaunchedEffect(parameters.systemPrompt) {
-        if (parameters.systemPrompt.isNotBlank() && messages.isEmpty()) {
-            messages = listOf(ChatMessage(role = "system", content = parameters.systemPrompt))
+        val sp = parameters.systemPrompt
+        val current = messages.firstOrNull { it.role == "system" }
+        when {
+            sp.isBlank() -> if (current != null) messages = messages.filter { it.role != "system" }
+            current == null -> messages = listOf(ChatMessage(role = "system", content = sp)) + messages
+            current.content != sp -> messages = messages.map {
+                if (it.role == "system") it.copy(content = sp) else it
+            }
         }
     }
 
