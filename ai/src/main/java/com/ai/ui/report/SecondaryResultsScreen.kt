@@ -1065,15 +1065,19 @@ private fun ColumnScope.CrossMetaDrillInView(
         }
     }
 
-    // Stats panel
-    Spacer(modifier = Modifier.height(8.dp))
-    Column(modifier = Modifier.fillMaxWidth()) {
-        StatRow("Total API calls", totalPairs.toString(), AppColors.Blue)
-        StatRow("Done", doneCount.toString(), AppColors.Green)
-        StatRow("Errored", erroredCount.toString(),
-            if (erroredCount > 0) AppColors.Red else AppColors.TextTertiary)
-        StatRow("Running", runningCount.toString(), AppColors.Orange)
-        StatRow("Queued", queuedCount.toString(), AppColors.TextTertiary)
+    // Stats panel — only meaningful while pairs are still missing.
+    // When every call has finished successfully (total == done) the
+    // four-zero rows are noise, so hide the whole block.
+    if (totalPairs != doneCount) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            StatRow("Total API calls", totalPairs.toString(), AppColors.Blue)
+            StatRow("Done", doneCount.toString(), AppColors.Green)
+            StatRow("Errored", erroredCount.toString(),
+                if (erroredCount > 0) AppColors.Red else AppColors.TextTertiary)
+            StatRow("Running", runningCount.toString(), AppColors.Orange)
+            StatRow("Queued", queuedCount.toString(), AppColors.TextTertiary)
+        }
     }
 
     // Action buttons — collapsed by default so the L1 page leads with
