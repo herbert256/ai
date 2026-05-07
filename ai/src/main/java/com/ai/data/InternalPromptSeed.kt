@@ -55,25 +55,30 @@ object InternalPromptSeed {
         }
     }
 
-    /** Append every bundled prompt whose name (case-insensitive) is
-     *  not yet present in [existing]. Existing rows are returned
-     *  unchanged. */
+    /** Append every bundled prompt whose (category, name) pair is not
+     *  yet present in [existing]. Names are unique per category, not
+     *  globally — so a bundled `factcheck` under cross_in still adds
+     *  even if the user has a different `factcheck` under meta.
+     *  Existing rows are returned unchanged. */
     fun ensureAllPresent(
         existing: List<InternalPrompt>,
         bundled: List<InternalPrompt>
     ): List<InternalPrompt> {
         if (bundled.isEmpty()) return existing
-        val knownNames = existing.map { it.name.lowercase() }.toSet()
-        val toAdd = bundled.filter { it.name.lowercase() !in knownNames }
+        val known = existing.map { it.category to it.name.lowercase() }.toSet()
+        val toAdd = bundled.filter { (it.category to it.name.lowercase()) !in known }
         return if (toAdd.isEmpty()) existing else existing + toAdd
     }
 
-    /** Upsert by case-insensitive name from a JSON blob shaped like
-     *  `assets/prompts.json` (a top-level array of Entry-shaped
-     *  objects). Existing rows keep their UUID and only get their
-     *  non-name fields overwritten; missing names are appended with a
-     *  fresh UUID. Returns the new list and the count of (added +
-     *  updated) rows, or null on parse failure. */
+    /** Upsert by (category, case-insensitive name) from a JSON blob
+     *  shaped like `assets/prompts.json` (a top-level array of
+     *  Entry-shaped objects). Existing rows keep their UUID and only
+     *  get their non-name fields overwritten; missing pairs are
+     *  appended with a fresh UUID. Names collide only within a single
+     *  category — so a bundled `factcheck` under cross_in upserts
+     *  independently from a user-created `factcheck` under meta.
+     *  Returns the new list and the count of (added + updated) rows,
+     *  or null on parse failure. */
     fun upsertFromJson(
         json: String,
         existing: List<InternalPrompt>
@@ -86,12 +91,15 @@ object InternalPromptSeed {
             var changed = 0
             for (e in entries) {
                 if (e.name.isBlank()) continue
-                val i = result.indexOfFirst { it.name.equals(e.name, ignoreCase = true) }
+                val cat = e.category.ifBlank { "internal" }
+                val i = result.indexOfFirst {
+                    it.category == cat && it.name.equals(e.name, ignoreCase = true)
+                }
                 if (i >= 0) {
                     result[i] = result[i].copy(
                         type = e.type.ifBlank { "chat" },
                         reference = e.reference,
-                        category = e.category.ifBlank { "internal" },
+                        category = cat,
                         agent = e.agent.ifBlank { "*select" },
                         text = e.text,
                         title = e.title
@@ -103,7 +111,7 @@ object InternalPromptSeed {
                             name = e.name,
                             type = e.type.ifBlank { "chat" },
                             reference = e.reference,
-                            category = e.category.ifBlank { "internal" },
+                            category = cat,
                             agent = e.agent.ifBlank { "*select" },
                             text = e.text,
                             title = e.title

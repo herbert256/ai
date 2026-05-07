@@ -424,7 +424,13 @@ fun SettingsScreen(
             val ip = editingInternalPromptId?.let { aiSettings.getInternalPromptById(it) }
             InternalPromptEditScreen(
                 internalPrompt = ip,
-                existingNames = aiSettings.internalPrompts.filter { it.id != (ip?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                // Names are unique within a category, not across all
+                // internal prompts — so "Compare" under meta and
+                // "Compare" under cross_in can coexist.
+                existingNames = aiSettings.internalPrompts
+                    .filter { it.id != (ip?.id ?: "") && it.category == selectedInternalCategory }
+                    .map { it.name.lowercase() }
+                    .toSet(),
                 agentNames = aiSettings.agents.map { it.name },
                 fixedCategory = selectedInternalCategory,
                 onSave = { saved ->
