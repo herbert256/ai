@@ -68,13 +68,8 @@ fun InternalPromptsListScreen(
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
     onAddInternalPrompt: () -> Unit,
-    onEditInternalPrompt: (String) -> Unit,
-    /** Run the on-demand merge of `assets/prompts.json` and return the
-     *  number of newly added rows. Caller persists; this screen just
-     *  surfaces the result via a status line. */
-    onLoadBundledPrompts: () -> Int = { 0 }
+    onEditInternalPrompt: (String) -> Unit
 ) {
-    var loadStatus by remember { mutableStateOf<String?>(null) }
     val label = categoryDisplayName(categoryFilter)
     CrudListScreen(
         title = label,
@@ -106,28 +101,7 @@ fun InternalPromptsListScreen(
         onHome = onBackToHome,
         deleteEntityType = label.removeSuffix("s"),
         deleteEntityName = { it.name },
-        itemKey = { it.id },
-        headerContent = {
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    val added = onLoadBundledPrompts()
-                    loadStatus = when {
-                        added == 0 -> "No new prompts in assets/prompts.json"
-                        added == 1 -> "Added 1 new prompt"
-                        else -> "Added $added new prompts"
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) {
-                Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false)
-            }
-            loadStatus?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-            }
-        }
+        itemKey = { it.id }
     )
 }
 

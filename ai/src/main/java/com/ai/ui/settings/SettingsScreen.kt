@@ -64,10 +64,6 @@ fun SettingsScreen(
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    /** Run the on-demand bundled-prompt merge; returns the count of
-     *  newly added rows so the InternalPrompts list can render a
-     *  status line. Defaults to a no-op for previews. */
-    onLoadBundledPrompts: () -> Int = { 0 },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -413,8 +409,7 @@ fun SettingsScreen(
                 categoryFilter = selectedInternalCategory,
                 onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
                 onAddInternalPrompt = { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
-                onEditInternalPrompt = { editingInternalPromptId = it; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
-                onLoadBundledPrompts = onLoadBundledPrompts
+                onEditInternalPrompt = { editingInternalPromptId = it; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT }
             )
         }
         SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> {

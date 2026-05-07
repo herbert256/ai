@@ -32,7 +32,11 @@ fun HousekeepingScreen(
     onClearConfiguration: () -> AppViewModel.ConfigWipeResult = { AppViewModel.ConfigWipeResult(0, 0) },
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit = { _ -> },
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {},
+    /** Run the on-demand merge of `assets/prompts.json`; returns the
+     *  number of newly added rows. Surfaced as a one-shot button under
+     *  the "Internal prompts" card. */
+    onLoadBundledPrompts: () -> Int = { 0 }
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
@@ -45,6 +49,7 @@ fun HousekeepingScreen(
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var daysToKeepText by remember { mutableStateOf("30") }
     val daysToKeep = daysToKeepText.toIntOrNull()
+    var bundledPromptsStatus by remember { mutableStateOf<String?>(null) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -331,6 +336,28 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
                     ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
+            }
+
+            CollapsibleCard("Internal prompts") {
+                    Text(
+                        "Merges any prompt in the bundled assets/prompts.json that isn't already present (matched by name). Existing rows with the same name are overwritten.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Button(
+                        onClick = {
+                            val added = onLoadBundledPrompts()
+                            bundledPromptsStatus = when {
+                                added == 0 -> "No new prompts in assets/prompts.json"
+                                added == 1 -> "Added 1 new prompt"
+                                else -> "Added $added new prompts"
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
+                    bundledPromptsStatus?.let {
+                        Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+                    }
             }
 
             CollapsibleCard("Reset") {
