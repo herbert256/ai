@@ -74,13 +74,13 @@ fun SetupScreen(
                 SetupNavCard("\uD83D\uDC65", "Workers", "Agents, Flocks, and Swarms", "$workersCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_WORKERS_SETUP) }, enabled = hasApiKey)
             }
-            SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
             run {
                 val promptsCount = aiSettings.systemPrompts.size + aiSettings.internalPrompts.size
                 SetupNavCard("\uD83D\uDCDD", "Prompt management", "System prompts and Internal (Meta + Internal) prompts", "$promptsCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
+            SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
             SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
