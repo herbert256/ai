@@ -408,26 +408,3 @@ private fun NavCard(title: String, onClick: () -> Unit) {
     }
 }
 
-/** Card that starts collapsed — the title row is always visible and
- *  acts as a click target; tapping reveals [content]. Lets the
- *  Housekeeping screen present six cards as a compact list-of-titles
- *  rather than a long scroll of fully-expanded sections. */
-@Composable
-private fun CollapsibleCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
-            }
-            if (expanded) content()
-        }
-    }
-}

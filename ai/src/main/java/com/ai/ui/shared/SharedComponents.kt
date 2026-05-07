@@ -12,6 +12,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Card that starts collapsed — the title row is always visible and
+ *  acts as a click target; tapping reveals [content]. */
+@Composable
+fun CollapsibleCard(
+    title: String,
+    initiallyExpanded: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(initiallyExpanded) }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
+            }
+            if (expanded) content()
+        }
+    }
+}
+
 /**
  * Tiny "vision-capable" badge for model lists. Renders nothing when the
  * model isn't flagged so the row stays compact for the long tail of

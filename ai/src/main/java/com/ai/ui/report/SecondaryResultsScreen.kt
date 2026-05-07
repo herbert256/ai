@@ -25,6 +25,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
@@ -1075,54 +1076,53 @@ private fun ColumnScope.CrossMetaDrillInView(
         StatRow("Queued", queuedCount.toString(), AppColors.TextTertiary)
     }
 
-    // Action buttons
+    // Action buttons — collapsed by default so the L1 page leads with
+    // the model rows + stats, and the user expands to find the
+    // run-management actions.
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmCrossDelete by remember { mutableStateOf(false) }
     Spacer(modifier = Modifier.height(8.dp))
-    if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+    CollapsibleCard("Actions") {
+        if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+            Button(
+                onClick = { onRunAfterCross() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) {
+                Text("Combine reports and all cross responses",
+                    fontSize = 13.sp, maxLines = 1, softWrap = false)
+            }
+        }
         Button(
-            onClick = { onRunAfterCross() },
+            onClick = { crossPrompt?.let { onRestartFailedCross(it) } },
+            enabled = crossPrompt != null && erroredCount > 0,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+        ) { Text("Restart all failed API calls", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { showPromptViewer = true },
+            enabled = crossPrompt != null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) {
-            Text("Combine reports and all cross responses",
-                fontSize = 13.sp, maxLines = 1, softWrap = false)
-        }
-        Spacer(modifier = Modifier.height(6.dp))
+        ) { Text("Show the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { crossPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
+            enabled = crossPrompt != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) { Text("Edit the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { confirmRerunComplete = true },
+            enabled = crossPrompt != null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Rerun the complete Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        Button(
+            onClick = { confirmCrossDelete = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+        ) { Text("Delete this Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
-    Button(
-        onClick = { crossPrompt?.let { onRestartFailedCross(it) } },
-        enabled = crossPrompt != null && erroredCount > 0,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-    ) { Text("Restart all failed API calls", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-    Spacer(modifier = Modifier.height(6.dp))
-    Button(
-        onClick = { showPromptViewer = true },
-        enabled = crossPrompt != null,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-    ) { Text("Show the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-    Spacer(modifier = Modifier.height(6.dp))
-    Button(
-        onClick = { crossPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
-        enabled = crossPrompt != null,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-    ) { Text("Edit the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-    Spacer(modifier = Modifier.height(6.dp))
-    Button(
-        onClick = { confirmRerunComplete = true },
-        enabled = crossPrompt != null,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-    ) { Text("Rerun the complete Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-    Spacer(modifier = Modifier.height(6.dp))
-    Button(
-        onClick = { confirmCrossDelete = true },
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-    ) { Text("Delete this Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
     if (confirmRerunComplete) {
         AlertDialog(
