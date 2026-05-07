@@ -422,24 +422,43 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> {
             val ip = editingInternalPromptId?.let { aiSettings.getInternalPromptById(it) }
-            InternalPromptEditScreen(
-                internalPrompt = ip,
-                // Names are unique within a category, not across all
-                // internal prompts — so "Compare" under meta and
-                // "Compare" under cross_in can coexist.
-                existingNames = aiSettings.internalPrompts
-                    .filter { it.id != (ip?.id ?: "") && it.category == selectedInternalCategory }
-                    .map { it.name.lowercase() }
-                    .toSet(),
-                agentNames = aiSettings.agents.map { it.name },
-                fixedCategory = selectedInternalCategory,
-                onSave = { saved ->
-                    val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
-                    else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)
-                    onSaveAi(updated); goBack()
-                },
-                onBack = goBack, onNavigateHome = onNavigateHome
-            )
+            // Deep-link safety: when the caller asked to edit a
+            // specific id but aiSettings hasn't bootstrapped yet, ip
+            // resolves to null. The InternalPromptEditScreen captures
+            // its initial state via remember{} on first composition,
+            // so an empty form shown here would silently create a
+            // duplicate prompt on Save once the user typed a name.
+            // Treat the not-yet-loaded case as a transient loading
+            // state — InternalPromptEditScreen is keyed on ip?.id so
+            // it re-initialises when the lookup resolves.
+            if (editingInternalPromptId != null && ip == null) {
+                Column(
+                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+                ) {
+                    TitleBar(title = "Loading…", onBackClick = goBack, onAiClick = onNavigateHome)
+                }
+            } else {
+                key(ip?.id) {
+                    InternalPromptEditScreen(
+                        internalPrompt = ip,
+                        // Names are unique within a category, not across all
+                        // internal prompts — so "Compare" under meta and
+                        // "Compare" under cross_in can coexist.
+                        existingNames = aiSettings.internalPrompts
+                            .filter { it.id != (ip?.id ?: "") && it.category == selectedInternalCategory }
+                            .map { it.name.lowercase() }
+                            .toSet(),
+                        agentNames = aiSettings.agents.map { it.name },
+                        fixedCategory = selectedInternalCategory,
+                        onSave = { saved ->
+                            val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
+                            else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)
+                            onSaveAi(updated); goBack()
+                        },
+                        onBack = goBack, onNavigateHome = onNavigateHome
+                    )
+                }
+            }
         }
         SettingsSubScreen.AI_EXTERNAL_SERVICES -> {
             ExternalServicesScreen(
