@@ -658,10 +658,17 @@ private fun ColumnScope.CrossMetaDrillInView(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                val tf = pairResult?.let { res ->
-                    val all = ApiTracer.getTraceFiles()
-                        .filter { it.reportId == reportId && it.model == res.model }
-                    all.minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
+                // Off-thread trace lookup — getTraceFiles() can do a
+                // streaming JSON parse over every trace file on cache
+                // miss; doing that synchronously inside the Row body
+                // blocked the UI thread and could ANR on cold cache.
+                val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model, pairResult?.timestamp) {
+                    val res = pairResult
+                    value = if (res == null) null else withContext(Dispatchers.IO) {
+                        ApiTracer.getTraceFiles()
+                            .filter { it.reportId == reportId && it.model == res.model }
+                            .minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
+                    }
                 }
                 if (ApiTracer.isTracingEnabled && tf != null) {
                     Text("🐞", fontSize = 16.sp,
