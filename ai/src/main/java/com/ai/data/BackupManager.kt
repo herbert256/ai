@@ -319,14 +319,22 @@ object BackupManager {
         ZipInputStream(zipFile.inputStream()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                if (!entry.isDirectory && entry.name == "manifest.json") {
-                    val bytes = zip.readBytes()
-                    @Suppress("UNCHECKED_CAST")
-                    val manifest = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
+                try {
+                    if (!entry.isDirectory && entry.name == "manifest.json") {
+                        val bytes = zip.readBytes()
+                        @Suppress("UNCHECKED_CAST")
+                        val manifest = gson.fromJson(bytes.toString(Charsets.UTF_8), Map::class.java) as Map<String, Any?>
+                        return (manifest["version"] as? Number)?.toInt() ?: -1
+                    }
+                } finally {
+                    // Always closeEntry — ZipInputStream.nextEntry behavior
+                    // on a partially-read entry is implementation-defined,
+                    // and the previous code only closed inside the matched
+                    // branch. Fully-skipping a non-manifest entry could
+                    // mis-align the stream and make the manifest scan
+                    // return -1 even though the manifest was present.
                     zip.closeEntry()
-                    return (manifest["version"] as? Number)?.toInt() ?: -1
                 }
-                zip.closeEntry()
             }
         }
         return -1
