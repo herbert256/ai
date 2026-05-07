@@ -24,7 +24,12 @@ fun ReportEditPromptScreen(
     onUpdate: (newPrompt: String) -> Unit
 ) {
     BackHandler { onBack() }
-    var prompt by rememberSaveable { mutableStateOf(initialPrompt) }
+    // Key the saver on initialPrompt so that re-opening the overlay
+    // with a different starting value doesn't restore the old draft
+    // out of the SaveableStateRegistry. Without the key, an external
+    // edit between two openings would silently re-surface the prior
+    // text.
+    var prompt by rememberSaveable(initialPrompt) { mutableStateOf(initialPrompt) }
     val canUpdate = prompt.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -62,7 +67,9 @@ fun ReportEditTitleScreen(
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
-    var title by rememberSaveable { mutableStateOf(initialTitle) }
+    // Same caveat as ReportEditPromptScreen above — key on
+    // initialTitle so a stale draft doesn't outlive an external edit.
+    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     val canUpdate = title.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
