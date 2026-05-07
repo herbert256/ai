@@ -569,6 +569,11 @@ private suspend fun callCohereRerank(
             billedSearchUnits = body.meta?.billed_units?.search_units,
             durationMs = duration
         )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // Don't swallow cancellation — let structured concurrency
+        // unwind without persisting a fake "failed" placeholder.
+        // (Same shape as the moderation / chat paths.)
+        throw e
     } catch (e: Exception) {
         RerankApiResult(
             content = null,
