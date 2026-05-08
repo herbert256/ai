@@ -1169,7 +1169,21 @@ private fun ColumnScope.CrossMetaDrillInView(
         Spacer(modifier = Modifier.height(4.dp))
     }
 
-    LazyColumn(modifier = Modifier.weight(1f)) {
+    // Scroll to the top whenever a new combined-reports row appears
+    // (the user just tapped "Combine reports and all cross responses"
+    // — the placeholder row materialises a tick or two later, and we
+    // want it visible immediately so it doesn't get lost below the
+    // fold). Tracking the count change rather than identity covers
+    // both the immediate-render and after-batch-join paths.
+    val l1ListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    var lastCombinedSize by remember { mutableIntStateOf(combinedRows.size) }
+    LaunchedEffect(combinedRows.size) {
+        if (combinedRows.size > lastCombinedSize) {
+            l1ListState.animateScrollToItem(0)
+        }
+        lastCombinedSize = combinedRows.size
+    }
+    LazyColumn(state = l1ListState, modifier = Modifier.weight(1f)) {
         // After_cross combine-reports follow-ups for this report.
         if (combinedRows.isNotEmpty()) {
             item(key = "ac-header") {
@@ -1192,9 +1206,18 @@ private fun ColumnScope.CrossMetaDrillInView(
                         contentAlignment = Alignment.Center) {
                         when {
                             row.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            // Combined-report rows have no queued
+                            // state — they're created at the moment
+                            // the user taps "Combine reports and all
+                            // cross responses" and run to completion
+                            // serially. The id is never added to
+                            // runningCrossPairs (that's per-pair
+                            // factcheck plumbing only), so the prior
+                            // 🕓 fallback would stick on a row that's
+                            // actually in flight. Animated hourglass
+                            // covers the whole blank-content window.
                             row.content.isNullOrBlank() ->
-                                if (row.id in runningCrossPairs) com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
-                                else Text("🕓", fontSize = 16.sp)
+                                com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
                             else -> Text("✅", fontSize = 16.sp)
                         }
                     }
