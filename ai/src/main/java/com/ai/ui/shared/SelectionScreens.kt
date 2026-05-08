@@ -185,7 +185,7 @@ fun SelectModelScreen(
                 val pricing = aiSettings.getModelPricing(provider, modelName)
                     ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
-                val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
+                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
 
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -344,7 +344,7 @@ fun SelectAgentScreen(
                 val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
                 val pricing = aiSettings.getModelPricing(agent.provider, effectiveModel)
                     ?: PricingCache.getPricing(context, agent.provider, effectiveModel)
-                val priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red
+                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }
