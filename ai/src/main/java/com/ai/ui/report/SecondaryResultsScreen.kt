@@ -501,6 +501,12 @@ private fun ColumnScope.CrossMetaDrillInView(
         r.agents.filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
     }
     val agentsById = remember(successful) { successful.associateBy { it.agentId } }
+    // All-agents map (every status) — only used for label lookups, so
+    // an orphan source (agent that has since failed or had its
+    // responseBody cleared) still renders as "$prov / $model" instead
+    // of falling back to its raw UUID. agentsById stays SUCCESS-only
+    // because every read path other than labelling needs the body.
+    val agentsByIdAll = remember(r) { r.agents.associateBy { it.agentId } }
 
     // Latest-by-timestamp result per (answerer.providerId, answerer.model, sourceAgentId).
     // Ties on millisecond timestamp resolve by id so the survivor is
@@ -695,7 +701,11 @@ private fun ColumnScope.CrossMetaDrillInView(
     if (srcAgentIdL3 != null && answererKeyL3 != null) {
         val pairResult = latestByPair["$answererKeyL3|$srcAgentIdL3"]
         val sourceAgent = agentsById[srcAgentIdL3]
-        val sourceLabel = sourceAgent?.let {
+        // Prefer the SUCCESS-only map for label, but fall back to the
+        // all-agents map so an orphan source still reads as
+        // "$prov / $model" rather than the raw UUID.
+        val sourceLabelAgent = sourceAgent ?: agentsByIdAll[srcAgentIdL3]
+        val sourceLabel = sourceLabelAgent?.let {
             val pn = AppService.findById(it.provider)?.displayName ?: it.provider
             "$pn / ${it.model}"
         } ?: srcAgentIdL3
@@ -754,7 +764,12 @@ private fun ColumnScope.CrossMetaDrillInView(
                 // streaming JSON parse over every trace file on cache
                 // miss; doing that synchronously inside the Row body
                 // blocked the UI thread and could ANR on cold cache.
-                val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model, pairResult?.timestamp) {
+                // Keys: id + model only. The placeholder→result save
+                // path mutates the row's timestamp; including it
+                // would needlessly refire the produceState every time
+                // the executor stamps a final timestamp on top of the
+                // placeholder.
+                val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model) {
                     val res = pairResult
                     value = if (res == null) null else withContext(Dispatchers.IO) {
                         ApiTracer.getTraceFiles()
@@ -776,27 +791,38 @@ private fun ColumnScope.CrossMetaDrillInView(
                 pairResult.errorMessage != null -> {
                     Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
                 }
-                pairResult.content.isNullOrBlank() -> {
+                !pairResult.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pairResult.content)
+                // durationMs is stamped on every successful and errored
+                // save (cleared by resetAndRelaunch). A row with
+                // durationMs set but blank content is a successful
+                // empty-body completion; treat it as terminal so the
+                // view doesn't loop on Running…/Queued forever.
+                pairResult.durationMs != null -> {
+                    Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
+                }
+                pairResult.id in runningCrossPairs -> {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (pairResult.id in runningCrossPairs) {
-                            com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
-                        } else {
-                            Text("🕓", fontSize = 13.sp)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
-                        }
+                        com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
                     }
                 }
-                else -> ContentWithThinkSections(analysis = pairResult.content)
+                else -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("🕓", fontSize = 13.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
+                    }
+                }
             }
         }
         // Previous / Next — step through the L2 list in role-aware order.
         // The current pair is identified by l3PairKey. Disabled at ends.
         Spacer(modifier = Modifier.height(8.dp))
         val currentPairKey = "$answererKeyL3|$srcAgentIdL3"
-        val currentIdx = l2Rows.indexOfFirst { it.l3PairKey == currentPairKey }
+        val currentIdx = remember(l2Rows, currentPairKey) {
+            l2Rows.indexOfFirst { it.l3PairKey == currentPairKey }
+        }
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
