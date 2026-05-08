@@ -75,8 +75,7 @@ fun ImportExportScreen(
         val json = buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey)
         // Count is just the populated key count — re-derive from the
         // payload to keep the toast in step with the helper's logic.
-        @Suppress("DEPRECATION")
-        val count = JsonParser().parse(json).asJsonObject.size()
+        val count = JsonParser.parseString(json).asJsonObject.size()
         writeToUri(uri, json)
         Toast.makeText(context, "$count API keys exported", Toast.LENGTH_SHORT).show()
     }

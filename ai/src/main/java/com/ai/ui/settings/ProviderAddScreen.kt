@@ -213,7 +213,7 @@ fun ProviderAddScreen(
                     defaultModelSource = defaultModelSource
                 )
                 ProviderRegistry.add(service)
-                Toast.makeText(context, "Provider added", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Provider $displayName added", Toast.LENGTH_SHORT).show()
                 onSaved(service)
             },
             enabled = canSave,

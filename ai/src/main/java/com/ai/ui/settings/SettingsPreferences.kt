@@ -390,6 +390,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun clearUsageStats() {
         usageStatsCache?.clear()
+        // Reset the flush timestamp so the next updateUsageStats
+        // doesn't skip the disk flush against a 2-second debounce
+        // window inherited from a recent pre-clear write — that
+        // window made the post-clear cache hold writes invisible
+        // on disk for the rest of the debounce period.
+        lastUsageStatsFlush = 0L
         filesDir?.let { File(it, FILE_USAGE_STATS) }?.let { if (it.exists()) it.delete() }
     }
 

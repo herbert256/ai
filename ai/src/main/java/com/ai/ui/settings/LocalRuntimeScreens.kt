@@ -318,7 +318,22 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
             lower.endsWith(".tar") -> stemFromArchive(displayName, listOf(".tar")) + ".task"
             else -> sanitizeFileName(displayName, ".task")
         }
-        val target = File(outDir, outName)
+        // Disambiguate against an existing .task with the same name —
+        // re-importing a different `gemma.task` used to silently
+        // overwrite the previous file. Append a -2 / -3 / … suffix.
+        val target = run {
+            val baseFile = File(outDir, outName)
+            if (!baseFile.exists()) baseFile else {
+                val stem = outName.removeSuffix(".task")
+                var n = 2
+                var candidate = File(outDir, "$stem-$n.task")
+                while (candidate.exists()) {
+                    n += 1
+                    candidate = File(outDir, "$stem-$n.task")
+                }
+                candidate
+            }
+        }
 
         context.contentResolver.openInputStream(uri)?.use { input ->
             when {

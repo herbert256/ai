@@ -280,6 +280,7 @@
 **Location:** line 191
 **Symptom:** Toast "Provider added" is generic; doesn't include which provider.
 **Proposed fix:** "Provider $displayName added".
+**Status:** Fixed (this session) — Toast names the provider added
 
 ---
 
@@ -334,6 +335,7 @@
 **Location:** lines 75-78 (`launchTask` exception handling)
 **Symptom:** `catch (e: Exception) { taskError = e.message }` — `e.message` is often null, user sees "null". Catches Exception not Throwable.
 **Proposed fix:** `e.message ?: e.javaClass.simpleName`; consider catching Throwable for fatal reporting.
+**Status:** Fixed
 
 ### Bug 52 — Severity: HIGH — Category: progress dialog dismissal / lockout
 **Location:** lines 81-87 (progress AlertDialog)
@@ -369,6 +371,7 @@
 **Location:** lines 56-60 (`writeToUri`/`readFromUri`)
 **Symptom:** `content.toByteArray()` uses platform default charset, not explicit UTF-8. On a non-UTF-8 default device, JSON with non-ASCII (Chinese provider names, emoji in agent names) corrupts.
 **Proposed fix:** `content.toByteArray(Charsets.UTF_8)`.
+**Status:** Fixed
 
 ### Bug 58 — Severity: MEDIUM — Category: silent error swallowing
 **Location:** lines 56-61 + launcher callbacks
@@ -379,6 +382,7 @@
 **Location:** line 75 (`JsonParser().parse(json)` for keys count)
 **Symptom:** Re-parses entire JSON just to count keys. Uses deprecated parser instance method.
 **Proposed fix:** `JsonParser.parseString(json).asJsonObject.size()`.
+**Status:** Fixed (this session) — JsonParser.parseString — stops using the deprecated parser instance
 
 ### Bug 60 — Severity: MEDIUM — Category: import diagnostic
 **Location:** lines 232-235 (Costs import)
@@ -413,6 +417,7 @@
 **Location:** lines 305-336 (`importTaskModel`)
 **Symptom:** Re-importing a different `gemma.task` overwrites the first without warning.
 **Proposed fix:** Append suffix when target exists.
+**Status:** Fixed (this session) — importTaskModel disambiguates collisions with -2 / -3 suffixes
 
 ### Bug 66 — Severity: LOW — Category: log injection / log path
 **Location:** lines 367-378 (extractFirstTaskFromZip)
@@ -437,6 +442,7 @@
 **Location:** lines 391-394 (`clearUsageStats`)
 **Symptom:** `usageStatsCache?.clear()` empties the map but `lastUsageStatsFlush` is NOT reset. After clear, the next `updateUsageStats` schedules `scheduleUsageStatsFlush` — but the time-since-last-flush check skips because `lastUsageStatsFlush` was just set ~now from a recent save. Cache holds the new write but disk file remains empty until 2 seconds pass and another write triggers another flush attempt.
 **Proposed fix:** Set `lastUsageStatsFlush = 0L` inside `clearUsageStats`.
+**Status:** Fixed (this session) — clearUsageStats resets lastUsageStatsFlush so the next write isn't held back
 
 ### Bug 70 — Severity: MEDIUM — Category: race / debounce trailing event drop
 **Location:** lines 368-378 (`scheduleUsageStatsFlush`)
