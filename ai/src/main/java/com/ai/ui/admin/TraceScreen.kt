@@ -200,17 +200,26 @@ fun TraceListScreen(
 
         var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
-            val title = when {
-                reportId != null -> "Report Traces"
-                modelFilter != null -> "Traces — $modelFilter"
-                else -> "API Traces"
+            val subHeader = when {
+                reportId != null -> "Report scope"
+                modelFilter != null -> modelFilter
+                else -> ""
             }
             val canClear = reportId == null && modelFilter == null && allTraceFiles.isNotEmpty()
             TitleBar(
                 helpTopic = "trace_list",
-                title = title, onBackClick = onBack,
+                title = "API Traces", onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null
             )
+            if (subHeader.isNotBlank()) {
+                Text(
+                    text = subHeader,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
 
             // Category / Provider / Hostname / Model selectors share
             // a single row. Each slot is only emitted when there's
@@ -604,10 +613,17 @@ fun TraceDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
             helpTopic = "trace_detail",
-            title = "Trace: $statusCode", onBackClick = onBack,
+            title = "Trace detail", onBackClick = onBack,
             onInfo = if (infoProvider != null && infoTraceModel != null) {
                 { onNavigateToModelInfo(infoProvider, infoTraceModel) }
             } else null
+        )
+        Text(
+            text = "${t?.hostname ?: "(unknown host)"} · HTTP $statusCode",
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
 
         // URL

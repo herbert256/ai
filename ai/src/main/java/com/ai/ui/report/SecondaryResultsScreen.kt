@@ -197,7 +197,14 @@ internal fun SecondaryResultsScreen(
         crossRowsAll.any { it.crossSourceAgentId != null }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isCrossDrillIn) {
-            TitleBar(helpTopic = "secondary_list", title = baseTitle, onBackClick = onBack)
+            TitleBar(helpTopic = "secondary_list", title = "Secondary results", onBackClick = onBack)
+            Text(
+                text = baseTitle,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -1778,10 +1785,17 @@ internal fun SecondaryResultDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
-            title = "$title — $provider", onBackClick = onBack,
+            title = "Secondary detail", onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null
+        )
+        Text(
+            text = "$title · $provider",
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
 

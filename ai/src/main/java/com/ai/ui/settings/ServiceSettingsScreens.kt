@@ -290,7 +290,14 @@ fun ProviderModelSettingsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "models", title = "${service.displayName} models", onBackClick = onBack)
+        TitleBar(helpTopic = "models", title = "Models", onBackClick = onBack)
+        Text(
+            text = service.displayName,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -661,7 +668,14 @@ fun ProviderSettingsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "provider_edit", title = service.displayName, onBackClick = onBackToSettings)
+        TitleBar(helpTopic = "provider_edit", title = "Provider", onBackClick = onBackToSettings)
+        Text(
+            text = service.displayName,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

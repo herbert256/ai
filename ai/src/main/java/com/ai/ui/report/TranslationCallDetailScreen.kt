@@ -124,11 +124,18 @@ internal fun TranslationCallDetailScreen(
             val traceEnabled = ApiTracer.isTracingEnabled && translationTraceFilename != null
             TitleBar(
                 helpTopic = "translation_call",
-                title = titleLang, onBackClick = onBack,
+                title = "Translation call", onBackClick = onBack,
                 onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
                 onInfo = if (translationProviderService != null && result.model.isNotBlank()) {
                     { navToModelInfo(translationProviderService, result.model) }
                 } else null
+            )
+            Text(
+                text = titleLang,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
             )
             if (totalCost > 0.0) {
                 Text("Cost: ${formatCents(totalCost)} ¢",

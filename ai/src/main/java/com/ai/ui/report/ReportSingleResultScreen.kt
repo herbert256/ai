@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
@@ -153,7 +154,7 @@ fun ReportSingleResultScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
-            title = provider.displayName, onBackClick = onBack,
+            title = "Agent result", onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmRemove = true },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
@@ -167,7 +168,8 @@ fun ReportSingleResultScreen(
         ) {
             Text(
                 com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " — "),
-                fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
             )
         }

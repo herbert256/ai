@@ -41,7 +41,14 @@ internal fun TranslationCompareScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(helpTopic = "translation_compare", title = title, onBackClick = onBack)
+        TitleBar(helpTopic = "translation_compare", title = "Translation compare", onBackClick = onBack)
+        Text(
+            text = title,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+        )
 
         // Top pane — original.
         Column(

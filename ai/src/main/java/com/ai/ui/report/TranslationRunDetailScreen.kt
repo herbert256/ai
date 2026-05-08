@@ -163,7 +163,7 @@ internal fun TranslationRunDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
             helpTopic = "translation_run",
-            title = title, onBackClick = onBack,
+            title = "Translation run", onBackClick = onBack,
             // 🔄 combines "restart failed" + "start missing" — fires
             // a fresh API call for any errored row plus any expected
             // call that hasn't landed yet. Successful rows are kept.
@@ -172,6 +172,15 @@ internal fun TranslationRunDetailScreen(
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, modelName) } } else null
         )
+        first?.targetLanguage?.let { lang ->
+            Text(
+                text = lang,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         if (results.isEmpty()) {

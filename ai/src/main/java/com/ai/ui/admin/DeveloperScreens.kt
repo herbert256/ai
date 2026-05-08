@@ -81,7 +81,14 @@ fun ApiTestScreen(
         }
         BackHandler { showModelDialog = false }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_test", title = "Select Model — ${selectedProvider.displayName}", onBackClick = { showModelDialog = false })
+            TitleBar(helpTopic = "developer_test", title = "Select Model", onBackClick = { showModelDialog = false })
+            Text(
+                text = selectedProvider.displayName,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -136,7 +143,14 @@ fun ApiTestScreen(
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_test", title = "Select Endpoint — ${selectedProvider.displayName}", onBackClick = { showEndpointDialog = false })
+            TitleBar(helpTopic = "developer_test", title = "Select Endpoint", onBackClick = { showEndpointDialog = false })
+            Text(
+                text = selectedProvider.displayName,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Column(

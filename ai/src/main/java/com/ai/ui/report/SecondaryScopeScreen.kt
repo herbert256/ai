@@ -84,7 +84,14 @@ internal fun SecondaryScopeScreen(
     } }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "secondary_scope", title = "$kindLabel — scope", onBackClick = onBack)
+        TitleBar(helpTopic = "secondary_scope", title = "Scope", onBackClick = onBack)
+        Text(
+            text = kindLabel,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
