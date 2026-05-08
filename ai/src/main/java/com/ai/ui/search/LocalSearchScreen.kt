@@ -116,7 +116,7 @@ fun LocalSearchScreen(
 private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val score: Int)
 
 private fun runLocalSearch(context: android.content.Context, query: String): List<LocalSearchHit> {
-    val tokens = query.lowercase().split(Regex("\\s+")).filter { it.isNotBlank() }
+    val tokens = query.lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
     if (tokens.isEmpty()) return emptyList()
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
@@ -124,7 +124,7 @@ private fun runLocalSearch(context: android.content.Context, query: String): Lis
         val sb = StringBuilder()
         sb.append(r.title).append('\n').append(r.prompt).append('\n')
         for (a in r.agents) a.responseBody?.takeIf { it.isNotBlank() }?.let { sb.append(it).append('\n') }
-        val haystack = sb.toString().lowercase()
+        val haystack = sb.toString().lowercase(Locale.ROOT)
         var score = 0
         for (t in tokens) {
             var idx = 0

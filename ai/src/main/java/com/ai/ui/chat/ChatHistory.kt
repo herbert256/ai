@@ -148,11 +148,15 @@ private data class ChatSearchResult(
 private suspend fun searchInChats(query: String): List<ChatSearchResult> = withContext(Dispatchers.IO) {
     val results = mutableListOf<ChatSearchResult>()
     val sessions = ChatHistoryManager.getAllSessions()
-    val lowerQuery = query.lowercase()
+    // Locale.ROOT for stable case-folding: on Turkish locale,
+    // `i.lowercase()` produces a dotless ı that doesn't match a
+    // dotted-i in the haystack, breaking search across the locale
+    // boundary.
+    val lowerQuery = query.lowercase(java.util.Locale.ROOT)
 
     for (session in sessions) {
         for (message in session.messages) {
-            val lowerContent = message.content.lowercase()
+            val lowerContent = message.content.lowercase(java.util.Locale.ROOT)
             if (lowerContent.contains(lowerQuery)) {
                 val matchIndex = lowerContent.indexOf(lowerQuery)
                 val start = (matchIndex - 40).coerceAtLeast(0)
