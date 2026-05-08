@@ -396,22 +396,10 @@ private fun ColumnScope.MetaResultsPickerView(
         }
     }
 
-    // Provider / model / timestamp header for the selected item.
-    // The inline 🐞 next to the model name moved to the parent's
-    // title-bar 🐞 slot — same trace lookup, single entry point.
-    val providerService = AppService.findById(selected.providerId)
-    val provider = providerService?.displayName ?: selected.providerId
-
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(com.ai.ui.shared.modelLabel(provider, selected.model, separator = " — "),
-            fontSize = 16.sp, color = AppColors.Blue,
-            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f)
-                .modelInfoClickable(providerService, selected.model))
-    }
-    Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(selected.timestamp)),
-        fontSize = 11.sp, color = AppColors.TextTertiary)
-    Spacer(modifier = Modifier.height(8.dp))
+    // The provider / model / timestamp header that used to live
+    // here is gone — the highlighted picker button above already
+    // names the active model, the title-bar carries trace / model
+    // info / delete, and the timestamp wasn't load-bearing.
 
     // Selected item body (scrolls independently of the picker row).
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
