@@ -69,7 +69,13 @@ fun LocalSemanticSearchScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "search_local_semantic", title = "Local semantic search", onBackClick = onBack)
+        val tfTop = latestTrace
+        TitleBar(
+            helpTopic = "search_local_semantic", title = "Local semantic search", onBackClick = onBack,
+            onTrace = if (com.ai.data.ApiTracer.isTracingEnabled && tfTop != null) {
+                { onNavigateToTraceFile(tfTop) }
+            } else null
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         if (availableModels.isEmpty()) {
@@ -140,16 +146,7 @@ fun LocalSemanticSearchScreen(
 
         status?.let {
             Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(it, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-                val tf = latestTrace
-                if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
-                    Text("🐞", fontSize = 16.sp,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(tf) })
-                }
-            }
+            Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
         }
 
         Spacer(modifier = Modifier.height(12.dp))

@@ -195,9 +195,35 @@ internal fun SecondaryResultsScreen(
     val crossRowsAll = filteredResults.filter { it.afterCrossOf == null }
     val isCrossDrillIn = kind == SecondaryKind.META &&
         crossRowsAll.any { it.crossSourceAgentId != null }
+    // META rows surface inside MetaResultsPickerView (the picker
+    // buttons + inline body). Hoist the selected-id state up here so
+    // the parent's TitleBar can offer the trace icon for the
+    // currently-selected secondary — the picker view used to carry
+    // its own inline 🐞.
+    val isMetaPickerMode = kind == SecondaryKind.META && !isCrossDrillIn
+    val pickerSelectedId = if (isMetaPickerMode) {
+        rememberSaveable(filteredResults.map { it.id }) { mutableStateOf(filteredResults.firstOrNull()?.id) }
+    } else null
+    val pickerSelected = pickerSelectedId?.value?.let { id ->
+        filteredResults.firstOrNull { it.id == id }
+    } ?: filteredResults.firstOrNull()
+    val pickerTraceFilename by produceState<String?>(initialValue = null, pickerSelected?.id) {
+        val sel = pickerSelected ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == sel.reportId && it.model == sel.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - sel.timestamp) }?.filename
+        }
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isCrossDrillIn) {
-            TitleBar(helpTopic = "secondary_list", title = "Secondary results", onBackClick = onBack)
+            val tfTop = pickerTraceFilename
+            TitleBar(
+                helpTopic = "secondary_list", title = "Secondary results", onBackClick = onBack,
+                onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
+                    { onNavigateToTraceFile(tfTop) }
+                } else null
+            )
             Text(
                 text = baseTitle,
                 fontSize = 18.sp, color = AppColors.Green,
@@ -274,9 +300,8 @@ internal fun SecondaryResultsScreen(
         if (kind == SecondaryKind.META) {
             MetaResultsPickerView(
                 results = filteredResults,
-                reportId = reportId,
+                selectedIdState = pickerSelectedId!!,
                 onDelete = { id -> onDelete(id); refreshTick++ },
-                onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToModelInfo = onNavigateToModelInfo
             )
             return@Column
@@ -303,12 +328,11 @@ internal fun SecondaryResultsScreen(
 @Composable
 private fun ColumnScope.MetaResultsPickerView(
     results: List<SecondaryResult>,
-    reportId: String,
+    selectedIdState: androidx.compose.runtime.MutableState<String?>,
     onDelete: (String) -> Unit,
-    onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit
 ) {
-    var selectedId by remember(results) { mutableStateOf(results.firstOrNull()?.id) }
+    var selectedId by selectedIdState
     LaunchedEffect(results) {
         if (results.none { it.id == selectedId }) selectedId = results.firstOrNull()?.id
     }
@@ -342,30 +366,17 @@ private fun ColumnScope.MetaResultsPickerView(
     }
 
     // Provider / model / timestamp header for the selected item.
+    // The inline 🐞 next to the model name moved to the parent's
+    // title-bar 🐞 slot — same trace lookup, single entry point.
     val providerService = AppService.findById(selected.providerId)
     val provider = providerService?.displayName ?: selected.providerId
 
-    // Trace lookup mirrors SecondaryResultDetailScreen — pick the
-    // closest-timestamped trace tagged with the same (reportId, model).
-    // Hoisted above the header so the 🐞 ladybug can sit next to the
-    // model name instead of in a bottom button row.
-    val traceFilename by produceState<String?>(initialValue = null, selected.id) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == selected.reportId && it.model == selected.model }
-                .minByOrNull { kotlin.math.abs(it.timestamp - selected.timestamp) }?.filename
-        }
-    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(com.ai.ui.shared.modelLabel(provider, selected.model, separator = " — "),
             fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
                 .modelInfoClickable(providerService, selected.model))
-        if (ApiTracer.isTracingEnabled && traceFilename != null) {
-            Text("🐞", fontSize = 18.sp,
-                modifier = Modifier.padding(start = 8.dp).clickable { traceFilename?.let(onNavigateToTraceFile) })
-        }
     }
     Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(selected.timestamp)),
         fontSize = 11.sp, color = AppColors.TextTertiary)
