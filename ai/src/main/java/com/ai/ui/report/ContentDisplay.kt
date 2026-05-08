@@ -441,9 +441,48 @@ fun ReportCostTable(report: Report) {
     val hColor = AppColors.Blue; val vColor = AppColors.TextSecondary; val tColor = AppColors.Blue
     val hSize = 11.sp; val vSize = 11.sp
 
+    // Sort-key enum shared by both summary tables. Each table keeps
+    // its own (key, ascending) state so the user can sort the type
+    // rollup independently from the model rollup.
+    val SUMMARY_TOTAL = "TOTAL"; val SUMMARY_KEY = "KEY"
+    val SUMMARY_IN_TOK = "IN_TOK"; val SUMMARY_OUT_TOK = "OUT_TOK"
+    val SUMMARY_IN_C = "IN_C"; val SUMMARY_OUT_C = "OUT_C"
+
     @Composable
     fun SummaryTable(label: String, keyHeader: String, keyWidth: Dp, groups: List<GroupTotal>) {
         if (groups.isEmpty()) return
+        // Default = Total ¢ DESC (matches the previous static order).
+        // First click on a column → switches to that column DESC; the
+        // second click on the same column flips to ASC. Clicking a
+        // different column starts at DESC again.
+        var sortKey by remember { mutableStateOf(SUMMARY_TOTAL) }
+        var ascending by remember { mutableStateOf(false) }
+        fun toggle(k: String) {
+            if (sortKey == k) ascending = !ascending
+            else { sortKey = k; ascending = false }
+        }
+        val sortedGroups = remember(groups, sortKey, ascending) {
+            val cmp: Comparator<GroupTotal> = when (sortKey) {
+                SUMMARY_KEY    -> compareBy { it.key.lowercase() }
+                SUMMARY_IN_TOK -> compareBy { it.inputTokens }
+                SUMMARY_OUT_TOK-> compareBy { it.outputTokens }
+                SUMMARY_IN_C   -> compareBy { it.inputCents }
+                SUMMARY_OUT_C  -> compareBy { it.outputCents }
+                else           -> compareBy { it.inputCents + it.outputCents }
+            }
+            if (ascending) groups.sortedWith(cmp) else groups.sortedWith(cmp.reversed())
+        }
+        @Composable
+        fun SortHeader(k: String, text: String, mod: Modifier, end: Boolean = false) {
+            val active = sortKey == k
+            val arrow = if (active) (if (ascending) " ▲" else " ▼") else ""
+            Text(
+                text = text + arrow,
+                fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                modifier = mod.clickable { toggle(k) },
+                textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Text(label, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 4.dp))
@@ -451,21 +490,15 @@ fun ReportCostTable(report: Report) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
                 val totalsWidth = keyWidth + 56.dp + 64.dp + 64.dp + 56.dp + 56.dp + 8.dp
                 Row {
-                    Text("Total ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text(keyHeader, fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(keyWidth).padding(start = 8.dp))
-                    Text("In tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Out tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("In ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Out ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    SortHeader(SUMMARY_TOTAL, "Total ¢", Modifier.width(56.dp), end = true)
+                    SortHeader(SUMMARY_KEY, keyHeader, Modifier.width(keyWidth).padding(start = 8.dp))
+                    SortHeader(SUMMARY_IN_TOK, "In tok", Modifier.width(64.dp), end = true)
+                    SortHeader(SUMMARY_OUT_TOK, "Out tok", Modifier.width(64.dp), end = true)
+                    SortHeader(SUMMARY_IN_C, "In ¢", Modifier.width(56.dp), end = true)
+                    SortHeader(SUMMARY_OUT_C, "Out ¢", Modifier.width(56.dp), end = true)
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(totalsWidth))
-                groups.forEach { g ->
+                sortedGroups.forEach { g ->
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(fmtC(g.inputCents + g.outputCents), fontSize = vSize, color = vColor,
                             modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -526,22 +559,62 @@ fun ReportCostTable(report: Report) {
         Spacer(modifier = Modifier.height(8.dp))
         Text("All calls", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 4.dp))
+        // Sortable headers for the per-call detail table \u2014 first
+        // click on a column switches to it DESC, second click on
+        // the same column flips to ASC. Default is Total \u00A2 DESC,
+        // matching the previous static order.
+        val ROW_TOTAL = "TOTAL"; val ROW_TYPE = "TYPE"; val ROW_PROVIDER = "PROVIDER"
+        val ROW_MODEL = "MODEL"; val ROW_TIER = "TIER"; val ROW_SEC = "SEC"
+        val ROW_IN_TOK = "IN_TOK"; val ROW_OUT_TOK = "OUT_TOK"
+        val ROW_IN_C = "IN_C"; val ROW_OUT_C = "OUT_C"
+        var rowSortKey by remember { mutableStateOf(ROW_TOTAL) }
+        var rowAsc by remember { mutableStateOf(false) }
+        fun rowToggle(k: String) {
+            if (rowSortKey == k) rowAsc = !rowAsc
+            else { rowSortKey = k; rowAsc = false }
+        }
+        val sortedRows = remember(rows, rowSortKey, rowAsc) {
+            val cmp: Comparator<CostRow> = when (rowSortKey) {
+                ROW_TYPE     -> compareBy { it.type }
+                ROW_PROVIDER -> compareBy { it.providerDisplay.lowercase() }
+                ROW_MODEL    -> compareBy { it.model.lowercase() }
+                ROW_TIER     -> compareBy { it.tier }
+                ROW_SEC      -> compareBy(nullsFirst()) { it.durationMs }
+                ROW_IN_TOK   -> compareBy { it.inputTokens }
+                ROW_OUT_TOK  -> compareBy { it.outputTokens }
+                ROW_IN_C     -> compareBy { it.inputCents }
+                ROW_OUT_C    -> compareBy { it.outputCents }
+                else         -> compareBy { it.inputCents + it.outputCents }
+            }
+            if (rowAsc) rows.sortedWith(cmp) else rows.sortedWith(cmp.reversed())
+        }
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+                @Composable
+                fun RowSortHeader(k: String, text: String, mod: Modifier, end: Boolean = false) {
+                    val active = rowSortKey == k
+                    val arrow = if (active) (if (rowAsc) " \u25B2" else " \u25BC") else ""
+                    Text(
+                        text = text + arrow,
+                        fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = mod.clickable { rowToggle(k) },
+                        textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start
+                    )
+                }
                 Row {
-                    Text("Total \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Type", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(70.dp).padding(start = 8.dp))
-                    Text("Provider", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(90.dp))
-                    Text("Model", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(120.dp))
-                    Text("Tier", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(80.dp))
-                    Text("Sec", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("In tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Out tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("In \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text("Out \u00A2", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    RowSortHeader(ROW_TOTAL, "Total \u00A2", Modifier.width(56.dp), end = true)
+                    RowSortHeader(ROW_TYPE, "Type", Modifier.width(70.dp).padding(start = 8.dp))
+                    RowSortHeader(ROW_PROVIDER, "Provider", Modifier.width(90.dp))
+                    RowSortHeader(ROW_MODEL, "Model", Modifier.width(120.dp))
+                    RowSortHeader(ROW_TIER, "Tier", Modifier.width(80.dp))
+                    RowSortHeader(ROW_SEC, "Sec", Modifier.width(48.dp), end = true)
+                    RowSortHeader(ROW_IN_TOK, "In tok", Modifier.width(64.dp), end = true)
+                    RowSortHeader(ROW_OUT_TOK, "Out tok", Modifier.width(64.dp), end = true)
+                    RowSortHeader(ROW_IN_C, "In \u00A2", Modifier.width(56.dp), end = true)
+                    RowSortHeader(ROW_OUT_C, "Out \u00A2", Modifier.width(56.dp), end = true)
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(704.dp))
-                rows.forEach { r ->
+                sortedRows.forEach { r ->
                     val typeColor = when (r.type) { "rerank" -> AppColors.Orange; "summarize" -> AppColors.Indigo; "compare" -> AppColors.Purple; else -> vColor }
                     val tierColor = when (r.tier) {
                         "OVERRIDE" -> AppColors.Orange; "OPENROUTER" -> AppColors.Blue; "LITELLM" -> AppColors.Purple
