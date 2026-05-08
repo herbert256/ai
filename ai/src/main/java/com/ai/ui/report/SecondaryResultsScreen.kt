@@ -159,7 +159,15 @@ internal fun SecondaryResultsScreen(
     }
 
     val openResult = openId?.let { id ->
-        results.firstOrNull { it.id == id } ?: afterCrossRows.firstOrNull { it.id == id }
+        // filteredResults takes precedence over `results` so the
+        // translation language overlay's synthetic copies (same id,
+        // translated content) win over the original (untranslated)
+        // row. Without this priority, opening a meta row from a
+        // translated-language tab surfaced the untranslated source
+        // text instead of the translation.
+        filteredResults.firstOrNull { it.id == id }
+            ?: results.firstOrNull { it.id == id }
+            ?: afterCrossRows.firstOrNull { it.id == id }
     }
     if (openResult != null) {
         SecondaryResultDetailScreen(
