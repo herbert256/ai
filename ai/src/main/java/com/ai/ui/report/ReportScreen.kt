@@ -1385,10 +1385,13 @@ fun ReportsScreen(
 
     // Main UI
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        // Title reflects the phase: selection (adding models) vs generation (showing results).
+        // Static page title in the menu bar; the dynamic prompt title
+        // surfaces as a green sub-header inside the body so the user
+        // can tell which screen they're on without losing the report's
+        // own title.
         TitleBar(
             helpTopic = "report_result_generation",
-            title = if (isGenerating) uiState.genericPromptTitle.ifBlank { "AI Reports" } else "AI Report - Models",
+            title = if (isGenerating) "AI Report" else "AI Report — Models",
             onBackClick = onDismiss,
             onReload = if (isGenerating && currentReportId != null && isComplete) {
                 { showRegenerateConfirm = true }
@@ -1417,6 +1420,23 @@ fun ReportsScreen(
                 },
                 onDismiss = { showRegenerateConfirm = false }
             )
+        }
+        // Dynamic per-report sub-header — renders below the static
+        // page title for the result phase so the user can see this
+        // particular report's title without it eating the menu bar.
+        if (isGenerating) {
+            val reportTitle = uiState.genericPromptTitle
+            if (reportTitle.isNotBlank()) {
+                Text(
+                    text = reportTitle,
+                    fontSize = 18.sp,
+                    color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
 

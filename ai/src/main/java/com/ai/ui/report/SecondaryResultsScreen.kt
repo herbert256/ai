@@ -740,11 +740,20 @@ private fun ColumnScope.CrossMetaDrillInView(
         val srcTrace = srcTraceState.value
         TitleBar(
             helpTopic = "secondary_cross",
-            title = sourceLabel,
+            title = "Cross level 3",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
             } else null
+        )
+        Text(
+            text = sourceLabel,
+            fontSize = 18.sp,
+            color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
         // Source response (top) + answerer factcheck (bottom). Top
@@ -902,15 +911,14 @@ private fun ColumnScope.CrossMetaDrillInView(
                     .maxByOrNull { it.timestamp }?.filename
             }
         }
-        // Title bar: model name as the title; ℹ → Model Info, 🗑 → drop
-        // the model from this Cross, 🐞 (Initiator only) → trace for
-        // this model's report-agent run. The body row carrying these
-        // used to live just below — moved to the menu bar so the
-        // screen body shows the role row + list directly.
+        // Static "Cross level 2" page title in the menu bar; ℹ → Model
+        // Info, 🗑 → drop the model from this Cross, 🐞 (Initiator
+        // only) → trace for this model's report-agent run. The
+        // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
         TitleBar(
             helpTopic = "secondary_cross",
-            title = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
+            title = "Cross level 2",
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -919,6 +927,17 @@ private fun ColumnScope.CrossMetaDrillInView(
             onTrace = if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && l2Trace != null) {
                 { onNavigateToTraceFile(l2Trace) }
             } else null
+        )
+        Text(
+            text = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
+            fontSize = 18.sp,
+            color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+                .padding(top = 4.dp)
+                .modelInfoClickable(activeProviderService, activeMdl)
         )
         // Second line: Role + Switch role button
         Row(verticalAlignment = Alignment.CenterVertically,
@@ -1101,20 +1120,31 @@ private fun ColumnScope.CrossMetaDrillInView(
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
-    // L1 title bar: "<prompt name> - <prompt title>" (or just the
-    // name when title is blank). The body heading that used to
-    // duplicate this lived here — moved to the menu bar so the
-    // screen body starts with the progress bar / stats / list.
-    val l1Title = when {
-        crossPrompt == null -> "Cross"
-        crossPrompt.title.isBlank() -> crossPrompt.name
-        else -> "${crossPrompt.name} - ${crossPrompt.title}"
-    }
+    // Static "Cross level 1" page title in the menu bar; the dynamic
+    // prompt name + title surfaces as a green sub-header in the body
+    // so the user can tell which Cross prompt this run came from
+    // without losing the screen identity.
     TitleBar(
         helpTopic = "secondary_cross",
-        title = l1Title,
+        title = "Cross level 1",
         onBackClick = onBack
     )
+    val l1SubHeader = when {
+        crossPrompt == null -> ""
+        crossPrompt.title.isBlank() -> crossPrompt.name
+        else -> "${crossPrompt.name} — ${crossPrompt.title}"
+    }
+    if (l1SubHeader.isNotBlank()) {
+        Text(
+            text = l1SubHeader,
+            fontSize = 18.sp,
+            color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
+    }
     Spacer(modifier = Modifier.height(8.dp))
 
     // Top progress bar — total expected pairs.
