@@ -64,9 +64,17 @@ object EmbeddingsStore {
         dir(context).listFiles()?.forEach { it.delete() }
     }
 
-    /** Cosine similarity. Returns 0.0 if either vector is empty / mismatched. */
+    /** Cosine similarity. Returns 0.0 when either vector is empty.
+     *  Logs a warning + returns 0.0 on a dim mismatch — the previous
+     *  silent-zero path made a "wrong embedder" mistake look like
+     *  "no relevant hits" with no breadcrumb anywhere. */
     fun cosine(a: List<Double>, b: List<Double>): Double {
-        if (a.isEmpty() || a.size != b.size) return 0.0
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        if (a.size != b.size) {
+            android.util.Log.w("EmbeddingsStore",
+                "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
+            return 0.0
+        }
         var dot = 0.0
         var normA = 0.0
         var normB = 0.0
@@ -85,7 +93,12 @@ object EmbeddingsStore {
      *  done in double internally to avoid float-accumulator drift on
      *  longer vectors. */
     fun cosine(a: FloatArray, b: FloatArray): Double {
-        if (a.isEmpty() || a.size != b.size) return 0.0
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        if (a.size != b.size) {
+            android.util.Log.w("EmbeddingsStore",
+                "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
+            return 0.0
+        }
         var dot = 0.0
         var normA = 0.0
         var normB = 0.0
