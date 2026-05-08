@@ -1206,8 +1206,16 @@ private fun ColumnScope.CrossMetaDrillInView(
             } else {
                 var ok = 0; var err = 0; var run = 0; var cost = 0.0
                 var total = 0
+                // Skip by agentId — when a Swarm has two members with
+                // the same (provider, model) pair the previous skip-
+                // by-(pid, mdl) collapsed both into the answerer-key
+                // bucket and dropped them from totalSources, undercounting
+                // the row's "X / Y" count and cost.
+                val selfAgentIds = successful
+                    .filter { it.provider == pid && it.model == mdl }
+                    .mapTo(HashSet()) { it.agentId }
                 successful.forEach { src ->
-                    if (src.provider == pid && src.model == mdl) return@forEach
+                    if (src.agentId in selfAgentIds) return@forEach
                     total++
                     val res = latestByPair["$ak|${src.agentId}"]
                     if (res != null) {

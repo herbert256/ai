@@ -537,25 +537,46 @@ fun ReportsScreen(
         onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
-    // External model resolution
-    val externalModels = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
+    // External model resolution. Tracks unresolved entries so a
+    // share-target that mistypes a name (or omits the provider slash
+    // on a model spec) doesn't silently drop the entry — a Toast
+    // below names the unresolved entries so the user can fix the
+    // intent and retry.
+    data class ExternalResolution(val resolved: List<ReportModel>, val unresolved: List<String>)
+    val externalRes = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
         val result = mutableListOf<ReportModel>()
+        val missing = mutableListOf<String>()
         uiState.externalAgentNames.forEach { name ->
-            aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }?.let { expandAgentToModel(it, aiSettings)?.let(result::add) }
+            val a = aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }
+            val rm = a?.let { expandAgentToModel(it, aiSettings) }
+            if (rm != null) result.add(rm) else missing.add("agent: $name")
         }
         uiState.externalFlockNames.forEach { name ->
-            aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }?.let { result.addAll(expandFlockToModels(it, aiSettings)) }
+            val f = aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }
+            if (f != null) result.addAll(expandFlockToModels(f, aiSettings)) else missing.add("flock: $name")
         }
         uiState.externalSwarmNames.forEach { name ->
-            aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }?.let { result.addAll(expandSwarmToModels(it, aiSettings)) }
+            val s = aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }
+            if (s != null) result.addAll(expandSwarmToModels(s, aiSettings)) else missing.add("swarm: $name")
         }
         uiState.externalModelSpecs.forEach { spec ->
             val parts = spec.split("/", limit = 2)
             val provider = AppService.findById(parts.getOrNull(0) ?: "") ?: AppService.entries.find { it.displayName.equals(parts.getOrNull(0), ignoreCase = true) }
             val model = parts.getOrNull(1)
             if (provider != null && model != null) result.add(toReportModel(provider, model))
+            else missing.add("model: $spec")
         }
-        deduplicateModels(result)
+        ExternalResolution(deduplicateModels(result), missing)
+    }
+    val externalModels = externalRes.resolved
+    LaunchedEffect(externalRes.unresolved) {
+        if (externalRes.unresolved.isNotEmpty()) {
+            android.widget.Toast.makeText(
+                context,
+                "Unresolved external entries: ${externalRes.unresolved.joinToString(", ")}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     // Auto-generate for external models
@@ -1810,14 +1831,22 @@ private fun ColumnScope.GenerationPhase(
     // a finished report whose pricing tier wasn't preloaded yet.
     // Token sums share a memo since they only depend on tokenUsage.
     val selectedAgents = uiState.genericReportsSelectedAgents
-    val agentCost = reportsAgentResults.entries.sumOf { (agentId, resp) ->
-        resp.tokenUsage?.let {
-            PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
-        } ?: 0.0
-    }
-    val (agentInputTokens, agentOutputTokens) = remember(reportsAgentResults) {
+    // Filter against selectedAgents — _agentResults can briefly hold
+    // entries for agents the user just removed via "Remove from
+    // report" until the next refresh tick. Counting them double-bills
+    // the cost banner during the eviction window.
+    val activeAgentIds: Set<String> = selectedAgents
+    val agentCost = reportsAgentResults.entries
+        .filter { (agentId, _) -> activeAgentIds.isEmpty() || agentId in activeAgentIds }
+        .sumOf { (agentId, resp) ->
+            resp.tokenUsage?.let {
+                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
+            } ?: 0.0
+        }
+    val (agentInputTokens, agentOutputTokens) = remember(reportsAgentResults, activeAgentIds) {
         var input = 0; var output = 0
-        reportsAgentResults.values.forEach { r ->
+        reportsAgentResults.forEach { (agentId, r) ->
+            if (activeAgentIds.isNotEmpty() && agentId !in activeAgentIds) return@forEach
             r.tokenUsage?.let { input += it.inputTokens; output += it.outputTokens }
         }
         input to output
@@ -1928,12 +1957,15 @@ private fun ColumnScope.GenerationPhase(
     // the scroll-to-top fires fresh per report open and doesn't
     // disturb later interaction.
     val resultListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    // Scroll to the top on report open. The previous 15 × 100 ms
+    // scrollToItem loop forcibly clobbered any user swipe input in
+    // the first 1.5 s after open. One-shot scroll on report open
+    // is enough — Compose leaves the position alone afterwards
+    // even when secondary / cross / translation rows arrive
+    // because the list anchors to the visible item.
     LaunchedEffect(currentReportId) {
         if (currentReportId == null) return@LaunchedEffect
-        repeat(15) {
-            resultListState.scrollToItem(0)
-            kotlinx.coroutines.delay(100)
-        }
+        resultListState.scrollToItem(0)
     }
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
         // Meta runs \u2014 one row per individual rerank / summarize /
