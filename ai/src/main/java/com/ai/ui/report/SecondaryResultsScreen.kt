@@ -1221,14 +1221,13 @@ private fun ColumnScope.CrossMetaDrillInView(
                             else -> Text("✅", fontSize = 16.sp)
                         }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("$acProv · ${row.model}", fontSize = 14.sp, color = Color.White,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (acLabel != null) {
-                            Text(acLabel, fontSize = 11.sp, color = AppColors.TextTertiary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
+                    val rowText = if (acLabel != null) "$acLabel · $acProv · ${row.model}"
+                        else "$acProv · ${row.model}"
+                    Text(
+                        rowText, fontSize = 14.sp, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
                     if (acCost > 0.0) {
                         Text(formatCents(acCost), fontSize = 11.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
