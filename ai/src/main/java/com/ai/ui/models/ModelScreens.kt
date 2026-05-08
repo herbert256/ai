@@ -717,7 +717,12 @@ fun ModelInfoScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "model_info", title = "Model Info", onBackClick = onNavigateBack)
+        TitleBar(
+            helpTopic = "model_info", title = "Model Info", onBackClick = onNavigateBack,
+            onTrace = if (ApiTracer.isTracingEnabled && traceCount > 0) {
+                { onNavigateToTracesForModel(provider, modelName) }
+            } else null
+        )
 
         when {
             isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -739,11 +744,9 @@ fun ModelInfoScreen(
                     }
                 }
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Model name header. The trailing 🐞 ladybug opens
-                    // the same model-filtered trace list that the
-                    // dedicated "API Traces" card below points at —
-                    // the inline icon is the same convention used by
-                    // every result-detail screen, just at the top.
+                    // Model name header. The 🐞 ladybug + the dedicated
+                    // "API Traces" card both moved to the title-bar
+                    // 🐞 icon — same destination, single entry point.
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                             Row(
@@ -756,12 +759,6 @@ fun ModelInfoScreen(
                                         provider.displayName, fontSize = 14.sp, color = AppColors.Blue,
                                         modifier = Modifier.clickable { onNavigateToProviderEdit(provider) }
                                     )
-                                }
-                                if (ApiTracer.isTracingEnabled && traceCount > 0) {
-                                    Text("🐞", fontSize = 20.sp,
-                                        modifier = Modifier
-                                            .padding(start = 8.dp)
-                                            .clickable { onNavigateToTracesForModel(provider, modelName) })
                                 }
                             }
                         }
@@ -1163,27 +1160,9 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Trace count card — clickable, opens the Traces list filtered to this model.
-                    item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth().clickable(enabled = traceCount > 0) {
-                                onNavigateToTracesForModel(provider, modelName)
-                            },
-                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("API Traces", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                    Text(
-                                        if (traceCount == 0) "No traces recorded for this model" else "$traceCount traces — tap to view",
-                                        fontSize = 12.sp, color = AppColors.TextTertiary
-                                    )
-                                }
-                                Text("$traceCount", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                if (traceCount > 0) Text(" >", fontSize = 16.sp, color = AppColors.Blue)
-                            }
-                        }
-                    }
+                    // The dedicated "API Traces" card is gone — the
+                    // title-bar 🐞 icon opens the same model-filtered
+                    // trace list when traceCount > 0.
 
                     // Usage entry for this provider/model (cumulative across reports + chats).
                     item {
