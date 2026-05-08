@@ -588,7 +588,7 @@ fun ProviderSettingsScreen(
             supportsCitations = defSupportsCitations,
             supportsSearchRecency = defSupportsSearchRecency,
             extractApiCost = defExtractApiCost,
-            costTicksDivisor = defCostTicksDivisor.trim().toDoubleOrNull(),
+            costTicksDivisor = defCostTicksDivisor.trim().toDoubleOrNull()?.takeIf { it > 0.0 },
             modelListFormat = defModelListFormat,
             modelFilter = defModelFilter.trim().ifBlank { null },
             litellmPrefix = defLitellmPrefix.trim().ifBlank { null },

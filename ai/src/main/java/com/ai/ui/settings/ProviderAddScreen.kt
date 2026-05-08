@@ -203,7 +203,9 @@ fun ProviderAddScreen(
                     supportsCitations = supportsCitations,
                     supportsSearchRecency = supportsSearchRecency,
                     extractApiCost = extractApiCost,
-                    costTicksDivisor = costTicksDivisor.trim().toDoubleOrNull(),
+                    // Refuse zero / negative — divides by it downstream produce
+                    // Infinity / NaN in cost calculations.
+                    costTicksDivisor = costTicksDivisor.trim().toDoubleOrNull()?.takeIf { it > 0.0 },
                     modelListFormat = modelListFormat,
                     modelFilter = modelFilter.trim().ifBlank { null },
                     litellmPrefix = litellmPrefix.trim().ifBlank { null },
