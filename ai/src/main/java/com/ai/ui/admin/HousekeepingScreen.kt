@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
@@ -41,11 +42,12 @@ fun HousekeepingScreen(
     BackHandler { onBackToHome() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var showClearAllConfirm by remember { mutableStateOf(false) }
-    var showClearConfigConfirm by remember { mutableStateOf(false) }
-    var showResetConfirm by remember { mutableStateOf(false) }
-    var resetConfirmText by remember { mutableStateOf("") }
+    var showClearAllConfirm by rememberSaveable { mutableStateOf(false) }
+    var showClearConfigConfirm by rememberSaveable { mutableStateOf(false) }
+    var showResetConfirm by rememberSaveable { mutableStateOf(false) }
+    var resetConfirmText by rememberSaveable { mutableStateOf("") }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+    var showTrimConfirm by rememberSaveable { mutableStateOf(false) }
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var daysToKeepText by remember { mutableStateOf("30") }
     val daysToKeep = daysToKeepText.toIntOrNull()
@@ -141,6 +143,52 @@ fun HousekeepingScreen(
         )
     }
 
+    if (showTrimConfirm) {
+        val days = daysToKeep
+        if (days == null || days <= 0) {
+            showTrimConfirm = false
+        } else {
+            val cutoff = System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000
+            // Counts off the IO thread would be cleaner, but the Trim
+            // path runs synchronously today and these reads are
+            // already on the UI thread; stay consistent with the
+            // existing pattern.
+            val rCount = ReportStorage.getAllReports(context).count { it.timestamp < cutoff }
+            val cCount = ChatHistoryManager.getAllSessions().count { it.updatedAt < cutoff }
+            val tCount = ApiTracer.getTraceFiles().count { it.timestamp < cutoff }
+            AlertDialog(
+                onDismissRequest = { showTrimConfirm = false },
+                title = { Text("Trim by age?") },
+                text = {
+                    Text("Permanently deletes everything older than $days day${if (days == 1) "" else "s"}: " +
+                        "$rCount report${if (rCount == 1) "" else "s"}, " +
+                        "$cCount chat session${if (cCount == 1) "" else "s"}, " +
+                        "$tCount trace file${if (tCount == 1) "" else "s"}. " +
+                        "Cannot be undone.")
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showTrimConfirm = false
+                            val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
+                            reports.forEach { ReportStorage.deleteReport(context, it.id) }
+                            val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
+                            chats.forEach { ChatHistoryManager.deleteSession(it.id) }
+                            val traces = ApiTracer.deleteTracesOlderThan(cutoff)
+                            Toast.makeText(
+                                context,
+                                "Deleted ${reports.size} reports, ${chats.size} chats, $traces traces older than $days days",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    ) { Text("Trim", maxLines = 1, softWrap = false) }
+                },
+                dismissButton = { TextButton(onClick = { showTrimConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+            )
+        }
+    }
+
     if (showClearConfigConfirm) {
         AlertDialog(
             onDismissRequest = { showClearConfigConfirm = false },
@@ -225,7 +273,7 @@ fun HousekeepingScreen(
                             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         }
                     },
-                    enabled = resetConfirmText.trim() == "RESET",
+                    enabled = resetConfirmText.trim() == "RESET" && busyLabel == null,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Reset", maxLines = 1, softWrap = false) }
             },
@@ -288,21 +336,8 @@ fun HousekeepingScreen(
                     )
 
                     Button(
-                        onClick = {
-                            val days = daysToKeep ?: return@Button
-                            val cutoff = System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000
-                            val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
-                            reports.forEach { ReportStorage.deleteReport(context, it.id) }
-                            val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
-                            chats.forEach { ChatHistoryManager.deleteSession(it.id) }
-                            val traces = ApiTracer.deleteTracesOlderThan(cutoff)
-                            Toast.makeText(
-                                context,
-                                "Deleted ${reports.size} reports, ${chats.size} chats, $traces traces older than $days days",
-                                Toast.LENGTH_LONG
-                            ).show()
-                        },
-                        enabled = daysToKeep != null && daysToKeep > 0,
+                        onClick = { showTrimConfirm = true },
+                        enabled = daysToKeep != null && daysToKeep > 0 && busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
                     ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
@@ -314,6 +349,7 @@ fun HousekeepingScreen(
                             onClearUsageStatistics()
                             Toast.makeText(context, "Usage statistics cleared", Toast.LENGTH_SHORT).show()
                         },
+                        enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                     ) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
@@ -333,6 +369,7 @@ fun HousekeepingScreen(
                                 Toast.LENGTH_SHORT
                             ).show()
                         },
+                        enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
                     ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
@@ -352,6 +389,7 @@ fun HousekeepingScreen(
                                 else -> "Added $added new prompts"
                             }
                         },
+                        enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                     ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
@@ -363,12 +401,14 @@ fun HousekeepingScreen(
             CollapsibleCard("Reset") {
                     Button(
                         onClick = { showClearAllConfirm = true },
+                        enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                     ) { Text("Clear all runtime data", maxLines = 1, softWrap = false) }
 
                     Button(
                         onClick = { showClearConfigConfirm = true },
+                        enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                     ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
