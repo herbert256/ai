@@ -1956,23 +1956,10 @@ private fun ColumnScope.GenerationPhase(
                         Text(formatCents(totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
-                    // Closest-timestamp trace for this secondary — same
-                    // (reportId, model, ts) lookup MetaResultsPickerView
-                    // and SecondaryResultDetailScreen use, so the inline
-                    // icon resolves to the same file as drilling in.
-                    val runTrace by produceState<String?>(initialValue = null, run.id) {
-                        value = withContext(Dispatchers.IO) {
-                            ApiTracer.getTraceFiles()
-                                .filter { it.reportId == run.reportId && it.model == run.model }
-                                .minByOrNull { kotlin.math.abs(it.timestamp - run.timestamp) }?.filename
-                        }
-                    }
-                    if (ApiTracer.isTracingEnabled) runTrace?.let { tf ->
-                        Text("🐞", fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(start = 6.dp)
-                                .clickable { onNavigateToTraceFile(tf) })
-                    }
+                    // Per-row 🐞 removed — SecondaryResultDetailScreen
+                    // (the row's tap target) carries the same trace
+                    // icon in its title bar, so the inline duplicate
+                    // was redundant.
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
@@ -2105,23 +2092,9 @@ private fun ColumnScope.GenerationPhase(
                         Text(formatCents(run.totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
-                    // 🐞 → trace list filtered to (reportId, "Translation").
-                    // A run has many per-call traces, so the icon opens
-                    // the list rather than a single file.
-                    val rid = currentReportId
-                    val hasTranslationTraces by produceState(initialValue = false, rid, run.runId) {
-                        value = if (rid == null) false else withContext(Dispatchers.IO) {
-                            ApiTracer.getTraceFiles().any {
-                                it.reportId == rid && it.category == "Translation"
-                            }
-                        }
-                    }
-                    if (ApiTracer.isTracingEnabled && hasTranslationTraces && rid != null) {
-                        Text("🐞", fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(start = 6.dp)
-                                .clickable { onNavigateToTraceListFiltered(rid, "Translation") })
-                    }
+                    // Per-row 🐞 removed — TranslationRunDetailScreen
+                    // (the row's tap target) carries the same trace
+                    // icon in its title bar.
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
@@ -2167,25 +2140,9 @@ private fun ColumnScope.GenerationPhase(
                     val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
                     Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
-                // Latest-trace 🐞 for this (reportId, model) — only
-                // rendered when a trace exists. Mirrors the lookup that
-                // ReportSingleResultScreen does, just inline so the user
-                // can jump from the row without drilling in.
-                val rowModel = result?.let { resolveModelForResult(agentId, it) } ?: row.displayName
-                val rowTrace by produceState<String?>(initialValue = null, currentReportId, rowModel, result) {
-                    val rid = currentReportId
-                    value = if (rid == null || result == null) null else withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == rid && it.model == rowModel }
-                            .maxByOrNull { it.timestamp }?.filename
-                    }
-                }
-                if (ApiTracer.isTracingEnabled) rowTrace?.let { tf ->
-                    Text("🐞", fontSize = 14.sp,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(tf) })
-                }
+                // Per-row 🐞 removed — ReportSingleResultScreen (the
+                // row's tap target) carries the same trace icon in
+                // its title bar.
             }
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }

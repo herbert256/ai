@@ -404,8 +404,7 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
-                },
-                onNavigateToTraceList = { rid -> navController.navigate(NavRoutes.traceListForReport(rid)) }
+                }
             )
         }
 
