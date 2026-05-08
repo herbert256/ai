@@ -726,22 +726,25 @@ private fun ColumnScope.CrossMetaDrillInView(
         }
         TitleBar(
             helpTopic = "secondary_cross",
-            title = "Cross level 3",
+            title = sourceLabel,
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null }
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Text("Source: $sourceLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
-            fontFamily = FontFamily.Monospace)
-        Text("Answerer: $answererLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
-            fontFamily = FontFamily.Monospace)
-        Spacer(modifier = Modifier.height(8.dp))
-        // Top half — source's original report response.
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+        // Source response (top) + answerer factcheck (bottom). Top
+        // wraps to its content but is capped at half the available
+        // height so a long source body can never push the factcheck
+        // pane off screen. Mirrors TranslationCallDetailScreen's
+        // split-pane shape.
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Source response", fontSize = 13.sp, color = AppColors.Blue,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            val halfMax = maxHeight / 2
+            Column(modifier = Modifier.fillMaxSize()) {
+                // Top half — source's original report response. The
+                // legacy "Source response" header is gone (the
+                // TitleBar already names the source); the 🐞 shifts
+                // to a tiny right-aligned row above the body when a
+                // trace exists.
                 val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
                     value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
                         ApiTracer.getTraceFiles()
@@ -750,82 +753,82 @@ private fun ColumnScope.CrossMetaDrillInView(
                     }
                 }
                 val srcTrace = srcTraceState.value
-                if (ApiTracer.isTracingEnabled && srcTrace != null) {
-                    Text("🐞", fontSize = 16.sp,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(srcTrace) })
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            val srcBody = sourceAgent?.responseBody
-            if (srcBody.isNullOrBlank()) {
-                Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
-            } else {
-                ContentWithThinkSections(analysis = srcBody)
-            }
-        }
-        HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
-            modifier = Modifier.padding(vertical = 8.dp))
-        // Bottom half — answerer's factcheck or a status placeholder.
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                // Off-thread trace lookup — getTraceFiles() can do a
-                // streaming JSON parse over every trace file on cache
-                // miss; doing that synchronously inside the Row body
-                // blocked the UI thread and could ANR on cold cache.
-                // Keys: id + model only. The placeholder→result save
-                // path mutates the row's timestamp; including it
-                // would needlessly refire the produceState every time
-                // the executor stamps a final timestamp on top of the
-                // placeholder.
-                val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model) {
-                    val res = pairResult
-                    value = if (res == null) null else withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == reportId && it.model == res.model }
-                            .minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
+                Column(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = halfMax)
+                ) {
+                    if (ApiTracer.isTracingEnabled && srcTrace != null) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Text("🐞", fontSize = 16.sp,
+                                modifier = Modifier.clickable { onNavigateToTraceFile(srcTrace) })
+                        }
+                    }
+                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                        val srcBody = sourceAgent?.responseBody
+                        if (srcBody.isNullOrBlank()) {
+                            Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                        } else {
+                            ContentWithThinkSections(analysis = srcBody)
+                        }
                     }
                 }
-                val tfNonNull = tf
-                if (ApiTracer.isTracingEnabled && tfNonNull != null) {
-                    Text("🐞", fontSize = 16.sp,
-                        modifier = Modifier
-                            .padding(start = 6.dp)
-                            .clickable { onNavigateToTraceFile(tfNonNull) })
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            when {
-                pairResult == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                pairResult.errorMessage != null -> {
-                    Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
-                }
-                !pairResult.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pairResult.content)
-                // durationMs is stamped on every successful and errored
-                // save (cleared by resetAndRelaunch). A row with
-                // durationMs set but blank content is a successful
-                // empty-body completion; treat it as terminal so the
-                // view doesn't loop on Running…/Queued forever.
-                pairResult.durationMs != null -> {
-                    Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
-                }
-                pairResult.id in runningCrossPairs -> {
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 8.dp))
+                // Bottom half — answerer's factcheck. Header is the
+                // answerer model name (replaces the literal
+                // "Factcheck" label), with the same 🐞 lookup as
+                // before pinned to the right.
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                        Text(answererLabel, fontSize = 13.sp, color = AppColors.Green,
+                            fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model) {
+                            val res = pairResult
+                            value = if (res == null) null else withContext(Dispatchers.IO) {
+                                ApiTracer.getTraceFiles()
+                                    .filter { it.reportId == reportId && it.model == res.model }
+                                    .minByOrNull { kotlin.math.abs(it.timestamp - res.timestamp) }?.filename
+                            }
+                        }
+                        val tfNonNull = tf
+                        if (ApiTracer.isTracingEnabled && tfNonNull != null) {
+                            Text("🐞", fontSize = 16.sp,
+                                modifier = Modifier
+                                    .padding(start = 6.dp)
+                                    .clickable { onNavigateToTraceFile(tfNonNull) })
+                        }
                     }
-                }
-                else -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🕓", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    when {
+                        pairResult == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                        pairResult.errorMessage != null -> {
+                            Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                        }
+                        !pairResult.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pairResult.content)
+                        // durationMs is stamped on every successful and errored
+                        // save (cleared by resetAndRelaunch). A row with
+                        // durationMs set but blank content is a successful
+                        // empty-body completion; treat it as terminal so the
+                        // view doesn't loop on Running…/Queued forever.
+                        pairResult.durationMs != null -> {
+                            Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
+                        }
+                        pairResult.id in runningCrossPairs -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
+                            }
+                        }
+                        else -> {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("🕓", fontSize = 13.sp)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
+                            }
+                        }
                     }
                 }
             }
