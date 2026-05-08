@@ -24,6 +24,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +53,14 @@ internal fun TranslationRunDetailScreen(
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToTraceList: () -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    /** Re-runs every errored row in this translation run. Wired to
+     *  [com.ai.viewmodel.ReportViewModel.restartFailedTranslations]. */
+    onRestartFailed: (String, String) -> Unit = { _, _ -> },
+    /** Fills in every expected translation item that has no row in
+     *  this run yet (e.g., after an interrupted batch). Wired to
+     *  [com.ai.viewmodel.ReportViewModel.startMissingTranslations]. */
+    onStartMissing: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -167,24 +175,35 @@ internal fun TranslationRunDetailScreen(
             }
         }
 
-        // Bottom action row — Model / Delete. Trace lives at the top as
-        // a 🐞 icon next to the provider/model header. Delete drops every
-        // TRANSLATE row in this run after confirmation.
+        // Actions — collapsed by default, mirrors the Cross L1
+        // pattern. Restart / Start missing are at the top because
+        // those are the recovery affordances; Model / Delete sit
+        // below.
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val erroredCount = results.count { it.errorMessage != null }
+        CollapsibleCard("Actions") {
+            Button(
+                onClick = { onRestartFailed(reportId, runId) },
+                enabled = erroredCount > 0,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+            ) { Text("Restart failed translations", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { onStartMissing(reportId, runId) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Start missing translations", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             Button(
                 onClick = { providerService?.let { onNavigateToModelInfo(it, modelName) } },
                 enabled = providerService != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) { Text("Model info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             Button(
                 onClick = { confirmDelete = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+            ) { Text("Delete this translation run", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
 

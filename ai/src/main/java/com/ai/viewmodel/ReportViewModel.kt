@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import com.ai.model.*
+import com.ai.ui.report.translationRunGroupingId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -2113,5 +2114,164 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     fun consumeTranslationRun(runId: String) {
         _translationRuns.update { it - runId }
+    }
+
+    /** Re-run every errored translation row in [runId]: deletes the
+     *  failed [SecondaryResult]s on disk, rebuilds [TranslationItem]s
+     *  from the current report state, and dispatches them through
+     *  [runOneTranslation]. The runId is preserved so the rerun rows
+     *  group under the same translation run on the result screen. */
+    fun restartFailedTranslations(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = scope.launch(Dispatchers.IO) {
+        val rows = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
+        if (rows.isEmpty()) return@launch
+        runTranslationSubset(context, sourceReportId, runId, rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() }, deleteRowIds = rows.map { it.id })
+    }
+
+    /** Run every expected translation item that has no row in [runId]
+     *  yet: prompt + each successful agent + each chat-type Meta row.
+     *  Used after an interrupted batch to fill in the items that
+     *  never got persisted. */
+    fun startMissingTranslations(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = scope.launch(Dispatchers.IO) {
+        val existing = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .filter { translationRunGroupingId(it) == runId }
+        // Each existing row covers one (kind, target) pair — even
+        // errored ones count as "covered" since they're addressed by
+        // restartFailedTranslations.
+        val covered = existing.map { (it.translateSourceKind.orEmpty()) to (it.translateSourceTargetId.orEmpty()) }.toSet()
+        val report = ReportStorage.getReport(context, sourceReportId) ?: return@launch
+        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+        val expected = mutableListOf<Pair<String, String>>()
+        expected += "PROMPT" to "prompt"
+        report.agents
+            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+            .forEach { expected += "AGENT" to it.agentId }
+        secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
+            .forEach { expected += "META" to it.id }
+        val missing = expected.filterNot { it.first to it.second in covered }
+            .map { it.second to it.first } // (target, kind) tuples — runTranslationSubset wants that order
+        if (missing.isEmpty()) return@launch
+        runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
+    }
+
+    /** Shared core for [restartFailedTranslations] /
+     *  [startMissingTranslations]. Reads the existing run rows to
+     *  pick up provider / model / language, deletes any rows in
+     *  [deleteRowIds] (used by the restart path so failed rows
+     *  don't double up), builds [TranslationItem]s for each
+     *  (target, kind) pair, populates [_translationRuns] under
+     *  [runId], and dispatches via [runOneTranslation]. */
+    private suspend fun runTranslationSubset(
+        context: Context,
+        sourceReportId: String,
+        runId: String,
+        targetKindPairs: List<Pair<String, String>>,
+        deleteRowIds: List<String>
+    ) {
+        if (targetKindPairs.isEmpty()) return
+        val anchor = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .firstOrNull { translationRunGroupingId(it) == runId } ?: return
+        val provider = AppService.findById(anchor.providerId) ?: return
+        val model = anchor.model
+        val targetLanguageName = anchor.targetLanguage ?: return
+        val targetLanguageNative = anchor.targetLanguageNative ?: targetLanguageName
+
+        val report = ReportStorage.getReport(context, sourceReportId) ?: return
+        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+
+        val items = targetKindPairs.mapNotNull { (targetId, kind) ->
+            when (kind) {
+                "PROMPT" -> TranslationItem(
+                    id = "prompt", label = "Report prompt",
+                    kind = TranslationKind.PROMPT, sourceText = report.prompt
+                )
+                "AGENT" -> {
+                    val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
+                    val prov = AppService.findById(ag.provider)?.displayName ?: ag.provider
+                    TranslationItem(
+                        id = "agent:${ag.agentId}",
+                        label = "$prov / ${ag.model}",
+                        kind = TranslationKind.AGENT_RESPONSE,
+                        sourceText = ag.responseBody.orEmpty(),
+                        target = ag.agentId
+                    )
+                }
+                "META" -> {
+                    val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
+                    val prov = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+                        ?: com.ai.data.legacyKindDisplayName(s.kind)
+                    TranslationItem(
+                        id = "meta:${s.id}", label = "$name: $prov / ${s.model}",
+                        kind = TranslationKind.META, sourceText = s.content.orEmpty(),
+                        target = s.id
+                    )
+                }
+                else -> null
+            }
+        }
+        if (items.isEmpty()) return
+
+        // Delete the rows we're replacing so the rerun doesn't double
+        // up under the same (target, kind) pair.
+        deleteRowIds.forEach { SecondaryResultStorage.delete(context, sourceReportId, it) }
+
+        val state = appViewModel.uiState.value
+        val aiSettings = state.aiSettings
+        val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
+        val apiKey = aiSettings.getApiKey(provider)
+        val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
+        val pricing = PricingCache.getPricing(context, provider, model)
+
+        // Merge our items into _translationRuns under this runId so
+        // runOneTranslation can read the active TranslationRunState.
+        // If a state already exists (live run still in flight),
+        // append; otherwise create one.
+        _translationRuns.update { runs ->
+            val cur = runs[runId]
+            val merged = if (cur != null) cur.copy(items = cur.items + items)
+            else TranslationRunState(
+                runId = runId,
+                sourceReportId = sourceReportId,
+                targetLanguageName = targetLanguageName,
+                targetLanguageNative = targetLanguageNative,
+                items = items
+            )
+            runs + (runId to merged)
+        }
+
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        try {
+            withTracerTags(reportId = sourceReportId, category = "Translation") {
+                val sem = Semaphore(3)
+                coroutineScope {
+                    items.map { item ->
+                        async {
+                            sem.withPermit {
+                                runOneTranslation(runId, context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing)
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+            ReportStorage.bumpReportTimestamp(context, sourceReportId)
+        } finally {
+            appViewModel.updateUiState {
+                it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
+            }
+        }
     }
 }
