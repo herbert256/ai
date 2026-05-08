@@ -110,7 +110,11 @@ fun AgentEditScreen(
 
     if (showParamsDialog) {
         ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            onConfirm = { selectedParamsIds = it; showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+            // Dedupe in case the dialog handed back the same id twice
+            // (the picker has no internal de-duplication on Confirm,
+            // and a duplicate-id list silently double-applies the
+            // same preset at runtime).
+            onConfirm = { selectedParamsIds = it.distinct(); showParamsDialog = false }, onDismiss = { showParamsDialog = false })
     }
     if (showSystemPromptDialog) {
         SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,

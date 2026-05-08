@@ -36,8 +36,15 @@ fun SwarmsScreen(
         sortKey = { it.name },
         itemTitle = { it.name },
         itemSubtitle = { swarm ->
-            val members = swarm.members.filter { aiSettings.isProviderActive(it.provider) }
-            "${members.size} members: ${members.joinToString(", ") { "${it.provider.displayName}/${it.model}" }}"
+            // Show every member, including those whose provider is
+            // inactive. The previous "members.size" was the
+            // active-only count and drifted from the storage size
+            // (which still kept the inactive member).
+            val all = swarm.members
+            val active = all.filter { aiSettings.isProviderActive(it.provider) }
+            val countLabel = if (active.size != all.size) "${active.size}/${all.size} members"
+                             else "${all.size} members"
+            "$countLabel: ${all.joinToString(", ") { "${it.provider.displayName}/${it.model}" }}"
         },
         onAdd = onAddSwarm,
         onEdit = { onEditSwarm(it.id) },
