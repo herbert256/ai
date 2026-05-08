@@ -1761,12 +1761,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val canWeb = aiSettings.isWebSearchCapable(provider, effectiveModel)
             val canVision = aiSettings.isVisionCapable(provider, effectiveModel)
             val baseOverride = state.reportAdvancedParameters
+            // The "off" branches must always materialise an override so
+            // the dispatcher receives an explicit webSearchTool=false /
+            // reasoningEffort=null and won't fall back to the agent's
+            // default (which may have one or both flags on). The
+            // previous fallback `baseOverride?.copy(...) ?: baseOverride`
+            // returned null when baseOverride was already null, leaving
+            // the dispatcher to use the agent's default and the strip
+            // to silently no-op.
             val withWeb = if (report.webSearchTool && canWeb) {
                 (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
-            } else baseOverride?.copy(webSearchTool = false) ?: baseOverride
+            } else (baseOverride ?: AgentParameters()).copy(webSearchTool = false)
             val overrideParams = if (report.reasoningEffort != null && canReason) {
-                (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
-            } else withWeb?.copy(reasoningEffort = null) ?: withWeb
+                withWeb.copy(reasoningEffort = report.reasoningEffort)
+            } else withWeb.copy(reasoningEffort = null)
             val effectiveImage = if (canVision) report.imageBase64 else null
             val effectiveImageMime = if (canVision) report.imageMime else null
             // Bump the parent report's timestamp so it sorts to the top
