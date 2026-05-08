@@ -78,6 +78,32 @@ internal fun TranslationRunDetailScreen(
         }
     }
 
+    // Source META rows for the report — keyed by id so each TRANSLATE
+    // row can resolve its translateSourceTargetId into a "type" label
+    // (cross-out / cross-in / metaPromptName / "meta"). PROMPT and
+    // AGENT rows don't need this lookup; their type is a constant.
+    val metaSourcesById by produceState(initialValue = emptyMap<String, SecondaryResult>(), reportId, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                .associateBy { it.id }
+        }
+    }
+    fun typeFor(r: SecondaryResult): String = when (r.translateSourceKind) {
+        "PROMPT" -> "prompt"
+        "AGENT" -> "report"
+        "META" -> {
+            val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
+            when {
+                src == null -> "meta"
+                src.crossSourceAgentId != null -> "cross-out"
+                src.afterCrossOf != null -> "cross-in"
+                !src.metaPromptName.isNullOrBlank() -> src.metaPromptName.lowercase()
+                else -> "meta"
+            }
+        }
+        else -> ""
+    }
+
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
     if (openResult != null) {
         // Every row in this screen is a TRANSLATE secondary, so route
@@ -162,6 +188,16 @@ internal fun TranslationRunDetailScreen(
                         else -> "✅"
                     }
                     Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                    // What kind of source row this translation came from
+                    // — "report" for an agent response, "cross-out" /
+                    // "cross-in" for cross drill-in rows, the meta
+                    // prompt name for chat-type META rows, "prompt" for
+                    // the report prompt itself.
+                    Text(
+                        typeFor(r), fontSize = 11.sp, color = AppColors.TextSecondary,
+                        modifier = Modifier.width(70.dp).padding(end = 8.dp),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(what, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
