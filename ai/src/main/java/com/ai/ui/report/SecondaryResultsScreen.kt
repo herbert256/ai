@@ -1788,7 +1788,7 @@ internal fun SecondaryResultDetailScreen(
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null
         )
         Text(
-            text = "$title · $provider",
+            text = title,
             fontSize = 18.sp, color = AppColors.Green,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
