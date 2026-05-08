@@ -2047,24 +2047,9 @@ private fun ColumnScope.GenerationPhase(
                         Text(formatCents(run.totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
-                    // 🐞 → trace list filtered to (reportId, "Report meta: <name>").
-                    // A cross run has many per-pair traces; the icon opens the
-                    // category-scoped list rather than a single file.
-                    val rid = currentReportId
-                    val traceCategory = "Report meta: ${run.metaPromptName}"
-                    val hasCrossTraces by produceState(initialValue = false, rid, run.metaPromptName) {
-                        value = if (rid == null) false else withContext(Dispatchers.IO) {
-                            ApiTracer.getTraceFiles().any {
-                                it.reportId == rid && it.category == traceCategory
-                            }
-                        }
-                    }
-                    if (ApiTracer.isTracingEnabled && hasCrossTraces && rid != null) {
-                        Text("🐞", fontSize = 14.sp,
-                            modifier = Modifier
-                                .padding(start = 6.dp)
-                                .clickable { onNavigateToTraceListFiltered(rid, traceCategory) })
-                    }
+                    // Per-row 🐞 removed — the cross drill-in screen
+                    // and its per-pair detail surfaces already expose
+                    // the trace files through their own title bars.
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
