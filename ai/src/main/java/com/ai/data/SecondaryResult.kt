@@ -97,15 +97,14 @@ object SecondaryResultStorage {
     private val lock = ReentrantLock()
     @Volatile private var rootDir: File? = null
 
-    /** Per-report cache of the full row list keyed on directory mtime
-     *  + file count. The Cross L1 screen polls this every 500 ms while
-     *  batching, and three sibling derived views all want the same
-     *  list. With the cache, sibling reads inside one tick share work,
-     *  and idle paints (no save in between) are O(1). The mtime check
-     *  catches every save / delete because both bump the directory
-     *  mtime; the count check is belt-and-braces against an mtime
-     *  collision (two writes in the same coarse-grained ms). */
-    private data class ListSnapshot(val mtime: Long, val count: Int, val rows: List<SecondaryResult>)
+    /** Per-report cache of the full row list keyed on a per-file
+     *  fingerprint: (name, mtime, length) joined across every json
+     *  file in the directory. This catches in-place edits to a single
+     *  file inside the directory's coarse-grained mtime window — the
+     *  previous (mtime, count) key collided when two save() calls
+     *  landed in the same coarse second on a file whose new content
+     *  was the same length, returning the OLD parsed row. */
+    private data class ListSnapshot(val fingerprint: String, val rows: List<SecondaryResult>)
     @Volatile private var listCache: HashMap<String, ListSnapshot> = HashMap()
 
     fun init(context: Context) {
@@ -168,15 +167,17 @@ object SecondaryResultStorage {
             val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyList()
             if (!dir.exists()) return@withLock emptyList()
             val files = dir.listFiles { f -> f.extension == "json" } ?: return@withLock emptyList()
-            val mtime = dir.lastModified()
+            val fingerprint = files
+                .sortedBy { it.name }
+                .joinToString("|") { "${it.name}:${it.lastModified()}:${it.length()}" }
             val cached = listCache[reportId]
-            val rows = if (cached != null && cached.mtime == mtime && cached.count == files.size) {
+            val rows = if (cached != null && cached.fingerprint == fingerprint) {
                 cached.rows
             } else {
                 val parsed = files.mapNotNull { file ->
                     try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
                 }.sortedBy { it.timestamp }
-                listCache[reportId] = ListSnapshot(mtime, files.size, parsed)
+                listCache[reportId] = ListSnapshot(fingerprint, parsed)
                 parsed
             }
             if (kind != null) rows.filter { it.kind == kind } else rows
