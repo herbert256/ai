@@ -215,13 +215,21 @@ internal fun SecondaryResultsScreen(
                 .minByOrNull { kotlin.math.abs(it.timestamp - sel.timestamp) }?.filename
         }
     }
+    var pickerConfirmDelete by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isCrossDrillIn) {
             val tfTop = pickerTraceFilename
+            val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
                 helpTopic = "secondary_list", title = "Secondary results", onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
+                } else null,
+                onInfo = if (isMetaPickerMode && pickerSelected != null && pickerProviderService != null) {
+                    { onNavigateToModelInfo(pickerProviderService, pickerSelected.model) }
+                } else null,
+                onDelete = if (isMetaPickerMode && pickerSelected != null) {
+                    { pickerConfirmDelete = true }
                 } else null
             )
             Text(
@@ -232,6 +240,29 @@ internal fun SecondaryResultsScreen(
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Picker delete confirm — moved up to the parent so the
+        // title-bar 🗑 icon (above) can drive it; the META picker
+        // view used to host the bottom Delete / Model buttons.
+        if (pickerConfirmDelete && pickerSelected != null) {
+            val sel = pickerSelected
+            val noun = (sel.metaPromptName?.takeIf { it.isNotBlank() }
+                ?: com.ai.data.legacyKindDisplayName(sel.kind)).lowercase()
+            val provDisplay = AppService.findById(sel.providerId)?.displayName ?: sel.providerId
+            AlertDialog(
+                onDismissRequest = { pickerConfirmDelete = false },
+                title = { Text("Delete this $noun?") },
+                text = { Text(com.ai.ui.shared.modelLabel(provDisplay, sel.model)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pickerConfirmDelete = false
+                        onDelete(sel.id)
+                        refreshTick++
+                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = { TextButton(onClick = { pickerConfirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+            )
         }
 
         if (showLanguagePicker) {
@@ -398,42 +429,9 @@ private fun ColumnScope.MetaResultsPickerView(
             }
         }
     }
-
-    // Bottom action row — Delete / Model. Trace lives at the top as a
-    // 🐞 icon next to the provider/model header.
-    var confirmDelete by remember { mutableStateOf(false) }
-    Spacer(modifier = Modifier.height(8.dp))
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(
-            onClick = { confirmDelete = true },
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { providerService?.let { onNavigateToModelInfo(it, selected.model) } },
-            enabled = providerService != null,
-            modifier = Modifier.weight(1f),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-    }
-
-    if (confirmDelete) {
-        val noun = (selected.metaPromptName?.takeIf { it.isNotBlank() }
-            ?: com.ai.data.legacyKindDisplayName(selected.kind)).lowercase()
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete this $noun?") },
-            text = { Text(com.ai.ui.shared.modelLabel(provider, selected.model)) },
-            confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete(selected.id) }) {
-                    Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
-        )
-    }
+    // The bottom Delete / Model action row collapsed into the
+    // parent's title-bar 🗑 / ℹ icons; the trace 🐞 lives there
+    // too. The confirm dialog moved up alongside.
 }
 
 /** Role-aware row in the L2 list — built by [CrossMetaDrillInView]
