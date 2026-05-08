@@ -386,13 +386,24 @@ fun ChatSessionScreen(
     LaunchedEffect(parameters.systemPrompt) {
         val sp = parameters.systemPrompt
         val current = messages.firstOrNull { it.role == "system" }
+        var changed = false
         when {
-            sp.isBlank() -> if (current != null) messages = messages.filter { it.role != "system" }
-            current == null -> messages = listOf(ChatMessage(role = "system", content = sp)) + messages
-            current.content != sp -> messages = messages.map {
-                if (it.role == "system") it.copy(content = sp) else it
+            sp.isBlank() -> if (current != null) {
+                messages = messages.filter { it.role != "system" }; changed = true
+            }
+            current == null -> {
+                messages = listOf(ChatMessage(role = "system", content = sp)) + messages; changed = true
+            }
+            current.content != sp -> {
+                messages = messages.map { if (it.role == "system") it.copy(content = sp) else it }
+                changed = true
             }
         }
+        // Persist immediately so a leave/return cycle picks up the new
+        // system prompt — the previous flow mutated `messages` without
+        // calling saveSession, so navigating away and re-entering
+        // reverted to whatever was last saved.
+        if (changed) saveSession(messages)
     }
 
     LaunchedEffect(Unit) {
