@@ -275,6 +275,19 @@ object BackupManager {
         return out
     }
 
+    /** Write [bytes] to [target] and fsync the file descriptor before
+     *  returning so a process kill (HousekeepingScreen kills the
+     *  process right after restore() returns to force a fresh launch)
+     *  can't surface partial / empty / pre-write content. SAF OutputStream
+     *  close doesn't fsync, hence the explicit FileDescriptor.sync(). */
+    private fun writeBytesFsync(target: File, bytes: ByteArray) {
+        java.io.FileOutputStream(target).use { fos ->
+            fos.write(bytes)
+            fos.flush()
+            try { fos.fd.sync() } catch (_: java.io.IOException) { /* best effort */ }
+        }
+    }
+
     /** First apply pass — commit every prefs/<name>.json entry into
      *  its SharedPreferences file. Each commit() call is synchronous +
      *  atomic per file. Splitting prefs out of the file pass lets the
@@ -306,7 +319,7 @@ object BackupManager {
                     if (rel.isNotBlank()) {
                         val target = File(context.filesDir, rel)
                         target.parentFile?.mkdirs()
-                        target.writeBytes(bytes)
+                        writeBytesFsync(target, bytes)
                         filesRestored++
                     }
                 }
@@ -315,7 +328,7 @@ object BackupManager {
                     if (rel.isNotBlank()) {
                         val target = File(context.cacheDir, rel)
                         target.parentFile?.mkdirs()
-                        target.writeBytes(bytes)
+                        writeBytesFsync(target, bytes)
                         filesRestored++
                     }
                 }
