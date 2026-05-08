@@ -205,18 +205,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
-                coroutineScope {
-                    reportTasks.map { task ->
-                        async {
-                            semaphore.withPermit { executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime) }
-                        }
-                    }.awaitAll()
-                }
-                if (reportRunningInBackground) {
-                    reportRunningInBackground = false
-                    withContext(Dispatchers.Main) {
-                        android.widget.Toast.makeText(context, "Report \"$title\" is ready", android.widget.Toast.LENGTH_LONG).show()
+                try {
+                    coroutineScope {
+                        reportTasks.map { task ->
+                            async {
+                                semaphore.withPermit { executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime) }
+                            }
+                        }.awaitAll()
                     }
+                    if (reportRunningInBackground) {
+                        reportRunningInBackground = false
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(context, "Report \"$title\" is ready", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } finally {
+                    // Reset the background flag on cancel paths too —
+                    // without this, a Stop mid-run leaves the flag
+                    // stuck at true and the next "background" toast
+                    // fires spuriously when an unrelated job
+                    // completes.
+                    reportRunningInBackground = false
                 }
             }
         }
@@ -307,7 +316,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // persisting a fake error onto the agent row.
             throw e
         } catch (e: Exception) {
-            AnalysisResponse(service = task.runtimeAgent.provider, analysis = null, error = e.message ?: "Unknown error")
+            // Cap the persisted error string — OutOfMemoryError /
+            // StackOverflowError can carry kilobyte-sized messages
+            // that bloat the report JSON file with no diagnostic
+            // value beyond the first line.
+            AnalysisResponse(service = task.runtimeAgent.provider, analysis = null,
+                error = (e.message ?: "Unknown error").take(2000))
         }
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
@@ -1327,6 +1341,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     crossJobsForReport.forEach { it.join() }
                     val crossRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter { it.crossSourceAgentId != null }
+                        // Drop errored rows before bucketing — without
+                        // this, the firstOrNull pick below grabs the
+                        // OLDEST row (we sort ascending), which is the
+                        // failed first attempt. A successful retry
+                        // landed afterwards is then ignored. Filtering
+                        // up front leaves only valid factchecks in the
+                        // bucket, so the firstOrNull picks the oldest
+                        // successful one — closer to the user's
+                        // expected "completed run" semantics.
+                        .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
                     // Bucket cross rows by (providerId, model, sourceAgentId).
                     // Two report rows can legitimately share (provider,
                     // model) — e.g. an Agent UUID row and a swarm:provider:model

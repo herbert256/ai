@@ -133,9 +133,14 @@ fun HistoryScreenNav(
                     HistoryReportRow(report = report,
                         onOpen = { onOpenReportResult(report.id) },
                         onDeleteReport = {
-                            scope.launch {
-                                withContext(Dispatchers.IO) { ReportStorage.deleteReport(context, report.id) }
-                                allReports = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+                            // Drop the row from the in-memory list
+                            // immediately and fire the disk delete in
+                            // the background. The previous flow re-read
+                            // every report file on every delete — an
+                            // O(N²) cost when the user deleted in bulk.
+                            allReports = allReports.filterNot { it.id == report.id }
+                            scope.launch(Dispatchers.IO) {
+                                ReportStorage.deleteReport(context, report.id)
                             }
                         }
                     )
@@ -152,8 +157,16 @@ fun HistoryScreenNav(
                 confirmButton = {
                     TextButton(onClick = {
                         confirmClearAll = false
-                        ReportStorage.deleteAllReports(context)
+                        // Off-thread bulk delete — deleteAllReports
+                        // walks every report file plus its secondary
+                        // dir; on a heavy history that's seconds of
+                        // file I/O. The list is cleared on Main first
+                        // so the UI is responsive while the disk
+                        // sweep runs.
                         allReports = emptyList(); currentPage = 0
+                        scope.launch(Dispatchers.IO) {
+                            ReportStorage.deleteAllReports(context)
+                        }
                     }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {

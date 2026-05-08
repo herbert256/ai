@@ -113,7 +113,10 @@ internal fun LanguageSelectionScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(filtered, key = { it.name }) { lang ->
+            // Composite key — two future TARGET_LANGUAGES sharing
+            // a display name would otherwise collide on the LazyColumn
+            // key and crash with a duplicate-key error.
+            items(filtered, key = { "${it.name}|${it.native}" }) { lang ->
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .clickable { onConfirm(lang) }

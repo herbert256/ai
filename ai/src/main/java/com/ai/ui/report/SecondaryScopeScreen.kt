@@ -61,11 +61,19 @@ internal fun SecondaryScopeScreen(
     }
     var selectedRerank by remember { mutableStateOf(reranks.firstOrNull()?.id ?: "") }
     var rerankDropdownOpen by remember { mutableStateOf(false) }
-    val manualPicked = remember { mutableStateMapOf<String, Boolean>().apply {
-        // Default: every successful agent ticked, so "Manual" is a starting
-        // point the user can deselect from rather than an empty set.
-        agents.forEach { put(it.agentId, true) }
-    } }
+    // Re-key on the agents identity so a fresh batch (different agent
+    // ids) reseeds the map. The previous unkeyed remember kept stale
+    // entries when the parent recomposed with a different `agents`
+    // list — the .keys returned at confirm time then leaked deleted
+    // agentIds into the persisted scope.
+    val manualPicked = remember(agents.map { it.agentId }) {
+        mutableStateMapOf<String, Boolean>().apply {
+            // Default: every successful agent ticked, so "Manual" is a
+            // starting point the user can deselect from rather than an
+            // empty set.
+            agents.forEach { put(it.agentId, true) }
+        }
+    }
 
     val countInt = countText.toIntOrNull()?.coerceIn(1, totalReports.coerceAtLeast(1)) ?: 0
     val canContinue = when (scopeMode) {

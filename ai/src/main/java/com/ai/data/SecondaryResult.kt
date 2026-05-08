@@ -651,19 +651,30 @@ fun extractTopRankedIds(rerankContent: String?, count: Int): List<Int>? {
     val cleaned = rerankContent.trim()
         .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
     val arr = try {
-        @Suppress("DEPRECATION")
-        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+        com.google.gson.JsonParser.parseString(cleaned).takeIf { it.isJsonArray }?.asJsonArray
     } catch (_: Exception) { return null } ?: return null
     if (arr.size() == 0) return null
 
-    data class Entry(val id: Int, val rank: Int)
+    data class Entry(val id: Int, val rank: Int?)
     val entries = arr.mapNotNull { el ->
         if (!el.isJsonObject) return@mapNotNull null
         val obj = el.asJsonObject
         val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
-        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt ?: Int.MAX_VALUE
+        val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
         Entry(id, rank)
     }
     if (entries.isEmpty()) return null
-    return entries.sortedBy { it.rank }.take(count).map { it.id }
+    // Prefer ranked entries when we have any. Without this guard,
+    // a payload missing the rank field on every row used to sort
+    // every Entry as MAX_VALUE — turning sortedBy into a no-op
+    // that returned the model's response order, NOT the rank
+    // order. If at least one rank is present, surface only ranked
+    // entries (the model intended those to win); otherwise keep
+    // the model's emit order.
+    val ranked = entries.filter { it.rank != null }
+    return if (ranked.isNotEmpty()) {
+        ranked.sortedBy { it.rank!! }.take(count).map { it.id }
+    } else {
+        entries.take(count).map { it.id }
+    }
 }

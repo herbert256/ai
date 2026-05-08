@@ -1053,26 +1053,23 @@ private fun ColumnScope.CrossMetaDrillInView(
                         "report are not affected. Can't be undone.")
                 },
                 confirmButton = {
-                    TextButton(onClick = {
-                        // Only dismiss the dialog + reset selection
-                        // when we actually fired the delete. The
-                        // previous flow always cleared selectedModelKey,
-                        // so a tap that fell through (crossPrompt null)
-                        // looked successful — the row vanished from
-                        // the L1 selection but the data was untouched.
-                        val cp = crossPrompt
-                        if (cp != null) {
-                            confirmModelDelete = false
-                            onDeleteCrossModel(cp.id, activePid, activeMdl)
-                            selectedModelKey = null
-                        } else {
-                            // Cross prompt unavailable — log and keep
-                            // the dialog open so the user can dismiss
-                            // explicitly.
-                            android.util.Log.w("SecondaryResults",
-                                "Cross-model delete tapped with crossPrompt = null")
+                    // Disable the Delete button when crossPrompt is
+                    // null instead of letting the click fall through
+                    // and silently no-op. Audit Bug 28: the previous
+                    // flow opened the dialog, the user tapped Delete,
+                    // nothing happened, the dialog stayed open — and
+                    // the user had no signal why.
+                    val cp = crossPrompt
+                    TextButton(
+                        enabled = cp != null,
+                        onClick = {
+                            if (cp != null) {
+                                confirmModelDelete = false
+                                onDeleteCrossModel(cp.id, activePid, activeMdl)
+                                selectedModelKey = null
+                            }
                         }
-                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    ) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmModelDelete = false }) {

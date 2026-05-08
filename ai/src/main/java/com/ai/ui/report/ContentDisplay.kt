@@ -160,18 +160,18 @@ private fun ReportsViewerScreenLoaded(
     }
     val translates = translatesState.value
     val langTabs = remember(translates) { buildLangTabs(translates) }
-    var selectedLangKey by remember { mutableStateOf("original") }
+    var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
     // Keep the selection valid if translations finish loading after
     // first composition — if the previously chosen key dropped off the
     // list (e.g. a translation was deleted) snap back to Original.
     LaunchedEffect(langTabs) {
-        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = "original"
+        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
     }
     // Quick lookups for the active language: by-targetId → translated
     // content. Recomputed only when the selected language or the
     // translation list changes.
     val translationByTarget = remember(translates, selectedLangKey) {
-        if (selectedLangKey == "original") emptyMap()
+        if (selectedLangKey == LangTab.ORIGINAL_KEY) emptyMap()
         else {
             val tab = langTabs.firstOrNull { it.key == selectedLangKey }
             val langName = tab?.displayName ?: return@remember emptyMap()
