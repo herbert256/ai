@@ -1213,28 +1213,13 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Pricing
-                    info?.openRouterInfo?.pricing?.let { p ->
-                        item {
-                            ModelInfoSection("Pricing", "OpenRouter") {
-                                p.prompt?.toDoubleOrNull()?.let { ModelInfoRow("Input", formatTokenPricePerMillion(it)) }
-                                p.completion?.toDoubleOrNull()?.let { ModelInfoRow("Output", formatTokenPricePerMillion(it)) }
-                                p.image?.toDoubleOrNull()?.let { ModelInfoRow("Image", formatTokenPricePerMillion(it)) }
-                                // Per-query surcharge when the web-search
-                                // tool fires alongside the chat call.
-                                // OpenRouter publishes this in dollars
-                                // per call (not per token), so render it
-                                // with a /call suffix instead of the
-                                // per-million-token formatter.
-                                p.web_search?.toDoubleOrNull()?.let {
-                                    ModelInfoRow("Web Search", "$" + String.format(java.util.Locale.US, "%.4f", it) + " / call")
-                                }
-                                p.input_cache_read?.toDoubleOrNull()?.let {
-                                    ModelInfoRow("Input (cached)", formatTokenPricePerMillion(it))
-                                }
-                            }
-                        }
-                    }
+                    // The OpenRouter Pricing card is gone — Cost Config
+                    // (Settings → Cost Config) plus the per-row prices on
+                    // every model picker / selection screen already
+                    // surface effective pricing from the layered lookup;
+                    // duplicating just the OpenRouter tier here was
+                    // misleading whenever LiteLLM / models.dev / a manual
+                    // override won the lookup.
 
                     // HuggingFace info
                     info?.huggingFaceInfo?.let { hf ->
