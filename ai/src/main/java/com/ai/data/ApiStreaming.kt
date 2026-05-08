@@ -69,7 +69,7 @@ private fun parseSseStream(
             // Trailing newline shouldn't leak into the parser.
             val data = dataBuf.toString().removeSuffix("\n")
             dataBuf.setLength(0)
-            if (data == "[DONE]") { sawTerminator = true; eventType = null; return }
+            if (data.equals("[DONE]", ignoreCase = true)) { sawTerminator = true; eventType = null; return }
             sawAnyData = true
             val content = extractContent(eventType, data)
             if (!content.isNullOrEmpty()) emit(content)

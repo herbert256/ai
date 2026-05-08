@@ -244,7 +244,17 @@ object ReportStorage {
     }
 
     private fun loadReport(reportId: String): Report? {
-        val file = File(reportsDir ?: return null, "$reportId.json")
+        // Defence in depth: every internal caller passes UUIDs but
+        // deep-link entry points (intent extras, share-target, etc.)
+        // can in principle hand in a reportId containing path
+        // separators. Refuse anything that doesn't look like a flat
+        // file name to keep loadReport from escaping reportsDir.
+        if (reportId.contains('/') || reportId.contains('\\') || reportId.contains("..")) {
+            android.util.Log.w("ReportStorage", "Rejected reportId with path traversal markers: $reportId")
+            return null
+        }
+        val dir = reportsDir ?: return null
+        val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
         return try { gson.fromJson(file.readText(), Report::class.java) } catch (e: Exception) {
             android.util.Log.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null

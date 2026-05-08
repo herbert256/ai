@@ -57,6 +57,11 @@ fun ProviderAddScreen(
 
     val normalizedId = id.trim().uppercase()
     val idTaken = normalizedId.isNotBlank() && AppService.findById(normalizedId) != null
+    // "LOCAL" is the synthetic on-device provider sentinel — a custom
+    // provider with that id would be unreachable through
+    // AppService.findById (which routes the LOCAL branch first), so
+    // refuse it here instead of letting the user create a ghost row.
+    val idReserved = normalizedId == "LOCAL"
     // Block prefsKey collisions: a custom provider that picks the
     // same prefsKey as an existing one silently shares storage with
     // the existing provider, corrupting both providers' stored API
@@ -68,7 +73,7 @@ fun ProviderAddScreen(
     val prefsKeyTaken = effectivePrefsKey.isNotBlank() && AppService.entries.any {
         it.id != normalizedId && it.prefsKey.equals(effectivePrefsKey, ignoreCase = true)
     }
-    val canSave = normalizedId.isNotBlank() && !idTaken && !prefsKeyTaken &&
+    val canSave = normalizedId.isNotBlank() && !idTaken && !idReserved && !prefsKeyTaken &&
         displayName.isNotBlank() && baseUrl.isNotBlank() && defaultModel.isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -81,9 +86,12 @@ fun ProviderAddScreen(
                 OutlinedTextField(
                     value = id, onValueChange = { id = it.uppercase().replace(Regex("[^A-Z0-9_]"), "_") },
                     label = { Text("ID (uppercase, unique)") }, supportingText = {
-                        if (idTaken) Text("Already in use", color = AppColors.Red, fontSize = 11.sp)
+                        when {
+                            idReserved -> Text("LOCAL is reserved for the on-device provider", color = AppColors.Red, fontSize = 11.sp)
+                            idTaken -> Text("Already in use", color = AppColors.Red, fontSize = 11.sp)
+                        }
                     },
-                    isError = idTaken, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                    isError = idTaken || idReserved, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
                 OutlinedTextField(value = displayName, onValueChange = { displayName = it },
                     label = { Text("Display name") }, singleLine = true,
