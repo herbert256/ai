@@ -155,12 +155,19 @@ internal fun TranslationRunDetailScreen(
         }
     }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmReload by remember { mutableStateOf(false) }
+
+    val erroredCount = results.count { it.errorMessage != null }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
             helpTopic = "translation_run",
             title = title, onBackClick = onBack,
+            // 🔄 combines "restart failed" + "start missing" — fires
+            // a fresh API call for any errored row plus any expected
+            // call that hasn't landed yet. Successful rows are kept.
+            onReload = { confirmReload = true },
             onTrace = if (traceEnabled) onNavigateToTraceList else null,
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, modelName) } } else null
@@ -248,21 +255,28 @@ internal fun TranslationRunDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        val erroredCount = results.count { it.errorMessage != null }
-        CollapsibleCard("Actions") {
-            Button(
-                onClick = { onRestartFailed(reportId, runId) },
-                enabled = erroredCount > 0,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-            ) { Text("Restart failed translations", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { onStartMissing(reportId, runId) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Start missing translations", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        // The Actions card (Restart failed / Start missing) collapsed
+        // into the title-bar 🔄 — confirm dialog spells out which
+        // calls get re-fired.
+    }
+
+    if (confirmReload) {
+        val parts = buildList {
+            if (erroredCount > 0) add("re-fire ${erroredCount} failed call${if (erroredCount == 1) "" else "s"}")
+            add("start any missing calls (rows expected by this run that haven't landed yet)")
         }
+        com.ai.ui.shared.ReloadConfirmationDialog(
+            target = "",
+            title = "Reload translation run?",
+            message = "This will ${parts.joinToString(" and ")}. Successful translations on disk are kept; only errored and missing rows are touched.",
+            confirmLabel = "Reload",
+            onConfirm = {
+                confirmReload = false
+                if (erroredCount > 0) onRestartFailed(reportId, runId)
+                onStartMissing(reportId, runId)
+            },
+            onDismiss = { confirmReload = false }
+        )
     }
 
     if (confirmDelete) {

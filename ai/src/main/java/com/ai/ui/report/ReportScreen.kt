@@ -472,6 +472,7 @@ fun ReportsScreen(
     var showTranslateModelPicker by remember { mutableStateOf<TargetLanguage?>(null) }
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showInfoPicker by remember { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
@@ -1249,6 +1250,9 @@ fun ReportsScreen(
             helpTopic = "report_result_generation",
             title = if (isGenerating) uiState.genericPromptTitle.ifBlank { "AI Reports" } else "AI Report - Models",
             onBackClick = onDismiss,
+            onReload = if (isGenerating && currentReportId != null && isComplete) {
+                { showRegenerateConfirm = true }
+            } else null,
             onTrace = if (isGenerating && currentReportId != null) {
                 { onNavigateToTrace(currentReportId) }
             } else null,
@@ -1259,6 +1263,21 @@ fun ReportsScreen(
                 { showInfoPicker = true }
             } else null
         )
+        if (showRegenerateConfirm && currentReportId != null) {
+            val rid = currentReportId
+            val agentCount = models.size
+            com.ai.ui.shared.ReloadConfirmationDialog(
+                target = "",
+                title = "Regenerate every agent?",
+                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Cross, Translate) are kept.",
+                confirmLabel = "Regenerate",
+                onConfirm = {
+                    showRegenerateConfirm = false
+                    onRegenerate(rid)
+                },
+                onDismiss = { showRegenerateConfirm = false }
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         if (!isGenerating) {
@@ -1306,7 +1325,6 @@ fun ReportsScreen(
                 onEditTitle = { showEditTitle = true },
                 onEditModels = { currentReportId?.let(onEditModels) },
                 onEditParameters = { showEditParameters = true },
-                onRegenerate = { currentReportId?.let(onRegenerate) },
                 onDelete = { showDeleteConfirm = true },
                 onCopy = { currentReportId?.let(onCopyReport) },
                 onTogglePin = { currentReportId?.let(onTogglePinReport) },
@@ -1497,7 +1515,6 @@ private fun ColumnScope.GenerationPhase(
     onEditTitle: () -> Unit = {},
     onEditModels: () -> Unit,
     onEditParameters: () -> Unit,
-    onRegenerate: () -> Unit,
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
     onTogglePin: () -> Unit = {},
@@ -1580,7 +1597,9 @@ private fun ColumnScope.GenerationPhase(
         ActionRow {
             CompactButton(onClick = { showViewPicker = true }, color = AppColors.Purple, text = "View")
             CompactButton(onClick = { showEditPicker = true }, color = AppColors.Indigo, text = "Edit")
-            CompactButton(onClick = onRegenerate, color = AppColors.Green, text = "Regenerate")
+            // Regenerate moved to the title-bar 🔄 icon (with a
+            // confirm dialog naming the row count) so the action
+            // row stays focused on per-report navigation choices.
             CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
             CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
             CompactButton(

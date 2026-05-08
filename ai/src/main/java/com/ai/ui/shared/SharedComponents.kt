@@ -335,21 +335,30 @@ fun DeleteConfirmationDialog(
 
 /**
  * Reusable confirmation dialog for the title-bar Reload icon. The
- * confirm button re-fires the screen's API call; the dismiss leaves
- * the existing result alone.
+ * confirm button re-fires whatever the screen calls "reload"; the
+ * dismiss leaves things alone.
+ *
+ * Single-call screens can pass [target] for the default copy
+ * ("Re-run API call? This will fire a new API call for X and replace
+ * the current result."). Multi-call / list screens that want to spell
+ * out exactly which rows get re-fired can override [title] and
+ * [message] directly — pass [target] = "" in that case.
  */
 @Composable
 fun ReloadConfirmationDialog(
     target: String,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    title: String = "Re-run API call?",
+    message: String = "This will fire a new API call for $target and replace the current result.",
+    confirmLabel: String = "Re-run"
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Re-run API call?") },
-        text = { Text("This will fire a new API call for $target and replace the current result.") },
+        title = { Text(title) },
+        text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Re-run", color = AppColors.Blue, maxLines = 1, softWrap = false) }
+            TextButton(onClick = onConfirm) { Text(confirmLabel, color = AppColors.Blue, maxLines = 1, softWrap = false) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
