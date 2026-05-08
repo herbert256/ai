@@ -82,6 +82,14 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         val hits = runCatching {
             KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
                 knowledgeBaseIds, lastUser)
+        }.onFailure { e ->
+            // Surface retrieval failures (network, auth, dim mismatch,
+            // embedder model not available) instead of silently
+            // falling back to "no context" — without the log a user
+            // sees a perfectly good chat reply and never knows the
+            // attached KB didn't contribute.
+            android.util.Log.w("ChatViewModel.RAG",
+                "Retrieval failed for kbs=$knowledgeBaseIds: ${e.javaClass.simpleName}: ${e.message}")
         }.getOrDefault(emptyList())
         if (hits.isEmpty()) return messages
         val ctx = KnowledgeService.formatContextBlock(hits)
