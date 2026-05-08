@@ -20,3 +20,21 @@ holds the per-area reports and a master summary.
 - **HIGH** — visible misbehaviour or wrong result.
 - **MEDIUM** — edge case, recoverable, but real.
 - **LOW** — cosmetic / suspicious / unconfirmed.
+
+## Status field
+
+Each entry that has been triaged carries a `**Status:**` line at the
+end of the body:
+
+- **Fixed** — verified against current code; the fix landed in a
+  prior commit.
+- **Fixed (this session)** — landed in the active working session.
+- **Partial** — mitigation in place, full structural fix deferred
+  (audit notes the residual risk).
+- **Open** — checked, still applicable, intentionally unfixed for
+  now.
+- **Skip** — audit text itself flagged the entry as a false alarm
+  on second look, or the behaviour is intentional / out-of-scope.
+- **Not a bug** — explicit re-check confirmed no regression.
+
+Entries with no `Status:` line haven't been re-triaged yet.

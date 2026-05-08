@@ -8,6 +8,7 @@
 **Root cause:** When constructing `ChatParameters`, the function copies `searchEnabled` from the preset but never reads `presetParams?.webSearchTool`. The chat-session screen later reads `parameters.webSearchTool` (line 278) to seed the chip. Any preset that explicitly enabled `webSearchTool` is silently dropped.
 **Reproduction:** Define a Parameters preset with webSearchTool=true. Open configure-on-the-fly chat. The 🌐 chip will be off, despite the preset.
 **Proposed fix:** Add `webSearchTool = presetParams?.webSearchTool == true` and `reasoningEffort = presetParams?.reasoningEffort` to the `ChatParameters(...)` constructor call.
+**Status:** Fixed
 
 ### Bug 2 — Severity: HIGH — Category: wrong logic
 **Location:** line 423 (function ChatSessionScreen.actuallySend)
@@ -15,6 +16,7 @@
 **Root cause:** `messages = messages + userMessage` runs at line 413, but `inputTokens = messages.sumOf {...}` (line 423) reads the pre-mutation `messages` because `messages` is a Compose `mutableStateOf` value class — re-assignment goes through the setter, but the local `messages` reference reads the new value. Actually messages IS updated; this is fine. **Real bug:** the estimate runs over ALL turns including the assistant history, so prompt tokens grow O(n) but pricing.promptPrice multiplied by 100 inside the increment yields cents but compounds with old assistant messages that were already paid for previously. This is double-counting prior assistant tokens against prompt cost on every turn.
 **Reproduction:** Send 5 messages — after each, prior assistant content is added back to `inputTokens`, so the cumulative `totalCost` is roughly N²/2 in input cost.
 **Proposed fix:** Track only newly billed tokens per turn, or use the assistant-side delta only. Document the full-history pricing model as intentional if so — but also note the spec only sums when sent (which is correct for prompt tokens) BUT only the NEW user message has not yet been billed; prior turns were already billed. The current code re-bills prior content.
+**Status:** Not a bug
 
 ### Bug 3 — Severity: HIGH — Category: state / closure capture
 **Location:** lines 425–437 (function ChatSessionScreen.actuallySend)
@@ -22,6 +24,7 @@
 **Root cause:** `onSendMessageStream(messages, useWebSearch, reasoningEffort, attachedKnowledgeBaseIds)` reads `attachedKnowledgeBaseIds` at callback-execution time inside `scope.launch`, after `saveSession(messages)` already persisted the original list.
 **Reproduction:** Send a message; quickly tap 📚 and add a KB; the in-flight call uses the new KB list rather than the persisted one.
 **Proposed fix:** Capture `val sentKbIds = attachedKnowledgeBaseIds` at the function entry and pass that into the flow.
+**Status:** Fixed
 
 ### Bug 4 — Severity: MEDIUM — Category: state lifecycle / onConsumeStarter
 **Location:** line 270 (function ChatSessionScreen, LaunchedEffect(Unit))
@@ -50,6 +53,7 @@
 **Root cause:** `moderationError` is set on failure, never cleared on success. Subsequent successful moderation calls don't clear it.
 **Reproduction:** Cause moderation to fail once; subsequent successful sends still display the stale error until manual toggling.
 **Proposed fix:** Clear `moderationError = null` at the top of `trySend` (or at the start of the coroutine).
+**Status:** Fixed
 
 ### Bug 8 — Severity: MEDIUM — Category: race / no cancellation
 **Location:** lines 467 (function ChatSessionScreen.trySend)
@@ -76,12 +80,14 @@
 **Symptom:** `saveSession(messages)` is called BEFORE the assistant response arrives, but the local `messages` value is the post-mutation `messages + userMessage`. If the app dies during the streaming call, the user message is persisted but no assistant response — the "unfinished chat pill" feature relies on this. Acceptable. **Real bug:** when `onSendMessageStream` throws BEFORE any chunks (line 446 `if (sb.isNotEmpty())`), the assistant message is NOT appended and only the user-only state is persisted. But if the throw happens after stream started, the partial response is appended — yet `attachedImage = null` (line 415) was already set, so resuming the user message lost its image attachment.
 **Root cause:** `attachedImage = null` runs unconditionally before send.
 **Proposed fix:** Capture `attachedImage` into local val before clearing; don't clear until after `messages` is persisted with the assistant message (or with the stream-interrupted marker).
+**Status:** Fixed
 
 ### Bug 12 — Severity: MEDIUM — Category: closure capture
 **Location:** line 700 (function ChatSessionScreen, attachedImage rendering)
 **Symptom:** The `BitmapFactory.decodeByteArray` runs on the main thread inside `remember(b64) { ... }`. Big attachments (high-res photos) can ANR.
 **Root cause:** No off-thread decode.
 **Proposed fix:** Use `produceState` with `Dispatchers.Default`, downsample via `BitmapFactory.Options.inSampleSize`.
+**Status:** Fixed
 
 ### Bug 13 — Severity: MEDIUM — Category: state synchronisation
 **Location:** lines 651–653 (function ChatSessionScreen, supportsReasoning per-model levels)
@@ -89,6 +95,7 @@
 **Root cause:** No invariant check on level support change.
 **Reproduction:** Set reasoningEffort = "max" on a model that supports max. Resume a different chat that uses a model that only supports low/medium/high. The "max" value persists.
 **Proposed fix:** When model changes (which won't here, but on first load) clamp reasoningEffort to the supported set.
+**Status:** Fixed (this session) — clamp reasoningEffort against modelCapabilities on session resume
 
 ### Bug 14 — Severity: LOW — Category: UX
 **Location:** line 679 (function ChatSessionScreen, moderation chip label)
@@ -102,6 +109,7 @@
 **Root cause:** Compose BackHandler stacking — both are active. The order Compose dispatches them in isn't guaranteed across versions.
 **Reproduction:** Tap moderation chip, press back — may exit the chat session instead of dismissing the picker (depending on Compose internal ordering).
 **Proposed fix:** Disable the outer BackHandler when `showModerationPicker || pendingFlagged != null` via the `BackHandler(enabled = ...)` overload.
+**Status:** Fixed
 
 ### Bug 16 — Severity: MEDIUM — Category: cancellation / leak
 **Location:** lines 425–454 (function ChatSessionScreen.actuallySend, scope.launch)
@@ -114,6 +122,7 @@
 **Symptom:** `inputTokens * pricing.promptPrice * 100` — `pricing.promptPrice` is per-token in dollars. Times 100 = cents. But the UI label `"%.2fc".format(totalCost)` (line 513) only shows two decimals → for sub-cent costs it shows "0.00c", not informative.
 **Root cause:** Insufficient precision on micro-costs.
 **Proposed fix:** Switch to `< 0.01 ? "<0.01c" : "%.2fc".format(...)`.
+**Status:** Fixed (this session) — show <0.01c instead of 0.00c for sub-cent costs
 
 ### Bug 18 — Severity: MEDIUM — Category: index out of bounds
 **Location:** lines 919–923 (function AnimatedTextLines)
@@ -130,6 +139,7 @@
 **Symptom:** `val config = remember { appViewModel.uiState.value.dualChatConfig ?: return@remember null }` — the `return@remember null` returns a null FROM the remember lambda. So `config` has type `DualChatConfig?` and is null. Then `if (config == null) { ... return }` handles it. But: `config!!` is used implicitly via smart-cast at line 330+. Actually Kotlin requires an explicit smart-cast because `config` is the result of `remember { ... }` whose type is inferred. Let me re-check: After `remember { ... ?: return@remember null }`, `config` is `DualChatConfig?`. The `if (config == null) { ...; return }` check ensures all subsequent uses are non-null... except `config` is a `val` from `remember`, not a property — the smart cast holds. OK, but `config.subject` then runs even though we already declared we'd navigate back. **Real bug:** the LaunchedEffect runs `onNavigateBack()`, but the rest of the composable continues to execute and access config!! (no — control flow returns). Actually `return` after the LaunchedEffect should work. Check `config.interactionCount` (line 317): comes after the null check; OK. The actual bug: `remember { appViewModel.uiState.value.dualChatConfig ?: return@remember null }` captures the value at first composition only — if the user navigates here BEFORE setting a config (race), they hit the back-nav path; OK. But the surrounding `chatJob?.cancel()` in the LaunchedEffect path may not run because `chatJob = null` initially.
 **Root cause:** Defensive null check is fine but the surrounding code uses `config.X` smart-casts that work, so behaviorally OK. Still, the pattern is fragile.
 **Proposed fix:** Wrap whole body in `config?.let { ... }` or early-return cleanly.
+**Status:** Partial — config?.let pattern still mixed; smart-cast holds today
 
 ### Bug 20 — Severity: HIGH — Category: wrong logic / template substitution
 **Location:** lines 354–357 (function DualChatSessionScreen.startChatLoop)
@@ -145,6 +155,7 @@
 ### Bug 22 — Severity: HIGH — Category: race / coroutine cancellation
 **Location:** lines 394–395 (function DualChatSessionScreen)
 **Symptom:** `DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }` runs `chatJob?.cancel()` on dispose. But `LaunchedEffect(Unit) { startChatLoop() }` only sets `chatJob` AFTER `startChatLoop()` returns (it runs `chatJob = scope.launch {...}`). Until then, `chatJob` is null. Practically: after a tap on "Chat N more", `startChatLoop()` reassigns `chatJob`, but the `DisposableEffect` was already registered and only ever cancels the LATEST `chatJob` reference at dispose time — which IS the latest. OK. **Real bug elsewhere**: `chatJob?.cancel()` doesn't AWAIT cancellation; the coroutine might still emit one more message before the cancel takes effect. But since the launch itself is on `scope` (rememberCoroutineScope), the parent is the composition scope which IS awaited. OK.
+**Status:** Skip
 
 ### Bug 23 — Severity: MEDIUM — Category: state inconsistency
 **Location:** line 332 (function DualChatSessionScreen, model1Cost derivedStateOf)
@@ -152,6 +163,7 @@
 **Root cause:** No re-keying on `PricingCache.preloadCompleted` or similar.
 **Reproduction:** Open dual chat right after app cold start before pricing preload finished — costs always show as default 25/75 c/M.
 **Proposed fix:** Use `remember(provider, model, PricingCache.preloadCompleted) { ... }` or use `produceState`.
+**Status:** Fixed
 
 ### Bug 24 — Severity: MEDIUM — Category: numerical / cost
 **Location:** lines 360–361, 375–376 (function DualChatSessionScreen.startChatLoop)
@@ -180,10 +192,12 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `appViewModel.uiState.value.dualChatConfig` is read synchronously on first composition. After `onNavigateBack()` from this screen, the dualChatConfig may still be non-null in uiState. Re-entering doesn't reset, so the same config runs again — but with a fresh `messages` list. Acceptable. **Real bug:** `appViewModel.uiState.value.dualChatConfig` is captured but never cleared from UiState — leaks the config object across navigation.
 **Root cause:** No `onConsumeDualConfig()` callback like the chat starter has.
 **Proposed fix:** Add a clearing callback after first read.
+**Status:** Fixed
 
 ### Bug 28 — Severity: LOW — Category: substring / template
 **Location:** line 371 (function DualChatSessionScreen.startChatLoop)
 **Symptom:** `config.secondPrompt.replace("%answer%", last.content)` — if the model-1 response contains the literal `%subject%` token, that's NOT replaced (only %answer% in secondPrompt is). But if the user *intentionally* writes `%answer%` inside the secondPrompt template hoping for a regex-level replacement, simple `replace` is fine. The bug: if the response itself contains backslashes or replacement patterns interpretable by some downstream regex, weird things happen — but plain `String.replace(String, String)` doesn't interpret escapes. **Probably OK.**
+**Status:** Skip
 
 ### Bug 29 — Severity: MEDIUM — Category: error handling
 **Location:** lines 385–388 (function DualChatSessionScreen.startChatLoop)
@@ -334,6 +348,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** Re-index uses the KB's CURRENT embedder identity. But there's no UI to change embedder — comments say it's fixed. `KnowledgeService.reindexSource` relies on `kb.embedderProviderId/embedderModel`. OK. The bug: if a user manually edited `manifest.json` to change the embedder, re-index would write chunks with the new dimension mixed with old chunks of other sources still on the old dimension. The retrieval-time `dimSurprise` warning catches this but skips chunks rather than refusing.
 **Root cause:** No invariant that ALL sources share dimension after partial re-index.
 **Proposed fix:** When dim changes, invalidate ALL sources (force re-index of every source).
+**Status:** Open
 
 ---
 
@@ -381,6 +396,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `Agent("", "${provider.displayName} $modelName", ...)` creates an agent with empty `id`. When `onSaveSettings(aiSettings.copy(agents = aiSettings.agents + agent))` runs, two agents created via this path (same provider+model) get the same empty id — Set-of-id keys collide silently in downstream lookups.
 **Root cause:** No UUID generation for new agent.
 **Proposed fix:** `Agent(id = UUID.randomUUID().toString(), ...)`.
+**Status:** Fixed
 
 ### Bug 58 — Severity: HIGH — Category: openRouter prefix matching
 **Location:** lines 583–589 (function ModelInfoScreen, OpenRouter lookup)
@@ -1043,3 +1059,4 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 ### Bug 164 — Severity: LOW — Category: showAgentEdit overlay return preserves state but spawns recompose
 **Location:** ModelScreens line 542–562
 **Symptom:** When `showAgentEdit = true`, the overlay screen takes over via `return`. State of the parent ModelInfoScreen is preserved by remember. OK. But if the user creates an agent and lands back here, the overlay path's `onSave` calls `onSaveSettings(...)` which mutates Settings — but the parent's `aiSettings` parameter hasn't been updated yet for this composition. The "AI Usage" cards may read stale numbers until next recompose.
+

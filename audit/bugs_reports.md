@@ -15,6 +15,7 @@
 **Root cause:** The fix for "secondary rows arriving and scrolling agent rows below the fold" was implemented as a brute-force loop instead of a one-shot reaction to the secondary rows arriving.
 **Reproduction:** Open a report with many cross summaries, immediately swipe up. The list snaps back ~15 times.
 **Proposed fix:** Trigger one scroll-to-top on `LaunchedEffect(currentReportId)`, then a second one keyed on the size growth of secondary/cross/translation lists (or do nothing — Compose will leave scroll position alone).
+**Status:** Fixed (this session) — drop the 15 × 100ms scroll loop; one-shot scroll on report open
 
 ### Bug 3 — Severity: MEDIUM — Category: Concurrency
 **Location:** line 162 (`ReportsScreenNav` translation runs `collectAsState`)
@@ -40,12 +41,14 @@
 **Symptom:** When a translation run finishes, the LaunchedEffect waits 200ms then calls `onConsumeTranslation(it)`. If the user navigates away within that 200ms window or the LaunchedEffect re-keys (e.g. because another translation finishes simultaneously), the consume call is cancelled and the live row stays around forever (along with its persisted summary, causing a duplicate row).
 **Root cause:** `delay(200)` in a LaunchedEffect is cancellable.
 **Proposed fix:** Use a non-cancellable scope or trigger the consume from the persistence success path.
+**Status:** Fixed (this session) — wrap onConsumeTranslation in NonCancellable
 
 ### Bug 7 — Severity: HIGH — Category: Wrong logic
 **Location:** lines 1671–1675 (`agentCost` summing over `reportsAgentResults.entries`)
 **Symptom:** This sums every entry in `reportsAgentResults`, including agents the user has REMOVED via "Remove from report" (their entries linger in `_agentResults` until the screen recomposes). The cost banner double-counts removed agents during the recomposition window.
 **Root cause:** `removeAgentFromReport` does call `_agentResults.update { it - agentId }` (line 1781 in VM), but `genericReportsSelectedAgents` is the official source of truth; using `reportsAgentResults.entries` instead can include phantom agents.
 **Proposed fix:** Filter `entries` against `selectedAgents`.
+**Status:** Fixed (this session) — filter agentCost / token sums against selectedAgents
 
 ### Bug 8 — Severity: MEDIUM — Category: UI defects
 **Location:** line 1855–1858 (cost row label)
@@ -62,6 +65,7 @@
 **Symptom:** The `rememberCoroutineScope()` `scope` is the **screen-level** scope. Bulk delete fires `scope.launch(Dispatchers.IO) { ids.forEach { onDelete(rid, it) } }`. If the user navigates away before the loop finishes (a 500-row Cross delete on flaky disk could take seconds), the screen scope is cancelled mid-loop, leaving a partially deleted Cross. The user thinks the operation completed but rows survive.
 **Root cause:** No persistence of "delete in progress" — interruption silently abandons.
 **Proposed fix:** Run on `viewModelScope` (via the VM) so it survives screen exit, or keep the scope but add user feedback on cancellation.
+**Status:** Fixed (this session) — bulkDeleteSecondaryResults on appViewModel.viewModelScope
 
 ### Bug 11 — Severity: MEDIUM — Category: Edge case
 **Location:** line 1737 (LinearProgressIndicator divide check)
@@ -76,16 +80,19 @@
 **Location:** lines 1090–1094 (delete confirm dialog)
 **Symptom:** `val rid = currentReportId` captured inside the lambda. If `currentReportId` changes between dialog open and tap (e.g. external instructions trigger a new report), `onDeleteReport(rid)` deletes the OLD report and `showDeleteConfirm = false` lands on the new one — confusing.
 **Proposed fix:** Re-read `currentReportId` at click time, or guard against `currentReportId == null`.
+**Status:** Open
 
 ### Bug 14 — Severity: HIGH — Category: Wrong logic
 **Location:** lines 519–537 (`externalModels` resolution)
 **Symptom:** External-spec parsing at line 531: `parts.getOrNull(0) ?: ""` then `AppService.findById(...)`. If user passes a spec like `gpt-4` (no slash), `parts.getOrNull(0)` is `"gpt-4"` and `parts.getOrNull(1)` is null. `AppService.findById("gpt-4")` returns null; fallback to `displayName` lookup also fails; the spec is silently dropped. The user is given no error feedback.
 **Proposed fix:** Surface failed-to-resolve external specs with a Toast.
+**Status:** Fixed (this session) — Toast names unresolved external entries
 
 ### Bug 15 — Severity: MEDIUM — Category: UI defect
 **Location:** line 1058–1080 (`showInfoPicker`)
 **Symptom:** The dialog calls `showInfoPicker = false` BEFORE `onNavigateToModelInfo(...)` (line 1069–1071). Compose may dismiss the dialog and tear down the parent's ReportsScreen overlay before the navigation is processed; if the navigation callback re-enters Composition during teardown, the navigation can be no-op.
 **Proposed fix:** Reverse order or use a single side-effect.
+**Status:** Open
 
 ### Bug 16 — Severity: LOW — Category: UI defect
 **Location:** line 1170 — `if (!isGenerating)` selection phase
@@ -98,17 +105,20 @@
 ### Bug 17 — Severity: CRITICAL — Category: Crash condition
 **Location:** lines 626–628 (`activeKey = selectedModelKey; activePid = activeKey?.split…`)
 **Symptom:** Looks safe via `?.getOrNull(0).orEmpty()`. BUT line 628: `activeKey?.split("|")?.getOrNull(0).orEmpty()`. The `?.split` returns `List<String>?` so `?.getOrNull` returns `String?`, then `.orEmpty()` flattens to `""` — OK. Same for activeMdl. Where it's risky: line 665–666: `successful.filter { it.provider == activePid && it.model == activeMdl }`. When `activeKey` is null, `activePid` is `""` and `activeMdl` is `""`, so `activeAgents` is empty; `activeAgentIds` is empty; the L2 list goes through the responder branch with an empty list. OK, not a crash, but an edge case.
+**Status:** Skip
 
 ### Bug 18 — Severity: HIGH — Category: Wrong logic / Indexing
 **Location:** lines 832–838 (Previous button parts)
 **Symptom:** `prev.l3PairKey.split("|")` then `parts.getOrNull(0).orEmpty()` and `parts.getOrNull(1).orEmpty()` and `parts.getOrNull(2).orEmpty()`. The l3PairKey is built as `"$activeKey|${src.agentId}"` where `activeKey == "$pid|$mdl"`. So a valid key is `"OPENAI|gpt-4|abc-123"` — three parts. **But model names can contain `|`** (e.g., a fictitious model id with pipes, or a future LiteLLM-style id). One pipe in a model name shifts the split, breaking the L3 navigation. No defensive sanity check.
 **Proposed fix:** Use `split("|", limit = 3)` consistently and validate.
+**Status:** Fixed (this session) — lastIndexOf('|') instead of split for l3PairKey segments
 
 ### Bug 19 — Severity: HIGH — Category: Wrong logic
 **Location:** lines 161–163 (open result lookup)
 **Symptom:** `openId?.let { id -> results.firstOrNull { it.id == id } ?: afterCrossRows.firstOrNull { it.id == id } }`. `results` here is `filteredResults`'s parent (the post-name-filter list); the **language overlay branch** in `filteredResults` (lines 153–158) creates synthetic rows via `s.copy(content = tx.content)` whose `id` is the original meta id but content is the translation. If the user opens such an overlay row, `results.firstOrNull { it.id == id }` finds the ORIGINAL row (with original content), not the overlay — so the detail screen shows the untranslated text instead of the translated one.
 **Reproduction:** Switch to a translated language tab, tap a meta result in the overlay-driven list, see the original (non-translated) content.
 **Proposed fix:** Look up against `filteredResults` first, or stamp the overlay row with a distinguishable id.
+**Status:** Fixed
 
 ### Bug 20 — Severity: MEDIUM — Category: Concurrency
 **Location:** lines 77–82 (refreshTick polling)
@@ -122,10 +132,12 @@
 **Location:** line 537 — `selectedModelKey by rememberSaveable { mutableStateOf<String?>(null) }`
 **Symptom:** Saved across config change, but if the user opens Cross prompt A → drills to L2 → backs to L1 → opens Cross prompt B (same screen, different route key not invalidated), they retain the L2 selection from A. The LaunchedEffect at 548–553 resets it on `crossPrompt?.id` change, but the saved-state key isn't keyed on prompt id — so screen recreation (rotation) restores the wrong selectedModelKey for prompt B.
 **Proposed fix:** Add `crossPrompt?.id` to `rememberSaveable` key.
+**Status:** Fixed
 
 ### Bug 23 — Severity: MEDIUM — Category: Wrong logic
 **Location:** lines 1083–1084 — `queuedCount`
 **Symptom:** `(totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)`. If a row's id is in `runningCrossPairs` AND the row has durationMs set (race window: executor stamped duration but finally hasn't dropped from runningCrossPairs yet), the row is counted in `done` AND `running` because `done++` fires first in the `when`, and `runningCrossPairs.run++` fires too — except `when {}` in Kotlin only fires the FIRST matching branch. So actually this is OK; just brittle.
+**Status:** Skip
 
 ### Bug 24 — Severity: HIGH — Category: Crash condition
 **Location:** lines 904–907 — `🐞 only in Initiator role`
@@ -136,6 +148,7 @@
 **Symptom:** The orphan-vs-non-orphan branch counts differently. Non-orphan branch (lines 1142–1158) skips `if (src.provider == pid && src.model == mdl) return@forEach` (skipping self-pair) but if the answerer's provider/model matches multiple successful agents (multi-agent active model: a Swarm pointing at the same provider/model with two agentIds), the iteration over `successful` skips ALL rows with that provider/model — undercounting the row's totalSources. Specifically, `total++` is only incremented when `src.provider != pid OR src.model != mdl`, so an answerer-key bucket loses count by however many agents share its (provider, model).
 **Reproduction:** Create a Swarm with two members of the same provider/model. The L1 row's "X / Y" total undercounts.
 **Proposed fix:** Skip by agentId rather than by (provider, model).
+**Status:** Fixed (this session) — L1 rowStatsByKey skips by agentId, not (provider, model)
 
 ### Bug 26 — Severity: MEDIUM — Category: Wrong logic
 **Location:** line 1395 — `confirmCrossDelete` total math

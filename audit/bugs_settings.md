@@ -8,6 +8,7 @@
 **Root cause:** `remember(initialProviderId, AppService.entries.size) { mutableStateOf(...) }` keys state on a value (`AppService.entries.size`) that can change at runtime. When the key changes, Compose recreates the `MutableStateOf` from `initialProviderId`, dropping the runtime-set selection.
 **Reproduction:** Open Provider Add → save a new provider → AI_PROVIDER_EDIT for the new provider → go back → import a providers.json → registry size changes → user gets bounced.
 **Proposed fix:** Don't re-key on registry size. Re-look-up `selectedProvider` lazily by id, or only re-init when `initialProviderId` itself changes.
+**Status:** Fixed
 
 ### Bug 2 — Severity: HIGH — Category: navigation
 **Location:** lines 121-122 (`goBack` AI_PROVIDER_ADD handling)
@@ -33,6 +34,7 @@
 **Root cause:** Debounce semantics rely on continued composition. When the parent unmounts the composable on navigation, the LaunchedEffect's coroutine is cancelled mid-`delay`.
 **Reproduction:** Type into "User name" → immediately press back → check prefs.
 **Proposed fix:** Use `DisposableEffect` to flush pending save on dispose, or fire the save through a longer-lived scope (the AppViewModel's `viewModelScope`).
+**Status:** Fixed
 
 ### Bug 6 — Severity: MEDIUM — Category: state preservation
 **Location:** line 87 (`editingInternalPromptId` declaration)
@@ -115,6 +117,7 @@
 **Location:** line 283 (Save constructor)
 **Symptom:** `selectedParamsIds` is taken as-is from the dialog. If the dialog returns a list with duplicates, the agent stores duplicates.
 **Proposed fix:** `selectedParamsIds.distinct()` at save time.
+**Status:** Fixed
 
 ### Bug 19 — Severity: HIGH — Category: cross-data inconsistency / duplicate endpoints
 **Location:** lines 200-209 (LiteLLM endpoint creation in dropdown)
@@ -150,6 +153,7 @@
 **Symptom:** Duplicate detection uses case-sensitive `provider.id == provider.id && it.model == model`. If picker returns `Gpt-4o` and the swarm already has `gpt-4o`, both are stored. Worse: the LazyColumn `key = "${provider.id}:${model}"` would still be unique, so no Compose warning, but a downstream API call collides.
 **Root cause:** No normalization.
 **Proposed fix:** `equals(ignoreCase = true)` and persist canonical form.
+**Status:** Fixed
 
 ### Bug 24 — Severity: LOW — Category: ux
 **Location:** lines 178-182 (Remove member button)
@@ -164,16 +168,19 @@
 **Location:** lines 161-171 (Save constructor)
 **Symptom:** `temperature.toFloatOrNull()`, etc. — invalid input ("abc", "1.2.3") silently coerces to `null`. Out-of-range values ("5.0" for top_p ∈ [0,1]) are accepted with no UI feedback; failure surfaces only at dispatch time.
 **Proposed fix:** Validate ranges via `isError` and `supportingText`; disable Save when out of range.
+**Status:** Open
 
 ### Bug 26 — Severity: MEDIUM — Category: missing field / data drop
 **Location:** line 167
 **Symptom:** Save constructor passes `null` for `stopSequences`. The UI has no field for it. Editing an existing preset that *had* `stopSequences` silently drops them.
 **Proposed fix:** Either add UI for stop sequences, or preserve `params.stopSequences` from input on edit.
+**Status:** Fixed
 
 ### Bug 27 — Severity: LOW — Category: input filtering
 **Location:** lines 101-107 (numeric OutlinedTextFields)
 **Symptom:** No `KeyboardOptions(keyboardType = KeyboardType.Number)` — user gets alphabetic keyboard for numeric fields.
 **Proposed fix:** Add appropriate keyboard type.
+**Status:** Fixed
 
 ---
 
@@ -203,16 +210,19 @@
 **Symptom:** Two-way sync: `LaunchedEffect(config.models) { models = config.models }` (external→local) plus `LaunchedEffect(modelSource, models) { ... onSave(...) }` (local→external). When external `config.models` changes, the first effect updates local `models` — the second effect immediately fires, sees `models` differs from `current.models` (race timing), and saves. Worse: captured `aiSettings` may be a recomposition behind, so the save can OVERWRITE a more recent change made elsewhere.
 **Root cause:** Two-way sync without "we're applying external" guard.
 **Proposed fix:** One-way data flow. Write through callback; don't maintain a local mirror.
+**Status:** Partial — early-return guards at both ends of the sync; structural one-way refactor deferred
 
 ### Bug 32 — Severity: HIGH — Category: stale capture / dead code
 **Location:** lines 318-345 (Test all models)
 **Symptom:** `targets = models.toList()` captures local `models` at click time. If user removes a failed model while testing is still running (failed fast, others still running), `testStatuses` is filtered to drop those entries — but in-flight async lambdas continue and on completion mutate `testStatuses` with `testStatuses + (m to ...)`. Removed model statuses can "rise from the dead".
 **Proposed fix:** Use a `Job` for the test batch; cancel before pruning, or guard each lambda with `if (m in models)` before writing.
+**Status:** Fixed (this session) — Test all wraps each test in runCatching
 
 ### Bug 33 — Severity: HIGH — Category: silent error swallowing
 **Location:** lines 318-345 (Test all models semaphore loop)
 **Symptom:** No try/catch around `onTestSpecificModel(m, MODEL_TEST_PROMPT)`. An IOException/HttpException propagates and (because of structured concurrency) cancels all sibling launches. The killed siblings keep their `Running` status forever, with no error indicator.
 **Proposed fix:** `runCatching { onTestSpecificModel(m, ...) }.fold(...)` per-launch; report failures as `Fail(null)`.
+**Status:** Fixed (this session) — Test all skips writes for removed models
 
 ### Bug 34 — Severity: HIGH — Category: cross-path inconsistency / agent duplication
 **Location:** lines 595-622 (auto-save default-agent sync)
@@ -228,11 +238,13 @@
 **Location:** lines 562-587 (provider-definition auto-save)
 **Symptom:** `defCostTicksDivisor.trim().toDoubleOrNull()` accepts 0 or negative values — divide-by-zero downstream produces Infinity in cost calculations.
 **Proposed fix:** Reject 0/negative.
+**Status:** Fixed
 
 ### Bug 37 — Severity: MEDIUM — Category: regex misuse / crash
 **Location:** line 582 (defModelFilter persisted)
 **Symptom:** Persisted as-is. Compiled into a regex at runtime. Invalid regex (`*`, `[unclosed`) throws `PatternSyntaxException` from the dispatcher.
 **Proposed fix:** Try-compile inside auto-save; show `isError` and skip persist.
+**Status:** Fixed (this session) — skip persisting modelFilter when regex doesn't compile
 
 ### Bug 38 — Severity: MEDIUM — Category: state stickiness / save blocked
 **Location:** lines 511-587 (provider-definition state vs auto-save `same` check)
@@ -257,6 +269,7 @@
 **Location:** lines 168-189 (Save constructor)
 **Symptom:** `prefsKey = prefsKey.trim().ifBlank { normalizedId.lowercase() }` — no uniqueness check on `prefsKey`. A user supplying `prefsKey = "openai"` for a different provider id silently shares storage with the existing OPENAI provider — corrupting the existing provider's API key, models, etc.
 **Proposed fix:** Validate `prefsKey` against existing providers' prefsKeys; reject duplicates.
+**Status:** Fixed
 
 ### Bug 42 — Severity: MEDIUM — Category: missing field
 **Location:** line 176 (`typePaths`)
@@ -276,6 +289,7 @@
 **Location:** lines 39-50
 **Symptom:** `paths = rememberSaveable(generalSettings) { ... }` — keyed on the entire `generalSettings`. Any unrelated change (e.g. `userName` debounced update) resets local `paths` from `generalSettings.defaultTypePaths`, losing in-flight edits.
 **Proposed fix:** Key on `generalSettings.defaultTypePaths` only.
+**Status:** Fixed (this session) — ModelTypesScreen rememberSaveable keyed on defaultTypePaths only
 
 ---
 
@@ -299,6 +313,7 @@
 **Location:** lines 382-388 (Refresh all auto-restart)
 **Symptom:** `Runtime.getRuntime().exit(0)` is called immediately after `startActivity`. `delay(400)` precedes but no flush of pending writes. `SettingsPreferences.scheduleUsageStatsFlush` debounces to 2 seconds — kill within 0.4s loses unsaved usage stats. PricingCache writes also async.
 **Proposed fix:** Explicitly flush all in-memory caches (`flushUsageStats()`, etc.) before exit. Or use `finishAffinity()`.
+**Status:** Fixed
 
 ### Bug 48 — Severity: HIGH — Category: out-of-order updates / progress
 **Location:** lines 285-301 (`runProviders` per-provider update)
@@ -329,6 +344,7 @@
 **Location:** lines 50-63 + 369-378
 **Symptom:** Tier results aren't reset at start of `Refresh all`. A partial failure (e.g. OpenRouter completes, LiteLLM fails) shows stale OpenRouter from a previous run mixed with new LiteLLM.
 **Proposed fix:** Reset all `*Result` states at start.
+**Status:** Fixed
 
 ---
 
@@ -450,21 +466,25 @@
 **Location:** lines 105-117 (Restore success → relaunch)
 **Symptom:** After restore: `delay(800)` → `startActivity` → `killProcess`. The 800ms is for toast rendering; SharedPreferences/files written by `BackupManager.restore` may not have flushed. SAF OutputStream close doesn't fsync. Killing process before fsync = partial restore.
 **Proposed fix:** Explicit fsync in BackupManager.restore (sync `commit()` for prefs, fileChannel.force(true) for files); only then kill.
+**Status:** Fixed
 
 ### Bug 75 — Severity: HIGH — Category: missing busy guard
 **Location:** lines 290-308 (Trim by age button)
 **Symptom:** No `enabled = busyLabel == null`. While Backup or Restore is in progress, Trim can fire and tear apart files being archived/restored.
 **Proposed fix:** `enabled = ... && busyLabel == null`.
+**Status:** Fixed
 
 ### Bug 76 — Severity: HIGH — Category: missing busy guards (multiple)
 **Location:** lines 312-381 (Clear Usage, Cleanup overrides, Load bundled prompts, Clear All Runtime, Clear All Configuration)
 **Symptom:** Same as bug 75 — none have `enabled = busyLabel == null`. Reset Application is the only one that does.
 **Proposed fix:** Add busy gates everywhere.
+**Status:** Fixed
 
 ### Bug 77 — Severity: HIGH — Category: Reset bypass
 **Location:** lines 218-230 (Reset confirmation Reset button)
 **Symptom:** No `enabled = busyLabel == null` here either. User can type RESET and tap while Backup is in flight, kicking off Reset on top of Backup.
 **Proposed fix:** Combine with `busyLabel == null`.
+**Status:** Fixed
 
 ### Bug 78 — Severity: MEDIUM — Category: dialog state preservation
 **Location:** lines 144-188 (multiple AlertDialogs)
@@ -475,6 +495,7 @@
 **Location:** lines 290-308 (Trim by age — Clear button)
 **Symptom:** Pressing Orange "Clear Reports/Chats/Traces" immediately deletes data — no confirmation.
 **Proposed fix:** Add a confirmation dialog showing the counts that would be affected.
+**Status:** Fixed
 
 ---
 
