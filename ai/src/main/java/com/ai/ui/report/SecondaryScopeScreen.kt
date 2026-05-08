@@ -75,10 +75,13 @@ internal fun SecondaryScopeScreen(
     }
 
     // Languages: empty selection set = "all present", otherwise the
-    // checked subset. The original (untranslated) source is always
-    // included — "All languages" means every translation language plus
-    // the original; "Selected" lets the user prune translations.
+    // checked subset. "All languages" means every translation language
+    // plus the original; "Selected" lets the user prune translations
+    // AND opt the original out via its own checkbox at the top of the
+    // list. The original is keyed as the empty string in the Selected
+    // set per SecondaryLanguageScope's doc comment.
     var allLanguages by remember { mutableStateOf(true) }
+    var pickedOriginal by remember { mutableStateOf(true) }
     val pickedLanguages = remember { mutableStateMapOf<String, Boolean>().apply {
         languages.forEach { (lang, _) -> put(lang, true) }
     } }
@@ -242,6 +245,17 @@ internal fun SecondaryScopeScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            // Original (untranslated) source — first row.
+                            // Tick = include in the run, untick = run only
+                            // on the chosen translations.
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { pickedOriginal = !pickedOriginal },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = pickedOriginal, onCheckedChange = { pickedOriginal = it })
+                                Text("Original", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                             languages.forEach { (lang, native) ->
                                 val checked = pickedLanguages[lang] ?: false
                                 Row(
@@ -271,7 +285,14 @@ internal fun SecondaryScopeScreen(
                     )
                 }
                 val langScope = if (allLanguages || languages.isEmpty()) SecondaryLanguageScope.AllPresent
-                else SecondaryLanguageScope.Selected(pickedLanguages.filterValues { it }.keys.toSet())
+                else {
+                    // The set holds English-name keys for translations
+                    // and "" (the empty string) for the original — see
+                    // SecondaryLanguageScope.Selected's doc comment.
+                    val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
+                    if (pickedOriginal) picked.add("")
+                    SecondaryLanguageScope.Selected(picked)
+                }
                 onContinue(scope, langScope)
             },
             enabled = canContinue,

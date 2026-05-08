@@ -1458,7 +1458,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                     }
                 } else LinkedHashMap()
-                val languages: List<Pair<String?, String?>> = listOf<Pair<String?, String?>>(null to null) +
+                // The original (untranslated) source is included by
+                // default and when the user kept it ticked under
+                // Selected. The empty-string sentinel "" in
+                // SecondaryLanguageScope.Selected.languages signals
+                // "include original".
+                val includeOriginal = when (languageScope) {
+                    SecondaryLanguageScope.AllPresent -> true
+                    is SecondaryLanguageScope.Selected -> "" in languageScope.languages
+                }
+                val languages: List<Pair<String?, String?>> =
+                    (if (includeOriginal) listOf<Pair<String?, String?>>(null to null) else emptyList()) +
                     translationLanguages.map { (lang, native) -> lang to native }
 
                 // Per-batch semaphore: bounds the in-batch fan-out across
