@@ -1062,6 +1062,15 @@ internal fun claudeReasoningBundle(
     // Anthropic 400s when max_tokens <= budget_tokens — give the
     // response some additional headroom on top of the thinking budget.
     val effectiveMax = if (budget > 0 && baseMax <= budget) budget + 4096 else baseMax
+    if (effectiveMax != baseMax && requestedMax != null) {
+        // Log the silent override so a user who set an explicit
+        // max_tokens cap notices their cap was raised instead of
+        // discovering it via a surprise cost spike. The trace also
+        // captures the final request body, so this Log + the
+        // captured body are both visible in API Traces.
+        android.util.Log.w("ApiDispatch",
+            "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)")
+    }
     return ClaudeReasoningBundle(effectiveMax, thinking, outputConfig)
 }
 
