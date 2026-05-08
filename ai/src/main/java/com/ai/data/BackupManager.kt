@@ -427,13 +427,15 @@ object BackupManager {
                 @Suppress("UNCHECKED_CAST")
                 val m = raw as? Map<String, Any?> ?: continue
                 val k = m["k"] as? String ?: continue
-                when (m["t"] as? String) {
+                when (val tag = m["t"] as? String) {
                     "s" -> editor.putString(k, m["v"] as? String)
                     "b" -> editor.putBoolean(k, m["v"] as? Boolean ?: false)
                     "i" -> editor.putInt(k, (m["v"] as? Number)?.toInt() ?: 0)
                     "l" -> editor.putLong(k, (m["v"] as? Number)?.toLong() ?: 0L)
                     "f" -> editor.putFloat(k, (m["v"] as? Number)?.toFloat() ?: 0f)
                     "ss" -> editor.putStringSet(k, (m["v"] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet())
+                    else -> android.util.Log.w("BackupManager",
+                        "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped")
                 }
             }
         }.commit()
@@ -457,6 +459,20 @@ object BackupManager {
             // Top-level cacheDir excludes — in-flight backup / restore /
             // reset temp files. See CACHE_TOPLEVEL_SKIP_PREFIXES.
             if (prefix == "cache" && shouldSkipCacheTopLevel(child.name)) continue
+            // Don't follow symlinks — a symlink in filesDir pointing
+            // outside (e.g. into /sdcard/) would silently slurp
+            // unrelated user data into the backup zip. Comparing
+            // canonicalPath to absolutePath catches the common case
+            // (a symlink resolves to a different on-disk location).
+            try {
+                if (child.canonicalPath != child.absolutePath) {
+                    android.util.Log.w("BackupManager", "Skipping symlink: ${child.absolutePath}")
+                    continue
+                }
+            } catch (_: java.io.IOException) {
+                // canonicalPath can throw on a dangling symlink — also skip.
+                continue
+            }
             val entryName = "$prefix/${child.name}"
             if (child.isDirectory) {
                 addDirectoryRecursive(zip, child, entryName)
