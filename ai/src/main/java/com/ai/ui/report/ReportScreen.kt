@@ -1702,7 +1702,25 @@ private fun ColumnScope.GenerationPhase(
     val showCrossSummaries = crossMetaSummaries.isNotEmpty()
     val showLiveTranslations = isComplete && activeTranslationRuns.isNotEmpty()
     val showTranslationSummaries = isComplete && translationRunSummaries.isNotEmpty()
-    LazyColumn(modifier = Modifier.weight(1f)) {
+    // Anchor the list to the top while it's first loading. The
+    // displayRows section composes immediately (it's derived from
+    // uiState's selected agents) but the secondary / cross /
+    // translation sections come back a tick later from disk via
+    // the polling LaunchedEffect above. Without this, those
+    // sections prepend above the agent rows that the user is
+    // already looking at, and LazyColumn's default anchoring
+    // strands them above the fold. Re-keyed on currentReportId so
+    // the scroll-to-top fires fresh per report open and doesn't
+    // disturb later interaction.
+    val resultListState = androidx.compose.foundation.lazy.rememberLazyListState()
+    LaunchedEffect(currentReportId) {
+        if (currentReportId == null) return@LaunchedEffect
+        repeat(15) {
+            resultListState.scrollToItem(0)
+            kotlinx.coroutines.delay(100)
+        }
+    }
+    LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
         // Meta runs \u2014 one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status
