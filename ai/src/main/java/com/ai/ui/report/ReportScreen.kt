@@ -52,7 +52,10 @@ fun ReportsScreenNav(
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
-    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    onNavigateToFlocksEdit: () -> Unit = {},
+    onNavigateToSwarmsEdit: () -> Unit = {},
+    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -169,6 +172,9 @@ fun ReportsScreenNav(
         onContinueWithAgentPicker = onContinueWithAgentPicker,
         onContinueWithOnTheFly = onContinueWithOnTheFly,
         onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+        onNavigateToFlocksEdit = onNavigateToFlocksEdit,
+        onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
+        onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
         onResumeStaleCross = { rid, mp ->
             reportViewModel.resumeStaleCrossPairs(scope, context, rid, mp)
         },
@@ -301,7 +307,13 @@ fun ReportsScreen(
     /** Run every expected translation item not yet covered by the
      *  named run's persisted rows. Wired to
      *  ReportViewModel.startMissingTranslations. */
-    onStartMissingTranslations: (String, String) -> Unit = { _, _ -> }
+    onStartMissingTranslations: (String, String) -> Unit = { _, _ -> },
+    /** Deep-link callbacks fired by the full-screen +Flock / +Swarm /
+     *  Meta / Cross pickers' "Edit X" buttons. AppNavHost wires each
+     *  to the matching Settings sub-screen route. */
+    onNavigateToFlocksEdit: () -> Unit = {},
+    onNavigateToSwarmsEdit: () -> Unit = {},
+    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -616,9 +628,31 @@ fun ReportsScreen(
     }
 
     // Selection overlay dialogs
-    if (showSelectFlock) { ReportSelectFlockDialog(aiSettings, onSelectFlock = { models = deduplicateModels(models + expandFlockToModels(it, aiSettings)); showSelectFlock = false }, onDismiss = { showSelectFlock = false }); return }
+    if (showSelectFlock) {
+        ReportSelectFlockScreen(
+            aiSettings = aiSettings,
+            onSelectFlock = {
+                models = deduplicateModels(models + expandFlockToModels(it, aiSettings))
+                showSelectFlock = false
+            },
+            onBack = { showSelectFlock = false },
+            onEditFlocks = onNavigateToFlocksEdit
+        )
+        return
+    }
     if (showSelectAgent) { ReportSelectAgentDialog(aiSettings, onSelectAgent = { expandAgentToModel(it, aiSettings)?.let { m -> models = deduplicateModels(models + m) }; showSelectAgent = false }, onDismiss = { showSelectAgent = false }); return }
-    if (showSelectSwarm) { ReportSelectSwarmDialog(aiSettings, onSelectSwarm = { models = deduplicateModels(models + expandSwarmToModels(it, aiSettings)); showSelectSwarm = false }, onDismiss = { showSelectSwarm = false }); return }
+    if (showSelectSwarm) {
+        ReportSelectSwarmScreen(
+            aiSettings = aiSettings,
+            onSelectSwarm = {
+                models = deduplicateModels(models + expandSwarmToModels(it, aiSettings))
+                showSelectSwarm = false
+            },
+            onBack = { showSelectSwarm = false },
+            onEditSwarms = onNavigateToSwarmsEdit
+        )
+        return
+    }
     if (showSelectProvider) { ReportSelectProviderDialog(aiSettings, onSelectProvider = { pendingProvider = it; showSelectProvider = false }, onDismiss = { showSelectProvider = false }); return }
     if (pendingProvider != null) { ReportSelectModelDialog(pendingProvider!!, aiSettings, onSelectModel = { models = deduplicateModels(models + toReportModel(pendingProvider!!, it)); pendingProvider = null }, onDismiss = { pendingProvider = null }); return }
     if (showSelectAllModels) {
@@ -935,6 +969,26 @@ fun ReportsScreen(
                 it.category == "cross_out" && it.name == listFilterByName
             }
         } else null
+        // After-cross picker — full-screen replacement of the
+        // previous AlertDialog. Rendered as an overlay on top of the
+        // secondary list via the early-return pattern.
+        if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
+            ReportSelectInternalPromptScreen(
+                titleText = "Run an after-cross prompt",
+                category = "cross_in",
+                prompts = afterCrossList,
+                onSelectPrompt = {
+                    showAfterCrossPromptPicker = false
+                    afterCrossPickerPrompt = it
+                },
+                onBack = { showAfterCrossPromptPicker = false },
+                onEditPrompts = {
+                    showAfterCrossPromptPicker = false
+                    onNavigateToInternalPromptsByCategory("cross_in")
+                }
+            )
+            return
+        }
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
@@ -976,42 +1030,6 @@ fun ReportsScreen(
                 secondaryRefreshTick++
             }
         )
-        if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
-            AlertDialog(
-                onDismissRequest = { showAfterCrossPromptPicker = false },
-                title = { Text("Select prompt") },
-                text = {
-                    Column {
-                        afterCrossList.forEach { prompt ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        showAfterCrossPromptPicker = false
-                                        afterCrossPickerPrompt = prompt
-                                    }
-                                    .padding(vertical = 10.dp, horizontal = 4.dp)
-                            ) {
-                                Text(
-                                    prompt.name,
-                                    fontSize = 14.sp,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showAfterCrossPromptPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
-                }
-            )
-        }
         return
     }
 
@@ -1236,7 +1254,8 @@ fun ReportsScreen(
                 crossPrompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
                 onLaunchCrossPrompt = launchCrossPrompt,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
+                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
+                onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory
             )
         }
     }
@@ -1431,7 +1450,11 @@ private fun ColumnScope.GenerationPhase(
     /** Open the trace list filtered to (reportId, category). Wired to
      *  the per-row 🐞 on translation runs which collapse multiple
      *  per-call traces into a single category-scoped list. */
-    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> }
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
+    /** Deep link from the new full-screen Meta / Cross pickers'
+     *  "Edit prompts" button. Category is one of "meta" /
+     *  "cross_out" / "cross_in". */
+    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -1572,61 +1595,39 @@ private fun ColumnScope.GenerationPhase(
         }
 
         if (showMetaPicker) {
-            val metaSorted = remember(metaPrompts) { metaPrompts.sortedBy { it.name.lowercase() } }
-            AlertDialog(
-                onDismissRequest = { showMetaPicker = false },
-                title = { Text("Meta") },
-                text = {
-                    Column {
-                        metaSorted.forEach { mp ->
-                            Text(
-                                mp.name, fontSize = 15.sp, color = Color.White,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clickable {
-                                        showMetaPicker = false
-                                        onLaunchMetaPrompt(mp)
-                                    }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
+            ReportSelectInternalPromptScreen(
+                titleText = "Run a Meta prompt",
+                category = "meta",
+                prompts = metaPrompts,
+                onSelectPrompt = {
+                    showMetaPicker = false
+                    onLaunchMetaPrompt(it)
                 },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showMetaPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
+                onBack = { showMetaPicker = false },
+                onEditPrompts = {
+                    showMetaPicker = false
+                    onNavigateToInternalPromptsByCategory("meta")
                 }
             )
+            return
         }
 
         if (showCrossPicker) {
-            val crossSorted = remember(crossPrompts) { crossPrompts.sortedBy { it.name.lowercase() } }
-            AlertDialog(
-                onDismissRequest = { showCrossPicker = false },
-                title = { Text("Cross") },
-                text = {
-                    Column {
-                        crossSorted.forEach { mp ->
-                            Text(
-                                mp.name, fontSize = 15.sp, color = Color.White,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clickable {
-                                        showCrossPicker = false
-                                        onLaunchCrossPrompt(mp)
-                                    }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
+            ReportSelectInternalPromptScreen(
+                titleText = "Run a Cross prompt",
+                category = "cross_out",
+                prompts = crossPrompts,
+                onSelectPrompt = {
+                    showCrossPicker = false
+                    onLaunchCrossPrompt(it)
                 },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showCrossPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
+                onBack = { showCrossPicker = false },
+                onEditPrompts = {
+                    showCrossPicker = false
+                    onNavigateToInternalPromptsByCategory("cross_out")
                 }
             )
+            return
         }
     }
     Spacer(modifier = Modifier.height(8.dp))

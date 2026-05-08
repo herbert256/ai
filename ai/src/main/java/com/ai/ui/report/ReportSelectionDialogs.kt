@@ -35,47 +35,6 @@ private fun dlgFmtPriceM(perMillion: Double): String {
 }
 
 @Composable
-internal fun ReportSelectFlockDialog(aiSettings: Settings, onSelectFlock: (Flock) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var search by remember { mutableStateOf("") }
-    val all = aiSettings.flocks
-    val filtered = if (search.isBlank()) all else all.filter { it.name.lowercase().contains(search.lowercase()) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("Select a flock", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
-                Spacer(modifier = Modifier.height(6.dp))
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
-                Spacer(modifier = Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(filtered, key = { it.id }) { flock ->
-                        // Mirror what expandFlockToModels actually feeds the report: skip
-                        // agents whose provider isn't active so the displayed count matches
-                        // the worker count shown after Generate.
-                        val agents = aiSettings.getAgentsForFlock(flock).filter { aiSettings.isProviderActive(it.provider) }
-                        var tIn = 0.0; var tOut = 0.0; var real = false
-                        agents.forEach { a ->
-                            val p = PricingCache.getPricing(context, a.provider, aiSettings.getEffectiveModelForAgent(a))
-                            tIn += p.promptPrice * 1_000_000; tOut += p.completionPrice * 1_000_000; if (p.source != "DEFAULT") real = true
-                        }
-                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectFlock(flock) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(flock.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            Text("${agents.size}", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(end = 6.dp))
-                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
-                        }
-                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                    }
-                }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
-            }
-        }
-    }
-}
-
-@Composable
 internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
@@ -105,43 +64,6 @@ internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent
                                     fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
-                        }
-                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                    }
-                }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun ReportSelectSwarmDialog(aiSettings: Settings, onSelectSwarm: (Swarm) -> Unit, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    var search by remember { mutableStateOf("") }
-    val all = aiSettings.swarms
-    val filtered = if (search.isBlank()) all else all.filter { it.name.lowercase().contains(search.lowercase()) }
-
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("Select a swarm", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
-                Spacer(modifier = Modifier.height(6.dp))
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
-                Spacer(modifier = Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(filtered, key = { it.id }) { swarm ->
-                        var tIn = 0.0; var tOut = 0.0; var real = false
-                        swarm.members.forEach { m ->
-                            val p = PricingCache.getPricing(context, m.provider, m.model)
-                            tIn += p.promptPrice * 1_000_000; tOut += p.completionPrice * 1_000_000; if (p.source != "DEFAULT") real = true
-                        }
-                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectSwarm(swarm) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(swarm.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            Text("${swarm.members.size}", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(end = 6.dp))
-                            Text("${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                     }
@@ -387,6 +309,474 @@ internal fun ReportSelectModelsScreen(
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
+    }
+}
+
+// ========================================================================
+// Full-screen replacements for the +Flock / +Swarm dialogs and the
+// Meta / Cross / After-cross picker popups. Each one shows richer per-row
+// info than the cramped AlertDialog could, surfaces an "Edit …" button
+// that deep-links into Settings, and (for prompts) a "Use a one-time
+// prompt" entry that lets the user type a throwaway template inline.
+// ========================================================================
+
+/** Full-screen flock picker. Replaces the popup ReportSelectFlockDialog
+ *  with more breathing room: each row shows the flock name, the
+ *  per-flock cost estimate (sum across active agents), the number of
+ *  active vs total members, and the comma-joined agent names. */
+@Composable
+internal fun ReportSelectFlockScreen(
+    aiSettings: Settings,
+    onSelectFlock: (Flock) -> Unit,
+    onBack: () -> Unit,
+    onEditFlocks: () -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.flocks
+    val filtered = remember(all, search) {
+        if (search.isBlank()) all
+        else all.filter { it.name.lowercase(java.util.Locale.ROOT).contains(search.lowercase(java.util.Locale.ROOT)) }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search flocks...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
+                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                }
+            }
+        )
+        Text("${filtered.size} of ${all.size} flocks", fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(top = 4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (all.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("No flocks yet.", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    Text("Group your agents into a flock for one-tap inclusion.", color = AppColors.TextDim, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(filtered, key = { it.id }) { flock ->
+                    val allAgents = aiSettings.getAgentsForFlock(flock)
+                    val active = allAgents.filter { aiSettings.isProviderActive(it.provider) }
+                    var tIn = 0.0; var tOut = 0.0; var realPrice = false
+                    active.forEach { a ->
+                        val p = PricingCache.getPricing(context, a.provider, aiSettings.getEffectiveModelForAgent(a))
+                        tIn += p.promptPrice * 1_000_000
+                        tOut += p.completionPrice * 1_000_000
+                        if (p.source != "DEFAULT") realPrice = true
+                    }
+                    val countLabel = if (active.size != allAgents.size)
+                        "${active.size}/${allAgents.size} agents"
+                    else "${allAgents.size} agents"
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectFlock(flock) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                flock.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                            )
+                        }
+                        Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
+                        if (allAgents.isNotEmpty()) {
+                            Text(
+                                allAgents.joinToString(", ") { it.name },
+                                fontSize = 11.sp, color = AppColors.TextDim,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onEditFlocks, modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Edit Flocks", maxLines = 1, softWrap = false) }
+    }
+}
+
+/** Full-screen swarm picker. Mirror of ReportSelectFlockScreen — shows
+ *  member count, cost estimate, and the comma-joined provider/model
+ *  list for context. */
+@Composable
+internal fun ReportSelectSwarmScreen(
+    aiSettings: Settings,
+    onSelectSwarm: (Swarm) -> Unit,
+    onBack: () -> Unit,
+    onEditSwarms: () -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var search by remember { mutableStateOf("") }
+    val all = aiSettings.swarms
+    val filtered = remember(all, search) {
+        if (search.isBlank()) all
+        else all.filter { it.name.lowercase(java.util.Locale.ROOT).contains(search.lowercase(java.util.Locale.ROOT)) }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search swarms...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
+                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                }
+            }
+        )
+        Text("${filtered.size} of ${all.size} swarms", fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(top = 4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (all.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("No swarms yet.", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    Text("Group provider+model pairs to test many models at once.", color = AppColors.TextDim, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(filtered, key = { it.id }) { swarm ->
+                    var tIn = 0.0; var tOut = 0.0; var realPrice = false
+                    swarm.members.forEach { m ->
+                        val p = PricingCache.getPricing(context, m.provider, m.model)
+                        tIn += p.promptPrice * 1_000_000
+                        tOut += p.completionPrice * 1_000_000
+                        if (p.source != "DEFAULT") realPrice = true
+                    }
+                    val activeMembers = swarm.members.filter { aiSettings.isProviderActive(it.provider) }
+                    val countLabel = if (activeMembers.size != swarm.members.size)
+                        "${activeMembers.size}/${swarm.members.size} members"
+                    else "${swarm.members.size} members"
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectSwarm(swarm) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                swarm.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                            )
+                        }
+                        Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
+                        if (swarm.members.isNotEmpty()) {
+                            Text(
+                                swarm.members.joinToString(", ") { "${it.provider.displayName}/${it.model}" },
+                                fontSize = 11.sp, color = AppColors.TextDim,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onEditSwarms, modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Edit Swarms", maxLines = 1, softWrap = false) }
+    }
+}
+
+/** Full-screen internal-prompt picker. One Composable serves the Meta /
+ *  Cross-out / Cross-in launcher pickers — pass the filtered prompt
+ *  list, the title, and the category id used for "Edit X prompts" deep
+ *  link + the "one-time prompt" InternalPrompt construction.
+ *
+ *  Each row shows the prompt name, its title (if any), and the first
+ *  two non-empty lines of the template body, so the user can pick by
+ *  content rather than by remembering names. The bottom row offers
+ *  "Edit prompts" and "Use a one-time prompt"; the latter pushes the
+ *  one-time editor onto the screen via a local boolean. */
+@Composable
+internal fun ReportSelectInternalPromptScreen(
+    titleText: String,
+    category: String,
+    prompts: List<InternalPrompt>,
+    onSelectPrompt: (InternalPrompt) -> Unit,
+    onBack: () -> Unit,
+    onEditPrompts: () -> Unit
+) {
+    BackHandler { onBack() }
+    var search by remember { mutableStateOf("") }
+    var showOneTime by remember { mutableStateOf(false) }
+    val sorted = remember(prompts) { prompts.sortedBy { it.name.lowercase(java.util.Locale.ROOT) } }
+    val filtered = remember(sorted, search) {
+        if (search.isBlank()) sorted
+        else {
+            val q = search.lowercase(java.util.Locale.ROOT)
+            sorted.filter {
+                it.name.lowercase(java.util.Locale.ROOT).contains(q) ||
+                    it.title.lowercase(java.util.Locale.ROOT).contains(q) ||
+                    it.text.lowercase(java.util.Locale.ROOT).contains(q)
+            }
+        }
+    }
+
+    if (showOneTime) {
+        ReportOneTimePromptScreen(
+            category = category,
+            onConfirm = { built ->
+                showOneTime = false
+                onSelectPrompt(built)
+            },
+            onBack = { showOneTime = false }
+        )
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        // Reuse the closest existing helpTopic per category so the help
+        // icon points at something meaningful even though this screen
+        // is shared across the three picker entry points.
+        val helpId = when (category) {
+            "meta" -> "report_meta"
+            "cross_out" -> "secondary_cross"
+            "cross_in" -> "secondary_cross"
+            else -> "secondary_list"
+        }
+        TitleBar(helpTopic = helpId, title = titleText, onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search prompts...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
+                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                }
+            }
+        )
+        Text("${filtered.size} of ${sorted.size} prompts", fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(top = 4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (sorted.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("No prompts in this category.", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    Text("Add one via Edit prompts, or run a one-time prompt below.", color = AppColors.TextDim, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(filtered, key = { it.id }) { p ->
+                    // First two non-blank lines of the template body —
+                    // gives the user enough context to recognise the
+                    // prompt without showing a wall of text.
+                    val previewLines = remember(p.text) {
+                        p.text.lineSequence().filter { it.isNotBlank() }.take(2).toList()
+                    }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectPrompt(p) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                p.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            // type pill — chat / rerank / moderation
+                            // — useful at a glance for meta-category
+                            // prompts where the type drives routing.
+                            if (p.type.isNotBlank()) {
+                                Text(
+                                    p.type, fontSize = 10.sp, color = AppColors.TextTertiary,
+                                    modifier = Modifier.background(AppColors.CardBackground, MaterialTheme.shapes.extraSmall)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        if (p.title.isNotBlank()) {
+                            Text(p.title, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        previewLines.forEach { line ->
+                            Text(line, fontSize = 11.sp, color = AppColors.TextDim,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onEditPrompts, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Edit prompts", maxLines = 1, softWrap = false) }
+            OutlinedButton(
+                onClick = { showOneTime = true }, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("One-time prompt", maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
+/** Inline editor for a one-time, non-saved prompt. The user types a
+ *  template body; on Run, builds an in-memory [InternalPrompt] (with a
+ *  fresh UUID that doesn't land on disk) and hands it to the launcher
+ *  via the onConfirm callback. The launcher path treats it the same
+ *  as a saved prompt — substitution, scope screen, model picker, and
+ *  result persistence all run unchanged. The helper card lists the
+ *  placeholders that resolve at execution time so the user doesn't
+ *  need to remember them. */
+@Composable
+internal fun ReportOneTimePromptScreen(
+    category: String,
+    onConfirm: (InternalPrompt) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    var name by remember { mutableStateOf("One-time ${category.replace('_', ' ')}") }
+    var text by remember { mutableStateOf("") }
+    // Meta-category prompts can be chat / rerank / moderation; cross-*
+    // run as chat. The one-time UI defaults to chat across the board —
+    // running a one-time rerank / moderation isn't useful without the
+    // structured-response harness, and the user can always edit the
+    // saved-prompt list to add a typed entry instead.
+    val type = "chat"
+
+    val placeholders: List<Pair<String, String>> = when (category) {
+        "cross_out" -> listOf(
+            "@RESPONSE@" to "the source agent's response being checked",
+            "@QUESTION@" to "the report's prompt",
+            "@TITLE@" to "the report's title",
+            "@DATE@" to "current date",
+            "@COUNT@" to "agent count"
+        )
+        "cross_in" -> listOf(
+            "@QUESTION@" to "the report's prompt",
+            "@TITLE@" to "report title",
+            "@DATE@" to "current date",
+            "@COUNT@" to "N reports",
+            "@CROSS_COUNT@" to "N-1 responses each",
+            "@REPORT@@RESPONSES@" to "iterable block — use once; @RESPONSE@ goes inside @RESPONSES@"
+        )
+        else -> listOf( // meta / chat / fallback
+            "@QUESTION@" to "the report's prompt",
+            "@RESULTS@" to "every successful agent's response, joined",
+            "@COUNT@" to "agent count",
+            "@TITLE@" to "report title",
+            "@DATE@" to "current date"
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        val helpId = when (category) {
+            "meta" -> "report_meta"
+            "cross_out" -> "secondary_cross"
+            "cross_in" -> "secondary_cross"
+            else -> "internal_prompt_edit"
+        }
+        TitleBar(helpTopic = helpId, title = "One-time prompt", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = name, onValueChange = { name = it },
+                label = { Text("Name (used as the result row label)") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+            )
+            OutlinedTextField(
+                value = text, onValueChange = { text = it },
+                label = { Text("Template body") },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                colors = AppColors.outlinedFieldColors()
+            )
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Available placeholders", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Substituted at run time. Tap a placeholder to copy it into the template body at the cursor end.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    placeholders.forEach { (token, desc) ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { text = if (text.isEmpty()) token else "$text$token" }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                token, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                                color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text(desc, fontSize = 11.sp, color = AppColors.TextDim,
+                                modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+            }
+
+            Text(
+                "This prompt is not saved. Use \"Edit prompts\" to create a permanent entry instead.",
+                fontSize = 11.sp, color = AppColors.TextDim
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val built = InternalPrompt(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = name.trim().ifBlank { "One-time prompt" },
+                    type = type,
+                    category = category,
+                    text = text
+                )
+                onConfirm(built)
+            },
+            enabled = text.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Run", maxLines = 1, softWrap = false) }
     }
 }
 

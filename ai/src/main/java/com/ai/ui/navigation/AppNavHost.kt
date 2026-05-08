@@ -347,6 +347,11 @@ fun AppNavHost(
                 onNavigateToInternalPromptEdit = { id ->
                     navController.navigate(NavRoutes.settingsInternalPromptEdit(id))
                 },
+                onNavigateToFlocksEdit = { navController.navigate(NavRoutes.SETTINGS_FLOCKS) },
+                onNavigateToSwarmsEdit = { navController.navigate(NavRoutes.SETTINGS_SWARMS) },
+                onNavigateToInternalPromptsByCategory = { cat ->
+                    navController.navigate(NavRoutes.settingsInternalPromptsByCategory(cat))
+                },
                 onContinueWithCurrent = { rid, aid ->
                     scope.launch {
                         val sessionId = continueReportInChat(
@@ -861,6 +866,34 @@ fun AppNavHost(
                 initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT,
                 initialEditingInternalPromptId = pid)
         }
+        composable(NavRoutes.SETTINGS_FLOCKS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                initialSubScreen = SettingsSubScreen.AI_FLOCKS)
+        }
+        composable(NavRoutes.SETTINGS_SWARMS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                initialSubScreen = SettingsSubScreen.AI_SWARMS)
+        }
+        composable(NavRoutes.SETTINGS_INTERNAL_PROMPTS_BY_CATEGORY) { entry ->
+            val cat = try {
+                java.net.URLDecoder.decode(entry.arguments?.getString("category") ?: "meta", "UTF-8")
+            } catch (_: Exception) { "meta" }
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS,
+                initialInternalPromptCategory = cat)
+        }
         composable(NavRoutes.AI_API_TEST) {
             ApiTestScreen(onBackClick = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) }, viewModel = appViewModel)
@@ -884,7 +917,8 @@ fun SettingsScreenNav(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
-    initialEditingInternalPromptId: String? = null
+    initialEditingInternalPromptId: String? = null,
+    initialInternalPromptCategory: String? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     SettingsScreen(
@@ -910,7 +944,8 @@ fun SettingsScreenNav(
         initialSubScreen = initialSubScreen,
         initialProviderId = initialProviderId,
         initialEditingAgentId = initialEditingAgentId,
-        initialEditingInternalPromptId = initialEditingInternalPromptId
+        initialEditingInternalPromptId = initialEditingInternalPromptId,
+        initialInternalPromptCategory = initialInternalPromptCategory
     )
 }
 

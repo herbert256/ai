@@ -68,7 +68,8 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
-    initialEditingInternalPromptId: String? = null
+    initialEditingInternalPromptId: String? = null,
+    initialInternalPromptCategory: String? = null
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
     // Hold the runtime selection as the AppService id (a String) so a
@@ -99,9 +100,10 @@ fun SettingsScreen(
     // prompt being edited so the edit screen pins the right category.
     var selectedInternalCategory by remember {
         mutableStateOf(
-            initialEditingInternalPromptId
-                ?.let { aiSettings.getInternalPromptById(it) }
-                ?.category
+            initialInternalPromptCategory
+                ?: initialEditingInternalPromptId
+                    ?.let { aiSettings.getInternalPromptById(it) }
+                    ?.category
                 ?: "internal"
         )
     }
