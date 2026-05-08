@@ -25,9 +25,18 @@ object PromptCache {
     /** Stable SHA-256 hash of (prompt + agentId). Different agent ⇒ different key, different
      *  resolved prompt (e.g. with @MODEL@ replaced) ⇒ different key. */
     fun keyFor(prompt: String, agentId: String): String {
+        // Use a length-prefix scheme rather than a delimiter: agentId
+        // and prompt may both contain `|`, so naively concatenating
+        // with `|` collides (e.g., agentId="a", prompt="|b" hashes the
+        // same bytes as agentId="a|", prompt="b"). Prepending the
+        // agentId byte length removes the ambiguity.
         val md = MessageDigest.getInstance("SHA-256")
-        val bytes = md.digest("$agentId|$prompt".toByteArray(Charsets.UTF_8))
-        return bytes.joinToString("") { "%02x".format(it) }
+        val agentBytes = agentId.toByteArray(Charsets.UTF_8)
+        md.update(agentBytes.size.toString().toByteArray(Charsets.UTF_8))
+        md.update(":".toByteArray(Charsets.UTF_8))
+        md.update(agentBytes)
+        md.update(prompt.toByteArray(Charsets.UTF_8))
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     fun get(key: String): String? = lock.withLock {
