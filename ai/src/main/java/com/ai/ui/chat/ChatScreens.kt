@@ -751,8 +751,9 @@ fun ChatSessionScreen(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
-                if (bmp != null) {
-                    Image(bitmap = bmp.asImageBitmap(), contentDescription = "Attached image",
+                val bmpLocal = bmp
+                if (bmpLocal != null) {
+                    Image(bitmap = bmpLocal.asImageBitmap(), contentDescription = "Attached image",
                         modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)))
                 }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -925,9 +926,10 @@ private fun ChatMessageBubble(
                         } catch (_: Exception) { null }
                     }
                 }
-                if (bmp != null) {
+                val bmpLocal = bmp
+                if (bmpLocal != null) {
                     Image(
-                        bitmap = bmp.asImageBitmap(), contentDescription = "Attached image",
+                        bitmap = bmpLocal.asImageBitmap(), contentDescription = "Attached image",
                         modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(8.dp))
                     )
                     if (message.content.isNotBlank()) Spacer(modifier = Modifier.height(6.dp))
