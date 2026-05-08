@@ -73,7 +73,15 @@ fun RefreshScreen(
         scope.launch {
             progressTitle = title; progressText = initialText
             try { block() }
-            catch (e: Exception) { taskError = e.message }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Throwable) {
+                // Fall back to the exception class name when the
+                // message is null. The previous "${e.message}" path
+                // showed the literal "null" toast on NPE / OOM /
+                // generic Throwable subclasses without a populated
+                // message string.
+                taskError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+            }
             finally { progressTitle = ""; progressText = "" }
         }
     }
