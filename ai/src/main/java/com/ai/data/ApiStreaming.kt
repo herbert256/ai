@@ -50,13 +50,37 @@ private fun parseSseStream(
 ): Flow<String> = flow {
     val reader = body.charStream().buffered()
     try {
+        // Per the W3C SSE spec, an event is delimited by a blank line.
+        // Multiple `data:` lines inside one event must be concatenated
+        // with `\n` and dispatched together on the blank line. Dispatching
+        // each `data:` line eagerly (the previous behaviour) split JSON
+        // payloads that some providers shard across two lines, so the
+        // per-format `extractContent` parser would silently fail.
         var eventType: String? = null
+        val dataBuf = StringBuilder()
         var sawTerminator = false
         var sawAnyData = false
+
+        suspend fun dispatch() {
+            if (dataBuf.isEmpty()) {
+                eventType = null
+                return
+            }
+            // Trailing newline shouldn't leak into the parser.
+            val data = dataBuf.toString().removeSuffix("\n")
+            dataBuf.setLength(0)
+            if (data == "[DONE]") { sawTerminator = true; eventType = null; return }
+            sawAnyData = true
+            val content = extractContent(eventType, data)
+            if (!content.isNullOrEmpty()) emit(content)
+            if (isFinalChunk(eventType, data)) sawTerminator = true
+            eventType = null
+        }
+
         var line: String?
         while (reader.readLine().also { line = it } != null) {
             val currentLine = line ?: continue
-            if (currentLine.isBlank()) { eventType = null; continue }
+            if (currentLine.isBlank()) { dispatch(); continue }
             if (currentLine.startsWith("event:")) {
                 eventType = currentLine.removePrefix("event:").trim()
                 // Per-format terminator events. Anthropic ends with
@@ -65,24 +89,24 @@ private fun parseSseStream(
                 // also send a trailing `data: [DONE]` for back-compat
                 // depending on which Responses API revision the
                 // upstream is on — recognising the event keeps us
-                // correct either way). Without this, every Responses
-                // API stream that doesn't ship the legacy [DONE]
-                // throws "ended without terminator" right after a
-                // perfectly valid response.
+                // correct either way).
                 if (eventType == "message_stop"
                     || eventType == "response.completed") sawTerminator = true
                 continue
             }
             if (currentLine.startsWith(":")) continue  // SSE comment
             if (currentLine.startsWith("data:")) {
-                val data = currentLine.removePrefix("data:").trim()
-                if (data == "[DONE]") { sawTerminator = true; break }
-                sawAnyData = true
-                val content = extractContent(eventType, data)
-                if (!content.isNullOrEmpty()) emit(content)
-                if (isFinalChunk(eventType, data)) sawTerminator = true
+                val chunk = currentLine.removePrefix("data:").let {
+                    // SSE permits but doesn't require a leading space
+                    // after the colon; spec strips one if present.
+                    if (it.startsWith(" ")) it.substring(1) else it
+                }
+                if (dataBuf.isNotEmpty()) dataBuf.append('\n')
+                dataBuf.append(chunk)
             }
         }
+        // Flush a trailing event that ended via TCP close (no blank line).
+        dispatch()
         if (!sawTerminator && sawAnyData) {
             throw java.io.IOException("SSE stream ended without terminator — response likely truncated")
         }
