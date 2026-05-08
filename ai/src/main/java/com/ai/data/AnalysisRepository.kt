@@ -219,18 +219,47 @@ class AnalysisRepository {
             // the error body), retry once without the tool. Models that don't
             // support the tool descriptor would otherwise hard-fail the whole
             // report agent.
+            // Broadened fallback trigger:
+            //   any 4xx status (some providers return 422 / 415 for an
+            //   unsupported tool descriptor) AND
+            //   any of the known tool-related substrings in the error
+            //   message OR a wider set of "unsupported"/"invalid"
+            //   markers — covers providers that return error wording
+            //   like "Unknown parameter: tools" or "tool_choice not
+            //   supported".
+            val errMsg = (first.error ?: "").lowercase()
+            val statusEligible = first.httpStatusCode in 400..499
+            val hasToolKeyword = "tool" in errMsg || "web_search" in errMsg ||
+                "googlesearch" in errMsg || "google_search" in errMsg
+            val hasUnsupportedHint = ("unsupported" in errMsg || "invalid" in errMsg ||
+                "unknown" in errMsg || "not supported" in errMsg) &&
+                ("tools" in errMsg || "tool_choice" in errMsg || "tool" in errMsg)
             val needsFallback = !first.isSuccess
                 && params.webSearchTool
-                && first.httpStatusCode == 400
-                && (first.error ?: "").lowercase().let { msg ->
-                    "tool" in msg || "web_search" in msg || "googlesearch" in msg || "google_search" in msg
-                }
+                && statusEligible
+                && (hasToolKeyword || hasUnsupportedHint)
             val response = if (needsFallback) {
-                analyze(
+                val retried = analyze(
                     agent.provider, agent.apiKey, finalPrompt, agent.model,
                     params.copy(webSearchTool = false),
                     effectiveBaseUrl, imageBase64, imageMime
                 )
+                // Preserve the original tool-rejection error in the log
+                // so a user inspecting the trace sees both attempts —
+                // the second response replaces the first as the value
+                // returned to the caller, but the original failure
+                // shouldn't disappear entirely.
+                if (!retried.isSuccess) {
+                    android.util.Log.w("AiAnalysis",
+                        "Tool fallback also failed for ${agent.name}: " +
+                            "first=${first.httpStatusCode}/${first.error?.take(120)}; " +
+                            "fallback=${retried.httpStatusCode}/${retried.error?.take(120)}")
+                } else {
+                    android.util.Log.i("AiAnalysis",
+                        "Tool fallback succeeded for ${agent.name} " +
+                            "after first=${first.httpStatusCode}/${first.error?.take(120)}")
+                }
+                retried
             } else first
             return response.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
