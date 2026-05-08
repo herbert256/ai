@@ -246,40 +246,67 @@ private fun ReportsViewerScreenLoaded(
         }
     }
     val headerTraceFilename = headerTraceFilenameState.value
+    val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
+    val selectedProviderService = selectedReportAgent?.let { AppService.findById(it.provider) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // Static page title; the active model is already visible
-        // because its picker button below highlights purple, so the
-        // separate model-header text line is gone.
+        // Static page title; the agent picker dropdown below shows
+        // the active model. ℹ on the title bar opens Model Info for
+        // the selected agent's model.
         TitleBar(
             helpTopic = "content_view", title = "Model response", onBackClick = onDismiss,
             onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
                 { onNavigateToTraceFile(headerTraceFilename) }
+            } else null,
+            onInfo = if (selectedReportAgent != null && selectedProviderService != null) {
+                { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
             } else null
         )
 
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
 
-        // Agent buttons
+        // Agent picker — single dropdown over the FlowRow of buttons.
+        // The FlowRow used to wrap into multiple lines on dense
+        // reports, eating vertical space; the dropdown collapses to
+        // one row whose label IS the active model.
         if (agentsWithResults.isNotEmpty()) {
-            @OptIn(ExperimentalLayoutApi::class)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                agentsWithResults.forEach { agent ->
-                    val isSelected = agent.agentId == selectedAgentId
-                    Button(
-                        onClick = { selectedAgentId = agent.agentId },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Purple else Color(0xFF3A3A4A)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)
-                    ) {
-                        // agent.agentName is stored as "Provider /
-                        // Model"; rebuild from the underlying fields
-                        // so the "Model name layout" setting decides
-                        // whether the provider half shows.
+            var pickerOpen by remember { mutableStateOf(false) }
+            val selectedLabel = selectedReportAgent?.let { agent ->
+                val agentProv = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
+            } ?: "Pick a model"
+            Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
+                OutlinedButton(
+                    onClick = { pickerOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                ) {
+                    Text(
+                        selectedLabel,
+                        modifier = Modifier.weight(1f),
+                        fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(" ▾", fontSize = 14.sp, color = AppColors.TextTertiary)
+                }
+                DropdownMenu(
+                    expanded = pickerOpen, onDismissRequest = { pickerOpen = false },
+                    modifier = Modifier.fillMaxWidth(0.85f)
+                ) {
+                    agentsWithResults.forEach { agent ->
                         val agentProv = AppService.findById(agent.provider)?.displayName ?: agent.provider
-                        Text(com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / "),
-                            fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                        val label = com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
+                        val isSelected = agent.agentId == selectedAgentId
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (isSelected) AppColors.Purple else Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            onClick = { selectedAgentId = agent.agentId; pickerOpen = false }
+                        )
                     }
                 }
             }
