@@ -673,7 +673,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * genericReports* counters, but our StateFlow restarted empty.
      */
     suspend fun hydrateAgentResultsFromStorage(context: Context, reportId: String) {
-        if (_agentResults.value.isNotEmpty()) return
+        // Merge with the in-memory map instead of skipping when ANY
+        // agents are already populated. The previous early-return
+        // left a half-finished restore on the screen — rows that
+        // weren't in _agentResults stayed missing until a manual
+        // refresh.
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
         // Only restore agents that have actually finished (SUCCESS / ERROR / STOPPED).
         // PENDING and RUNNING entries stay missing so the screen renders the spinning
@@ -698,7 +702,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 httpStatusCode = ra.httpStatus
             )
         }.toMap()
-        if (rebuilt.isNotEmpty()) _agentResults.value = rebuilt
+        if (rebuilt.isNotEmpty()) {
+            // Merge: prefer in-memory entries over disk so a fresh
+            // success that hasn't been written yet isn't overwritten
+            // by a stale RUNNING agent's still-on-disk state. Rows
+            // missing from memory get the rebuilt entry.
+            val merged = rebuilt + _agentResults.value
+            _agentResults.value = merged
+        }
     }
 
     fun stopGenericReports(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
@@ -2134,8 +2145,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         translatePricing: PricingCache.ModelPricing
     ) {
         val tu = item.tokenUsage
-        val inCost = tu?.let { it.inputTokens * translatePricing.promptPrice }
-        val outCost = tu?.let { it.outputTokens * translatePricing.completionPrice }
+        // Tier-aware split — runOneTranslation already computes the
+        // total via PricingCache.computeCost. The persisted in / out
+        // halves now go through computeInOutCost so a long-context
+        // translation (>200k tokens) doesn't drift from the canonical
+        // total recorded in the parent run.
+        val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, translatePricing) }
+            ?.let { it.first to it.second } ?: (null to null)
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
         val (srcKind, srcTargetId) = when (item.kind) {
             TranslationKind.PROMPT -> "PROMPT" to "prompt"

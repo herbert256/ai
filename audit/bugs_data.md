@@ -605,7 +605,7 @@
 **Location:** lines 730-734 (fetchModels error path)
 **Symptom:** `firstOrNull { it.timestamp >= startedAt && it.category == "Retrieve models list" }` — multiple parallel fetches all share the same category. The earliest matching trace may be from a DIFFERENT provider's fetch.
 **Proposed fix:** Resolve by hostname match: `it.hostname == provider.baseUrl.host`.
-**Status:** Open
+**Status:** Fixed (this session) — match on hostname as well as category to disambiguate parallel fetches
 
 ### Bug 93 — Severity: HIGH — Category: testSpecificModel race
 **Location:** lines 814-828 (testSpecificModel)
@@ -656,16 +656,19 @@
 **Location:** lines 1750-1758
 **Symptom:** When report.webSearchTool=true but canWeb=false, `withWeb = baseOverride?.copy(webSearchTool=false) ?: baseOverride`. If baseOverride is null, the result is null — meaning no override is sent and the dispatcher uses the agent's default (which may have webSearchTool=true). The strip doesn't take effect.
 **Proposed fix:** Use `(baseOverride ?: AgentParameters()).copy(webSearchTool=false)` for the negative path.
+**Status:** Fixed — explicit AgentParameters() materialised so the strip can't fall back to the agent's default
 
 ### Bug 101 — Severity: HIGH — Category: Image attachment leak
 **Location:** lines 205, 79-89
 **Symptom:** generateGenericReports clears reportImageBase64/Mime AFTER the job finishes. If the user navigates away mid-generation, the image stays in UiState (potentially MBs).
 **Proposed fix:** Clear in a `try { ... } finally { ... }` outside the job.
+**Status:** Fixed — image / per-report flags cleared as soon as locals capture the bytes
 
 ### Bug 102 — Severity: MEDIUM — Category: hydrateAgentResultsFromStorage partial hydration
 **Location:** lines 661-688
 **Symptom:** `if (_agentResults.value.isNotEmpty()) return` — early-returns if ANY entries exist. Partial in-memory state (1 of 5 finished) leaves the other 4 unhydrated.
 **Proposed fix:** Merge instead of skip.
+**Status:** Fixed (this session) — merge with in-memory _agentResults instead of skipping when partially populated
 
 ### Bug 103 — Severity: HIGH — Category: cross meta cancellation zombie rows
 **Location:** lines 1192-1204 (rerunCompleteCross)
@@ -676,6 +679,7 @@
 **Location:** lines 2007-2008 vs 2071-2072
 **Symptom:** In runOneTranslation, `costDollars = PricingCache.computeCost(tu, pricing)` (cache-aware + tier-aware). In saveOneTranslationItem, `inCost = tu.inputTokens * pricing.promptPrice` (simple). Two cost figures diverge on long contexts (above-200k tier).
 **Proposed fix:** Use the same compute path everywhere.
+**Status:** Fixed (this session) — PricingCache.computeInOutCost — tier-aware in/out split shared by translation persistence
 
 ### Bug 105 — Severity: MEDIUM — Category: cancelTranslation persisted rows survive
 **Location:** lines 2107-2113 (cancelTranslation)

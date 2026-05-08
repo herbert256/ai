@@ -734,8 +734,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // by category as well as timestamp keeps concurrent fetches
                 // from clobbering each other's pointers.
                 val traceFile = if (ApiTracer.isTracingEnabled) {
+                    // Multiple parallel fetches all share the
+                    // "Retrieve models list" category, so the
+                    // category filter alone could pick a different
+                    // provider's trace. Match on hostname too —
+                    // the AppService.baseUrl host is the most
+                    // specific identity we have.
+                    val providerHost = runCatching {
+                        java.net.URI(service.baseUrl).host?.lowercase()
+                    }.getOrNull()
                     ApiTracer.getTraceFiles()
-                        .firstOrNull { it.timestamp >= startedAt && it.category == "Retrieve models list" }
+                        .firstOrNull {
+                            it.timestamp >= startedAt &&
+                                it.category == "Retrieve models list" &&
+                                (providerHost == null || it.hostname.equals(providerHost, ignoreCase = true))
+                        }
                         ?.filename
                 } else null
                 _uiState.update { it.copy(

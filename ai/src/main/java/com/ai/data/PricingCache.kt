@@ -262,6 +262,17 @@ object PricingCache {
      */
     fun computeCost(usage: TokenUsage, pricing: ModelPricing): Double {
         usage.apiCost?.let { return it }
+        val (inCost, outCost) = computeInOutCost(usage, pricing)
+        return inCost + outCost
+    }
+
+    /** Tier-aware split of input vs output spend. Used by code paths
+     *  that need to persist the two halves separately (translation,
+     *  meta, secondary). The previous simple multiplication
+     *  (inputTokens * promptPrice) ignored the above-200k tier and
+     *  the cached-read / cache-creation rates — for long contexts
+     *  the persisted split diverged from the canonical computeCost. */
+    fun computeInOutCost(usage: TokenUsage, pricing: ModelPricing): Pair<Double, Double> {
         val totalInput = usage.inputTokens + usage.cachedInputTokens + usage.cacheCreationTokens
         val highTier = totalInput > 200_000 && pricing.promptPriceAbove200k != null
         val pIn = if (highTier) pricing.promptPriceAbove200k!! else pricing.promptPrice
@@ -270,10 +281,25 @@ object PricingCache {
                      else (pricing.cachedReadPrice ?: pIn)
         val pCacheW = if (highTier) (pricing.cachedWritePriceAbove200k ?: pricing.cachedWritePrice ?: pIn)
                      else (pricing.cachedWritePrice ?: pIn)
-        return usage.inputTokens * pIn +
+        val inCost = usage.inputTokens * pIn +
             usage.cachedInputTokens * pCacheR +
-            usage.cacheCreationTokens * pCacheW +
-            usage.outputTokens * pOut
+            usage.cacheCreationTokens * pCacheW
+        val outCost = usage.outputTokens * pOut
+        // apiCost shortcut: if the API ships a total, split it pro-rata
+        // by the simple-rate baseline so callers that need the two
+        // halves still get a consistent split.
+        usage.apiCost?.let { total ->
+            val baseIn = usage.inputTokens * pricing.promptPrice +
+                usage.cachedInputTokens * (pricing.cachedReadPrice ?: pricing.promptPrice) +
+                usage.cacheCreationTokens * (pricing.cachedWritePrice ?: pricing.promptPrice)
+            val baseOut = usage.outputTokens * pricing.completionPrice
+            val baseTotal = baseIn + baseOut
+            return if (baseTotal > 0.0) {
+                val ratioIn = baseIn / baseTotal
+                (total * ratioIn) to (total * (1 - ratioIn))
+            } else (0.0 to total)
+        }
+        return inCost to outCost
     }
 
     /**
