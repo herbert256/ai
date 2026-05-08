@@ -28,6 +28,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -349,7 +350,8 @@ private fun ColumnScope.MetaResultsPickerView(
         Text(com.ai.ui.shared.modelLabel(provider, selected.model, separator = " — "),
             fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f))
+            modifier = Modifier.weight(1f)
+                .modelInfoClickable(providerService, selected.model))
         if (ApiTracer.isTracingEnabled && traceFilename != null) {
             Text("🐞", fontSize = 18.sp,
                 modifier = Modifier.padding(start = 8.dp).clickable { traceFilename?.let(onNavigateToTraceFile) })
@@ -894,7 +896,8 @@ private fun ColumnScope.CrossMetaDrillInView(
             Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier.weight(1f)
+                    .modelInfoClickable(activeProviderService, activeMdl))
             // 🐞 only in Initiator role — opens the trace of this
             // model's report-agent run (the call that produced the
             // source response).
@@ -1535,7 +1538,8 @@ private fun OnePageView(
             Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier.weight(1f)
+                    .modelInfoClickable(AppService.findById(activePid), activeMdl))
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
                 modifier = Modifier.padding(end = 8.dp))
             Button(

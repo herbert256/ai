@@ -19,6 +19,7 @@ import com.ai.data.AppService
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -159,7 +160,7 @@ fun ReportSingleResultScreen(
             Text(
                 com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " — "),
                 fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
             )
             if (ApiTracer.isTracingEnabled && traceFilename != null) {
                 Text("🐞", fontSize = 18.sp,

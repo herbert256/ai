@@ -41,6 +41,7 @@ import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.AppViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -98,7 +99,8 @@ fun ChatParametersScreen(
     ) {
         TitleBar(title = "Chat Parameters", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
         Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
-            fontSize = 12.sp, color = AppColors.TextTertiary)
+            fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.modelInfoClickable(provider, model))
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -513,7 +515,7 @@ fun ChatSessionScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
                 fontSize = 12.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier.weight(1f).modelInfoClickable(provider, model))
             // Knowledge attach chip — tap opens a multi-select
             // dialog over saved KBs. Shown only when at least one
             // KB exists. Per-turn injection happens in

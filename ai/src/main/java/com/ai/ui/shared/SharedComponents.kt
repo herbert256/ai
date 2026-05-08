@@ -65,6 +65,29 @@ val LocalModelNameLayout = compositionLocalOf {
     com.ai.viewmodel.ModelNameLayout.MODEL_ONLY
 }
 
+/** Provided by AppNavHost so any model-name Text in the tree can
+ *  jump to the Model Info screen without prop-drilling a callback.
+ *  Default no-op covers previews and unit tests. */
+val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, String) -> Unit> {
+    { _, _ -> }
+}
+
+/** Make a model-name Text clickable so tapping it opens the Model
+ *  Info screen for [providerService] / [model]. No-op when the
+ *  provider can't be resolved or the model is blank. Stack on top
+ *  of any existing modifier; existing parent clickables on the
+ *  same Row continue to work because Compose merges pointer-input
+ *  layers per-element, not by inheritance. */
+@Composable
+fun Modifier.modelInfoClickable(
+    providerService: com.ai.data.AppService?,
+    model: String
+): Modifier {
+    if (providerService == null || model.isBlank()) return this
+    val nav = LocalNavigateToModelInfo.current
+    return this.clickable { nav(providerService, model) }
+}
+
 /** Format a "provider · model" label according to the current
  *  [LocalModelNameLayout]. The default is MODEL_ONLY (just the model
  *  id); PROVIDER_AND_MODEL prepends the provider's display name with

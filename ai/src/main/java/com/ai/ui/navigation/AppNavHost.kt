@@ -149,12 +149,18 @@ fun AppNavHost(
         return
     }
 
-    // Surface the user's "Model name layout" preference so any
-    // Composable in the tree can format combined provider+model
-    // labels via [com.ai.ui.shared.modelLabel] without prop-drilling.
+    // Surface the user's "Model name layout" preference + a global
+    // navigate-to-Model-Info so any Composable in the tree can format
+    // combined provider+model labels via [com.ai.ui.shared.modelLabel]
+    // and make them clickable via [Modifier.modelInfoClickable]
+    // without prop-drilling.
     val rootUiStateForLayout by appViewModel.uiState.collectAsState()
+    val rootNavigateToModelInfo: (AppService, String) -> Unit = { p, m ->
+        navController.navigate(NavRoutes.aiModelInfo(p.id, m))
+    }
     androidx.compose.runtime.CompositionLocalProvider(
-        com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout
+        com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
+        com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo
     ) {
     NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
 

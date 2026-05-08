@@ -27,6 +27,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -162,7 +163,8 @@ internal fun TranslationRunDetailScreen(
             Text(com.ai.ui.shared.modelLabel(providerDisplay, modelName, separator = " — "),
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f))
+                modifier = Modifier.weight(1f)
+                    .modelInfoClickable(providerService, modelName))
             if (ApiTracer.isTracingEnabled && translationTraceCount > 0) {
                 Text("🐞", fontSize = 18.sp,
                     modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceList() })

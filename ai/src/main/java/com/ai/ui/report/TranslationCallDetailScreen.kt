@@ -24,6 +24,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -53,35 +54,35 @@ internal fun TranslationCallDetailScreen(
     // "Synthesize", etc. instead of a hardcoded label. Driven by
     // translateSourceKind + translateSourceTargetId stamped on the
     // row in saveTranslationSecondaries.
-    data class SourceInfo(val content: String?, val model: String?, val traceFilename: String?, val metaName: String?)
-    val source by produceState(initialValue = SourceInfo(null, null, null, null), result.id) {
+    data class SourceInfo(val content: String?, val model: String?, val providerId: String?, val traceFilename: String?, val metaName: String?)
+    val empty = SourceInfo(null, null, null, null, null)
+    val source by produceState(initialValue = empty, result.id) {
         value = withContext(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, result.reportId)
-                ?: return@withContext SourceInfo(null, null, null, null)
+            val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext empty
             when (result.translateSourceKind) {
                 // The prompt is user-typed text — no source model, no trace.
-                "PROMPT" -> SourceInfo(report.prompt, null, null, null)
+                "PROMPT" -> SourceInfo(report.prompt, null, null, null, null)
                 "AGENT" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null, null)
+                    val targetId = result.translateSourceTargetId ?: return@withContext empty
                     val agent = report.agents.firstOrNull { it.agentId == targetId && it.reportStatus == ReportStatus.SUCCESS }
                     val tf = agent?.let {
                         ApiTracer.getTraceFiles()
                             .filter { t -> t.reportId == result.reportId && t.model == it.model }
                             .maxByOrNull { t -> t.timestamp }?.filename
                     }
-                    SourceInfo(agent?.responseBody, agent?.model, tf, null)
+                    SourceInfo(agent?.responseBody, agent?.model, agent?.provider, tf, null)
                 }
                 "META" -> {
-                    val targetId = result.translateSourceTargetId ?: return@withContext SourceInfo(null, null, null, null)
+                    val targetId = result.translateSourceTargetId ?: return@withContext empty
                     val sec = SecondaryResultStorage.get(context, result.reportId, targetId)
                     val tf = sec?.let {
                         ApiTracer.getTraceFiles()
                             .filter { t -> t.reportId == result.reportId && t.model == it.model }
                             .minByOrNull { t -> kotlin.math.abs(t.timestamp - it.timestamp) }?.filename
                     }
-                    SourceInfo(sec?.content, sec?.model, tf, sec?.metaPromptName)
+                    SourceInfo(sec?.content, sec?.model, sec?.providerId, tf, sec?.metaPromptName)
                 }
-                else -> SourceInfo(null, null, null, null)
+                else -> empty
             }
         }
     }
@@ -142,9 +143,12 @@ internal fun TranslationCallDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            val sourceProviderService = source.providerId?.let { com.ai.data.AppService.findById(it) }
                             Text(sourceLabel,
                                 fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
+                                    .modelInfoClickable(sourceProviderService, source.model.orEmpty()))
                             if (ApiTracer.isTracingEnabled) source.traceFilename?.let { tf ->
                                 Text("🐞", fontSize = 18.sp,
                                     modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
@@ -171,9 +175,12 @@ internal fun TranslationCallDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            val translationProviderService = com.ai.data.AppService.findById(result.providerId)
                             Text(translationLabel,
                                 fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold,
-                                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f)
+                                    .modelInfoClickable(translationProviderService, result.model))
                             if (ApiTracer.isTracingEnabled) translationTraceFilename?.let { tf ->
                                 Text("🐞", fontSize = 18.sp,
                                     modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })

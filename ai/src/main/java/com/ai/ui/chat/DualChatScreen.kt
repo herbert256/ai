@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.SelectProviderScreen
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ChatViewModel
 import kotlinx.coroutines.CancellationException
@@ -519,10 +520,12 @@ private fun DualMessageBubble(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val msgProviderService = com.ai.data.AppService.entries.firstOrNull { it.displayName == msg.providerName }
                     Text(
                         com.ai.ui.shared.modelLabel(msg.providerName, msg.modelName, separator = " / "),
                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
                         modifier = Modifier.weight(1f)
+                            .modelInfoClickable(msgProviderService, msg.modelName)
                     )
                     val tf = traceFilename
                     if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
