@@ -1062,6 +1062,52 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, reset)
     }
 
+    /** Mark every stuck placeholder secondary on the report as errored.
+     *  The Report Result screen calls this on entry: animated-hourglass
+     *  rows should only spin while something is actually running, but
+     *  on app restart no in-memory job survives, so any row with blank
+     *  content + null errorMessage + null durationMs is an orphan. We
+     *  flip them to "Interrupted by app restart" so the row icon shows
+     *  ❌ honestly instead of a never-ending spinner.
+     *
+     *  Cross-out per-pair rows (crossSourceAgentId != null) are skipped
+     *  here because they have a dedicated resume flow at L1
+     *  ([resumeStaleCrossPairs]) — the user can re-enter L1 to relaunch
+     *  them. Other secondary kinds (cross-in / after_cross combine,
+     *  meta runs, Rerank, Moderation, Translate per-call) get the
+     *  honest red ❌. */
+    fun recoverStaleSecondariesAsync(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String
+    ): Job = scope.launch(Dispatchers.IO) {
+        val running = appViewModel.runningCrossPairs.value
+        val activeTranslationRunIds = _translationRuns.value.keys
+        val rows = SecondaryResultStorage.listForReport(context, reportId)
+        rows.forEach { row ->
+            // Already terminal — nothing to do.
+            if (row.errorMessage != null) return@forEach
+            if (!row.content.isNullOrBlank()) return@forEach
+            if (row.durationMs != null) return@forEach
+            // Cross-out per-pair: leave alone, L1 handles resume.
+            if (row.crossSourceAgentId != null) return@forEach
+            // Defence in depth — id is currently mid-flight (shouldn't
+            // happen at startup but guards against a navigate-back-to-
+            // Report-Result-mid-run race).
+            if (row.id in running) return@forEach
+            // Translation row that belongs to a still-active in-memory
+            // run — also defence in depth; per-item save means the row
+            // already has its outcome stamped in the active path.
+            if (row.kind == SecondaryKind.TRANSLATE &&
+                row.translationRunId != null &&
+                row.translationRunId in activeTranslationRunIds) return@forEach
+            SecondaryResultStorage.save(context, row.copy(
+                errorMessage = "Interrupted by app restart",
+                durationMs = 0
+            ))
+        }
+    }
+
     /** Re-enqueue cross-pair placeholders that look stuck — the row is
      *  on disk as a pending placeholder (no content, no errorMessage)
      *  but its id is *not* in [AppViewModel.runningCrossPairs]. This is the

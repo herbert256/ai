@@ -172,6 +172,9 @@ fun ReportsScreenNav(
         onResumeStaleCross = { rid, mp ->
             reportViewModel.resumeStaleCrossPairs(scope, context, rid, mp)
         },
+        onRecoverStaleSecondaries = { rid ->
+            reportViewModel.recoverStaleSecondariesAsync(scope, context, rid)
+        },
         onRestartFailedCross = { rid, mp ->
             reportViewModel.rerunFailedCrossPairs(scope, context, rid, mp)
         },
@@ -278,7 +281,14 @@ fun ReportsScreen(
     onResumeStaleCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRestartFailedCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRerunCompleteCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
-    onDeleteCrossModel: (String, String, String, String) -> Unit = { _, _, _, _ -> }
+    onDeleteCrossModel: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    /** Mark every blank-content / no-error / no-duration secondary
+     *  on the report as errored. Fired once per report open from a
+     *  LaunchedEffect — animated-hourglass icons should only spin
+     *  while something's actually running, but on app restart no
+     *  in-memory job survives, so any "still in progress" row is
+     *  an orphan placeholder. */
+    onRecoverStaleSecondaries: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
@@ -308,6 +318,19 @@ fun ReportsScreen(
     // the deleted row keeps showing in the inline meta-runs list and
     // the View counters above it.
     var secondaryRefreshTick by remember { mutableStateOf(0) }
+    // One-shot recovery sweep per report open. Marks every stuck
+    // placeholder secondary (blank content + null errorMessage + null
+    // durationMs that no in-memory job claims) as "Interrupted by app
+    // restart" so the inline rows / cross summary / cost summary all
+    // show ❌ instead of an animated hourglass spinning forever. The
+    // bump on secondaryRefreshTick forces the polling LaunchedEffect
+    // below to immediately re-read disk and pick up the marked rows.
+    LaunchedEffect(currentReportId) {
+        val rid = currentReportId ?: return@LaunchedEffect
+        onRecoverStaleSecondaries(rid)
+        kotlinx.coroutines.delay(150)
+        secondaryRefreshTick++
+    }
     val onDeleteSecondaryWithRefresh: (String, String) -> Unit = { rid, sid ->
         onDeleteSecondary(rid, sid)
         secondaryRefreshTick++
