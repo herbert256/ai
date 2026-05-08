@@ -208,7 +208,7 @@ fun ChatSearchScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "chat_history", title = "Search Chats", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_search", title = "Search Chats", onBackClick = onNavigateBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(

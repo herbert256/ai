@@ -290,7 +290,7 @@ fun ProviderModelSettingsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "models", title = "Models", onBackClick = onBack)
+        TitleBar(helpTopic = "models_per_provider", title = "Models", onBackClick = onBack)
         Text(
             text = service.displayName,
             fontSize = 18.sp, color = AppColors.Green,

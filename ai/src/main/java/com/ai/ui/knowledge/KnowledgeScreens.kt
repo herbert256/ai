@@ -174,7 +174,7 @@ fun NewKnowledgeBaseScreen(
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "knowledge_list", title = "New knowledge base", onBackClick = onBack)
+        TitleBar(helpTopic = "knowledge_new", title = "New knowledge base", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(

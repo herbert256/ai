@@ -189,7 +189,8 @@ private fun ReportsViewerScreenLoaded(
     if (initialSection == "prompt" || initialSection == "costs") {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
-            TitleBar(helpTopic = "content_view", title = title, onBackClick = onDismiss)
+            val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
+            TitleBar(helpTopic = sectionHelpTopic, title = title, onBackClick = onDismiss)
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.

@@ -438,6 +438,55 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar", "Only the back arrow is wired. The screen is reached from the result page's View → Reports / Prompt / Costs popup.")
         )
     ),
+    "cost_view" to HelpContent(
+        title = "Cost summary",
+        cards = listOf(
+            HelpCard("Overview", "Read-only cost table for the report — every API call counted against this report (agents + secondaries + translations) gets a row. Reached from the result page's View → Costs button."),
+            HelpCard("Per-row breakdown", "Each row shows model, kind ('report' / 'rerank' / 'meta' / 'moderate' / 'translate'), input/output tokens, and a USD subtotal computed against the layered pricing lookup at view-time."),
+            HelpCard("Group totals", "Tables aggregate by provider and by model so you can see which provider absorbed most of the spend; both groupings render below the per-row list."),
+            HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they appear as 'translate' kind rows. The language picker is hidden in cost mode since costs aggregate every call."),
+            HelpCard("Empty state", "When neither the agents nor any secondary carries a tokenUsage record, the body reads '(no usage recorded)'. This usually means the run was cancelled before the first response landed."),
+            HelpCard("Title bar", "Title reads 'Cost summary'. Only the back arrow is wired here."),
+            HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),
+            HelpCard("Related", "View → Reports for per-agent bodies; View → Prompt for the prompt itself; AI Usage (Settings → Statistics) for cumulative spend across all reports.")
+        )
+    ),
+    "knowledge_new" to HelpContent(
+        title = "New knowledge base",
+        cards = listOf(
+            HelpCard("Overview", "Form to create a new knowledge base. The KB binds an embedder model + a chunk strategy at creation time; both are immutable for the KB's lifetime once chunks land."),
+            HelpCard("Name field", "Free-form display name. Used as the KB title in pickers and in the chat-attach dialog. Required — Create is disabled until non-blank."),
+            HelpCard("Embedder picker", "Pick one provider/model for embeddings. Local embedder (LiteRT MediaPipe) is also offered when a TextEmbedder model is installed. The chosen embedder's output dimension becomes a hard invariant for every chunk in this KB."),
+            HelpCard("Chunk strategy", "How source documents get split before embedding. Defaults pick token / character thresholds tuned to the chosen model's input limit; advanced fields let you override."),
+            HelpCard("Create", "Creates the manifest under <filesDir>/knowledge/<id>/manifest.json. No sources yet — drill into the new KB and add documents from there."),
+            HelpCard("Title bar", "Only the back arrow is wired."),
+            HelpCard("Pitfalls", "Picking an embedder you don't actively use here means the cosine retrieval at chat-attach time has to load the embedder runtime — which can be slow and memory-heavy. Prefer your default embedder unless you have a reason."),
+            HelpCard("Related", "Once created, the KB Detail screen handles ingest (Add file / paste text / share-target import) and indexing.")
+        )
+    ),
+    "chat_search" to HelpContent(
+        title = "Search chats",
+        cards = listOf(
+            HelpCard("Overview", "Full-text search over saved chat sessions. Reached from the Chat History list's search icon."),
+            HelpCard("Search field", "Filters by anything: session title, message content, model, provider name, system prompt. The match is substring + case-insensitive."),
+            HelpCard("Result rows", "One row per matching session with a content excerpt around the first match. Tap to resume the session at the matched message."),
+            HelpCard("Empty state", "Empty query shows the most recent N sessions; non-matching query shows 'No chats matching <query>'."),
+            HelpCard("Title bar", "Only the back arrow is wired here. Help points at this card. The list view's help topic is 'Chat history'."),
+            HelpCard("Pitfalls", "Search reads + parses every chat session JSON on every keystroke — a debounce keeps it acceptable on slow storage but heavy histories may still feel jittery. Prefer the list's date / pinned filters when you can."),
+            HelpCard("Related", "Chat History (the list) for date-ordered browsing; Manage chats for bulk delete / export.")
+        )
+    ),
+    "models_per_provider" to HelpContent(
+        title = "Provider — Models",
+        cards = listOf(
+            HelpCard("Overview", "Per-provider model list for one provider. Reached from AI Setup → Providers → <provider> → Models. The all-providers Models hub is a different screen."),
+            HelpCard("Source picker", "API / Manual chips at the top. API mode pulls models from the provider's catalog endpoint; Manual mode lets you paste / curate a fixed list (one model id per line)."),
+            HelpCard("API mode list", "Shows what the last Fetch returned — the same list every model picker uses. Models known to be stale (LiteLLM has fresher metadata) get a tiny badge."),
+            HelpCard("Manual mode editor", "Add lines from the multi-line input + Add button; tap a row to drop it back into the editor for tweaking."),
+            HelpCard("Auto-save", "Edits land via the Settings save lambda as you go — no separate Save button. The screen drops local mirror state when switching modes so half-typed values don't stick."),
+            HelpCard("Title bar", "Static 'Models' title; the green sub-header below names the active provider. Only the back arrow is wired here.")
+        )
+    ),
     "prompt_view" to HelpContent(
         title = "Prompt view",
         cards = listOf(
