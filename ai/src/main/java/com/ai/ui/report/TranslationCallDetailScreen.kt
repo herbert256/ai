@@ -96,102 +96,97 @@ internal fun TranslationCallDetailScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(title = titleLang, onBackClick = onBack, onAiClick = onNavigateHome)
-
-        // Two-line header at the top — one row per model, in the same
-        // visual style as the section labels below. Source model line
-        // is omitted when the row translated something with no model
-        // (PROMPT). Cost row sums input + output cents for this single
-        // translation call.
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            // Source-side header reflects the actual item being
-            // translated: "Prompt" (no model attached), "Report" (one of
-            // the agent responses), or — for chat-type META rows — the
-            // user-given Meta prompt name ("Compare", "Critique", …)
-            // pulled from the source row, falling back to "Meta" for
-            // rows without a stored name.
-            val sourceLabel = when (result.translateSourceKind) {
-                "PROMPT" -> "Prompt"
-                "AGENT" -> "Report"
-                "META" -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
-                else -> "Source"
-            }
-            val sourceHeader = source.model?.let { "$sourceLabel: $it" } ?: sourceLabel
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(sourceHeader,
-                    fontSize = 14.sp, color = AppColors.Blue,
-                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f))
-                if (ApiTracer.isTracingEnabled) source.traceFilename?.let { tf ->
-                    Text("🐞", fontSize = 18.sp,
-                        modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
-                }
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Translation: ${result.model}",
-                    fontSize = 14.sp, color = AppColors.Green,
-                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f))
-                if (ApiTracer.isTracingEnabled) translationTraceFilename?.let { tf ->
-                    Text("🐞", fontSize = 18.sp,
-                        modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
-                }
-            }
-            val totalCost = (result.inputCost ?: 0.0) + (result.outputCost ?: 0.0)
-            if (totalCost > 0.0) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text("Cost: ${formatCents(totalCost)} ¢",
-                    fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-            }
+    // Source-side label: model name when there is one (AGENT / META
+    // rows carry the originating model on the source SecondaryResult);
+    // for PROMPT rows the prompt is user-typed and has no model, so
+    // fall back to "Prompt". META rows that pre-date metaPromptName
+    // fall back to the kind label.
+    val sourceLabel = source.model
+        ?: when (result.translateSourceKind) {
+            "PROMPT" -> "Prompt"
+            "META" -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
+            else -> "Source"
         }
+    val translationLabel = result.model.ifBlank { "Translation" }
+    val totalCost = (result.inputCost ?: 0.0) + (result.outputCost ?: 0.0)
 
-        when {
-            result.errorMessage != null -> {
-                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
-                    Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary,
-                        modifier = Modifier.padding(top = 4.dp))
-                }
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // Half-screen cap on the Original pane: when the source content
+        // is short the pane wraps to its actual height and Translation
+        // takes the rest of the screen. With long content, the cap
+        // keeps both panes in view; the inner verticalScroll picks up
+        // any overflow.
+        val halfMax = maxHeight / 2
+        Column(modifier = Modifier.fillMaxSize()) {
+            TitleBar(title = titleLang, onBackClick = onBack, onAiClick = onNavigateHome)
+            if (totalCost > 0.0) {
+                Text("Cost: ${formatCents(totalCost)} ¢",
+                    fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }
-            else -> {
-                // Top pane — original.
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("Original", fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        val src = source.content
-                        if (src.isNullOrBlank()) {
-                            Text("(source content not found)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        } else {
-                            ContentWithThinkSections(analysis = src)
-                        }
+            when {
+                result.errorMessage != null -> {
+                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                        Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary,
+                            modifier = Modifier.padding(top = 4.dp))
                     }
                 }
+                else -> {
+                    // Original pane — wraps to content height, capped at
+                    // half the screen so it can't push Translation out.
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = halfMax)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(sourceLabel,
+                                fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                            if (ApiTracer.isTracingEnabled) source.traceFilename?.let { tf ->
+                                Text("🐞", fontSize = 18.sp,
+                                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                            val src = source.content
+                            if (src.isNullOrBlank()) {
+                                Text("(source content not found)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                            } else {
+                                ContentWithThinkSections(analysis = src)
+                            }
+                        }
+                    }
 
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
+                    HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
-                // Bottom pane — translation.
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text("Translation", fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        val tx = result.content
-                        if (tx.isNullOrBlank()) {
-                            Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        } else {
-                            ContentWithThinkSections(analysis = tx)
+                    // Translation pane — fills the remaining space.
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(translationLabel,
+                                fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                            if (ApiTracer.isTracingEnabled) translationTraceFilename?.let { tf ->
+                                Text("🐞", fontSize = 18.sp,
+                                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                            val tx = result.content
+                            if (tx.isNullOrBlank()) {
+                                Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                            } else {
+                                ContentWithThinkSections(analysis = tx)
+                            }
                         }
                     }
                 }
