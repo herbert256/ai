@@ -859,6 +859,53 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Single-pick Rerank runner exposed to the report action row. For
+     *  the synthetic LOCAL provider this delegates to [runLocalRerank];
+     *  for any other provider it resolves the `rerank` Internal prompt,
+     *  builds the @RESULTS@ block from the report's successful agent
+     *  responses, and dispatches through [executeSecondaryTask] with
+     *  [SecondaryKind.RERANK]. The dispatch already routes RERANK-typed
+     *  models (Cohere rerank-v3.5 etc.) to the dedicated rerank API and
+     *  routes chat models through the standard analyse path. */
+    fun runRerank(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        pick: Pair<AppService, String>
+    ): Job? {
+        val (provider, model) = pick
+        if (provider.id == "LOCAL") {
+            return runLocalRerank(scope, context, reportId, model)
+        }
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val rerankPrompt = aiSettings.getInternalPromptByName("rerank")
+            ?: return null
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return scope.launch(Dispatchers.IO) {
+            try {
+                withTracerTags(reportId = reportId, category = "Report rerank") {
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                    val successfulCount = report.agents.count {
+                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }
+                    if (successfulCount == 0) return@withTracerTags
+                    val resultsBlock = buildResultsBlock(report)
+                    val resolvedPrompt = resolveSecondaryPrompt(
+                        rerankPrompt.text, question = report.prompt, results = resultsBlock,
+                        count = successfulCount, title = report.title
+                    )
+                    executeSecondaryTask(
+                        context, reportId, SecondaryKind.RERANK, rerankPrompt,
+                        provider, model, resolvedPrompt, aiSettings, report
+                    )
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+
     /** Fan-out Meta runner: for each successful report-model
      *  (the "answerer") and each source model in [scopeChoice], runs
      *  the prompt with `@RESPONSE@` substituted by the source's

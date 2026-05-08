@@ -108,6 +108,9 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(scope, context, reportId, modelName)
         },
+        onRunRerank = { reportId, pick ->
+            reportViewModel.runRerank(scope, context, reportId, pick)
+        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -280,6 +283,7 @@ fun ReportsScreen(
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
+    onRunRerank: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -501,6 +505,7 @@ fun ReportsScreen(
     var showEditPicker by remember { mutableStateOf(false) }
     var showMetaPicker by remember { mutableStateOf(false) }
     var showFanOutPicker by remember { mutableStateOf(false) }
+    var showRerankPicker by remember { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -1025,6 +1030,22 @@ fun ReportsScreen(
         return
     }
 
+    if (showRerankPicker && currentReportId != null) {
+        val rid = currentReportId
+        ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            titleText = "Pick rerank model",
+            onConfirm = { pick ->
+                showRerankPicker = false
+                onRunRerank(rid, pick)
+            },
+            onBack = { showRerankPicker = false },
+            onNavigateHome = onNavigateHome,
+            modelTypeFilter = com.ai.data.ModelType.RERANK
+        )
+        return
+    }
+
     // Per-meta-run detail overlay reached from a Meta row in the
     // result list. Routes through the same SecondaryResultDetailScreen
     // the Meta hub uses, so navigation / delete behave identically.
@@ -1504,6 +1525,7 @@ fun ReportsScreen(
                 onOpenEditPicker = { showEditPicker = true },
                 onOpenMetaPicker = { showMetaPicker = true },
                 onOpenFanOutPicker = { showFanOutPicker = true },
+                onOpenRerankPicker = { showRerankPicker = true },
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
@@ -1692,6 +1714,7 @@ private fun ColumnScope.GenerationPhase(
     onOpenEditPicker: () -> Unit = {},
     onOpenMetaPicker: () -> Unit = {},
     onOpenFanOutPicker: () -> Unit = {},
+    onOpenRerankPicker: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
@@ -1770,6 +1793,7 @@ private fun ColumnScope.GenerationPhase(
                 text = if (isPinned) "Unpin" else "Pin"
             )
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
+            CompactButton(onClick = onOpenRerankPicker, color = AppColors.Orange, text = "Rerank")
             CompactButton(
                 onClick = onOpenMetaPicker,
                 color = AppColors.Orange,
