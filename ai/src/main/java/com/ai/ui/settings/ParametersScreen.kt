@@ -172,7 +172,13 @@ fun ParametersEditScreen(
                     id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
                     topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
                     presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
-                    null, seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
+                    // Preserve stopSequences from the existing preset if
+                    // any — the editor has no UI for them yet, but the
+                    // data model carries them. Saving null here silently
+                    // dropped a stopSequences list that came from import
+                    // / a hand-edited setup.json.
+                    params?.stopSequences,
+                    seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
                     searchRecency.takeIf { it.isNotBlank() },
                     webSearchTool,
                     reasoningEffort.takeIf { it.isNotBlank() }
