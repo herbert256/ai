@@ -140,9 +140,15 @@ fun LocalLiteRtModelsScreen(
                         )
                         TextButton(onClick = {
                             LocalEmbedder.release(name)
-                            File(LocalEmbedder.localModelsDir(context), "$name.tflite").delete()
+                            val target = File(LocalEmbedder.localModelsDir(context), "$name.tflite")
+                            val deleted = target.delete()
                             installed = LocalEmbedder.availableModels(context)
-                            status = "Removed $name"
+                            // delete() returns false on filesystem-busy
+                            // (mid-ingest read in progress) or permission
+                            // failure. The previous code reported success
+                            // either way, leaving the file on disk and
+                            // misleading the user about the state.
+                            status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
                         }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
                     }
                 }
