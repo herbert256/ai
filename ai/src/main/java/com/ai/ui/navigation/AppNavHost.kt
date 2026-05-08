@@ -3,7 +3,9 @@ package com.ai.ui.navigation
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -151,6 +153,8 @@ fun AppNavHost(
 
         // ===== Hub =====
         composable(NavRoutes.AI) {
+            val hubContext = LocalContext.current
+            val hubScope = rememberCoroutineScope()
             HubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
@@ -162,6 +166,18 @@ fun AppNavHost(
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
+                onOpenLatestReport = {
+                    // Mirrors the existing Reports hub flow at
+                    // line ~198: load the most recent report into
+                    // uiState then navigate to the result view.
+                    hubScope.launch {
+                        val latest = withContext(Dispatchers.IO) {
+                            ReportStorage.getAllReports(hubContext).firstOrNull()
+                        } ?: return@launch
+                        reportViewModel.restoreCompletedReport(hubContext, latest.id)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                },
                 viewModel = appViewModel
             )
         }

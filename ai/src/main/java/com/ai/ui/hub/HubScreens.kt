@@ -54,6 +54,7 @@ fun HubScreen(
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
+    onOpenLatestReport: () -> Unit = {},
     viewModel: AppViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -80,6 +81,13 @@ fun HubScreen(
         // ~250-file parse getTraceFiles() does for the full list.
         value = withContext(Dispatchers.IO) { ApiTracer.hasAnyTraceFile() }
     }
+    // Drives the logo's clickability — tapping the logo opens the
+    // most recent report's result page. Re-fires on resume so a
+    // freshly-finished report is reachable without a process restart.
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val hasAnyReport by produceState(initialValue = false, refreshTick) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context).isNotEmpty() }
+    }
 
     // The AI API Traces card disappears entirely when tracing is off \u2014
     // adjust the card count so the logo sizing math still works.
@@ -99,6 +107,7 @@ fun HubScreen(
                 painter = painterResource(id = R.drawable.ic_launcher_foreground),
                 contentDescription = "AI App Logo",
                 modifier = Modifier.size(logoSize).offset(y = (-32).dp)
+                    .then(if (hasAnyReport) Modifier.clickable { onOpenLatestReport() } else Modifier)
             )
             HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub, enabled = hasAnyAgent)
             Spacer(modifier = Modifier.height(12.dp))
