@@ -273,12 +273,43 @@ class TracingInterceptor : Interceptor {
     private fun headersToMap(headers: Headers): Map<String, String> {
         val map = mutableMapOf<String, String>()
         for (i in 0 until headers.size) {
-            val name = headers.name(i); val value = headers.value(i)
+            val name = headers.name(i)
+            val value = if (isSensitiveHeader(name)) redactSecret(headers.value(i)) else headers.value(i)
             map[name] = map[name]?.let { "$it, $value" } ?: value
         }
         return map
     }
 
+    /** Headers that carry an API key in some shape and must be
+     *  redacted before the trace JSON is persisted. The Copy / Share
+     *  redaction pass on the Trace screen catches these too, but doing
+     *  it at write time means trace JSON files on disk (which roll up
+     *  into the backup zip via filesDir/trace) never contain plaintext
+     *  secrets in the first place. */
+    private fun isSensitiveHeader(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower == "authorization" ||
+            lower == "x-api-key" ||
+            lower == "api-key" ||
+            lower == "x-goog-api-key" ||
+            lower == "openai-organization" ||
+            lower == "anthropic-api-key" ||
+            lower.startsWith("x-amz-") || // AWS-style signatures
+            lower.startsWith("cf-")       // Cloudflare auth proxies
+    }
+
+    /** Keep the prefix so the trace remains useful for debugging
+     *  ("oh, that's the wrong key" / "the key is empty") without
+     *  exposing the secret. */
+    private fun redactSecret(value: String): String {
+        if (value.isBlank()) return value
+        // Bearer tokens have a leading scheme word.
+        val (scheme, raw) = value.split(' ', limit = 2).let {
+            if (it.size == 2) it[0] + " " to it[1] else "" to it[0]
+        }
+        if (raw.length <= 8) return "$scheme[REDACTED]"
+        return "$scheme${raw.take(4)}…[REDACTED]…${raw.takeLast(4)}"
+    }
 }
 
 /** Retry on HTTP 429 (rate-limit) responses. Sleeps [backoffMs] before
