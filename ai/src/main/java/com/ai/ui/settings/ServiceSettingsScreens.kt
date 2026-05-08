@@ -263,9 +263,20 @@ fun ProviderModelSettingsScreen(
     LaunchedEffect(config.models) {
         if (config.models != models) models = config.models
     }
+    LaunchedEffect(config.modelSource) {
+        if (config.modelSource != modelSource) modelSource = config.modelSource
+    }
 
     // Auto-save — only the fields this screen exposes; other config fields preserved via copy of the current provider config.
+    // The two-way sync above can race with this effect: an external Fetch
+    // Models completion mutates config.models → first effect copies it
+    // into local `models` → this effect refires and sees the captured
+    // `aiSettings` is a recomposition behind, so calling `onSave(aiSettings
+    // .withProvider(...))` rolls back any other field that changed in the
+    // same window. Guard by skipping the save when local state already
+    // matches what's in settings (i.e. nothing to write).
     LaunchedEffect(modelSource, models) {
+        if (models == config.models && modelSource == config.modelSource) return@LaunchedEffect
         val current = aiSettings.getProvider(service)
         val updated = current.copy(modelSource = modelSource, models = models)
         if (updated != current) onSave(aiSettings.withProvider(service, updated))
