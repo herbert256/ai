@@ -379,6 +379,19 @@ fun RefreshScreen(
                         // Auto-restart so the freshly-loaded catalogs and
                         // recomputed precomputed sets are picked up cleanly
                         // — saves the user from a manual kill/relaunch.
+                        progressText = "Flushing caches…"
+                        // Flush every in-memory cache that defers writes
+                        // synchronously before we kill the process. The
+                        // usage-stats cache debounces flushes to a 2-second
+                        // window — without an explicit flush here, every
+                        // unsaved counter increment from this Refresh All
+                        // run gets dropped.
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                                SettingsPreferences(prefs, context.filesDir).flushUsageStats()
+                            }
+                        }
                         progressText = "Restarting…"
                         kotlinx.coroutines.delay(400)
                         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
