@@ -145,11 +145,13 @@
 **Location:** lines 944, 957, 1180 (toOpenAiMessage / toClaudeMessage / toGeminiContent)
 **Symptom:** Default MIME `"image/png"` is hardcoded; JPEG attached without MIME (some camera flows) is mistakenly tagged PNG. Server may reject.
 **Proposed fix:** Throw rather than guess, or sniff bytes.
+**Status:** Open
 
 ### Bug 22 — Severity: MEDIUM — Category: Web-search tool versioning
 **Location:** line 1086 (anthropicWebSearchTool)
 **Symptom:** Hardcoded `"web_search_20250305"` will be obsolete; dispatch silently keeps using a deprecated tool until manual update.
 **Proposed fix:** Make tool version configurable.
+**Status:** Open
 
 ### Bug 23 — Severity: HIGH — Category: HTTP error path / response leak
 **Location:** lines 762-767 (testApiConnectionWithJson)
@@ -213,6 +215,7 @@
 ### Bug 32 — Severity: MEDIUM — Category: ProviderRegistry double redundancy
 **Location:** lines 24, 152-157 (CopyOnWriteArrayList + synchronized blocks)
 **Symptom:** CopyOnWriteArrayList combined with synchronized writes — redundant; the lock alone is sufficient. Confusing for maintainers.
+**Status:** Skip
 
 ## File: ai/src/main/java/com/ai/data/AppService.kt
 
@@ -247,11 +250,13 @@
 **Location:** lines 246-251 (loadReport)
 **Symptom:** `File(reportsDir, "$reportId.json")` — if reportId contains `../`, the file path escapes reportsDir. Current callers use UUIDs, but other entry points (URL deep-links) could pass arbitrary reportId.
 **Proposed fix:** Add the canonicalPath check used in SecondaryResultStorage.save.
+**Status:** Fixed
 
 ### Bug 38 — Severity: MEDIUM — Category: Cross-singleton lock ordering
 **Location:** lines 220-244 (deleteAllReports)
 **Symptom:** Holds ReportStorage.lock and calls SecondaryResultStorage.deleteAllForReport which acquires its own lock. Cross-singleton ordering is `ReportStorage → SecondaryResultStorage`. A future reverse-order caller would deadlock.
 **Proposed fix:** Document the lock-ordering invariant.
+**Status:** Open
 
 ## File: ai/src/main/java/com/ai/data/ChatHistoryManager.kt
 
@@ -651,6 +656,7 @@
 **Location:** lines 527-588
 **Symptom:** Sequential `runMetaPrompt(...)?.join()` over groups, then sequential translations. A hung meta blocks all subsequent metas AND translations.
 **Proposed fix:** Run independent metas in parallel; isolate hangs with timeouts.
+**Status:** Open
 
 ### Bug 100 — Severity: HIGH — Category: regenerateAgent webSearchTool stripping
 **Location:** lines 1750-1758
@@ -674,6 +680,7 @@
 **Location:** lines 1192-1204 (rerunCompleteCross)
 **Symptom:** After cancelAndJoin, the cancelled coroutines may still be in mid-network. As they unwind, they may try to call SecondaryResultStorage.save on the now-deleted ids, resurrecting zombie rows alongside fresh placeholders.
 **Proposed fix:** Cancellation check before save; saves should respect job state.
+**Status:** Open
 
 ### Bug 104 — Severity: HIGH — Category: Translation cost computation mismatch
 **Location:** lines 2007-2008 vs 2071-2072
@@ -685,12 +692,14 @@
 **Location:** lines 2107-2113 (cancelTranslation)
 **Symptom:** Cancels the job; sets cancelled=true. But per-item runOneTranslation may have already saved a SecondaryResult before being cancelled. Saved rows still appear on the report.
 **Proposed fix:** Document the behavior or delete-on-cancel.
+**Status:** Open
 
 ### Bug 106 — Severity: HIGH — Category: cascade metas sequential bottleneck
 **Location:** line 522 (cascadeMetasAndTranslations call)
 **Symptom:** Suspend call inline; subsequent metas/translations all block on it.
 
 ## Cross-cutting concerns
+**Status:** Open
 
 ### Bug 107 — Severity: HIGH — Category: API key leakage in tracer
 **Location:** ApiTracer.kt — TracingInterceptor headersToMap
@@ -707,6 +716,7 @@
 ### Bug 109 — Severity: MEDIUM — Category: Inconsistent date format
 **Location:** AnalysisRepository.formatCurrentDate, SecondaryResult.resolveSecondaryPrompt
 **Symptom:** Two date formats used in prompts; user sees inconsistent dates between report agent prompt and meta prompt.
+**Status:** Open
 
 ### Bug 110 — Severity: HIGH — Category: ApiTracer hostname filename
 **Location:** ApiTracer.kt line 75
@@ -716,36 +726,44 @@
 ### Bug 111 — Severity: MEDIUM — Category: Logging only
 **Location:** Throughout
 **Symptom:** android.util.Log.e/w for failures — no central error reporting, no Crashlytics. User-visible errors require manual logcat inspection.
+**Status:** Open
 
 ### Bug 112 — Severity: HIGH — Category: Gson Kotlin null safety bypass
 **Location:** Multiple data classes with non-null properties
 **Symptom:** Gson uses reflection and bypasses Kotlin's null-safety. Required fields can come back null at runtime; subsequent `.id.lowercase()` calls NPE.
 **Proposed fix:** Add validation post-parse, or use kotlinx.serialization.
+**Status:** Open
 
 ### Bug 113 — Severity: HIGH — Category: Refresh data race in fetchModels
 **Location:** AppViewModel.fetchModels lines 690-722
 **Symptom:** Multiple concurrent fetchModels for different providers each call _uiState.update. Each update sees the latest state in the lambda (correct). But the persistence step (settingsPrefs.saveModelsForProvider) reads the latest state AFTER the update — saving for provider A may include provider B's just-merged data. Eventually consistent, but fragile.
+**Status:** Open
 
 ### Bug 114 — Severity: HIGH — Category: KnowledgeStore.saveSource concurrent updates lost
 **Location:** Knowledge.kt 160-175
 **Symptom:** Reads manifest, replaces source entry, saves. The lock.withLock wraps it — actually safe. But the lock is at the singleton level; per-KB concurrency is serialized which is fine, but not informative.
+**Status:** Not a bug
 
 ### Bug 115 — Severity: HIGH — Category: ReportViewModel agent results pollution after cancel
 **Location:** lines 297-323 (executeReportTask cancellation flow)
 **Symptom:** `_agentResults.update { it + (task.resultId to response) }` runs even on errors after the cancellation rethrow path. A cancelled task can pollute _agentResults if the response variable was already constructed with an error AnalysisResponse via the catch arm.
+**Status:** Not a bug
 
 ### Bug 116 — Severity: HIGH — Category: BackupManager cache wipe race
 **Location:** BackupManager.kt lines 363-367
 **Symptom:** `clearCacheDirForRestore` deletes cache files except preserved ones. If a temp file was created in cache dir AFTER the preserve set was constructed but BEFORE the wipe runs, that file is deleted unexpectedly.
+**Status:** Open
 
 ### Bug 117 — Severity: MEDIUM — Category: ReportStorage loadAllReports parse race
 **Location:** lines 254-261
 **Symptom:** Snapshot of listFiles, then reads each. A file deleted between listFiles and readText fails to read; caught and dropped. UI sees the report disappear briefly until a refresh.
+**Status:** Not a bug
 
 ### Bug 118 — Severity: HIGH — Category: PromptCache delete race
 **Location:** PromptCache.kt lines 33-49 (get)
 **Symptom:** `file.delete()` on TTL expiration runs INSIDE lock.withLock — concurrent put for the same key has to wait. Fine in practice.
 **Sub-bug:** `runCatching` swallows JsonParseException; the cached entry is deleted. But `try { file.delete() } catch (_: Exception) {}` swallows delete failure. If both succeed, fine.
+**Status:** Not a bug
 
 ### Bug 119 — Severity: HIGH — Category: ChatHistoryManager save success
 **Location:** ChatHistoryManager.saveSession lines 29-41
@@ -755,18 +773,22 @@
 ### Bug 120 — Severity: MEDIUM — Category: SecondaryResult timestamp ordering
 **Location:** SecondaryResultStorage.listForReport line 178
 **Symptom:** sortedBy { it.timestamp } returns consistent order, but when timestamps collide (UUID in same ms), the relative order is unstable across listFiles calls.
+**Status:** Fixed (this session)
 
 ### Bug 121 — Severity: HIGH — Category: prefs string set mutation
 **Location:** AppViewModel.loadReportAgents, saveReportAgents
 **Symptom:** SharedPreferences requires defensive copy of getStringSet result and putStringSet input. The code defensively copies on both sides via `.toHashSet()`. OK.
+**Status:** Not a bug
 
 ### Bug 122 — Severity: HIGH — Category: SettingsModels.applyOpenRouterTypes mutation
 **Location:** SettingsModels.kt lines 486-506
 **Symptom:** Iterates AppService.entries and calls withModels → recomputeCapabilities for each. For a 39-provider setup with many models each, this is O(providers × models × catalog scan) per call. Heavy; but also writes Settings to disk many times via the AppViewModel save chain. Slow.
+**Status:** Open
 
 ### Bug 123 — Severity: HIGH — Category: ApiDispatch tool fallback returns AnalysisResponse without status restored
 **Location:** AnalysisRepository.analyzeWithAgent lines 222-234
 **Symptom:** When fallback retries without webSearchTool, the second response's httpStatusCode replaces the first's (correct). But `error` field reflects the second call only — original 400-with-tool error is lost in logs.
+**Status:** Open
 
 ### Bug 124 — Severity: HIGH — Category: AppService.findById id case mismatch
 **Location:** AppService.findById line 75
@@ -782,18 +804,22 @@
 ### Bug 126 — Severity: HIGH — Category: AnalysisRepository agent lookup
 **Location:** AnalysisRepository.analyzeWithAgent line 191
 **Symptom:** `if (agent.provider.id == "LOCAL")` — checks the pre-passed agent's provider id. If a non-LOCAL provider id has the same string by accident, this branch fires. Combined with Bug 33, real risk.
+**Status:** Not a bug
 
 ### Bug 127 — Severity: HIGH — Category: ReportViewModel cross meta two same-provider permits
 **Location:** lines 928-931 (semByProvider)
 **Symptom:** `semByProvider[answerer.provider]` — uses the provider OBJECT as key. AppService equality is by id; OK. But if AppService.findById returns a fresh instance for each call (which it might, depending on registry implementation), two different instances of the same provider create different sem entries. Currently AppService.findById returns from a CopyOnWriteArrayList so returns the same instance — safe today.
+**Status:** Not a bug
 
 ### Bug 128 — Severity: MEDIUM — Category: Settings.getModelType LiteLLM consultation
 **Location:** SettingsModels.kt lines 300-306
 **Symptom:** LiteLLM only trusted when it returns something more specific than CHAT — but PricingCache.liteLLMModelType returns null for unknown mode strings. So a future LiteLLM mode addition produces null → falls through to stored type.
+**Status:** Open
 
 ### Bug 129 — Severity: HIGH — Category: writeTextAtomic Kotlin writeText charset
 **Location:** AtomicFileWrite.kt line 22
 **Symptom:** `tmp.writeText(content)` defaults to UTF-8 on JVM, but on Android pre-N the default charset was platform-dependent. Mostly UTF-8 today, but document.
+**Status:** Skip
 
 ### Bug 130 — Severity: HIGH — Category: KnowledgeService dim-mismatch silent zero score
 **Location:** lines 247-260

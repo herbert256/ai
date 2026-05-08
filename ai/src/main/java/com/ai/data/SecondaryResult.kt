@@ -176,7 +176,13 @@ object SecondaryResultStorage {
             } else {
                 val parsed = files.mapNotNull { file ->
                     try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
-                }.sortedBy { it.timestamp }
+                }
+                    // Tiebreaker on collision — burst-saved rows can
+                    // share a millisecond timestamp; sort-by-timestamp
+                    // alone produced an unstable order across listFiles
+                    // calls. Adding the id as a secondary key gives
+                    // deterministic ordering.
+                    .sortedWith(compareBy({ it.timestamp }, { it.id }))
                 listCache[reportId] = ListSnapshot(fingerprint, parsed)
                 parsed
             }
