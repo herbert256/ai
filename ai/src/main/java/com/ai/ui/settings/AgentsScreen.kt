@@ -32,12 +32,25 @@ fun AgentsScreen(
 ) {
     CrudListScreen(
         title = "Agents",
-        items = aiSettings.agents.filter { aiSettings.isProviderActive(it.provider) },
+        // Show every saved agent regardless of provider state. Hiding
+        // agents whose provider is currently inactive (the previous
+        // filter `isProviderActive(it.provider)`) gave the user no way
+        // to delete or edit those rows \u2014 they remain referenced from
+        // flocks / swarms / saved reports and silently kept eating
+        // settings storage. Inactive providers still surface in the
+        // subtitle so the user can see why an agent might not be
+        // runnable right now.
+        items = aiSettings.agents,
         addLabel = "Add Agent",
         emptyMessage = "No agents configured",
         sortKey = { it.name },
         itemTitle = { it.name },
-        itemSubtitle = { "${it.provider.displayName} \u00B7 ${aiSettings.getEffectiveModelForAgent(it)}" },
+        itemSubtitle = { agent ->
+            val active = aiSettings.isProviderActive(agent.provider)
+            val model = aiSettings.getEffectiveModelForAgent(agent)
+            val tail = if (active) "" else " \u00B7 (inactive)"
+            "${agent.provider.displayName} \u00B7 $model$tail"
+        },
         onAdd = onAddAgent,
         onEdit = { onEditAgent(it.id) },
         onDelete = { agent -> onSave(aiSettings.removeAgent(agent.id)) },
