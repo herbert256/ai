@@ -70,10 +70,18 @@ private fun computeModelUsages(
             )
         }
     }
-    ReportStorage.getAllReports(context).forEach { report ->
-        // One row per matching agent in the report. Most reports
-        // have at most one agent per (provider, model), but if the
-        // user added the same model twice we still surface both.
+    // Walk reports newest-first and stop once we have a comfortable
+    // surplus of candidates — the final list is take(10) after a
+    // cross-source sort, so a 3× cap (30) covers chat / report / per-
+    // report secondary tiers without re-parsing every old report's
+    // secondary index. Previously this scanned every report PLUS
+    // every secondary file on every report on every Model Info open,
+    // which dominated the screen open time once the user had a few
+    // dozen reports on disk.
+    val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }
+    val candidateCap = 30
+    for (report in reports) {
+        if (out.size >= candidateCap) break
         report.agents.forEach { agent ->
             if (agent.provider == provider.id && agent.model == model) {
                 out += ModelUsageEntry(
@@ -514,29 +522,40 @@ fun ModelInfoScreen(
     // null when the raw-view overlay isn't shown; otherwise (title, json) for the source.
     var rawView by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    // Trace count + usage entry are loaded once per (provider, model). They reflect
-    // on-disk state at screen open; updates only land on next visit.
-    val traceCount = remember(provider, modelName) {
-        // Match on (hostname, model) — model name alone is not unique
-        // across providers (gpt-4o exists on OpenAI / Azure / OpenRouter
-        // proxies / etc.), so the previous count conflated calls to the
-        // same model name on every provider into the per-provider total.
-        val providerHost = runCatching {
-            java.net.URI(provider.baseUrl).host?.lowercase()
-        }.getOrNull()
-        ApiTracer.getTraceFiles().count { tf ->
-            tf.model == modelName &&
-                (providerHost == null || tf.hostname.equals(providerHost, ignoreCase = true))
+    // Trace count + usage entry — loaded off the main thread because
+    // ApiTracer.getTraceFiles() may parse every captured trace file
+    // on cold cache, loadUsageStats() reads SharedPreferences, and
+    // PricingCache.getPricing can fan out into a disk-backed cache
+    // load. Doing all three synchronously inside `remember` blocks
+    // dominated the screen open time once the user had a heavy
+    // trace dir or a fresh process. The card hides until the value
+    // arrives so the slot isn't filled with a stale zero.
+    val traceCount by produceState(initialValue = 0, provider, modelName) {
+        value = withContext(Dispatchers.IO) {
+            // Match on (hostname, model) — model name alone is not unique
+            // across providers (gpt-4o exists on OpenAI / Azure / OpenRouter
+            // proxies / etc.), so the previous count conflated calls to the
+            // same model name on every provider into the per-provider total.
+            val providerHost = runCatching {
+                java.net.URI(provider.baseUrl).host?.lowercase()
+            }.getOrNull()
+            ApiTracer.getTraceFiles().count { tf ->
+                tf.model == modelName &&
+                    (providerHost == null || tf.hostname.equals(providerHost, ignoreCase = true))
+            }
         }
     }
-    val usageEntry = remember(provider, modelName) {
-        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        SettingsPreferences(prefs, context.filesDir).loadUsageStats()["${provider.id}::$modelName"]
+    val usageEntry by produceState<com.ai.model.UsageStats?>(initialValue = null, provider, modelName) {
+        value = withContext(Dispatchers.IO) {
+            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            SettingsPreferences(prefs, context.filesDir).loadUsageStats()["${provider.id}::$modelName"]
+        }
     }
-    val usageCost = remember(usageEntry) {
-        usageEntry?.let {
-            val pricing = PricingCache.getPricing(context, it.provider, it.model)
-            it.inputTokens * pricing.promptPrice + it.outputTokens * pricing.completionPrice
+    val usageCost by produceState<Double?>(initialValue = null, usageEntry) {
+        val ue = usageEntry ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            val pricing = PricingCache.getPricing(context, ue.provider, ue.model)
+            ue.inputTokens * pricing.promptPrice + ue.outputTokens * pricing.completionPrice
         }
     }
 
@@ -757,7 +776,7 @@ fun ModelInfoScreen(
                     // without persisting a chat or report). Hidden
                     // entirely when both signals are empty so an
                     // untouched model doesn't render a placeholder.
-                    val hasUsageStats = usageEntry != null && usageEntry.callCount > 0
+                    val hasUsageStats = (usageEntry?.callCount ?: 0) > 0
                     if (recentUsages.isNotEmpty() || hasUsageStats) {
                         item {
                             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
@@ -789,7 +808,8 @@ fun ModelInfoScreen(
                                     // the specific events. Captures one-shot test
                                     // calls / model refreshes that bumped the
                                     // counter but didn't persist any session row.
-                                    if (hasUsageStats) {
+                                    val ueRow = usageEntry
+                                    if (hasUsageStats && ueRow != null) {
                                         Row(
                                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
@@ -800,7 +820,7 @@ fun ModelInfoScreen(
                                                 modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                "${usageEntry!!.callCount} calls · ${usageEntry.totalTokens} tokens",
+                                                "${ueRow.callCount} calls · ${ueRow.totalTokens} tokens",
                                                 fontSize = 13.sp, color = Color.White,
                                                 modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -1170,11 +1190,12 @@ fun ModelInfoScreen(
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("AI Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                if (usageEntry == null) {
+                                val ue = usageEntry
+                                if (ue == null) {
                                     Text("No usage recorded yet for this model", fontSize = 12.sp, color = AppColors.TextTertiary)
                                 } else {
                                     Text(
-                                        "${usageEntry.callCount} calls, ${formatCompactNumber(usageEntry.inputTokens)} in / ${formatCompactNumber(usageEntry.outputTokens)} out",
+                                        "${ue.callCount} calls, ${formatCompactNumber(ue.inputTokens)} in / ${formatCompactNumber(ue.outputTokens)} out",
                                         fontSize = 13.sp, color = Color.White
                                     )
                                     usageCost?.let {
