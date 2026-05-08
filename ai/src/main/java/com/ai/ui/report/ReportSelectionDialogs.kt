@@ -407,7 +407,13 @@ internal fun ReportSelectFromReportScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
-    val reports by produceState(initialValue = emptyList<com.ai.data.Report>()) {
+    // Re-read on every ON_RESUME so a report added in the background
+    // while this picker is composed (e.g. user popped to a different
+    // screen, started a fresh report, came back) shows up. The
+    // previous produceState had an implicit Unit key, so the disk
+    // read fired exactly once per screen lifetime.
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val reports by produceState(initialValue = emptyList<com.ai.data.Report>(), refreshTick) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.ai.data.ReportStorage.getAllReports(context)
         }
