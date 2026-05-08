@@ -145,7 +145,7 @@ fun DualChatSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Dual AI Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Dual AI Chat", onBackClick = onNavigateBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -394,10 +394,15 @@ fun DualChatSessionScreen(
     DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
     LaunchedEffect(Unit) { startChatLoop() }
 
+    var showInfoPicker by remember { mutableStateOf(false) }
+    val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Dual Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+        TitleBar(
+            title = "Dual Chat", onBackClick = onNavigateBack,
+            onInfo = { showInfoPicker = true }
+        )
 
         // Cost row
         Row(
@@ -479,6 +484,37 @@ fun DualChatSessionScreen(
                 ) { Text("Chat $extraCount more", maxLines = 1, softWrap = false) }
             }
         }
+    }
+
+    if (showInfoPicker) {
+        AlertDialog(
+            onDismissRequest = { showInfoPicker = false },
+            title = { Text("Model info") },
+            text = {
+                Column {
+                    Text(
+                        "${config.model1Provider.displayName} — ${config.model1Name}",
+                        fontSize = 14.sp, color = Color.White,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            showInfoPicker = false
+                            navToModelInfo(config.model1Provider, config.model1Name)
+                        }.padding(vertical = 12.dp)
+                    )
+                    Text(
+                        "${config.model2Provider.displayName} — ${config.model2Name}",
+                        fontSize = 14.sp, color = Color.White,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            showInfoPicker = false
+                            navToModelInfo(config.model2Provider, config.model2Name)
+                        }.padding(vertical = 12.dp)
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showInfoPicker = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
     }
 }
 

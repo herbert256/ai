@@ -63,7 +63,7 @@ fun <T> CrudListScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(title = title, onBackClick = onBack, onAiClick = onHome)
+        TitleBar(title = title, onBackClick = onBack)
 
         Spacer(modifier = Modifier.height(16.dp))
 

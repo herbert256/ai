@@ -195,7 +195,7 @@ internal fun SecondaryResultsScreen(
     LaunchedEffect(isCrossDrillIn, nameFilter) { if (!isCrossDrillIn) crossLevel = 1 }
     val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = title, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (showLanguagePicker) {
@@ -1721,19 +1721,19 @@ internal fun SecondaryResultDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "$title — $provider", onBackClick = onBack, onAiClick = onNavigateHome)
+        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        TitleBar(
+            title = "$title — $provider", onBackClick = onBack,
+            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onDelete = { confirmDelete = true },
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Model header with the trace 🐞 ladybug at the right — tapping
-        // opens the closest-timestamp trace for this (report, model).
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(result.model, fontSize = 13.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            if (ApiTracer.isTracingEnabled && traceFilename != null) {
-                Text("🐞", fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp).clickable { traceFilename?.let(onNavigateToTraceFile) })
-            }
         }
         Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(result.timestamp)),
             fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -1781,22 +1781,6 @@ internal fun SecondaryResultDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { confirmDelete = true },
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Delete", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { providerService?.let { onNavigateToModelInfo(it, result.model) } },
-                enabled = providerService != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) { Text("Model", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
     }
 

@@ -90,8 +90,12 @@ fun UsageScreen(
     val totalCalls = groups.sumOf { it.totalCalls }
     val totalTokens = stats.values.sumOf { it.totalTokens }
 
+    var confirmClear by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "AI Usage", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(
+            title = "AI Usage", onBackClick = onBack,
+            onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null
+        )
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -120,13 +124,25 @@ fun UsageScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = {
-                settingsPrefs.clearUsageStats(); stats = emptyMap()
-                Toast.makeText(context, "Statistics cleared", Toast.LENGTH_SHORT).show()
-            }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red), modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear Statistics", maxLines = 1, softWrap = false) }
         }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear all statistics?") },
+            text = { Text("Resets every usage counter back to zero. Cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    settingsPrefs.clearUsageStats(); stats = emptyMap()
+                    Toast.makeText(context, "Statistics cleared", Toast.LENGTH_SHORT).show()
+                }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
     }
 }
 
@@ -232,7 +248,7 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Cost Config", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Cost Config", onBackClick = onBack)
 
         Button(onClick = { showAddScreen = true }, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -391,7 +407,7 @@ internal fun AddManualOverrideScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Add Override", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Add Override", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {

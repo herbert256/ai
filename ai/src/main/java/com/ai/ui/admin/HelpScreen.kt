@@ -19,7 +19,7 @@ import com.ai.ui.shared.*
 fun HelpScreen(onBack: () -> Unit, onNavigateHome: () -> Unit) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Help", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Help", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             HelpSection("Welcome", "This app generates AI reports and chats using ${AppService.entries.size} AI services. Configure providers with API keys, create agents, and generate comparative reports.")
             HelpSection("Getting Started", "1. Go to AI Setup > Providers\n2. Enter an API key for at least one provider\n3. Tap Refresh All to test connections and fetch models\n4. Create a new report from the Reports hub")

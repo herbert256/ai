@@ -155,8 +155,7 @@ internal fun ManualModelTypeEditScreen(
     ) {
         TitleBar(
             title = if (initial == null) "Add override" else "Edit override",
-            onBackClick = onCancel,
-            onAiClick = onCancel
+            onBackClick = onCancel
         )
         Spacer(modifier = Modifier.height(12.dp))
 

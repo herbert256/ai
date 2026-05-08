@@ -100,7 +100,7 @@ fun FlockEditScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = if (isEditing) "Edit Flock" else "Add Flock", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = if (isEditing) "Edit Flock" else "Add Flock", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

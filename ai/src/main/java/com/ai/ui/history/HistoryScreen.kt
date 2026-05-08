@@ -77,8 +77,12 @@ fun HistoryScreenNav(
         val startIndex = currentPage * pageSize
         val pageItems = filteredReports.subList(startIndex.coerceAtMost(filteredReports.size), (startIndex + pageSize).coerceAtMost(filteredReports.size))
 
+        var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
-            TitleBar(title = "History", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+            TitleBar(
+                title = "History", onBackClick = onNavigateBack,
+                onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null
+            )
 
             // Search toggle
             if (!searchExpanded) {
@@ -139,14 +143,24 @@ fun HistoryScreenNav(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = {
-                ReportStorage.deleteAllReports(context)
-                allReports = emptyList(); currentPage = 0
-            }, enabled = allReports.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear History", maxLines = 1, softWrap = false) }
+        }
+
+        if (confirmClearAll) {
+            AlertDialog(
+                onDismissRequest = { confirmClearAll = false },
+                title = { Text("Clear all history?") },
+                text = { Text("Permanently deletes ${allReports.size} report(s) from disk.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmClearAll = false
+                        ReportStorage.deleteAllReports(context)
+                        allReports = emptyList(); currentPage = 0
+                    }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmClearAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+                }
+            )
         }
     }
 }

@@ -94,13 +94,13 @@ fun ReportSingleResultScreen(
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(title = "View result", onBackClick = onBack, onAiClick = onNavigateHome)
+            TitleBar(title = "View result", onBackClick = onBack)
         }
         return
     }
     if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(title = "View result", onBackClick = onBack, onAiClick = onNavigateHome)
+            TitleBar(title = "View result", onBackClick = onBack)
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Result not found", color = AppColors.TextSecondary, fontSize = 16.sp)
             }
@@ -146,13 +146,18 @@ fun ReportSingleResultScreen(
     }
 
     var confirmRemove by remember { mutableStateOf(false) }
+    var confirmReload by remember { mutableStateOf(false) }
+    val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(title = provider.displayName, onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(
+            title = provider.displayName, onBackClick = onBack,
+            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onDelete = { confirmRemove = true },
+            onInfo = { onNavigateToModelInfo(provider, agent.model) },
+            onReload = { confirmReload = true }
+        )
 
-        // Provider/model header with the trace 🐞 ladybug at the right —
-        // tapping it opens the most recent trace for this (report, model).
-        // Hidden when no trace was captured for this agent.
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -162,10 +167,6 @@ fun ReportSingleResultScreen(
                 fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
             )
-            if (ApiTracer.isTracingEnabled && traceFilename != null) {
-                Text("🐞", fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(traceFilename) })
-            }
         }
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
@@ -217,23 +218,7 @@ fun ReportSingleResultScreen(
             }
         }
 
-        // Bottom action row: Remove / Model Info / Re-run. Trace lives at
-        // the top as a 🐞 icon next to the provider/model header.
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { confirmRemove = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { onNavigateToModelInfo(provider, agent.model) },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) { Text("Model Info", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
             if (canShowTranslation) {
                 Button(
                     onClick = { showTranslationCompare = true },
@@ -241,22 +226,6 @@ fun ReportSingleResultScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
-            // 4th button on its own row so the longer label fits without
-            // squashing the three short buttons above. Kicks off a single-
-            // agent re-run and pops back to the report; the row's status
-            // icon flips to ⏳ until the new response lands.
-            Button(
-                onClick = {
-                    onRegenerateAgent(reportId, agentId)
-                    onBack()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Call model API again", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            // "Continue in chat" — opens an overlay picker with the
-            // three follow-up flows. Disabled when the response is
-            // empty / errored since there's nothing meaningful to seed
-            // any of them with.
             val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
             Button(
                 onClick = { showContinuePicker = true },
@@ -265,6 +234,18 @@ fun ReportSingleResultScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
             ) { Text("💬 Continue in chat", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
+    }
+
+    if (confirmReload) {
+        com.ai.ui.shared.ReloadConfirmationDialog(
+            target = "${provider.displayName} / ${agent.model}",
+            onConfirm = {
+                confirmReload = false
+                onRegenerateAgent(reportId, agentId)
+                onBack()
+            },
+            onDismiss = { confirmReload = false }
+        )
     }
 
     if (confirmRemove) {
@@ -310,7 +291,7 @@ private fun ContinueInChatPickerScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(title = "Continue in chat", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Continue in chat", onBackClick = onBack)
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 "Pick how you want to continue in chat:",

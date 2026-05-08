@@ -459,6 +459,7 @@ fun ReportsScreen(
     var showTranslateModelPicker by remember { mutableStateOf<TargetLanguage?>(null) }
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showInfoPicker by remember { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -1053,6 +1054,32 @@ fun ReportsScreen(
         return
     }
 
+    if (showInfoPicker) {
+        val unique = remember(models) { models.distinctBy { it.deduplicationKey } }
+        AlertDialog(
+            onDismissRequest = { showInfoPicker = false },
+            title = { Text("Model info") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
+                    unique.forEach { rm ->
+                        Text(
+                            "${rm.provider.displayName} — ${rm.model}",
+                            fontSize = 14.sp, color = Color.White,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                showInfoPicker = false
+                                onNavigateToModelInfo(rm.provider, rm.model)
+                            }.padding(vertical = 12.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showInfoPicker = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+
     // Share dialog
     if (showDeleteConfirm && currentReportId != null) {
         AlertDialog(
@@ -1126,7 +1153,16 @@ fun ReportsScreen(
         // Title reflects the phase: selection (adding models) vs generation (showing results).
         TitleBar(
             title = if (isGenerating) uiState.genericPromptTitle.ifBlank { "AI Reports" } else "AI Report - Models",
-            onBackClick = onDismiss, onAiClick = onNavigateHome
+            onBackClick = onDismiss,
+            onTrace = if (isGenerating && currentReportId != null) {
+                { onNavigateToTrace(currentReportId) }
+            } else null,
+            onDelete = if (isGenerating && currentReportId != null) {
+                { showDeleteConfirm = true }
+            } else null,
+            onInfo = if (isGenerating && models.isNotEmpty()) {
+                { showInfoPicker = true }
+            } else null
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1452,7 +1488,6 @@ private fun ColumnScope.GenerationPhase(
                 color = AppColors.Orange,
                 text = if (isPinned) "Unpin" else "Pin"
             )
-            CompactButton(onClick = onDelete, color = AppColors.Red, text = "Delete")
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
             CompactButton(
                 onClick = { showMetaPicker = true },
@@ -1679,27 +1714,15 @@ private fun ColumnScope.GenerationPhase(
     // is visible without scrolling. Sums tokens and cents across the
     // per-agent rows, every persisted meta run (rerank / summarize
     // / compare / moderation / translate), and any in-flight translation
-    // batch's live state. The trailing 🐞 ladybug opens the report's
-    // trace list (replacing the former View → Trace button); rendered
-    // whenever the report has an id, so it's always reachable from the
-    // top of the screen.
+    // batch's live state.
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
-    val showTraceIcon = ApiTracer.isTracingEnabled && currentReportId != null
-    if (showTotals || showTraceIcon) {
+    if (showTotals) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (showTotals) {
-                Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-                Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-            } else {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-            if (showTraceIcon) {
-                Text("🐞", fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp).clickable { onTrace() })
-            }
+            Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+            Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
         }
     }
 

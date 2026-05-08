@@ -198,13 +198,18 @@ fun TraceListScreen(
         val startIndex = currentPage * pageSize
         val pageItems = traceFiles.subList(startIndex.coerceAtMost(traceFiles.size), (startIndex + pageSize).coerceAtMost(traceFiles.size))
 
+        var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
             val title = when {
                 reportId != null -> "Report Traces"
                 modelFilter != null -> "Traces — $modelFilter"
                 else -> "API Traces"
             }
-            TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+            val canClear = reportId == null && modelFilter == null && allTraceFiles.isNotEmpty()
+            TitleBar(
+                title = title, onBackClick = onBack,
+                onDelete = if (canClear) { { confirmClearAll = true } } else null
+            )
 
             // Category / Provider / Hostname / Model selectors share
             // a single row. Each slot is only emitted when there's
@@ -306,14 +311,23 @@ fun TraceListScreen(
                 }
             }
 
-            if (reportId == null && modelFilter == null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(onClick = {
-                    onClearTraces(); allTraceFiles = emptyList(); currentPage = 0
-                }, enabled = allTraceFiles.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Clear Traces", maxLines = 1, softWrap = false) }
-            }
+        }
+
+        if (confirmClearAll) {
+            AlertDialog(
+                onDismissRequest = { confirmClearAll = false },
+                title = { Text("Clear all traces?") },
+                text = { Text("Permanently deletes ${allTraceFiles.size} captured trace file(s) from disk.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmClearAll = false
+                        onClearTraces(); allTraceFiles = emptyList(); currentPage = 0
+                    }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmClearAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+                }
+            )
         }
     }
 }
@@ -423,7 +437,7 @@ private fun TraceModelPickerOverlay(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Pick model", onBackClick = onBack, onAiClick = onBack)
+        TitleBar(title = "Pick model", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
@@ -577,8 +591,22 @@ fun TraceDetailScreen(
     }
 
 
+    val infoTraceModel = t?.model?.takeIf { it.isNotBlank() }
+    val infoTraceHost = t?.hostname?.takeIf { it.isNotBlank() }
+    val infoProvider = remember(infoTraceHost) {
+        infoTraceHost?.let { host ->
+            AppService.entries.firstOrNull { svc ->
+                runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()?.equals(host, ignoreCase = true) == true
+            }
+        }
+    }
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
-        TitleBar(title = "Trace: $statusCode", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(
+            title = "Trace: $statusCode", onBackClick = onBack,
+            onInfo = if (infoProvider != null && infoTraceModel != null) {
+                { onNavigateToModelInfo(infoProvider, infoTraceModel) }
+            } else null
+        )
 
         // URL
         t?.request?.url?.let { url ->
@@ -608,12 +636,6 @@ fun TraceDetailScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
                     contentPadding = PaddingValues(horizontal = 4.dp)
                 ) { Text("Provider", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                if (!t?.model.isNullOrBlank()) {
-                    Button(onClick = { onNavigateToModelInfo(provider, t!!.model!!) }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) { Text("Model", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
                 if (matchingAgent != null) {
                     Button(onClick = { onNavigateToEditAgent(matchingAgent.id) }, modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),

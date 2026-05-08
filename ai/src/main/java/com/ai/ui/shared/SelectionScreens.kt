@@ -98,7 +98,7 @@ fun SelectModelScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Select Model", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Select Model", onBackClick = onBack)
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             Text(
@@ -230,7 +230,7 @@ fun SelectProviderScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Select Provider", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Select Provider", onBackClick = onBack)
 
         Text(
             text = "${allProviders.size} providers",
@@ -308,7 +308,7 @@ fun SelectAgentScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Select Agent", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Select Agent", onBackClick = onBack)
 
         Text(
             text = "${allAgents.size} agents",

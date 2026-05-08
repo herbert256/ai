@@ -97,7 +97,7 @@ fun ChatParametersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Chat Parameters", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Chat Parameters", onBackClick = onNavigateBack)
         Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
             fontSize = 12.sp, color = AppColors.TextTertiary,
             modifier = Modifier.modelInfoClickable(provider, model))
@@ -503,14 +503,16 @@ fun ChatSessionScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
+        val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
         TitleBar(
-            title = "Chat", onBackClick = onNavigateBack, onAiClick = onNavigateHome,
+            title = "Chat", onBackClick = onNavigateBack,
             leftContent = {
                 TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false) }
                 if (totalCost > 0) {
                     Text("%.2fc".format(totalCost), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
-            }
+            },
+            onInfo = { navToModelInfo(provider, model) }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),

@@ -119,7 +119,16 @@ internal fun TranslationCallDetailScreen(
         // any overflow.
         val halfMax = maxHeight / 2
         Column(modifier = Modifier.fillMaxSize()) {
-            TitleBar(title = titleLang, onBackClick = onBack, onAiClick = onNavigateHome)
+            val translationProviderService = com.ai.data.AppService.findById(result.providerId)
+            val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
+            val traceEnabled = ApiTracer.isTracingEnabled && translationTraceFilename != null
+            TitleBar(
+                title = titleLang, onBackClick = onBack,
+                onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
+                onInfo = if (translationProviderService != null && result.model.isNotBlank()) {
+                    { navToModelInfo(translationProviderService, result.model) }
+                } else null
+            )
             if (totalCost > 0.0) {
                 Text("Cost: ${formatCents(totalCost)} ¢",
                     fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
@@ -149,10 +158,6 @@ internal fun TranslationCallDetailScreen(
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.weight(1f)
                                     .modelInfoClickable(sourceProviderService, source.model.orEmpty()))
-                            if (ApiTracer.isTracingEnabled) source.traceFilename?.let { tf ->
-                                Text("🐞", fontSize = 18.sp,
-                                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
-                            }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
@@ -175,16 +180,11 @@ internal fun TranslationCallDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            val translationProviderService = com.ai.data.AppService.findById(result.providerId)
                             Text(translationLabel,
                                 fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.weight(1f)
                                     .modelInfoClickable(translationProviderService, result.model))
-                            if (ApiTracer.isTracingEnabled) translationTraceFilename?.let { tf ->
-                                Text("🐞", fontSize = 18.sp,
-                                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(tf) })
-                            }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

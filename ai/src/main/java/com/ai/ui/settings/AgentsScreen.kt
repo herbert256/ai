@@ -125,7 +125,7 @@ fun AgentEditScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = if (isEditing) "Edit Agent" else "Add Agent", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = if (isEditing) "Edit Agent" else "Add Agent", onBackClick = onBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -158,10 +158,19 @@ fun AppNavHost(
     val rootNavigateToModelInfo: (AppService, String) -> Unit = { p, m ->
         navController.navigate(NavRoutes.aiModelInfo(p.id, m))
     }
+    val rootNavigateHome: () -> Unit = {
+        navController.navigate(NavRoutes.AI) {
+            popUpTo(NavRoutes.AI) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
+    val rootNavigateHelp: () -> Unit = { navController.navigate(NavRoutes.HELP) }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
-        com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton
+        com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton,
+        com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
+        com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp
     ) {
     NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
 

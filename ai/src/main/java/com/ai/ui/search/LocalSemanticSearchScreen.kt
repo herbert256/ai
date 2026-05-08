@@ -69,7 +69,7 @@ fun LocalSemanticSearchScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Local semantic search", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Local semantic search", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (availableModels.isEmpty()) {

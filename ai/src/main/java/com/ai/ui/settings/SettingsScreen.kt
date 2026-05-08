@@ -442,7 +442,7 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
                 ) {
-                    TitleBar(title = "Loading…", onBackClick = goBack, onAiClick = onNavigateHome)
+                    TitleBar(title = "Loading…", onBackClick = goBack)
                 }
             } else {
                 key(ip?.id) {
@@ -544,7 +544,7 @@ private fun SettingsMainScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Settings", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Settings", onBackClick = onBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {

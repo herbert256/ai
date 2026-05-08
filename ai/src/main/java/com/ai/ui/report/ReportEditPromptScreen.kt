@@ -33,7 +33,7 @@ fun ReportEditPromptScreen(
     val canUpdate = prompt.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Edit prompt", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Edit prompt", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
@@ -73,7 +73,7 @@ fun ReportEditTitleScreen(
     val canUpdate = title.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Edit title", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Edit title", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(

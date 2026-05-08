@@ -61,7 +61,7 @@ fun SetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "AI Setup", onBackClick = onBackToSettings, onAiClick = onBackToHome)
+        TitleBar(title = "AI Setup", onBackClick = onBackToSettings)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -137,7 +137,7 @@ fun ModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "AI Models setup", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "AI Models setup", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -169,7 +169,7 @@ fun WorkersSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "AI Workers", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "AI Workers", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -199,7 +199,7 @@ fun PromptsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Prompt management", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "Prompt management", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -228,7 +228,7 @@ fun InternalPromptsHubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Internal prompts", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "Internal prompts", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
@@ -267,7 +267,7 @@ fun LocalModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Local models", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "Local models", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -324,7 +324,7 @@ fun ProvidersSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Providers", onBackClick = onBack, onAiClick = onBackToHome)
+        TitleBar(title = "Providers", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -378,7 +378,7 @@ fun ProvidersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Providers", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
+        TitleBar(title = "Providers", onBackClick = onBackToAiSetup)
         Spacer(modifier = Modifier.height(12.dp))
 
         Row(
@@ -462,7 +462,7 @@ fun ExternalServicesScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "External Services", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "External Services", onBackClick = onBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         Card(

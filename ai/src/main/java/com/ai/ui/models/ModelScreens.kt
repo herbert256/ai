@@ -164,7 +164,7 @@ fun ModelSearchScreen(
     val isLoading = loadingModelsFor.isNotEmpty()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = if (onPickModel != null) "Select Model" else "Models", onBackClick = onBackToAiSetup, onAiClick = onBackToHome)
+        TitleBar(title = if (onPickModel != null) "Select Model" else "Models", onBackClick = onBackToAiSetup)
 
         // Type + Provider dropdowns share a row; capability checkboxes
         // sit on a row below. Each dropdown is anchored in its own Box
@@ -619,7 +619,7 @@ fun ModelInfoScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Model Info", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Model Info", onBackClick = onNavigateBack)
 
         when {
             isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1179,7 +1179,7 @@ private fun ModelRawInfoScreen(
     BackHandler { onBack() }
     val annotated = remember(body) { colorizeJson(body) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = title, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         Card(
             colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),

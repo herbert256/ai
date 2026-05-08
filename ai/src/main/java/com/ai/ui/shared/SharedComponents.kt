@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -76,6 +77,15 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
  *  screen title left-aligns. The system / gesture back still works
  *  because TitleBar registers its BackHandler independently. */
 val LocalShowBackButton = compositionLocalOf { true }
+
+/** Provided by AppNavHost so the title-bar Help icon can navigate
+ *  to the general help page without prop-drilling a callback. */
+val LocalNavigateToHelp = compositionLocalOf<() -> Unit> { {} }
+
+/** Provided by AppNavHost so the title-bar Home icon can navigate
+ *  to the Hub without prop-drilling a callback. Replaces the role
+ *  the removed "AI" text-button used to play. */
+val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
 /** Make a model-name Text clickable so tapping it opens the Model
  *  Info screen for [providerService] / [model]. No-op when the
@@ -159,7 +169,11 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
 
 /**
  * Generic title bar used across all screens.
- * Shows a back button on the left, optional title in the middle, and "AI" on the right.
+ * Left: optional back button. Right: a strip of six action icons —
+ * Home, Reload, Info, Delete, Trace, Help (left → right). Home and
+ * Help are always enabled and route through their CompositionLocals;
+ * the four middle icons gray out (alpha 0.4f, taps absorbed) when
+ * their callback is null.
  *
  * The < button does NOT call [onBackClick] directly — it invokes the
  * host activity's back-press dispatcher, so any [BackHandler] a
@@ -177,10 +191,13 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
 fun TitleBar(
     title: String? = null,
     onBackClick: (() -> Unit)? = null,
-    onAiClick: () -> Unit = {},
     backText: String = "< Back",
     leftContent: (@Composable RowScope.() -> Unit)? = null,
-    centered: Boolean = false
+    centered: Boolean = false,
+    onTrace: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onInfo: (() -> Unit)? = null,
+    onReload: (() -> Unit)? = null
 ) {
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     if (onBackClick != null) {
@@ -195,6 +212,8 @@ fun TitleBar(
             }
         }
     }
+    val navigateHome = LocalNavigateHome.current
+    val navigateHelp = LocalNavigateToHelp.current
     if (centered) {
         Box(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -202,7 +221,7 @@ fun TitleBar(
         ) {
             Text(
                 text = "AI", fontSize = 36.sp, color = Color.White, fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable { onAiClick() }
+                modifier = Modifier.clickable { navigateHome() }
             )
         }
     } else {
@@ -230,10 +249,57 @@ fun TitleBar(
                     textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start
                 )
             }
-            TextButton(onClick = onAiClick) {
-                Text("AI", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
-            }
+            TitleBarActionStrip(
+                onHome = navigateHome,
+                onReload = onReload,
+                onInfo = onInfo,
+                onDelete = onDelete,
+                onTrace = onTrace,
+                onHelp = navigateHelp
+            )
         }
+    }
+}
+
+/** Six-icon strip rendered on the right of every [TitleBar]. The four
+ *  conditional slots (Reload / Info / Delete / Trace) gray out when
+ *  their callback is null. Home + Help are always enabled. */
+@Composable
+private fun TitleBarActionStrip(
+    onHome: () -> Unit,
+    onReload: (() -> Unit)?,
+    onInfo: (() -> Unit)?,
+    onDelete: (() -> Unit)?,
+    onTrace: (() -> Unit)?,
+    onHelp: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+        TitleBarIcon(emoji = "🏠", tint = AppColors.Blue, enabled = true, onClick = onHome)
+        TitleBarIcon(emoji = "🔄", tint = AppColors.Orange, enabled = onReload != null, onClick = onReload ?: {})
+        TitleBarIcon(emoji = "ℹ", tint = AppColors.Blue, enabled = onInfo != null, onClick = onInfo ?: {})
+        TitleBarIcon(emoji = "🗑", tint = AppColors.Red, enabled = onDelete != null, onClick = onDelete ?: {})
+        TitleBarIcon(emoji = "🐞", tint = Color.Unspecified, enabled = onTrace != null, onClick = onTrace ?: {})
+        TitleBarIcon(emoji = "❓", tint = AppColors.Blue, enabled = true, onClick = onHelp)
+    }
+}
+
+@Composable
+private fun TitleBarIcon(
+    emoji: String,
+    tint: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.size(36.dp)
+    ) {
+        Text(
+            text = emoji, fontSize = 18.sp,
+            color = if (tint == Color.Unspecified) Color.White else tint,
+            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+        )
     }
 }
 
@@ -253,6 +319,30 @@ fun DeleteConfirmationDialog(
         text = { Text("Are you sure you want to delete \"$entityName\"?") },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
+        }
+    )
+}
+
+/**
+ * Reusable confirmation dialog for the title-bar Reload icon. The
+ * confirm button re-fires the screen's API call; the dismiss leaves
+ * the existing result alone.
+ */
+@Composable
+fun ReloadConfirmationDialog(
+    target: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Re-run API call?") },
+        text = { Text("This will fire a new API call for $target and replace the current result.") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Re-run", color = AppColors.Blue, maxLines = 1, softWrap = false) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }

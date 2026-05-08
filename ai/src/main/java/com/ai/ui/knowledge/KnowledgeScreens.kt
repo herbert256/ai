@@ -64,7 +64,7 @@ fun KnowledgeListScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "AI Knowledge", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "AI Knowledge", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Text("Attach PDFs, text files, markdown, or web pages here. Knowledge bases can be linked to a Report or a Chat to inject relevant excerpts before each call.",
             fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -174,7 +174,7 @@ fun NewKnowledgeBaseScreen(
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "New knowledge base", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "New knowledge base", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
@@ -332,7 +332,10 @@ fun KnowledgeDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = kb?.name ?: "Knowledge base", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(
+            title = kb?.name ?: "Knowledge base", onBackClick = onBack,
+            onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
+        )
         kb?.let {
             Text(embedderLabel(it), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
             Text("${it.sources.size} sources · ${it.totalChunks} chunks", fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -446,12 +449,6 @@ fun KnowledgeDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = { showDeleteConfirm = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Delete this knowledge base", color = AppColors.Red, fontSize = 12.sp, maxLines = 1, softWrap = false) }
     }
 
     if (showDeleteConfirm) {

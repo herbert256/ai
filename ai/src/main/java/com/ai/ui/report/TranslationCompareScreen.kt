@@ -41,7 +41,7 @@ internal fun TranslationCompareScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = title, onBackClick = onBack)
 
         // Top pane — original.
         Column(

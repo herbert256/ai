@@ -157,7 +157,13 @@ internal fun TranslationRunDetailScreen(
     var confirmDelete by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
+        val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
+        TitleBar(
+            title = title, onBackClick = onBack,
+            onTrace = if (traceEnabled) onNavigateToTraceList else null,
+            onDelete = { confirmDelete = true },
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, modelName) } } else null
+        )
         Spacer(modifier = Modifier.height(8.dp))
 
         if (results.isEmpty()) {
@@ -167,19 +173,12 @@ internal fun TranslationRunDetailScreen(
             return@Column
         }
 
-        // Single model header for the whole run. The 🐞 ladybug links to
-        // the report's trace list pre-filtered to "Translation"; rendered
-        // only when at least one translation trace exists.
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(com.ai.ui.shared.modelLabel(providerDisplay, modelName, separator = " — "),
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
                     .modelInfoClickable(providerService, modelName))
-            if (ApiTracer.isTracingEnabled && translationTraceCount > 0) {
-                Text("🐞", fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceList() })
-            }
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
             Text("${results.size} calls", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
@@ -248,10 +247,6 @@ internal fun TranslationRunDetailScreen(
             }
         }
 
-        // Actions — collapsed by default, mirrors the Cross L1
-        // pattern. Restart / Start missing are at the top because
-        // those are the recovery affordances; Model / Delete sit
-        // below.
         Spacer(modifier = Modifier.height(8.dp))
         val erroredCount = results.count { it.errorMessage != null }
         CollapsibleCard("Actions") {
@@ -266,17 +261,6 @@ internal fun TranslationRunDetailScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) { Text("Start missing translations", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { providerService?.let { onNavigateToModelInfo(it, modelName) } },
-                enabled = providerService != null,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { Text("Model info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { confirmDelete = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-            ) { Text("Delete this translation run", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
 

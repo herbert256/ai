@@ -52,13 +52,13 @@ fun ReportsViewerScreen(
     when (val s = reportState.value) {
         ReportLoadState.Loading -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(title = "View Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
+                TitleBar(title = "View Reports", onBackClick = onDismiss)
             }
             return
         }
         ReportLoadState.NotFound -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(title = "View Reports", onBackClick = onDismiss, onAiClick = onNavigateHome)
+                TitleBar(title = "View Reports", onBackClick = onDismiss)
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)
                 }
@@ -189,7 +189,7 @@ private fun ReportsViewerScreenLoaded(
     if (initialSection == "prompt" || initialSection == "costs") {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
-            TitleBar(title = title, onBackClick = onDismiss, onAiClick = onNavigateHome)
+            TitleBar(title = title, onBackClick = onDismiss)
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
@@ -232,7 +232,7 @@ private fun ReportsViewerScreenLoaded(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val providerName = selectedReportAgent?.let { AppService.findById(it.provider)?.displayName ?: it.provider } ?: "View Reports"
-        TitleBar(title = providerName, onBackClick = onDismiss, onAiClick = onNavigateHome)
+        TitleBar(title = providerName, onBackClick = onDismiss)
 
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
 

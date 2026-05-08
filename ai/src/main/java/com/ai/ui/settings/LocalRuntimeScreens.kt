@@ -67,7 +67,7 @@ fun LocalLiteRtModelsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Local LiteRT models", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Local LiteRT models", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -193,7 +193,7 @@ fun LocalLlmsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Local LLMs", onBackClick = onBack, onAiClick = onNavigateHome)
+        TitleBar(title = "Local LLMs", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
