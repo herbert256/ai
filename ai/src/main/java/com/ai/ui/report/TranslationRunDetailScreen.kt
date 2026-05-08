@@ -89,6 +89,17 @@ internal fun TranslationRunDetailScreen(
                 .associateBy { it.id }
         }
     }
+    // Report agents keyed by agentId — needed so each AGENT-source
+    // TRANSLATE row can render its label via modelLabel() and follow
+    // the user's "Model name layout" setting (the persisted
+    // agentName always contains both, which would override the
+    // user's choice).
+    val agentsByIdFromReport by produceState(initialValue = emptyMap<String, com.ai.data.ReportAgent>(), reportId, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, reportId)?.agents
+                ?.associateBy { it.agentId } ?: emptyMap()
+        }
+    }
     fun typeFor(r: SecondaryResult): String = when (r.translateSourceKind) {
         "PROMPT" -> "prompt"
         "AGENT" -> "report"
@@ -179,7 +190,31 @@ internal fun TranslationRunDetailScreen(
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(results, key = { it.id }) { r ->
-                val what = r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                // Build the row label from the actual source so the
+                // "Model name layout" setting is honoured. The stored
+                // agentName always contains both provider and model
+                // (it's a freeze-at-save-time string, so toggling the
+                // setting wouldn't update it). For PROMPT rows the
+                // source has no model, so we fall back to "Report
+                // prompt" (also handles the legacy stored label).
+                val what = when (r.translateSourceKind) {
+                    "AGENT" -> {
+                        val agent = r.translateSourceTargetId?.let { agentsByIdFromReport[it] }
+                        if (agent != null) {
+                            val pn = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                            com.ai.ui.shared.modelLabel(pn, agent.model, separator = " / ")
+                        } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                    }
+                    "META" -> {
+                        val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
+                        if (src != null) {
+                            val pn = AppService.findById(src.providerId)?.displayName ?: src.providerId
+                            com.ai.ui.shared.modelLabel(pn, src.model, separator = " / ")
+                        } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                    }
+                    "PROMPT" -> "Report prompt"
+                    else -> r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { openId = r.id }.padding(vertical = 8.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
