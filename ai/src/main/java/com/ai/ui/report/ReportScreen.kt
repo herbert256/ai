@@ -811,10 +811,8 @@ fun ReportsScreen(
         val rid = currentReportId
         data class FanOutCounts(
             val answerers: Int,
-            val sources: Int,
             val pairs: Int,
-            val answererNames: List<String>,
-            val sourceNames: List<String>
+            val answererNames: List<String>
         )
         val countsState = produceState<FanOutCounts?>(initialValue = null, rid, pendingSecondaryScope) {
             value = withContext(Dispatchers.IO) {
@@ -837,10 +835,8 @@ fun ReportsScreen(
                     a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
                 FanOutCounts(
                     answerers = successful.size,
-                    sources = sources.size,
                     pairs = pairs,
-                    answererNames = successful.map(::label),
-                    sourceNames = sources.map(::label)
+                    answererNames = successful.map(::label)
                 )
             }
         }
@@ -892,7 +888,7 @@ fun ReportsScreen(
                     }
                 }
                 if (counts != null && counts.answererNames.isNotEmpty()) {
-                    Text("Answerer models (${counts.answerers})", fontSize = 13.sp,
+                    Text("Models in this fan-out (${counts.answerers})", fontSize = 13.sp,
                         color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -900,20 +896,6 @@ fun ReportsScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             counts.answererNames.forEach { name ->
-                                Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-                if (counts != null && counts.sourceNames.isNotEmpty()) {
-                    Text("Source responses (${counts.sources})", fontSize = 13.sp,
-                        color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            counts.sourceNames.forEach { name ->
                                 Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
