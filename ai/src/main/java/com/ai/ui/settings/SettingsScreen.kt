@@ -546,6 +546,21 @@ private fun SettingsMainScreen(
             onSave(updated)
         }
     }
+    // Flush any pending debounced edit when the screen leaves
+    // composition. Without this, a user typing then immediately
+    // tapping back within the 400ms debounce window loses the typed
+    // change — the LaunchedEffect's coroutine cancels before the
+    // delay returns, so onSave never fires.
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = generalSettings.copy(
+                userName = userName, defaultEmail = defaultEmail,
+                tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
+                showBackButton = showBackButton
+            )
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
