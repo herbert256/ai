@@ -129,9 +129,16 @@ fun ReportManageScreen(
     if (confirmDelete) {
         val days = daysText.toIntOrNull() ?: 0
         val cutoff = System.currentTimeMillis() - days * 24L * 3600L * 1000L
-        val candidates = remember(daysText) {
-            ReportStorage.getAllReports(context).filter { !it.pinned && it.timestamp < cutoff }
+        // Walk every persisted report on Dispatchers.IO — getAllReports
+        // re-reads + parses every JSON, which can be MB-sized for
+        // image-attached reports. The previous synchronous remember
+        // ANR'd the UI thread on devices with hundreds of reports.
+        val candidatesState = produceState<List<com.ai.data.Report>?>(initialValue = null, daysText) {
+            value = withContext(Dispatchers.IO) {
+                ReportStorage.getAllReports(context).filter { !it.pinned && it.timestamp < cutoff }
+            }
         }
+        val candidates = candidatesState.value ?: emptyList()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete ${candidates.size} reports?") },

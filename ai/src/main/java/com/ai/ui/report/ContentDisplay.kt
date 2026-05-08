@@ -278,7 +278,7 @@ private fun ReportsViewerScreenLoaded(
                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("$provDisplay \u2014 ${selectedReportAgent.model}",
+                    Text(com.ai.ui.shared.modelLabel(provDisplay, selectedReportAgent.model, separator = " \u2014 "),
                         fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f))
                     if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
