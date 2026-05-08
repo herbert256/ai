@@ -277,7 +277,7 @@ private fun TitleBarActionStrip(
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
         TitleBarIcon(emoji = "🏠", tint = AppColors.Blue, enabled = true, onClick = onHome)
         TitleBarIcon(emoji = "🔄", tint = AppColors.Orange, enabled = onReload != null, onClick = onReload ?: {})
-        TitleBarIcon(emoji = "ℹ", tint = AppColors.Blue, enabled = onInfo != null, onClick = onInfo ?: {})
+        TitleBarIcon(emoji = "ℹ️", tint = Color.Unspecified, enabled = onInfo != null, onClick = onInfo ?: {})
         TitleBarIcon(emoji = "🗑", tint = AppColors.Red, enabled = onDelete != null, onClick = onDelete ?: {})
         TitleBarIcon(emoji = "🐞", tint = Color.Unspecified, enabled = onTrace != null, onClick = onTrace ?: {})
         TitleBarIcon(emoji = "❓", tint = AppColors.Blue, enabled = true, onClick = onHelp)
