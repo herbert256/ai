@@ -1901,11 +1901,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }.awaitAll()
                 }
 
-                // All done — write a TRANSLATE SecondaryResult per item
-                // onto the source report. No new report is created.
+                // Per-item rows were already persisted inside
+                // runOneTranslation as each call settled, so the
+                // batch survives a redeploy / OS kill mid-run. Just
+                // bump the parent report's timestamp once at the end
+                // so the History list resorts. Skipped on cancel —
+                // the cancelled item stays unpersisted and the
+                // timestamp bump is moot.
                 val finalState = _translationRuns.value[runId] ?: return@launch
                 if (finalState.cancelled) return@launch
-                saveTranslationSecondaries(context, finalState, provider, model, pricing)
                 ReportStorage.bumpReportTimestamp(context, sourceReportId)
                 _translationRuns.update { runs ->
                     val cur = runs[runId] ?: return@update runs
@@ -1976,6 +1980,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
         }
+        // Persist this item as soon as the call settles so the row
+        // survives a process kill mid-batch. Previously the whole
+        // batch was held in-memory and only flushed to disk via
+        // saveTranslationSecondaries after awaitAll(); a redeploy
+        // or an OS kill halfway through silently lost everything.
+        // Use the in-memory runId as the on-disk translationRunId so
+        // every item this batch writes groups under the same run on
+        // the result screen and survives restart with the same
+        // identity.
+        val freshRun = _translationRuns.value[runId]
+        val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+        if (freshRun != null && freshItem != null) {
+            saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
+        }
         // Roll the translation call into per-(provider, model) usage so
         // it shows up on the AI Usage screen alongside report / chat
         // calls. Skipped on error responses so the row reflects only
@@ -1988,56 +2006,56 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Persist one TRANSLATE [SecondaryResult] per translated item onto
-     *  the source report. The viewer and HTML/Zipped HTML exporters
-     *  group these rows by [SecondaryResult.targetLanguage] to render
-     *  the Original | Dutch | German picker. Errored rows are saved
-     *  with [SecondaryResult.errorMessage] set so the user still sees
-     *  the failed call in the cost table / language view. */
-    private fun saveTranslationSecondaries(
+    /** Persist one TRANSLATE [SecondaryResult] for a single completed
+     *  (or errored) translation item. Replaces the all-at-once flush
+     *  that used to happen at the end of [startTranslation] — moving
+     *  the save inline lets a half-finished batch survive process
+     *  death with the rows that did complete still on disk. */
+    private fun saveOneTranslationItem(
         context: Context,
+        runId: String,
         run: TranslationRunState,
+        item: TranslationItem,
         translateProvider: AppService,
         translateModel: String,
         translatePricing: PricingCache.ModelPricing
     ) {
-        // One UUID for every row this invocation writes — lets the
-        // result page collapse them into a single aggregate
-        // "translation run" row even when the same language has been
-        // translated more than once.
-        val runId = java.util.UUID.randomUUID().toString()
-        for (item in run.items) {
-            val tu = item.tokenUsage
-            val inCost = tu?.let { it.inputTokens * translatePricing.promptPrice }
-            val outCost = tu?.let { it.outputTokens * translatePricing.completionPrice }
-            val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
-            val (srcKind, srcTargetId) = when (item.kind) {
-                TranslationKind.PROMPT -> "PROMPT" to "prompt"
-                TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
-                TranslationKind.META -> "META" to (item.target ?: "")
-            }
-            SecondaryResultStorage.save(context, SecondaryResult(
-                id = java.util.UUID.randomUUID().toString(),
-                reportId = run.sourceReportId,
-                kind = SecondaryKind.TRANSLATE,
-                providerId = translateProvider.id,
-                model = translateModel,
-                agentName = labelPrefix,
-                timestamp = System.currentTimeMillis(),
-                content = item.translatedText,
-                errorMessage = item.errorMessage,
-                tokenUsage = tu,
-                inputCost = inCost,
-                outputCost = outCost,
-                durationMs = item.durationMs,
-                translateSourceKind = srcKind,
-                translateSourceTargetId = srcTargetId,
-                targetLanguage = run.targetLanguageName,
-                targetLanguageNative = run.targetLanguageNative,
-                translationRunId = runId
-            ))
+        val tu = item.tokenUsage
+        val inCost = tu?.let { it.inputTokens * translatePricing.promptPrice }
+        val outCost = tu?.let { it.outputTokens * translatePricing.completionPrice }
+        val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
+        val (srcKind, srcTargetId) = when (item.kind) {
+            TranslationKind.PROMPT -> "PROMPT" to "prompt"
+            TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
+            TranslationKind.META -> "META" to (item.target ?: "")
         }
+        SecondaryResultStorage.save(context, SecondaryResult(
+            id = java.util.UUID.randomUUID().toString(),
+            reportId = run.sourceReportId,
+            kind = SecondaryKind.TRANSLATE,
+            providerId = translateProvider.id,
+            model = translateModel,
+            agentName = labelPrefix,
+            timestamp = System.currentTimeMillis(),
+            content = item.translatedText,
+            errorMessage = item.errorMessage,
+            tokenUsage = tu,
+            inputCost = inCost,
+            outputCost = outCost,
+            durationMs = item.durationMs,
+            translateSourceKind = srcKind,
+            translateSourceTargetId = srcTargetId,
+            targetLanguage = run.targetLanguageName,
+            targetLanguageNative = run.targetLanguageNative,
+            translationRunId = runId
+        ))
     }
+
+    // saveTranslationSecondaries (the bulk all-at-end flush) was
+    // replaced by saveOneTranslationItem, called inline as each
+    // translation call settles — so a half-finished batch persists
+    // the rows it did complete instead of losing everything on a
+    // redeploy / OS kill.
 
     fun cancelTranslation(runId: String) {
         translationJobs[runId]?.cancel()
