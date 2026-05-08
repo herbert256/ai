@@ -9,6 +9,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -344,7 +346,19 @@ fun ReportsScreen(
                 crossMetaSummaries = buildCrossMetaSummaries(
                     all.filter { it.crossSourceAgentId != null }
                 )
-                secondaryCounts = SecondaryResultStorage.countForReport(context, rid)
+                // Derive counts from `all` instead of calling
+                // SecondaryResultStorage.countForReport — that function
+                // does its own listFiles + per-file Gson parse, so on
+                // the 500ms batching tick we'd be re-parsing every
+                // file twice (once via the cached listForReport above,
+                // once for counts). The counts are pure projections
+                // of the same data.
+                secondaryCounts = SecondaryResultStorage.Counts(
+                    rerank = all.count { it.kind == SecondaryKind.RERANK },
+                    meta = all.count { it.kind == SecondaryKind.META },
+                    moderation = all.count { it.kind == SecondaryKind.MODERATION },
+                    translate = all.count { it.kind == SecondaryKind.TRANSLATE }
+                )
                 // Totals span every persisted secondary including
                 // TRANSLATE rows — those translation calls show up
                 // in the cost table as separate rows and should sum
@@ -1475,12 +1489,13 @@ private fun ColumnScope.GenerationPhase(
         }
 
         if (showMetaPicker) {
+            val metaSorted = remember(metaPrompts) { metaPrompts.sortedBy { it.name.lowercase() } }
             AlertDialog(
                 onDismissRequest = { showMetaPicker = false },
                 title = { Text("Meta") },
                 text = {
                     Column {
-                        metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                        metaSorted.forEach { mp ->
                             Text(
                                 mp.name, fontSize = 15.sp, color = Color.White,
                                 modifier = Modifier.fillMaxWidth()
@@ -1503,12 +1518,13 @@ private fun ColumnScope.GenerationPhase(
         }
 
         if (showCrossPicker) {
+            val crossSorted = remember(crossPrompts) { crossPrompts.sortedBy { it.name.lowercase() } }
             AlertDialog(
                 onDismissRequest = { showCrossPicker = false },
                 title = { Text("Cross") },
                 text = {
                     Column {
-                        crossPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
+                        crossSorted.forEach { mp ->
                             Text(
                                 mp.name, fontSize = 15.sp, color = Color.White,
                                 modifier = Modifier.fillMaxWidth()
@@ -1564,21 +1580,26 @@ private fun ColumnScope.GenerationPhase(
     val staged = uiState.stagedReportModels
     val isStagedMode = isComplete && staged.isNotEmpty()
 
-    // Per-agent token + cost rollup (computed up front so it can feed
-    // both the top-of-page totals banner and any per-row costs below).
+    // Per-agent token + cost rollup. Cost is recomputed every
+    // recomposition (no remember) so a cold PricingCache that loads
+    // *after* the first composition picks up real values once any
+    // recomposition fires — e.g. after the user touches the screen
+    // or the next batching tick lands. Memoising on
+    // reportsAgentResults alone would fossilise DEFAULT_PRICING for
+    // a finished report whose pricing tier wasn't preloaded yet.
+    // Token sums share a memo since they only depend on tokenUsage.
     val selectedAgents = uiState.genericReportsSelectedAgents
-    val agentCost = remember(reportsAgentResults) {
-        reportsAgentResults.entries.sumOf { (agentId, resp) ->
-            resp.tokenUsage?.let {
-                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
-            } ?: 0.0
+    val agentCost = reportsAgentResults.entries.sumOf { (agentId, resp) ->
+        resp.tokenUsage?.let {
+            PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
+        } ?: 0.0
+    }
+    val (agentInputTokens, agentOutputTokens) = remember(reportsAgentResults) {
+        var input = 0; var output = 0
+        reportsAgentResults.values.forEach { r ->
+            r.tokenUsage?.let { input += it.inputTokens; output += it.outputTokens }
         }
-    }
-    val agentInputTokens = remember(reportsAgentResults) {
-        reportsAgentResults.values.sumOf { it.tokenUsage?.inputTokens ?: 0 }
-    }
-    val agentOutputTokens = remember(reportsAgentResults) {
-        reportsAgentResults.values.sumOf { it.tokenUsage?.outputTokens ?: 0 }
+        input to output
     }
     // Live in-flight translation runs aren't persisted as TRANSLATE
     // SecondaryResults until the whole batch finishes, so secondaryTotals
@@ -1587,13 +1608,24 @@ private fun ColumnScope.GenerationPhase(
     // showed the live tally. Fold the in-memory state in here so the
     // top banner ticks up with each call. When the run finishes its
     // rows persist and the live row is consumed within ~200ms (no
-    // double-count window worth worrying about).
-    val liveTranslationInputTokens = translationRuns.filter { !it.isFinished }
-        .sumOf { run -> run.items.sumOf { it.tokenUsage?.inputTokens ?: 0 } }
-    val liveTranslationOutputTokens = translationRuns.filter { !it.isFinished }
-        .sumOf { run -> run.items.sumOf { it.tokenUsage?.outputTokens ?: 0 } }
-    val liveTranslationCost = translationRuns.filter { !it.isFinished }
-        .sumOf { it.totalCostDollars }
+    // double-count window worth worrying about). Single pass — was
+    // three separate filter+sum walks before.
+    val liveTranslation = remember(translationRuns) {
+        var input = 0; var output = 0; var cost = 0.0
+        translationRuns.forEach { run ->
+            if (run.isFinished) return@forEach
+            cost += run.totalCostDollars
+            run.items.forEach { item ->
+                item.tokenUsage?.let {
+                    input += it.inputTokens; output += it.outputTokens
+                }
+            }
+        }
+        Triple(input, output, cost)
+    }
+    val liveTranslationInputTokens = liveTranslation.first
+    val liveTranslationOutputTokens = liveTranslation.second
+    val liveTranslationCost = liveTranslation.third
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
@@ -1641,27 +1673,36 @@ private fun ColumnScope.GenerationPhase(
     }
 
     data class DisplayRow(val rowId: String, val displayName: String, val isNew: Boolean)
-    val displayRows: List<DisplayRow> = if (isStagedMode) {
-        staged.map { m ->
-            val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
-                        else "swarm:${m.provider.id}:${m.model}"
-            // Model-only label per spec — drop the provider prefix and
-            // the agent's custom name so every row reads as a bare
-            // model id.
-            DisplayRow(rowId, m.model, !reportsAgentResults.containsKey(rowId))
-        }
-    } else {
-        selectedAgents.sorted().map { agentId ->
-            val result = reportsAgentResults[agentId]
-            val name = result?.let { resolveModelForResult(agentId, it) }
-                ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
-                ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
-                ?: agentId
-            DisplayRow(agentId, name, false)
+    val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings) {
+        if (isStagedMode) {
+            staged.map { m ->
+                val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
+                            else "swarm:${m.provider.id}:${m.model}"
+                // Model-only label per spec — drop the provider prefix and
+                // the agent's custom name so every row reads as a bare
+                // model id.
+                DisplayRow(rowId, m.model, !reportsAgentResults.containsKey(rowId))
+            }
+        } else {
+            selectedAgents.sorted().map { agentId ->
+                val result = reportsAgentResults[agentId]
+                val name = result?.let { resolveModelForResult(agentId, it) }
+                    ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
+                    ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
+                    ?: agentId
+                DisplayRow(agentId, name, false)
+            }
         }
     }
 
-    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+    val activeTranslationRuns = remember(translationRuns) {
+        translationRuns.filter { !it.isFinished && !it.cancelled }
+    }
+    val showSecondaryRuns = isComplete && secondaryRuns.isNotEmpty()
+    val showCrossSummaries = crossMetaSummaries.isNotEmpty()
+    val showLiveTranslations = isComplete && activeTranslationRuns.isNotEmpty()
+    val showTranslationSummaries = isComplete && translationRunSummaries.isNotEmpty()
+    LazyColumn(modifier = Modifier.weight(1f)) {
         // Meta runs \u2014 one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status
@@ -1669,9 +1710,16 @@ private fun ColumnScope.GenerationPhase(
         // empty, \u2705 on success, \u274C on error. Tapping opens that run's
         // detail screen. TRANSLATE rows are excluded \u2014 they're cost
         // records rather than user-actionable runs.
-        if (isComplete && secondaryRuns.isNotEmpty()) {
-            secondaryRuns.forEach { run ->
-                val running = run.errorMessage == null && run.content.isNullOrBlank()
+        if (showSecondaryRuns) {
+            items(secondaryRuns, key = { "sr-${it.id}" }) { run ->
+                // durationMs is stamped on every successful and errored
+                // save and cleared by resetAndRelaunch. A row with
+                // durationMs set and blank content is a successful
+                // empty-body completion — without the durationMs check
+                // the row read as Running… forever instead of ✅.
+                val running = run.errorMessage == null
+                    && run.content.isNullOrBlank()
+                    && run.durationMs == null
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenSecondaryRun(run.id) },
                     verticalAlignment = Alignment.CenterVertically
@@ -1743,8 +1791,8 @@ private fun ColumnScope.GenerationPhase(
         // collapse them into a single line here so the agent list
         // doesn't balloon. Tap → SecondaryResultsScreen, which already
         // detects cross rows and renders them via CrossMetaDrillInView.
-        if (crossMetaSummaries.isNotEmpty()) {
-            crossMetaSummaries.forEach { run ->
+        if (showCrossSummaries) {
+            items(crossMetaSummaries, key = { "cm-${it.metaPromptName}" }) { run ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
                         onViewSecondaryName(run.metaPromptName, run.kind)
@@ -1800,8 +1848,8 @@ private fun ColumnScope.GenerationPhase(
         // as each call returns. Multiple translations can run in
         // parallel (different language / model / both); each gets its
         // own row and its own Cancel.
-        if (isComplete) {
-            translationRuns.filter { !it.isFinished && !it.cancelled }.forEach { run ->
+        if (showLiveTranslations) {
+            items(activeTranslationRuns, key = { "tr-live-${it.runId}" }) { run ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1837,8 +1885,8 @@ private fun ColumnScope.GenerationPhase(
         // agent + each summary + each compare); they're collapsed
         // here so the user sees a single line per click. Tapping
         // opens TranslationRunDetailScreen with the call list.
-        if (isComplete && translationRunSummaries.isNotEmpty()) {
-            translationRunSummaries.forEach { run ->
+        if (showTranslationSummaries) {
+            items(translationRunSummaries, key = { "trs-${it.runId}" }) { run ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenTranslationRun(run.runId) },
                     verticalAlignment = Alignment.CenterVertically
@@ -1880,7 +1928,7 @@ private fun ColumnScope.GenerationPhase(
             }
         }
 
-        displayRows.forEach { row ->
+        items(displayRows, key = { "row-${it.rowId}" }) { row ->
             val agentId = row.rowId
             val result = reportsAgentResults[agentId]
             val displayName = row.displayName
