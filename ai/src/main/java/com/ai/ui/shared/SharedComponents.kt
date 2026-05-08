@@ -233,6 +233,14 @@ fun TitleBar(
         val showBackButton = LocalShowBackButton.current
         val backVisible = onBackClick != null && showBackButton
         val hasLeftSlot = leftContent != null || backVisible
+        // When the user has hidden the "< Back" button the title row
+        // has more horizontal room and a less crowded look. Scale up
+        // the title text and the action-strip icons by 25 % so the
+        // bar takes advantage of that space and reads larger at a
+        // glance. Standard back-button mode keeps the original 1×
+        // sizing so the layout still fits next to "< Back".
+        val scale = if (showBackButton) 1f else 1.25f
+        val titleStyle = MaterialTheme.typography.titleLarge
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -249,7 +257,8 @@ fun TitleBar(
             }
             if (title != null) {
                 Text(
-                    text = title, style = MaterialTheme.typography.titleLarge, color = Color.White,
+                    text = title, style = titleStyle, color = Color.White,
+                    fontSize = titleStyle.fontSize * scale,
                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
                     textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -262,7 +271,8 @@ fun TitleBar(
                 onInfo = onInfo,
                 onDelete = onDelete,
                 onTrace = onTrace,
-                onHelp = { navigateHelp(helpTopic) }
+                onHelp = { navigateHelp(helpTopic) },
+                scale = scale
             )
         }
     }
@@ -281,19 +291,20 @@ private fun TitleBarActionStrip(
     onInfo: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
-    onHelp: () -> Unit
+    onHelp: () -> Unit,
+    scale: Float = 1f
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload)
-        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat)
-        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo)
-        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete)
-        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace)
+        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, scale = scale)
+        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, scale = scale)
+        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, scale = scale)
+        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, scale = scale)
+        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
         // Tightening to 22dp lines it up snugly with its neighbours.
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 22.dp)
-        TitleBarIcon("🏠", AppColors.Blue, onHome)
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 22.dp, scale = scale)
+        TitleBarIcon("🏠", AppColors.Blue, onHome, scale = scale)
     }
 }
 
@@ -302,14 +313,15 @@ private fun TitleBarIcon(
     emoji: String,
     tint: Color,
     onClick: () -> Unit,
-    width: Dp = 28.dp
+    width: Dp = 28.dp,
+    scale: Float = 1f
 ) {
     Box(
-        modifier = Modifier.size(width = width, height = 32.dp).clickable(onClick = onClick),
+        modifier = Modifier.size(width = width * scale, height = 32.dp * scale).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = emoji, fontSize = 16.sp,
+            text = emoji, fontSize = 16.sp * scale,
             color = if (tint == Color.Unspecified) Color.White else tint
         )
     }
