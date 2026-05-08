@@ -246,7 +246,8 @@ fun TitleBar(
                 Text(
                     text = title, style = MaterialTheme.typography.titleLarge, color = Color.White,
                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                    textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start
+                    textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
             TitleBarActionStrip(
@@ -293,10 +294,10 @@ private fun TitleBarIcon(
     IconButton(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.size(36.dp)
+        modifier = Modifier.size(32.dp)
     ) {
         Text(
-            text = emoji, fontSize = 18.sp,
+            text = emoji, fontSize = 16.sp,
             color = if (tint == Color.Unspecified) Color.White else tint,
             modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
         )
