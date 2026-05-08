@@ -161,7 +161,9 @@ fun ChatParametersScreen(
                         presencePenalty = presencePenalty.toFloatOrNull() ?: presetParams?.presencePenalty,
                         searchEnabled = presetParams?.searchEnabled == true,
                         returnCitations = returnCitations && (presetParams?.returnCitations != false),
-                        searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency
+                        searchRecency = searchRecency.takeIf { it.isNotBlank() } ?: presetParams?.searchRecency,
+                        webSearchTool = presetParams?.webSearchTool == true,
+                        reasoningEffort = presetParams?.reasoningEffort
                     )
                 )
             },
