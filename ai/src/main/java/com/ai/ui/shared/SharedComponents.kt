@@ -298,12 +298,16 @@ private fun TitleBarActionStrip(
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, scale = scale)
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, scale = scale)
-        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, scale = scale)
+        // 🗑 reads narrow on the leading edge, so a 28dp slot leaves
+        // a visible gap before it; tighten to 22dp to bring it
+        // closer to the neighbour on its left.
+        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
-        // Tightening to 22dp lines it up snugly with its neighbours.
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 22.dp, scale = scale)
+        // Tightening further to 18dp keeps it snug against both
+        // neighbours (the previous 22dp still left air on either side).
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, scale = scale)
         TitleBarIcon("🏠", AppColors.Blue, onHome, scale = scale)
     }
 }
