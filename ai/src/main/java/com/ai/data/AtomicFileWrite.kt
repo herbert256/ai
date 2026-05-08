@@ -19,7 +19,17 @@ import java.io.File
 fun File.writeTextAtomic(content: String): Boolean {
     val tmp = File(parentFile, "$name.tmp")
     return try {
-        tmp.writeText(content)
+        // Write the bytes AND fsync the file descriptor before the
+        // atomic move. ext4 with delayed allocation can hold the
+        // tmp file's data in the page cache past the rename — a power
+        // loss between the rename and the implicit kernel flush can
+        // surface either old content or an empty file at the
+        // destination, defeating the "atomic" promise.
+        java.io.FileOutputStream(tmp).use { fos ->
+            fos.write(content.toByteArray(Charsets.UTF_8))
+            fos.flush()
+            try { fos.fd.sync() } catch (_: java.io.IOException) { /* best effort */ }
+        }
         try {
             java.nio.file.Files.move(
                 tmp.toPath(), toPath(),
