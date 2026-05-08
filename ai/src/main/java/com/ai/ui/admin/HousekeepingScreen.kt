@@ -37,7 +37,10 @@ fun HousekeepingScreen(
     /** Run the on-demand merge of `assets/prompts.json`; returns the
      *  number of newly added rows. Surfaced as a one-shot button under
      *  the "Internal prompts" card. */
-    onLoadBundledPrompts: () -> Int = { 0 }
+    onLoadBundledPrompts: () -> Int = { 0 },
+    /** Drop every Internal prompt and reload from `assets/prompts.json`.
+     *  Returns the number of rows loaded. */
+    onResetBundledPrompts: () -> Int = { 0 }
 ) {
     BackHandler { onBackToHome() }
     val context = LocalContext.current
@@ -52,6 +55,7 @@ fun HousekeepingScreen(
     var daysToKeepText by remember { mutableStateOf("30") }
     val daysToKeep = daysToKeepText.toIntOrNull()
     var bundledPromptsStatus by remember { mutableStateOf<String?>(null) }
+    var showResetPromptsConfirm by rememberSaveable { mutableStateOf(false) }
 
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -235,6 +239,29 @@ fun HousekeepingScreen(
         )
     }
 
+    if (showResetPromptsConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetPromptsConfirm = false },
+            title = { Text("Reset Internal prompts?") },
+            text = { Text("This deletes every Internal prompt (including any you customized) and reloads the bundled list from assets/prompts.json.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val loaded = onResetBundledPrompts()
+                        showResetPromptsConfirm = false
+                        bundledPromptsStatus = if (loaded > 0) {
+                            "Reset complete — loaded $loaded prompt${if (loaded == 1) "" else "s"} from assets/prompts.json"
+                        } else {
+                            "Reset failed — assets/prompts.json could not be read"
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Reset", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showResetPromptsConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
     if (showResetConfirm) {
         // Type-to-confirm: extra friction for a destructive op that
         // wipes essentially everything but API keys. Reset enables only
@@ -393,6 +420,12 @@ fun HousekeepingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                     ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = { showResetPromptsConfirm = true },
+                        enabled = busyLabel == null,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    ) { Text("Reset Internal Prompts to assets/prompts.json", maxLines = 1, softWrap = false) }
                     bundledPromptsStatus?.let {
                         Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
                     }

@@ -978,7 +978,8 @@ fun HousekeepingScreenNav(
         onResetApplication = { onComplete -> viewModel.resetApplication(context, onComplete) },
         onNavigateToImportExport = onNavigateToImportExport,
         onNavigateToRefresh = onNavigateToRefresh,
-        onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() }
+        onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
+        onResetBundledPrompts = { viewModel.resetInternalPromptsFromAssets() }
     )
 }
 
