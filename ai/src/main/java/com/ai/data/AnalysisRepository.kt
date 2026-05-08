@@ -283,13 +283,20 @@ class AnalysisRepository {
             // report or navigating away from a chat would convert structured
             // cancellation into a fake "Network error after retry" entry.
             throw e
-        } catch (e: Exception) {
-            android.util.Log.w("AiAnalysis", "$label first attempt exception: ${e.message}, retrying...")
+        } catch (e: java.io.IOException) {
+            // Only retry transient I/O failures. Catching every Exception
+            // (the previous behaviour) silently retried genuine bugs like
+            // NullPointerException out of JSON parsing or
+            // IllegalStateException out of the dispatch path, masking
+            // them as "transient network errors" worth a second attempt
+            // each. NPE-on-second-attempt is just as broken as the first
+            // and burns 2× the cost / quota on every defective call.
+            android.util.Log.w("AiAnalysis", "$label first attempt I/O failure: ${e.message}, retrying…")
             return try {
                 delay(RETRY_DELAY_MS); makeCall()
             } catch (e2: kotlinx.coroutines.CancellationException) {
                 throw e2
-            } catch (e2: Exception) {
+            } catch (e2: java.io.IOException) {
                 e2.addSuppressed(e); errorResult(e2)
             }
         }
