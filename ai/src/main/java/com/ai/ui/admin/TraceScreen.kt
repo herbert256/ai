@@ -749,12 +749,18 @@ fun TraceDetailScreen(
                 Toast.makeText(context, "Copied (redacted)", Toast.LENGTH_SHORT).show()
             }, enabled = t != null, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
-                // Save provider/model/key to prefs for EditApiRequestScreen
+                // Save provider/model/url to prefs for EditApiRequestScreen.
+                // Redact the URL (Google's `?key=…` query param + similar)
+                // before persisting — SharedPreferences are clear-text
+                // XML on disk and roll into the backup zip, so a raw
+                // URL with an embedded API key would survive longer than
+                // intended. The request body is JSON without auth (auth
+                // lives in headers); pass it through untouched.
                 t?.let { trace ->
                         val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
                         prefs.edit().apply {
                             putString("last_test_raw_json", trace.request.body)
-                            putString("last_test_api_url", trace.request.url)
+                            putString("last_test_api_url", com.ai.ui.report.redactUrl(trace.request.url))
                             putString("last_test_model", trace.model ?: "")
                         }.apply()
                     }
