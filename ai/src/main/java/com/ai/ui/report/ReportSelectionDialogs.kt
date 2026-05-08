@@ -654,6 +654,53 @@ internal fun ReportSelectInternalPromptScreen(
     }
 }
 
+/** Generic full-screen action picker — used by the report-result View
+ *  and Edit menus. Each option carries a label plus up to two lines
+ *  of secondary info (count, current value, etc.) so the user can
+ *  pick the right action without first tapping it to find out what
+ *  it shows. */
+internal data class ReportActionOption(
+    val label: String,
+    val detail: String? = null,
+    val secondary: String? = null,
+    val onClick: () -> Unit
+)
+
+@Composable
+internal fun ReportActionPickerScreen(
+    titleText: String,
+    helpTopic: String,
+    options: List<ReportActionOption>,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = helpTopic, title = titleText, onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            options.forEach { opt ->
+                Column(
+                    modifier = Modifier.fillMaxWidth().clickable { opt.onClick() }
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(opt.label, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                        fontWeight = FontWeight.SemiBold)
+                    if (!opt.detail.isNullOrBlank()) {
+                        Text(opt.detail, fontSize = 12.sp, color = AppColors.Blue,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (!opt.secondary.isNullOrBlank()) {
+                        Text(opt.secondary, fontSize = 11.sp, color = AppColors.TextDim,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+        }
+    }
+}
+
 /** Inline editor for a one-time, non-saved prompt. The user types a
  *  template body; on Run, builds an in-memory [InternalPrompt] (with a
  *  fresh UUID that doesn't land on disk) and hands it to the launcher

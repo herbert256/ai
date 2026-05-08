@@ -70,38 +70,103 @@ fun ApiTestScreen(
         isInitialized = true
     }
 
-    // Model selection dialog
+    // Model selection — full-screen with per-model pricing pulled
+    // from PricingCache so the user can see price + capability flags
+    // before picking which one to fire a test call against.
     if (showModelDialog) {
-        AlertDialog(onDismissRequest = { showModelDialog = false },
-            title = { Text("Select Model") },
-            text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                if (isLoadingModels) { CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally)) }
-                availableModels.forEach { m ->
-                    TextButton(onClick = { model = m; showModelDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                        Text(m, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        var search by remember { mutableStateOf("") }
+        val filtered = remember(availableModels, search) {
+            if (search.isBlank()) availableModels
+            else availableModels.filter { it.lowercase().contains(search.lowercase()) }
+        }
+        BackHandler { showModelDialog = false }
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            TitleBar(helpTopic = "developer_test", title = "Select Model — ${selectedProvider.displayName}", onBackClick = { showModelDialog = false })
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Search models...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+                trailingIcon = {
+                    if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
+                        Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
                     }
                 }
-            }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showModelDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
+            )
+            Text("${filtered.size} of ${availableModels.size} models", fontSize = 12.sp,
+                color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            if (isLoadingModels && availableModels.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (availableModels.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No models loaded yet — fetch first.", color = AppColors.TextTertiary, fontSize = 13.sp)
+                }
+            } else {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    filtered.forEach { m ->
+                        val pricing = remember(m) { PricingCache.getPricing(context, selectedProvider, m) }
+                        val real = pricing.source != "DEFAULT"
+                        val priceText = if (real) "${"%.2f".format(pricing.promptPrice * 1_000_000)} / ${"%.2f".format(pricing.completionPrice * 1_000_000)} per 1M"
+                        else "no pricing"
+                        Column(
+                            modifier = Modifier.fillMaxWidth().clickable { model = m; showModelDialog = false }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(m, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(priceText, fontSize = 11.sp,
+                                color = if (real) AppColors.Green else AppColors.TextDim,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                    }
+                }
+            }
+        }
+        return
     }
 
-    // Endpoint selection dialog
+    // Endpoint selection — full-screen list. Each row shows the URL
+    // and a label so the user can tell custom endpoints apart at a
+    // glance. Default and saved endpoints share the same row format.
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
-        AlertDialog(onDismissRequest = { showEndpointDialog = false },
-            title = { Text("Select Endpoint") },
-            text = { Column {
-                // Default endpoint
-                TextButton(onClick = { apiUrl = selectedProvider.baseUrl; showEndpointDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                    Text("${selectedProvider.baseUrl} (default)", maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+        BackHandler { showEndpointDialog = false }
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            TitleBar(helpTopic = "developer_test", title = "Select Endpoint — ${selectedProvider.displayName}", onBackClick = { showEndpointDialog = false })
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { apiUrl = selectedProvider.baseUrl; showEndpointDialog = false }
+                        .padding(vertical = 12.dp, horizontal = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text("default", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(selectedProvider.baseUrl, fontSize = 11.sp, color = AppColors.TextDim,
+                        fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 endpoints.forEach { ep ->
-                    TextButton(onClick = { apiUrl = ep.url; showEndpointDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                        Text("${ep.url} (${ep.name})", maxLines = 2, overflow = TextOverflow.Ellipsis, fontSize = 13.sp)
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { apiUrl = ep.url; showEndpointDialog = false }
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(ep.name, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(ep.url, fontSize = 11.sp, color = AppColors.TextDim,
+                            fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
-            }},
-            confirmButton = {}, dismissButton = { TextButton(onClick = { showEndpointDialog = false }) { Text("Cancel", maxLines = 1, softWrap = false) } })
+            }
+        }
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {

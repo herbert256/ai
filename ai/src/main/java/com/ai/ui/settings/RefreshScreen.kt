@@ -100,126 +100,193 @@ fun RefreshScreen(
     }
 
     if (showResultsDialog && refreshResults != null) {
-        AlertDialog(onDismissRequest = { showResultsDialog = false }, title = { Text("Model Refresh Results") },
-            text = { Column {
-                refreshResults!!.entries.sortedBy { it.key }.forEach { (name, count) ->
-                    val color = if (count > 0) AppColors.Green else AppColors.Red
-                    Text("$name: ${if (count > 0) "$count models" else "failed"}", fontSize = 13.sp, color = color)
-                }
-            }}, confirmButton = { TextButton(onClick = { showResultsDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val rows = refreshResults!!.entries.sortedBy { it.key }.map { (name, count) ->
+            RefreshResultRow(
+                label = name,
+                value = if (count > 0) "$count models" else "failed",
+                color = if (count > 0) AppColors.Green else AppColors.Red
+            )
+        }
+        val total = rows.size
+        val ok = rows.count { it.color == AppColors.Green }
+        RefreshResultScreen(
+            titleText = "Model Refresh Results",
+            description = "$ok of $total providers returned a model list. Failed providers usually mean a missing key, an inactive state, or a transient network error.",
+            rows = rows,
+            onBack = { showResultsDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showProviderStateDialog) {
         val doneCount = providerStateRows.count { it.second != null }
         val totalCount = providerStateRows.size
-        AlertDialog(
-            onDismissRequest = { showProviderStateDialog = false },
-            title = { Text(if (totalCount > 0 && doneCount < totalCount) "Provider State Results — $doneCount / $totalCount" else "Provider State Results") },
-            text = { Column {
-                providerStateRows.forEach { (name, state) ->
-                    val (text, color) = when (state) {
-                        null -> "pending" to AppColors.TextTertiary
-                        "ok" -> "ok" to AppColors.Green
-                        "error" -> "error" to AppColors.Red
-                        else -> state to AppColors.TextTertiary
-                    }
-                    Text("$name: $text", fontSize = 13.sp, color = color)
-                }
-            }},
-            confirmButton = { TextButton(onClick = { showProviderStateDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
+        val rows = providerStateRows.map { (name, state) ->
+            val (text, color) = when (state) {
+                null -> "pending" to AppColors.TextTertiary
+                "ok" -> "ok" to AppColors.Green
+                "error" -> "error" to AppColors.Red
+                else -> state to AppColors.TextTertiary
+            }
+            RefreshResultRow(name, text, color)
+        }
+        RefreshResultScreen(
+            titleText = if (totalCount > 0 && doneCount < totalCount) "Provider State — $doneCount / $totalCount" else "Provider State Results",
+            description = "Each provider's saved API key was tested with a small live call. Inactive and unkeyed providers are skipped without testing.",
+            rows = rows,
+            onBack = { showProviderStateDialog = false },
+            onNavigateHome = onNavigateHome
         )
+        return
     }
 
     if (showOpenRouterDialog && openRouterResult != null) {
         val (pricing, specPricing, specParams) = openRouterResult!!
-        AlertDialog(onDismissRequest = { showOpenRouterDialog = false }, title = { Text("OpenRouter Data") },
-            text = { Text("Pricing: $pricing models\nSpec pricing: $specPricing\nSpec parameters: $specParams") },
-            confirmButton = { TextButton(onClick = { showOpenRouterDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = pricing > 0 || specPricing > 0
+        RefreshResultScreen(
+            titleText = "OpenRouter",
+            description = "Pulled the OpenRouter catalog. Pricing entries feed the OpenRouter tier; the spec rows feed model capability flags and the supported-parameters list used by the chat UI.",
+            rows = listOf(
+                RefreshResultRow("Pricing entries", "$pricing models", if (pricing > 0) AppColors.Green else AppColors.Red),
+                RefreshResultRow("Spec pricing", "$specPricing", if (specPricing > 0) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Spec parameters", "$specParams", if (specParams > 0) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Cache age", PricingCache.getOpenRouterCacheAge(context), AppColors.TextTertiary)
+            ),
+            sampleHeader = if (ok) "Sample model entries" else null,
+            sampleEntries = if (ok) PricingCache.getOpenRouterPricing(context).keys.sorted().take(8) else emptyList(),
+            onBack = { showOpenRouterDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showLiteLLMDialog) {
         val n = litellmResult
-        AlertDialog(onDismissRequest = { showLiteLLMDialog = false }, title = { Text("LiteLLM Pricing") },
-            text = {
-                Text(
-                    if (n == null) "Failed to fetch from BerriAI/litellm GitHub. Check connectivity and try again."
-                    else "Refreshed $n priced models from the litellm GitHub source."
-                )
-            },
-            confirmButton = { TextButton(onClick = { showLiteLLMDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = n != null && n > 0
+        RefreshResultScreen(
+            titleText = "LiteLLM Pricing",
+            description = if (n == null) "Failed to fetch model_prices_and_context_window.json from BerriAI/litellm. Check connectivity and try again."
+            else "Downloaded model_prices_and_context_window.json. LiteLLM is the primary tier in the layered pricing lookup — also feeds capability flags (vision, web search, etc.).",
+            rows = listOf(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.Red else AppColors.Green
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+            ),
+            sampleHeader = if (ok) "Sample model entries" else null,
+            sampleEntries = if (ok) PricingCache.getLiteLLMPricing(context).keys.sorted().take(8) else emptyList(),
+            onBack = { showLiteLLMDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showModelsDevDialog) {
         val n = modelsDevResult
-        AlertDialog(onDismissRequest = { showModelsDevDialog = false }, title = { Text("models.dev") },
-            text = {
-                Text(
-                    if (n == null) "Failed to fetch from models.dev. Check connectivity and try again."
-                    else "Refreshed $n priced models from the models.dev catalog. Used as a LiteLLM fallback."
-                )
-            },
-            confirmButton = { TextButton(onClick = { showModelsDevDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = n != null && n > 0
+        RefreshResultScreen(
+            titleText = "models.dev",
+            description = if (n == null) "Failed to fetch from models.dev. Check connectivity and try again."
+            else "Pulled the models.dev community catalog. Sits below LiteLLM in the layered pricing lookup — fills gaps for newer models and -latest aliases that haven't reached LiteLLM yet.",
+            rows = listOf(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.Red else AppColors.Green
+                ),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+            ),
+            onBack = { showModelsDevDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showHeliconeDialog) {
         val n = heliconeResult
-        AlertDialog(onDismissRequest = { showHeliconeDialog = false }, title = { Text("Helicone") },
-            text = {
-                Text(
-                    if (n == null) "Failed to fetch from Helicone. Check connectivity and try again."
-                    else "Loaded $n Helicone entries (exact + pattern). Used as a pricing fallback."
-                )
-            },
-            confirmButton = { TextButton(onClick = { showHeliconeDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = n != null && n > 0
+        RefreshResultScreen(
+            titleText = "Helicone",
+            description = if (n == null) "Failed to fetch from helicone.ai/api/llm-costs. Check connectivity and try again."
+            else "Pulled the Helicone pricing aggregator. Pricing-only fallback — sits after LiteLLM and models.dev in the layered lookup, before llm-prices.",
+            rows = listOf(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.Red else AppColors.Green
+                ),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+            ),
+            onBack = { showHeliconeDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showLLMPricesDialog) {
         val n = llmPricesResult
-        AlertDialog(onDismissRequest = { showLLMPricesDialog = false }, title = { Text("llm-prices.com") },
-            text = {
-                Text(
-                    if (n == null) "Failed to fetch from simonw/llm-prices. Check connectivity and try again."
-                    else "Loaded $n curated entries across 10 vendors from llm-prices.com."
-                )
-            },
-            confirmButton = { TextButton(onClick = { showLLMPricesDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = n != null && n > 0
+        RefreshResultScreen(
+            titleText = "llm-prices.com",
+            description = if (n == null) "Failed to fetch from simonw/llm-prices. Check connectivity and try again."
+            else "Pulled Simon Willison's curated per-vendor pricing tables. Useful as a tiebreaker for the major commercial providers.",
+            rows = listOf(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.Red else AppColors.Green
+                ),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Vendors", "10", AppColors.TextTertiary)
+            ),
+            onBack = { showLLMPricesDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showAaDialog) {
         val n = aaResult
-        AlertDialog(onDismissRequest = { showAaDialog = false }, title = { Text("Artificial Analysis") },
-            text = {
-                Text(
-                    when {
-                        n == null && artificialAnalysisApiKey.isBlank() -> "Add the Artificial Analysis API key under External Services first."
-                        n == null -> "Failed to fetch from Artificial Analysis. Check the API key and try again."
-                        else -> "Loaded $n entries (pricing + intelligence/speed scores) from Artificial Analysis."
-                    }
-                )
-            },
-            confirmButton = { TextButton(onClick = { showAaDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } })
+        val ok = n != null && n > 0
+        val description = when {
+            n == null && artificialAnalysisApiKey.isBlank() -> "Add the Artificial Analysis API key under External Services first."
+            n == null -> "Failed to fetch from artificialanalysis.ai/api/v2/data/llms/models. Check the API key and try again."
+            else -> "Pulled Artificial Analysis (pricing + intelligence_index + output speed). Bottom-of-stack pricing fallback before manual override and DEFAULT."
+        }
+        RefreshResultScreen(
+            titleText = "Artificial Analysis",
+            description = description,
+            rows = listOf(
+                RefreshResultRow(
+                    "Status", if (n == null) "failed" else "loaded",
+                    if (n == null) AppColors.Red else AppColors.Green
+                ),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+            ),
+            onBack = { showAaDialog = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showGenerationDialog) {
         val doneCount = generationRows.count { it.second != null }
         val totalCount = generationRows.size
-        AlertDialog(
-            onDismissRequest = { showGenerationDialog = false },
-            title = { Text(if (totalCount > 0 && doneCount < totalCount) "Default Agent Generation — $doneCount / $totalCount" else "Default Agent Generation") },
-            text = {
-                Column {
-                    generationRows.forEach { (name, result) ->
-                        val (text, color) = when (result) {
-                            null  -> "pending" to AppColors.TextTertiary
-                            true  -> "OK" to AppColors.Green
-                            false -> "failed" to AppColors.Red
-                        }
-                        Text("$name: $text", fontSize = 13.sp, color = color)
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showGenerationDialog = false }) { Text("OK", maxLines = 1, softWrap = false) } }
+        val rows = generationRows.map { (name, result) ->
+            val (text, color) = when (result) {
+                null  -> "pending" to AppColors.TextTertiary
+                true  -> "OK" to AppColors.Green
+                false -> "failed" to AppColors.Red
+            }
+            RefreshResultRow(name, text, color)
+        }
+        RefreshResultScreen(
+            titleText = if (totalCount > 0 && doneCount < totalCount) "Default Agents — $doneCount / $totalCount" else "Default Agent Generation",
+            description = "Each active provider was probed with its current default model. On success the provider gets a default agent (if missing) and joins the \"default agents\" flock.",
+            rows = rows,
+            onBack = { showGenerationDialog = false },
+            onNavigateHome = onNavigateHome
         )
+        return
     }
 
     // Each refresh's core work lives in a suspend lambda that captures the
@@ -492,6 +559,54 @@ private fun RefreshAction(
                 colors = AppColors.outlinedButtonColors()
             ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
             Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+private data class RefreshResultRow(val label: String, val value: String, val color: Color)
+
+@Composable
+private fun RefreshResultScreen(
+    titleText: String,
+    description: String?,
+    rows: List<RefreshResultRow>,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    sampleHeader: String? = null,
+    sampleEntries: List<String> = emptyList()
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "refresh", title = titleText, onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!description.isNullOrBlank()) {
+                Text(description, fontSize = 13.sp, color = AppColors.TextSecondary)
+            }
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rows.forEach { r ->
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(r.label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                            Text(r.value, fontSize = 13.sp, color = r.color, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+            if (!sampleHeader.isNullOrBlank() && sampleEntries.isNotEmpty()) {
+                Text(sampleHeader, fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        sampleEntries.forEach { key ->
+                            Text(key, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1)
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+            Text("OK", maxLines = 1, softWrap = false)
         }
     }
 }

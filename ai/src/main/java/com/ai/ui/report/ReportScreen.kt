@@ -2,6 +2,7 @@ package com.ai.ui.report
 
 import android.app.Activity
 import android.view.WindowManager
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -746,14 +747,21 @@ fun ReportsScreen(
         return
     }
 
-    // Cross-type confirm dialog: shown after the scope screen, before
+    // Cross-type confirm screen: shown after the scope screen, before
     // the runner kicks off. Re-derives the (answerers, sources) set
     // from the chosen scope so the user can see exactly how many
-    // calls they're authorising.
+    // calls they're authorising — full-screen so the per-pair preview
+    // has room to breathe.
     val crossMp = crossConfirmMetaPrompt
     if (crossMp != null && currentReportId != null) {
         val rid = currentReportId
-        data class CrossCounts(val answerers: Int, val sources: Int, val pairs: Int)
+        data class CrossCounts(
+            val answerers: Int,
+            val sources: Int,
+            val pairs: Int,
+            val answererNames: List<String>,
+            val sourceNames: List<String>
+        )
         val countsState = produceState<CrossCounts?>(initialValue = null, rid, pendingSecondaryScope) {
             value = withContext(Dispatchers.IO) {
                 val report = com.ai.data.ReportStorage.getReport(context, rid) ?: return@withContext null
@@ -771,62 +779,127 @@ fun ReportsScreen(
                     is com.ai.data.SecondaryScope.Manual -> successful.filter { it.agentId in sc.agentIds }
                 }
                 val pairs = successful.sumOf { ans -> sources.count { it.agentId != ans.agentId } }
-                CrossCounts(successful.size, sources.size, pairs)
+                fun label(a: com.ai.data.ReportAgent): String =
+                    a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
+                CrossCounts(
+                    answerers = successful.size,
+                    sources = sources.size,
+                    pairs = pairs,
+                    answererNames = successful.map(::label),
+                    sourceNames = sources.map(::label)
+                )
             }
         }
         val counts = countsState.value
-        AlertDialog(
-            onDismissRequest = { crossConfirmMetaPrompt = null },
-            title = { Text("Run ${crossMp.name}") },
-            text = {
-                Column {
-                    if (counts == null) {
-                        Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
-                    } else {
-                        Text(
-                            "Running ${crossMp.name} will call every report-model for every other model's response.",
-                            fontSize = 13.sp, color = AppColors.TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // Reports = answerers (one cross call per report-model);
-                        // responses per report = pairs ÷ reports (skips each
-                        // answerer's own response, so AllReports yields N-1).
-                        // Falls back to a flat "N calls" line when scope is
-                        // uneven enough that the grid math doesn't divide
-                        // cleanly.
-                        val gridText = if (counts.answerers > 0 && counts.pairs % counts.answerers == 0) {
-                            val perReport = counts.pairs / counts.answerers
-                            "${counts.answerers} report${if (counts.answerers == 1) "" else "s"} × $perReport response${if (perReport == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+        val scopeLabel = when (val sc = pendingSecondaryScope) {
+            com.ai.data.SecondaryScope.AllReports -> "All reports"
+            is com.ai.data.SecondaryScope.TopRanked -> "Top ${sc.count} ranked"
+            is com.ai.data.SecondaryScope.Manual -> "Manual selection (${sc.agentIds.size})"
+        }
+        BackHandler { crossConfirmMetaPrompt = null }
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            TitleBar(
+                helpTopic = "secondary_cross",
+                title = "Run ${crossMp.name}",
+                onBackClick = { crossConfirmMetaPrompt = null }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Running ${crossMp.name} will call every answerer model once for every other model's response. Each call uses the cross prompt below with @RESPONSE@ filled in.",
+                    fontSize = 13.sp, color = AppColors.TextSecondary
+                )
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (counts == null) {
+                            Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
                         } else {
-                            "${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+                            val gridText = if (counts.answerers > 0 && counts.pairs % counts.answerers == 0) {
+                                val perReport = counts.pairs / counts.answerers
+                                "${counts.answerers} report${if (counts.answerers == 1) "" else "s"} × $perReport response${if (perReport == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+                            } else {
+                                "${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
+                            }
+                            Text(
+                                gridText, fontSize = 15.sp, color = Color.White,
+                                fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
+                            )
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                                Text(scopeLabel, fontSize = 12.sp, color = Color.White)
+                            }
                         }
+                    }
+                }
+                if (counts != null && counts.answererNames.isNotEmpty()) {
+                    Text("Answerer models (${counts.answerers})", fontSize = 13.sp,
+                        color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            counts.answererNames.forEach { name ->
+                                Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                if (counts != null && counts.sourceNames.isNotEmpty()) {
+                    Text("Source responses (${counts.sources})", fontSize = 13.sp,
+                        color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            counts.sourceNames.forEach { name ->
+                                Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                if (crossMp.text.isNotBlank()) {
+                    Text("Cross prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Text(
-                            gridText,
-                            fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace
+                            crossMp.text, fontSize = 11.sp, color = AppColors.TextDim,
+                            modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { crossConfirmMetaPrompt = null }, modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Cancel", maxLines = 1, softWrap = false) }
+                Button(
                     onClick = {
-                        val mp = crossConfirmMetaPrompt ?: return@TextButton
+                        val mp = crossConfirmMetaPrompt ?: return@Button
                         val sc = pendingSecondaryScope
                         crossConfirmMetaPrompt = null
                         pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                         pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
                         onRunCrossMeta(rid, mp, sc)
                     },
-                    enabled = counts != null && counts.pairs > 0
-                ) { Text("Run", color = AppColors.Green, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { crossConfirmMetaPrompt = null }) {
-                    Text("Cancel", maxLines = 1, softWrap = false)
-                }
+                    enabled = counts != null && counts.pairs > 0,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                ) { Text("Run", maxLines = 1, softWrap = false) }
             }
-        )
+        }
+        return
     }
 
     // Meta prompt model picker. Reuses the same multi-select screen
@@ -1531,67 +1604,84 @@ private fun ColumnScope.GenerationPhase(
         }
 
         if (showViewPicker) {
-            val items = buildList<Pair<String, () -> Unit>> {
-                add("Reports" to onViewResults)
-                add("Prompt" to onViewPrompt)
-                add("Costs" to onViewCosts)
-                viewBuckets.forEach { (name, kind, _) ->
-                    add(name to { onViewSecondaryName(name, kind) })
+            val successful = reportsAgentResults.count { it.value.isSuccess }
+            val totalAgents = reportsAgentResults.size
+            val secondaryCost = secondaryTotals.inputCost + secondaryTotals.outputCost
+            val secondaryTokens = secondaryTotals.inputTokens + secondaryTotals.outputTokens
+            val promptPreview = uiState.genericPromptText.lineSequence()
+                .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
+            val options = buildList {
+                add(ReportActionOption(
+                    label = "Reports",
+                    detail = if (totalAgents == 0) "No agent results yet"
+                    else "$successful of $totalAgents agents succeeded",
+                    onClick = { showViewPicker = false; onViewResults() }
+                ))
+                add(ReportActionOption(
+                    label = "Prompt",
+                    detail = promptPreview,
+                    onClick = { showViewPicker = false; onViewPrompt() }
+                ))
+                add(ReportActionOption(
+                    label = "Costs",
+                    detail = if (secondaryTokens > 0)
+                        "Tokens & cost — secondary so far: %.4f USD".format(secondaryCost)
+                    else "Tokens & cost breakdown",
+                    onClick = { showViewPicker = false; onViewCosts() }
+                ))
+                viewBuckets.forEach { (name, kind, count) ->
+                    add(ReportActionOption(
+                        label = name,
+                        detail = "$count run${if (count == 1) "" else "s"}",
+                        secondary = com.ai.data.legacyKindDisplayName(kind),
+                        onClick = { showViewPicker = false; onViewSecondaryName(name, kind) }
+                    ))
                 }
             }
-            AlertDialog(
-                onDismissRequest = { showViewPicker = false },
-                title = { Text("View") },
-                text = {
-                    Column {
-                        items.forEach { (label, click) ->
-                            Text(
-                                label, fontSize = 15.sp, color = Color.White,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clickable { showViewPicker = false; click() }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showViewPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
-                }
+            ReportActionPickerScreen(
+                titleText = "View",
+                helpTopic = "report_result_generation",
+                options = options,
+                onBack = { showViewPicker = false }
             )
+            return
         }
 
         if (showEditPicker) {
-            val items = listOf<Pair<String, () -> Unit>>(
-                "Prompt" to onEditPrompt,
-                "Title" to onEditTitle,
-                "Models" to onEditModels,
-                "Parameters" to onEditParameters
+            val titlePreview = uiState.genericPromptTitle.ifBlank { "(untitled)" }
+            val promptPreview = uiState.genericPromptText.lineSequence()
+                .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
+            val modelCount = reportsAgentResults.size
+            val options = listOf(
+                ReportActionOption(
+                    label = "Prompt",
+                    detail = promptPreview,
+                    onClick = { showEditPicker = false; onEditPrompt() }
+                ),
+                ReportActionOption(
+                    label = "Title",
+                    detail = titlePreview,
+                    onClick = { showEditPicker = false; onEditTitle() }
+                ),
+                ReportActionOption(
+                    label = "Models",
+                    detail = if (modelCount == 0) "Adjust the model list"
+                    else "$modelCount model${if (modelCount == 1) "" else "s"} on this report",
+                    onClick = { showEditPicker = false; onEditModels() }
+                ),
+                ReportActionOption(
+                    label = "Parameters",
+                    detail = "Temperature, max tokens, top_p, stop sequences",
+                    onClick = { showEditPicker = false; onEditParameters() }
+                )
             )
-            AlertDialog(
-                onDismissRequest = { showEditPicker = false },
-                title = { Text("Edit") },
-                text = {
-                    Column {
-                        items.forEach { (label, click) ->
-                            Text(
-                                label, fontSize = 15.sp, color = Color.White,
-                                modifier = Modifier.fillMaxWidth()
-                                    .clickable { showEditPicker = false; click() }
-                                    .padding(vertical = 12.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {},
-                dismissButton = {
-                    TextButton(onClick = { showEditPicker = false }) {
-                        Text("Cancel", maxLines = 1, softWrap = false)
-                    }
-                }
+            ReportActionPickerScreen(
+                titleText = "Edit",
+                helpTopic = "report_result_generation",
+                options = options,
+                onBack = { showEditPicker = false }
             )
+            return
         }
 
         if (showMetaPicker) {
