@@ -49,7 +49,13 @@ data class GeneralSettings(
      *  rows, secondary picker buttons, agent rows on Report Result,
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
-    val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY
+    val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
+    /** When false the visible "< Back" button on every TitleBar is
+     *  hidden and the screen title slides to the left edge. The
+     *  system / gesture back still works because TitleBar's
+     *  BackHandler is registered independently of the button.
+     *  Provided to the composition tree via LocalShowBackButton. */
+    val showBackButton: Boolean = true
 )
 
 // Prompt history entry

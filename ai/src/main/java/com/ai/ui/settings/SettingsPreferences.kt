@@ -59,7 +59,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
-            modelNameLayout = modelNameLayout
+            modelNameLayout = modelNameLayout,
+            showBackButton = prefs.getBoolean(KEY_SHOW_BACK_BUTTON, true)
         )
     }
 
@@ -73,6 +74,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
+            putBoolean(KEY_SHOW_BACK_BUTTON, settings.showBackButton)
         }
     }
 
@@ -447,6 +449,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
+        private const val KEY_SHOW_BACK_BUTTON = "show_back_button"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

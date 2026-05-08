@@ -72,6 +72,11 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
     { _, _ -> }
 }
 
+/** When false, [TitleBar] hides its visible "< Back" button and the
+ *  screen title left-aligns. The system / gesture back still works
+ *  because TitleBar registers its BackHandler independently. */
+val LocalShowBackButton = compositionLocalOf { true }
+
 /** Make a model-name Text clickable so tapping it opens the Model
  *  Info screen for [providerService] / [model]. No-op when the
  *  provider can't be resolved or the model is blank. Stack on top
@@ -201,6 +206,9 @@ fun TitleBar(
             )
         }
     } else {
+        val showBackButton = LocalShowBackButton.current
+        val backVisible = onBackClick != null && showBackButton
+        val hasLeftSlot = leftContent != null || backVisible
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -210,17 +218,16 @@ fun TitleBar(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     leftContent()
                 }
-            } else if (onBackClick != null) {
+            } else if (backVisible) {
                 TextButton(onClick = handleBack) {
                     Text(backText, color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
-            } else {
-                Spacer(modifier = Modifier.width(1.dp))
             }
             if (title != null) {
                 Text(
                     text = title, style = MaterialTheme.typography.titleLarge, color = Color.White,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), textAlign = TextAlign.Center
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start
                 )
             }
             TextButton(onClick = onAiClick) {

@@ -160,7 +160,8 @@ fun AppNavHost(
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
-        com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo
+        com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
+        com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton
     ) {
     NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
 

@@ -523,11 +523,13 @@ private fun SettingsMainScreen(
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
+    var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
-            tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout
+            tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
+            showBackButton = showBackButton
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -605,6 +607,27 @@ private fun SettingsMainScreen(
                     Text("Provider and model name", fontSize = 14.sp, color = Color.White,
                         modifier = Modifier.clickable { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }.padding(start = 4.dp))
                 }
+            }
+
+            // When off, the visible "< Back" button disappears from
+            // every TitleBar and the screen title left-aligns.
+            // System / gesture back still works (TitleBar's
+            // BackHandler is registered independently).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Show < Back", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
+                        fontSize = 12.sp, color = AppColors.TextSecondary
+                    )
+                }
+                Switch(
+                    checked = showBackButton,
+                    onCheckedChange = { showBackButton = it }
+                )
             }
         }
     }
