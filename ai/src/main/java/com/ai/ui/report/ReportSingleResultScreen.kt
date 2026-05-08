@@ -148,6 +148,7 @@ fun ReportSingleResultScreen(
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
     val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+    val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
@@ -156,7 +157,8 @@ fun ReportSingleResultScreen(
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmRemove = true },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
-            onReload = { confirmReload = true }
+            onReload = { confirmReload = true },
+            onChat = if (canContinueInChat) { { showContinuePicker = true } } else null
         )
 
         Row(
@@ -227,7 +229,6 @@ fun ReportSingleResultScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
-            val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
             Button(
                 onClick = { showContinuePicker = true },
                 modifier = Modifier.fillMaxWidth(),

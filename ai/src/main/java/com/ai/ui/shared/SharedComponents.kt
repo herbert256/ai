@@ -200,7 +200,8 @@ fun TitleBar(
     onTrace: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onInfo: (() -> Unit)? = null,
-    onReload: (() -> Unit)? = null
+    onReload: (() -> Unit)? = null,
+    onChat: (() -> Unit)? = null
 ) {
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     if (onBackClick != null) {
@@ -256,6 +257,7 @@ fun TitleBar(
             TitleBarActionStrip(
                 onHome = navigateHome,
                 onReload = onReload,
+                onChat = onChat,
                 onInfo = onInfo,
                 onDelete = onDelete,
                 onTrace = onTrace,
@@ -267,13 +269,14 @@ fun TitleBar(
 
 /** Action strip rendered on the right of every [TitleBar]. Help and
  *  Home are always shown (Home is the rightmost slot, Help just to
- *  its left); the four conditional slots (Reload / Info / Delete /
+ *  its left); the conditional slots (Reload / Chat / Info / Delete /
  *  Trace) only render when their callback is non-null — null means
  *  the icon is omitted entirely so the strip stays tight. */
 @Composable
 private fun TitleBarActionStrip(
     onHome: () -> Unit,
     onReload: (() -> Unit)?,
+    onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
@@ -281,6 +284,7 @@ private fun TitleBarActionStrip(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload)
+        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete)
         if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace)
