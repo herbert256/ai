@@ -71,14 +71,20 @@ fun SettingsScreen(
     initialEditingInternalPromptId: String? = null
 ) {
     var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
-    // Re-resolve the deep-linked provider id whenever ProviderRegistry
-    // gets fresh entries (key on AppService.entries.size). Without this
-    // a cold-launch deep link to AI_PROVIDER_EDIT could find the lookup
-    // returning null pre-bootstrap, and the `?: goBack()` fallback in
-    // the edit screen would bounce the user straight out of Settings.
-    var selectedProvider by remember(initialProviderId, AppService.entries.size) {
-        mutableStateOf(initialProviderId?.let { AppService.findById(it) })
+    // Hold the runtime selection as the AppService id (a String) so a
+    // mutating ProviderRegistry doesn't blow it away. The previous
+    // approach keyed remember on AppService.entries.size to "re-resolve
+    // post-bootstrap", but that ALSO re-resolved on Add provider /
+    // Import / Reset — which silently dropped the user's runtime
+    // selection back to initialProviderId, bouncing them out of any
+    // open provider edit. Now: store the id, look the AppService up
+    // lazily by id below. The cold-launch race the previous comment
+    // worried about is handled by the lookup returning null until
+    // bootstrap finishes, then succeeding on the next recomposition.
+    var selectedProviderId by remember(initialProviderId) {
+        mutableStateOf(initialProviderId)
     }
+    val selectedProvider: AppService? = selectedProviderId?.let { AppService.findById(it) }
     var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
     var editingFlockId by remember { mutableStateOf<String?>(null) }
     var editingSwarmId by remember { mutableStateOf<String?>(null) }
@@ -185,7 +191,7 @@ fun SettingsScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
                 activeOnly = providersActiveOnly,
                 onActiveOnlyChange = { providersActiveOnly = it },
-                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
+                onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
                 onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
             )
         }
@@ -193,7 +199,7 @@ fun SettingsScreen(
             ProviderAddScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onSaved = { service ->
-                    selectedProvider = service
+                    selectedProviderId = service.id
                     currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                 }
             )
@@ -228,7 +234,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_MODELS -> {
             ModelsListScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                onProviderSelected = { selectedProvider = it; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT },
+                onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT },
                 onRefreshAllModels = onRefreshAllModels
             )
         }
