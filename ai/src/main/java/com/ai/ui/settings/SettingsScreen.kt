@@ -327,7 +327,7 @@ fun SettingsScreen(
             val agent = editingAgentId?.let { aiSettings.getAgentById(it) }
             AgentEditScreen(
                 agent = agent, aiSettings = aiSettings,
-                existingNames = aiSettings.agents.filter { it.id != (agent?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                existingNames = aiSettings.agents.filter { it.id != (agent?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
                 onSave = { saved ->
                     val updated = if (agent != null) aiSettings.copy(agents = aiSettings.agents.map { if (it.id == agent.id) saved else it })
@@ -355,7 +355,7 @@ fun SettingsScreen(
             val flock = editingFlockId?.let { aiSettings.getFlockById(it) }
             FlockEditScreen(
                 flock = flock, aiSettings = aiSettings,
-                existingNames = aiSettings.flocks.filter { it.id != (flock?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                existingNames = aiSettings.flocks.filter { it.id != (flock?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
                     val updated = if (flock != null) aiSettings.copy(flocks = aiSettings.flocks.map { if (it.id == flock.id) saved else it })
                     else aiSettings.copy(flocks = aiSettings.flocks + saved)
@@ -375,7 +375,7 @@ fun SettingsScreen(
             val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
             SwarmEditScreen(
                 swarm = swarm, aiSettings = aiSettings, loadingModelsFor = loadingModelsFor,
-                existingNames = aiSettings.swarms.filter { it.id != (swarm?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                existingNames = aiSettings.swarms.filter { it.id != (swarm?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
                     val updated = if (swarm != null) aiSettings.copy(swarms = aiSettings.swarms.map { if (it.id == swarm.id) saved else it })
                     else aiSettings.copy(swarms = aiSettings.swarms + saved)
@@ -395,7 +395,7 @@ fun SettingsScreen(
             val params = editingParametersId?.let { aiSettings.getParametersById(it) }
             ParametersEditScreen(
                 params = params,
-                existingNames = aiSettings.parameters.filter { it.id != (params?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                existingNames = aiSettings.parameters.filter { it.id != (params?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
                     val updated = if (params != null) aiSettings.copy(parameters = aiSettings.parameters.map { if (it.id == params.id) saved else it })
                     else aiSettings.copy(parameters = aiSettings.parameters + saved)
@@ -415,7 +415,7 @@ fun SettingsScreen(
             val sp = editingSystemPromptId?.let { aiSettings.getSystemPromptById(it) }
             SystemPromptEditScreen(
                 systemPrompt = sp,
-                existingNames = aiSettings.systemPrompts.filter { it.id != (sp?.id ?: "") }.map { it.name.lowercase() }.toSet(),
+                existingNames = aiSettings.systemPrompts.filter { it.id != (sp?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
                     val updated = if (sp != null) aiSettings.copy(systemPrompts = aiSettings.systemPrompts.map { if (it.id == sp.id) saved else it })
                     else aiSettings.copy(systemPrompts = aiSettings.systemPrompts + saved)
@@ -459,7 +459,7 @@ fun SettingsScreen(
                         // "Compare" under cross_in can coexist.
                         existingNames = aiSettings.internalPrompts
                             .filter { it.id != (ip?.id ?: "") && it.category == selectedInternalCategory }
-                            .map { it.name.lowercase() }
+                            .map { it.name.lowercase(java.util.Locale.ROOT) }
                             .toSet(),
                         agentNames = aiSettings.agents.map { it.name },
                         fixedCategory = selectedInternalCategory,

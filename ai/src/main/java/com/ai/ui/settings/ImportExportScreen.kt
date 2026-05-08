@@ -53,11 +53,15 @@ fun ImportExportScreen(
     var importType by remember { mutableStateOf("config") }
 
     fun writeToUri(uri: Uri, content: String) {
-        context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray()) }
+        // Force UTF-8 — toByteArray() and bufferedReader() default to
+        // the platform charset; on a non-UTF-8 device that mangles
+        // any non-ASCII content (Chinese / Cyrillic / emoji in agent
+        // or provider names) when JSON crosses the SAF boundary.
+        context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
     }
 
     fun readFromUri(uri: Uri): String? {
-        return context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
 
     val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
