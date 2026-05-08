@@ -231,9 +231,29 @@ private fun ReportsViewerScreenLoaded(
     val scrollState = rememberScrollState()
     LaunchedEffect(selectedAgentId) { scrollState.scrollTo(0) }
 
+    // Trace lookup for the currently-selected agent \u2014 hoisted above
+    // the TitleBar so the bar's \ud83d\udc1e slot can open it. Re-fires whenever
+    // the user picks a different agent button.
+    val headerTraceFilenameState = produceState<String?>(
+        initialValue = null,
+        report.id, selectedReportAgent?.model, selectedReportAgent?.agentId
+    ) {
+        val agent = selectedReportAgent
+        value = if (agent == null) null else withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == report.id && it.model == agent.model }
+                .maxByOrNull { it.timestamp }?.filename
+        }
+    }
+    val headerTraceFilename = headerTraceFilenameState.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val providerName = selectedReportAgent?.let { AppService.findById(it.provider)?.displayName ?: it.provider } ?: "View Reports"
-        TitleBar(helpTopic = "content_view", title = providerName, onBackClick = onDismiss)
+        TitleBar(
+            helpTopic = "content_view", title = providerName, onBackClick = onDismiss,
+            onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
+                { onNavigateToTraceFile(headerTraceFilename) }
+            } else null
+        )
 
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
 
@@ -264,29 +284,14 @@ private fun ReportsViewerScreenLoaded(
 
             if (selectedReportAgent != null) {
                 val provDisplay = AppService.findById(selectedReportAgent.provider)?.displayName ?: selectedReportAgent.provider
-                // Trace lookup hoisted next to the model header so the
-                // \ud83d\udc1e ladybug can sit at the top of the screen instead of
-                // a separate Trace button below the body.
-                val traceFilenameState = produceState<String?>(initialValue = null, report.id, selectedReportAgent.model, selectedReportAgent.agentId) {
-                    value = withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == report.id && it.model == selectedReportAgent.model }
-                            .maxByOrNull { it.timestamp }?.filename
-                    }
-                }
-                val headerTraceFilename = traceFilenameState.value
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(com.ai.ui.shared.modelLabel(provDisplay, selectedReportAgent.model, separator = " \u2014 "),
-                        fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f))
-                    if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
-                        Text("\ud83d\udc1e", fontSize = 18.sp,
-                            modifier = Modifier.padding(start = 8.dp).clickable { onNavigateToTraceFile(headerTraceFilename) })
-                    }
-                }
+                // Body model header \u2014 the inline \ud83d\udc1e ladybug moved
+                // into the title-bar \ud83d\udc1e slot above; same lookup,
+                // single entry point.
+                Text(
+                    com.ai.ui.shared.modelLabel(provDisplay, selectedReportAgent.model, separator = " \u2014 "),
+                    fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
             }
         }
 
