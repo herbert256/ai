@@ -226,6 +226,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Root cause:** No debouncing.
 **Reproduction:** Search a query, then type each new character; each rerun walks the whole index.
 **Proposed fix:** Debounce via `delay(300)` inside the LaunchedEffect, cancellable on the next launch.
+**Status:** Fixed (this session) — 300 ms debounce inside the search LaunchedEffect
 
 ### Bug 33 — Severity: LOW — Category: search / preview window
 **Location:** lines 158–162 (function searchInChats)
@@ -256,6 +257,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `LocalLlm.availableLlms(context)` does file-system I/O on the main thread (inside `remember(refreshTick)`).
 **Root cause:** No off-thread loading.
 **Proposed fix:** `produceState` with Dispatchers.IO.
+**Status:** Fixed (this session) — LocalLlm.availableLlms loaded via produceState + IO
 
 ---
 
@@ -336,12 +338,14 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `context.contentResolver.query(uri, null, null, null, null)?.use { c -> ... }` — `null` projection asks for all columns, which on some content providers throws SecurityException (sandboxed providers reject null projection on Android 14+).
 **Root cause:** Wide projection.
 **Proposed fix:** Pass `arrayOf(OpenableColumns.DISPLAY_NAME)` as projection.
+**Status:** Fixed (this session) — narrow projection to OpenableColumns.DISPLAY_NAME
 
 ### Bug 49 — Severity: MEDIUM — Category: KB delete race
 **Location:** lines 461–466 (function KnowledgeDetailScreen, delete confirm)
 **Symptom:** `KnowledgeStore.deleteKnowledgeBase` is called on the MAIN thread; it does file I/O (`deleteRecursively`).
 **Root cause:** No off-thread delete.
 **Proposed fix:** Wrap in `scope.launch(Dispatchers.IO) { ... }` then call `onBack()` on Main.
+**Status:** Fixed (this session) — deleteRecursively wrapped in scope.launch + IO
 
 ### Bug 50 — Severity: HIGH — Category: re-index against changed embedder
 **Location:** lines 425–443 (function KnowledgeDetailScreen, Re-index button)
@@ -415,6 +419,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** The catch block sets `errorMessage = e.message`. But the LaunchedEffect runs on a coroutine; if it's cancelled (user backed out), `e` is `CancellationException` → `errorMessage` shows "JobCancellationException: ..." next time the screen opens with stale state.
 **Root cause:** Doesn't filter out CancellationException.
 **Proposed fix:** Re-throw `is CancellationException`.
+**Status:** Fixed (this session) — re-throw CancellationException so back-out doesn't poison errorMessage
 
 ### Bug 61 — Severity: MEDIUM — Category: ModelSearchScreen filter precedence
 **Location:** lines 211–217 (function ModelSearchScreen)
@@ -440,6 +445,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `chatTitle` uses the FIRST user message's first non-blank line. But chat sessions can start with a system message (filtered correctly). However, if the first user message is just the staged "share-target text", that's the title — and it can be hundreds of chars cut to 80 with no ellipsis indicator.
 **Root cause:** No ellipsis on truncation.
 **Proposed fix:** `take(80)` → `take(80) + if (length>80) "…" else ""`.
+**Status:** Fixed (this session) — append … when chat title gets truncated
 
 ### Bug 65 — Severity: LOW — Category: missing field in ALL sources export
 **Location:** lines 924–945 (function ModelInfoScreen, "Show all" button)
@@ -458,6 +464,7 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `var providerFilterId by rememberSaveable { mutableStateOf<String?>(null) }` etc. — but `typeFilter`, `searchQuery`, etc. all use rememberSaveable for filters. Changing aiSettings.modelTypeOverrides while on this screen doesn't refresh `filteredModels` because the remember key set doesn't include modelTypeOverrides snapshot.
 **Root cause:** Settings mutations during composition aren't observed.
 **Proposed fix:** Add `aiSettings.modelTypeOverrides` to the remember key.
+**Status:** Fixed (this session) — include aiSettings.modelTypeOverrides in the filter remember key
 
 ---
 

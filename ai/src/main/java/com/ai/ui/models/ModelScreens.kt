@@ -57,10 +57,12 @@ private fun computeModelUsages(
     onOpenReport: (String) -> Unit
 ): List<ModelUsageEntry> {
     val out = mutableListOf<ModelUsageEntry>()
-    fun chatTitle(s: ChatSession): String =
-        s.messages.firstOrNull { it.role == "user" }?.content?.lineSequence()
-            ?.firstOrNull { it.isNotBlank() }?.trim()?.take(80)
-            ?: "Chat session"
+    fun chatTitle(s: ChatSession): String {
+        val firstLine = s.messages.firstOrNull { it.role == "user" }?.content?.lineSequence()
+            ?.firstOrNull { it.isNotBlank() }?.trim()
+            ?: return "Chat session"
+        return if (firstLine.length > 80) firstLine.take(80) + "…" else firstLine
+    }
     ChatHistoryManager.init(context)
     ChatHistoryManager.getAllSessions().forEach { s ->
         if (s.provider.id == provider.id && s.model == model) {
@@ -199,7 +201,12 @@ fun ModelSearchScreen(
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
-    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, defaultPricingOnly, conflictingPricingOnly, allModels) {
+    // Include modelTypeOverrides in the key so a manual override
+    // edited from another screen invalidates the cached filter
+    // result. The previous key set didn't observe the override,
+    // so a freshly assigned model type didn't surface in the
+    // filtered list until the user changed the search query.
+    val filteredModels = remember(searchQuery, typeFilter, providerFilterId, visionOnly, webSearchOnly, minContextFilter, hasPricingOnly, freeOnly, defaultPricingOnly, conflictingPricingOnly, allModels, aiSettings.modelTypeOverrides) {
         var list = allModels
         if (typeFilter != null) list = list.filter { aiSettings.getModelType(it.provider, it.modelName) == typeFilter }
         if (providerFilterId != null) list = list.filter { it.provider.id == providerFilterId }
@@ -652,6 +659,13 @@ fun ModelInfoScreen(
                 ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
             }
             modelInfo = loadedInfo
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // Honour structured cancellation (user backed out of the
+            // screen mid-load). The previous catch-all wrote the
+            // CancellationException's message into errorMessage and
+            // surfaced it as "JobCancellationException: …" the next
+            // time the screen opened with stale state.
+            throw e
         } catch (e: Exception) {
             errorMessage = e.message
         } finally {

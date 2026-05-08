@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,7 +45,12 @@ fun ChatsHubScreen(
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val installedLocalLlms = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context) }
+    // availableLlms reads filesDir/local_llms — keep it off the
+    // main thread so cold opens / large model libraries don't
+    // jitter the hub.
+    val installedLocalLlms by produceState(initialValue = emptyList<String>(), refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.LocalLlm.availableLlms(context) }
+    }
 
     val hasAgents = remember(aiSettings.agents) {
         aiSettings.agents.any {

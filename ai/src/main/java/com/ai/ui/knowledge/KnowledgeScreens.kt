@@ -469,8 +469,15 @@ fun KnowledgeDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
-                    KnowledgeStore.deleteKnowledgeBase(context, kbId)
-                    onBack()
+                    // Off-thread deleteRecursively — KBs with hundreds
+                    // of source chunks would otherwise block the UI
+                    // for seconds while the file system walked.
+                    scope.launch {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            KnowledgeStore.deleteKnowledgeBase(context, kbId)
+                        }
+                        onBack()
+                    }
                 }) { Text("Delete", color = AppColors.Red) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
@@ -518,7 +525,14 @@ internal fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowled
 
 internal fun displayNameForUri(context: android.content.Context, uri: Uri): String? {
     return runCatching {
-        context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+        // Narrow projection — passing null asks for every column,
+        // which sandboxed providers on Android 14+ reject with
+        // SecurityException. We only need DISPLAY_NAME.
+        context.contentResolver.query(
+            uri,
+            arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+            null, null, null
+        )?.use { c ->
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
             if (c.moveToFirst() && nameIdx >= 0) c.getString(nameIdx) else null
         }

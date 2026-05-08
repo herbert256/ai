@@ -199,6 +199,14 @@ fun ChatSearchScreen(
 
     LaunchedEffect(historyVersion, searchQuery, hasSearched) {
         if (searchQuery.isNotBlank() && hasSearched) {
+            // Debounce keystrokes — searchInChats walks every chat
+            // session, which is fine when the user has typed and
+            // tapped Search but kills the UI when each keystroke
+            // re-fires the effect (a typical history runs ~100 ms
+            // per pass). The cancellable delay restarts on every
+            // re-key, so only a typing pause launches the actual
+            // search.
+            kotlinx.coroutines.delay(300)
             isSearching = true
             searchResults = searchInChats(searchQuery)
             isSearching = false
