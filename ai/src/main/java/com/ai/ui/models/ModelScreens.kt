@@ -517,7 +517,17 @@ fun ModelInfoScreen(
     // Trace count + usage entry are loaded once per (provider, model). They reflect
     // on-disk state at screen open; updates only land on next visit.
     val traceCount = remember(provider, modelName) {
-        ApiTracer.getTraceFiles().count { it.model == modelName }
+        // Match on (hostname, model) — model name alone is not unique
+        // across providers (gpt-4o exists on OpenAI / Azure / OpenRouter
+        // proxies / etc.), so the previous count conflated calls to the
+        // same model name on every provider into the per-provider total.
+        val providerHost = runCatching {
+            java.net.URI(provider.baseUrl).host?.lowercase()
+        }.getOrNull()
+        ApiTracer.getTraceFiles().count { tf ->
+            tf.model == modelName &&
+                (providerHost == null || tf.hostname.equals(providerHost, ignoreCase = true))
+        }
     }
     val usageEntry = remember(provider, modelName) {
         val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
@@ -542,7 +552,7 @@ fun ModelInfoScreen(
     // ModelSearchScreen used to use before its popup was retired.
     if (showAgentEdit) {
         AgentEditScreen(
-            agent = Agent("", "${provider.displayName} $modelName", provider, modelName, aiSettings.getApiKey(provider)),
+            agent = Agent(java.util.UUID.randomUUID().toString(), "${provider.displayName} $modelName", provider, modelName, aiSettings.getApiKey(provider)),
             aiSettings = aiSettings,
             existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
             onTestAiModel = onTestAiModel,
