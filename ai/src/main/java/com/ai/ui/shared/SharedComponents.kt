@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -288,7 +289,10 @@ private fun TitleBarActionStrip(
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete)
         if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace)
-        TitleBarIcon("❓", AppColors.Blue, onHelp)
+        // Help glyph reads narrower than the other emojis, so a
+        // standard 28dp slot leaves visible gaps on either side.
+        // Tightening to 22dp lines it up snugly with its neighbours.
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 22.dp)
         TitleBarIcon("🏠", AppColors.Blue, onHome)
     }
 }
@@ -297,10 +301,11 @@ private fun TitleBarActionStrip(
 private fun TitleBarIcon(
     emoji: String,
     tint: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    width: Dp = 28.dp
 ) {
     Box(
-        modifier = Modifier.size(width = 28.dp, height = 32.dp).clickable(onClick = onClick),
+        modifier = Modifier.size(width = width, height = 32.dp).clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
