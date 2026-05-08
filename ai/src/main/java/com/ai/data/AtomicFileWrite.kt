@@ -17,8 +17,14 @@ import java.io.File
  * Returns true on success.
  */
 fun File.writeTextAtomic(content: String): Boolean {
-    val tmp = File(parentFile, "$name.tmp")
+    val parent = parentFile
+    val tmp = File(parent, "$name.tmp")
     return try {
+        // Make sure the parent exists before we try to drop a tmp file
+        // into it. Without this, a fresh install or a freshly-cleared
+        // sub-directory throws FileNotFoundException on the FOS open
+        // and writeTextAtomic returned false with nothing on disk.
+        if (parent != null && !parent.exists()) parent.mkdirs()
         // Write the bytes AND fsync the file descriptor before the
         // atomic move. ext4 with delayed allocation can hold the
         // tmp file's data in the page cache past the rename — a power
