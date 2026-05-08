@@ -197,13 +197,23 @@ object BackupManager {
             // left a half-empty install with no way back. Now: bytes
             // first, destroy second.
             val staged = readAllEntriesValidated(context, tempZip)
+            // Commit prefs first — SharedPreferences.commit() is
+            // synchronous and atomic per file, so once this returns
+            // every restored prefs file is durable on disk. A process
+            // kill between this step and the file-writing step below
+            // leaves prefs valid + filesDir empty (re-restorable),
+            // whereas the previous flow wiped filesDir BEFORE
+            // committing prefs and would leave an inconsistent
+            // half-restored state pointing at nothing.
+            val prefsRestored = applyPrefsOnly(context, staged)
             clearFilesDirForRestore(context.filesDir)
             // Wipe cacheDir too, but preserve the temp zip we're
             // currently restoring from — deleting it mid-restore would
             // be safe (we've already read its bytes into [staged]) but
             // preserving it keeps the finally below well-defined.
             clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
-            applyStagedEntries(context, staged, version)
+            val filesRestored = applyFilesOnly(context, staged)
+            RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
         } finally {
             tempZip.delete()
         }
@@ -265,24 +275,32 @@ object BackupManager {
         return out
     }
 
-    /** Second pass — apply the in-memory staged entries to disk. By
-     *  now we've passed the wipe and the staged bytes are already
-     *  proven to read cleanly. */
-    private fun applyStagedEntries(context: Context, staged: Map<String, ByteArray>, version: Int): RestoreSummary {
+    /** First apply pass — commit every prefs/<name>.json entry into
+     *  its SharedPreferences file. Each commit() call is synchronous +
+     *  atomic per file. Splitting prefs out of the file pass lets the
+     *  restore() caller commit prefs BEFORE wiping filesDir, so a
+     *  crash mid-restore can't leave us with empty filesDir + stale
+     *  prefs pointing at nothing. */
+    private fun applyPrefsOnly(context: Context, staged: Map<String, ByteArray>): Int {
         var prefsRestored = 0
+        for ((name, bytes) in staged) {
+            if (name.startsWith("prefs/") && name.endsWith(".json")) {
+                val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
+                if (prefsName.isNotBlank()) {
+                    applyPrefs(context, prefsName, bytes); prefsRestored++
+                }
+            }
+        }
+        return prefsRestored
+    }
+
+    /** Second apply pass — write every files/ and cache/ entry to
+     *  disk. Caller should already have wiped the corresponding
+     *  directories; this just lays down the staged bytes. */
+    private fun applyFilesOnly(context: Context, staged: Map<String, ByteArray>): Int {
         var filesRestored = 0
         for ((name, bytes) in staged) {
             when {
-                name == "manifest.json" -> Unit
-                // Generic: any prefs/<name>.json restores into the SharedPreferences
-                // file called <name>. Old backups (pre-pricing_cache addition) and
-                // future additions both round-trip without further code changes.
-                name.startsWith("prefs/") && name.endsWith(".json") -> {
-                    val prefsName = name.removePrefix("prefs/").removeSuffix(".json")
-                    if (prefsName.isNotBlank()) {
-                        applyPrefs(context, prefsName, bytes); prefsRestored++
-                    }
-                }
                 name.startsWith("files/") -> {
                     val rel = name.removePrefix("files/")
                     if (rel.isNotBlank()) {
@@ -308,11 +326,7 @@ object BackupManager {
         // launch — nothing else to do here. The on-demand
         // ProviderRegistry.importFromAsset is the only path that adds
         // newly bundled providers now.
-        return RestoreSummary(
-            version = version,
-            prefsFiles = prefsRestored,
-            dataFiles = filesRestored
-        )
+        return filesRestored
     }
 
     private fun readManifestVersion(zipFile: File): Int {
