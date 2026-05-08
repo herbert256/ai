@@ -610,23 +610,11 @@ internal fun ReportSelectInternalPromptScreen(
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                p.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            // type pill — chat / rerank / moderation
-                            // — useful at a glance for meta-category
-                            // prompts where the type drives routing.
-                            if (p.type.isNotBlank()) {
-                                Text(
-                                    p.type, fontSize = 10.sp, color = AppColors.TextTertiary,
-                                    modifier = Modifier.background(AppColors.CardBackground, MaterialTheme.shapes.extraSmall)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
+                        Text(
+                            p.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
                         if (p.title.isNotBlank()) {
                             Text(p.title, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
@@ -718,12 +706,6 @@ internal fun ReportOneTimePromptScreen(
     BackHandler { onBack() }
     var name by remember { mutableStateOf("One-time ${category.replace('_', ' ')}") }
     var text by remember { mutableStateOf("") }
-    // Meta-category prompts can be chat / rerank / moderation; cross-*
-    // run as chat. The one-time UI defaults to chat across the board —
-    // running a one-time rerank / moderation isn't useful without the
-    // structured-response harness, and the user can always edit the
-    // saved-prompt list to add a typed entry instead.
-    val type = "chat"
 
     val placeholders: List<Pair<String, String>> = when (category) {
         "cross_out" -> listOf(
@@ -814,7 +796,6 @@ internal fun ReportOneTimePromptScreen(
                 val built = InternalPrompt(
                     id = java.util.UUID.randomUUID().toString(),
                     name = name.trim().ifBlank { "One-time prompt" },
-                    type = type,
                     category = category,
                     text = text
                 )

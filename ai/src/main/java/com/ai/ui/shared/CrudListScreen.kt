@@ -50,6 +50,10 @@ fun <T> CrudListScreen(
     deleteEntityType: String,
     deleteEntityName: (T) -> String,
     itemKey: (T) -> Any = { it as Any },
+    /** When true, suppresses the Add button and the per-row delete X.
+     *  Used for fixed-list screens (e.g. Other Internal prompts) where
+     *  rows are still tappable to edit but cannot be added or removed. */
+    fixedList: Boolean = false,
     /** Optional slot rendered between the Add button and the list —
      *  used by InternalPromptsListScreen to surface the
      *  "Load new prompts from assets/prompts.json" action. */
@@ -67,12 +71,14 @@ fun <T> CrudListScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = onAdd,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) {
-            Text(addLabel, maxLines = 1, softWrap = false)
+        if (!fixedList) {
+            Button(
+                onClick = onAdd,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) {
+                Text(addLabel, maxLines = 1, softWrap = false)
+            }
         }
 
         headerContent()
@@ -98,7 +104,7 @@ fun <T> CrudListScreen(
                         subtitle = itemSubtitle(item),
                         extraLine = itemExtraLine?.invoke(item),
                         onClick = { onEdit(item) },
-                        onDelete = { showDeleteDialog = item }
+                        onDelete = if (fixedList) null else ({ showDeleteDialog = item })
                     )
                 }
             }

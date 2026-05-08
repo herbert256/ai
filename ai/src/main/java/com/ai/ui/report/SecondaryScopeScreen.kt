@@ -32,8 +32,8 @@ import java.util.Locale
  * Inserted between a Meta-prompt button (or Summarize / Compare button
  * — same flow either way) and the model picker. The user picks the
  * input set (all model reports / top-N from a rerank / a manual
- * subset) and, when the report has translation rows AND the prompt's
- * type is `chat`, which target languages to include.
+ * subset) and, when the report has translation rows, which target
+ * languages to include.
  */
 @Composable
 internal fun SecondaryScopeScreen(
@@ -48,13 +48,13 @@ internal fun SecondaryScopeScreen(
 ) {
     BackHandler { onBack() }
     val kindLabel = metaPrompt.name
-    val isChatType = metaPrompt.type == "chat"
+    val isMetaCategory = metaPrompt.category == "meta"
     // cross_out prompts also pick a subset of report-models as
     // "sources" (the answerer set is always the full successful list).
-    // Top-Ranked / Manual scope therefore make sense for both chat and
-    // cross_out. Language fan-out, however, stays chat-only — cross
+    // Top-Ranked / Manual scope therefore make sense for both meta and
+    // cross_out. Language fan-out, however, stays meta-only — cross
     // always runs on the original.
-    val supportsSubsetScope = isChatType || metaPrompt.category == "cross_out"
+    val supportsSubsetScope = isMetaCategory || metaPrompt.category == "cross_out"
     var scopeMode by remember { mutableStateOf(ScopeMode.ALL) }
     var countText by remember {
         mutableStateOf(minOf(3, totalReports.coerceAtLeast(1)).toString())
@@ -230,9 +230,9 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            // Translation language fan-out only applies to chat-type
-            // prompts. Rerank / moderation runs always use the original.
-            if (isChatType && languages.isNotEmpty()) {
+            // Translation language fan-out only applies to meta-category
+            // prompts. cross runs always use the original.
+            if (isMetaCategory && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))

@@ -22,7 +22,6 @@ object InternalPromptSeed {
     private data class Entry(
         val name: String = "",
         val title: String = "",
-        val type: String = "chat",
         val reference: Boolean = false,
         val category: String = "internal",
         val agent: String = "*select",
@@ -41,7 +40,6 @@ object InternalPromptSeed {
                 InternalPrompt(
                     id = UUID.randomUUID().toString(),
                     name = it.name,
-                    type = it.type.ifBlank { "chat" },
                     reference = it.reference,
                     category = it.category.ifBlank { "internal" },
                     agent = it.agent.ifBlank { "*select" },
@@ -97,7 +95,6 @@ object InternalPromptSeed {
                 }
                 if (i >= 0) {
                     result[i] = result[i].copy(
-                        type = e.type.ifBlank { "chat" },
                         reference = e.reference,
                         category = cat,
                         agent = e.agent.ifBlank { "*select" },
@@ -109,7 +106,6 @@ object InternalPromptSeed {
                         InternalPrompt(
                             id = UUID.randomUUID().toString(),
                             name = e.name,
-                            type = e.type.ifBlank { "chat" },
                             reference = e.reference,
                             category = cat,
                             agent = e.agent.ifBlank { "*select" },

@@ -97,12 +97,12 @@ fun ImportExportScreen(
     val exportPromptsJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         // Drop-in shape for assets/prompts.json — top-level array of
-        // {name, type, reference, category, agent, text} objects, no
+        // {name, title, reference, category, agent, text} objects, no
         // ids (the seed loader assigns fresh UUIDs on read).
         val payload = aiSettings.internalPrompts.map {
             linkedMapOf(
                 "name" to it.name,
-                "type" to it.type,
+                "title" to it.title,
                 "reference" to it.reference,
                 "category" to it.category,
                 "agent" to it.agent,

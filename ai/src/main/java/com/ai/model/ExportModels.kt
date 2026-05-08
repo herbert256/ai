@@ -110,7 +110,6 @@ data class ConfigExport(
 data class InternalPromptExport(
     val id: String,
     val name: String,
-    val type: String,
     val reference: Boolean = false,
     val category: String = "internal",
     val agent: String = "*select",

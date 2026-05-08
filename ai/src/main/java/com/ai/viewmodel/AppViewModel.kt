@@ -347,7 +347,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 ai.internalPrompts.none { it.name.equals(name, ignoreCase = true) }) {
                 migratedFromLegacy += com.ai.model.InternalPrompt(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = name, type = "chat", reference = false,
+                    name = name, reference = false,
                     category = "internal", agent = "*select", text = text
                 )
             }

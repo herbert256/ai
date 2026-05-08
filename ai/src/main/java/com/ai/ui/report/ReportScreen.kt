@@ -952,8 +952,7 @@ fun ReportsScreen(
     }
 
     // Meta prompt model picker. Reuses the same multi-select screen
-    // with the Meta prompt's name as the label, and (for rerank /
-    // moderation type) a model-type filter that narrows the picker.
+    // with the Meta prompt's name as the label.
     val pickerMetaPrompt = secondaryPickerMetaPrompt
     if (pickerMetaPrompt != null && currentReportId != null) {
         val rid = currentReportId
@@ -962,20 +961,8 @@ fun ReportsScreen(
             // Single-pick: tap fires the meta run for one model and pops
             // back. Users wanting two runs just open the picker twice.
             titleText = "${pickerMetaPrompt.name} — pick model",
-            modelTypeFilter = when (pickerMetaPrompt.type) {
-                "rerank" -> com.ai.data.ModelType.RERANK
-                "moderation" -> com.ai.data.ModelType.MODERATION
-                else -> null
-            },
             onConfirm = { pick ->
-                val (provider, model) = pick
-                if (provider.id == "LOCAL" && pickerMetaPrompt.type == "rerank") {
-                    // Rerank locally via MediaPipe TextEmbedder
-                    // cosine — see ReportViewModel.runLocalRerank.
-                    onRunLocalRerank(rid, model)
-                } else {
-                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
-                }
+                onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
                 secondaryPickerMetaPrompt = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
@@ -1155,19 +1142,11 @@ fun ReportsScreen(
     }
 
     // Helper used by the Meta card and the Meta hub's "Add" list.
-    // Meta-category prompts are chat / rerank / moderation; chat
-    // goes through the scope screen, the rest skip straight to the
-    // model picker. cross_out prompts have their own button + popup
-    // and are routed via launchCrossPrompt below.
+    // Every Meta-category prompt now goes through the scope screen.
+    // cross_out prompts have their own button + popup and are routed
+    // via launchCrossPrompt below.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        if (mp.type == "chat") {
-            secondaryScopeMetaPrompt = mp
-        } else {
-            // Rerank / moderation always operate on the full set — no scope step.
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            secondaryPickerMetaPrompt = mp
-        }
+        secondaryScopeMetaPrompt = mp
     }
     // cross_out prompts always run the scope screen → confirm dialog
     // → runCrossMetaPrompt path. The scope screen hides the language

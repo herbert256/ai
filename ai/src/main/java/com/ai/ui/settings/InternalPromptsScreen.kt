@@ -14,25 +14,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.model.*
 import com.ai.ui.shared.*
 
-/** Allowed values for [InternalPrompt.type]. Order is the display
- *  order in the FilterChip row on the edit screen. `chat` is the
- *  default for new entries. `N/A` is the only valid type for rows
- *  in `cross_out` / `cross_in` categories — those flows iterate
- *  over the prompt body, not a typed dispatch. */
-private val INTERNAL_TYPES = listOf("chat", "rerank", "moderation", "N/A")
-
-/** Allowed categories. `meta` rows show as launchers in the Report
- *  Result screen's Meta button popup; `cross_out` rows show in the
- *  separate Cross button popup and run across every pair of
- *  report-models; `cross_in` rows feed the *Combine reports and
- *  all cross responses* button on Cross Level 1; `internal` rows
- *  are templates consumed by app features (Translate / Model info
- *  / Intro). */
-private val INTERNAL_CATEGORIES = listOf("meta", "internal", "cross_out", "cross_in")
-
-/** Categories whose only valid type is `N/A` — used to decide which
- *  Type chips to render and to keep the persisted type field in
- *  sync when the user flips between categories. */
+/** Categories whose prompts are pure templates (no agent dispatch). */
 private val CROSS_CATEGORIES = setOf("cross_out", "cross_in")
 
 /** Sentinel meaning the run-time picker should ask the user which
@@ -71,6 +53,7 @@ fun InternalPromptsListScreen(
     onEditInternalPrompt: (String) -> Unit
 ) {
     val label = categoryDisplayName(categoryFilter)
+    val isFixedList = categoryFilter == "internal"
     CrudListScreen(
         title = label,
         items = aiSettings.internalPrompts.filter { it.category == categoryFilter },
@@ -80,8 +63,7 @@ fun InternalPromptsListScreen(
         itemTitle = { it.name },
         itemSubtitle = { ip ->
             val parts = buildList {
-                if (ip.type != "N/A") add(ip.type)
-                if (ip.type == "chat" && ip.reference) add("ref")
+                if (ip.reference) add("ref")
                 if (ip.agent != AGENT_SELECT && ip.agent.isNotBlank()) add(ip.agent)
             }
             val tail = ip.title.takeIf { it.isNotBlank() }
@@ -101,7 +83,8 @@ fun InternalPromptsListScreen(
         onHome = onBackToHome,
         deleteEntityType = label.removeSuffix("s"),
         deleteEntityName = { it.name },
-        itemKey = { it.id }
+        itemKey = { it.id },
+        fixedList = isFixedList
     )
 }
 
@@ -111,8 +94,7 @@ fun InternalPromptEditScreen(
     existingNames: Set<String>,
     agentNames: List<String>,
     /** Pin the [InternalPrompt.category] to this value and hide the
-     *  Category picker. cross_out / cross_in additionally hide the
-     *  Type picker since their only valid type is `N/A`. */
+     *  Category picker. */
     fixedCategory: String,
     onSave: (InternalPrompt) -> Unit,
     onBack: () -> Unit,
@@ -121,15 +103,12 @@ fun InternalPromptEditScreen(
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
     val isCrossCategory = fixedCategory in CROSS_CATEGORIES
-    val initialType = when {
-        isCrossCategory -> "N/A"
-        internalPrompt?.type?.takeIf { it in INTERNAL_TYPES && it != "N/A" } != null -> internalPrompt.type
-        else -> "chat"
-    }
+    // Other Internal prompts (intro / model_info / translate / rerank
+    // / moderation) are a fixed list — name is not user-editable.
+    val isFixedList = fixedCategory == "internal"
 
     var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
     var title by remember { mutableStateOf(internalPrompt?.title ?: "") }
-    var type by remember { mutableStateOf(initialType) }
     // Preserve the existing prompt's category on edit; only enforce
     // fixedCategory for new prompts. Stops a deep-link with the wrong
     // category from silently moving the prompt across buckets.
@@ -154,11 +133,6 @@ fun InternalPromptEditScreen(
         else -> null
     }
 
-    // reference only applies to chat-type templates; flip it off when
-    // the user switches type so the persisted value can't disagree
-    // with the executor's behaviour.
-    LaunchedEffect(type) { if (type != "chat" && reference) reference = false }
-
     var agentMenuOpen by remember { mutableStateOf(false) }
 
     Column(
@@ -173,6 +147,7 @@ fun InternalPromptEditScreen(
                 value = name, onValueChange = { name = it },
                 label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
+                enabled = !isFixedList,
                 isError = name.isNotBlank() && nameError != null,
                 supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
             )
@@ -185,44 +160,16 @@ fun InternalPromptEditScreen(
                     fontSize = 11.sp, color = AppColors.TextTertiary) }
             )
 
-            if (!isCrossCategory) {
-                Text("Type", fontSize = 12.sp, color = AppColors.TextTertiary)
-                @OptIn(ExperimentalLayoutApi::class)
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    INTERNAL_TYPES.filter { it != "N/A" }.forEach { t ->
-                        FilterChip(
-                            selected = type == t,
-                            onClick = { type = t },
-                            label = { Text(t) }
-                        )
-                    }
-                }
-                Text(
-                    when (type) {
-                        "rerank" -> "Routes to a rerank API model (currently Cohere). Template body is unused — rerank uses the report prompt as the query and the per-agent responses as documents."
-                        "moderation" -> "Routes to a moderation API model (currently Mistral). Template body is unused — the moderation endpoint takes the per-agent responses as inputs."
-                        else -> "Runs as a chat completion. Template body supports @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
-                    },
-                    fontSize = 11.sp, color = AppColors.TextTertiary
-                )
-            }
-
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(
                     checked = reference,
-                    enabled = type == "chat",
                     onCheckedChange = { reference = it }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Column {
                     Text("Append reference legend", fontSize = 13.sp)
                     Text(
-                        if (type == "chat") "Adds a [N] = Provider / Model footer to the response."
-                        else "Only available for chat-type prompts.",
+                        "Adds a [N] = Provider / Model footer to the response.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                 }
@@ -271,22 +218,16 @@ fun InternalPromptEditScreen(
 
             OutlinedTextField(
                 value = text, onValueChange = { text = it },
-                label = {
-                    Text(
-                        if (type == "chat" || isCrossCategory) "Template body"
-                        else "Template body (unused for $type)"
-                    )
-                },
+                label = { Text("Template body") },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8, maxLines = 22,
-                enabled = type == "chat" || isCrossCategory,
                 colors = AppColors.outlinedFieldColors()
             )
             Text(
                 when (fixedCategory) {
                     "cross_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
                     "cross_in" -> "Placeholders: @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
-                    else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@. rerank / moderation rows ignore the body."
+                    else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary
             )
@@ -297,7 +238,7 @@ fun InternalPromptEditScreen(
         Button(
             onClick = {
                 val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(InternalPrompt(id, name.trim(), type, reference, category, agent, text, title.trim()))
+                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),

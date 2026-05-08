@@ -91,7 +91,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         parameters = settings.parameters.ifEmpty { null }?.map { ParametersExport(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) },
         systemPrompts = settings.systemPrompts.ifEmpty { null }?.map { SystemPromptExport(it.id, it.name, it.prompt) },
         internalPrompts = settings.internalPrompts.ifEmpty { null }?.map {
-            InternalPromptExport(it.id, it.name, it.type, it.reference, it.category, it.agent, it.text)
+            InternalPromptExport(it.id, it.name, it.reference, it.category, it.agent, it.text, it.title)
         },
         huggingFaceApiKey = null,
         // aiPrompts dropped — Internal Prompts are gone; ConfigExport
@@ -152,7 +152,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         val cat = (e.category as String?)?.takeIf { it.isNotBlank() } ?: "meta"
         @Suppress("USELESS_CAST")
         val ag = (e.agent as String?)?.takeIf { it.isNotBlank() } ?: "*select"
-        InternalPrompt(e.id, e.name, e.type, e.reference, cat, ag, e.text, e.title)
+        InternalPrompt(e.id, e.name, e.reference, cat, ag, e.text, e.title)
     }
     // Fold legacy v11-v22 introPrompt / modelInfoPrompt / translatePrompt
     // GeneralSettings fields into matching InternalPrompt entries by
@@ -166,7 +166,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
             if (base.none { it.name.equals(name, ignoreCase = true) }) {
                 base += InternalPrompt(
                     id = java.util.UUID.randomUUID().toString(),
-                    name = name, type = "chat", reference = false,
+                    name = name, reference = false,
                     category = "internal", agent = "*select", text = text
                 )
             }

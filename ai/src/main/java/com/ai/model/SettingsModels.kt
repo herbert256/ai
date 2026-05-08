@@ -149,25 +149,20 @@ data class Parameters(
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
 /**
- * User-managed Internal prompt — covers both the Meta-prompt
- * launchers on the Report Result screen ([category] == "meta") and
- * the built-in Intro / Model info / Translate templates
- * ([category] == "internal"). [type] selects the executor for meta-
- * category entries — "rerank" routes to a rerank-API model,
- * "moderation" to a moderation-API model, "chat" to a regular chat
- * completion. [reference] applies only to type=chat: when true, the
- * executor appends a `[N] = Provider / Model` legend to the response.
- * [agent] is either the literal sentinel `"*select"` (ask the user
- * which model to run on) or the name of an [Agent] in
- * [Settings.agents]. [text] is the chat template body (substituted
- * with @QUESTION@ / @RESULTS@ / @COUNT@ / @TITLE@ / @DATE@); ignored
- * for type=moderation since the moderation API takes the raw inputs
- * and has no template.
+ * User-managed Internal prompt — covers Meta-prompt launchers on the
+ * Report Result screen ([category] == "meta"), Cross fan-out / fan-in
+ * templates ([category] == "cross_out" / "cross_in"), and the fixed
+ * internal templates ([category] == "internal": intro, model_info,
+ * translate, rerank, moderation). [reference]: when true, the executor
+ * appends a `[N] = Provider / Model` legend to the response. [agent]
+ * is either the literal sentinel `"*select"` (ask the user which model
+ * to run on) or the name of an [Agent] in [Settings.agents]. [text]
+ * is the chat template body (substituted with @QUESTION@ / @RESULTS@ /
+ * @COUNT@ / @TITLE@ / @DATE@ and category-specific placeholders).
  */
 data class InternalPrompt(
     val id: String,
     val name: String,
-    val type: String,
     val reference: Boolean = false,
     val category: String = "internal",
     val agent: String = "*select",

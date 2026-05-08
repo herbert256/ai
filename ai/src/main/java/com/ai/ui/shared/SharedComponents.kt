@@ -397,7 +397,9 @@ fun SettingsListItemCard(
     extraLine: String? = null,
     subtitleColor: Color = AppColors.TextTertiary,
     onClick: () -> Unit,
-    onDelete: () -> Unit
+    /** Null hides the trailing X — used by fixed-list screens (e.g.
+     *  Other Internal prompts) where rows are editable but not deletable. */
+    onDelete: (() -> Unit)?
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
@@ -417,8 +419,10 @@ fun SettingsListItemCard(
                     Text(text = extraLine, fontSize = 12.sp, color = AppColors.TextDim)
                 }
             }
-            IconButton(onClick = onDelete) {
-                Text("X", color = AppColors.Red, fontWeight = FontWeight.Bold)
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) {
+                    Text("X", color = AppColors.Red, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

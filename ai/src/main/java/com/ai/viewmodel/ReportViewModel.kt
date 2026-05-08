@@ -562,23 +562,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // re-run each one. Legacy rows (no metaPromptId) are skipped:
         // we don't have enough info to regenerate them under the new
         // CRUD-driven flow, so leaving them in place preserves their
-        // history. Rerun order: rerank-typed first (chat-type may
-        // consume their output as Top-Ranked scope, although this
-        // cascade always uses AllReports — order is still cheaper for
-        // when re-runs interact through report-state).
+        // history.
         val nonTranslate = all.filter { it.kind != SecondaryKind.TRANSLATE }
         val groups = nonTranslate
             .filter { !it.metaPromptId.isNullOrBlank() }
             .groupBy { it.metaPromptId!! }
         val metaPromptsLookup = appViewModel.uiState.value.aiSettings.internalPrompts.associateBy { it.id }
-        val ordered = groups.entries.sortedBy { (id, _) ->
-            when (metaPromptsLookup[id]?.type) {
-                "rerank" -> 0
-                "moderation" -> 1
-                else -> 2
-            }
-        }
-        for ((metaPromptId, rows) in ordered) {
+        for ((metaPromptId, rows) in groups) {
             val mp = metaPromptsLookup[metaPromptId] ?: continue
             val picks = rows
                 .mapNotNull { meta ->
@@ -789,25 +779,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     // ===== Meta prompt results =====
-
-    /** Map a [com.ai.model.InternalPrompt.type] to the [SecondaryKind]
-     *  routing label. The kind decides which API path handles the call
-     *  (rerank endpoint, moderation endpoint, or chat); the user-given
-     *  Meta prompt name (persisted on the result) is what the UI /
-     *  exports bucket on. */
-    private fun metaTypeToKind(type: String): SecondaryKind = when (type) {
-        "rerank" -> SecondaryKind.RERANK
-        "moderation" -> SecondaryKind.MODERATION
-        "chat", "" -> SecondaryKind.META  // chat-type Meta routes through the chat API
-        else -> {
-            // Future schema additions (e.g. an "embed" or "tts" type)
-            // shouldn't silently route through the META chat path —
-            // log so the misroute is visible.
-            android.util.Log.w("ReportViewModel.metaTypeToKind",
-                "Unknown meta prompt type '$type' — falling back to META chat path")
-            SecondaryKind.META
-        }
-    }
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
      *  (provider/model pairs). One [SecondaryResult] per pick is persisted
@@ -1428,8 +1399,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
         if (picks.isEmpty()) return null
-        val kind = metaTypeToKind(metaPrompt.type)
-        val isChatType = metaPrompt.type == "chat"
+        val kind = SecondaryKind.META
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         return scope.launch(Dispatchers.IO) {
@@ -1475,14 +1445,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val successfulCount = if (includeIds != null) includeIds.size
                     else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
 
-                // Multi-language fan-out for chat-type Meta prompts:
-                // one batch per language present on the report. Rerank
-                // and moderation always run on the original — their
-                // content is structured JSON / per-response classifications
-                // and doesn't translate. The Original language is encoded
-                // as null and the SecondaryResult.targetLanguage stays
-                // null for it; translations get the human English name.
-                val translationLanguages = if (isChatType) {
+                // Multi-language fan-out: one batch per language present
+                // on the report. The Original language is encoded as null
+                // and the SecondaryResult.targetLanguage stays null for
+                // it; translations get the human English name.
+                val translationLanguages = run {
                     val nativeByLang = LinkedHashMap<String, String?>()
                     allSecondaries
                         .filter { it.kind == SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
@@ -1498,7 +1465,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             filtered
                         }
                     }
-                } else LinkedHashMap()
+                }
                 // The original (untranslated) source is included by
                 // default and when the user kept it ticked under
                 // Selected. The empty-string sentinel "" in
@@ -1517,10 +1484,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // not capped against each other (intentional; that's the
                 // whole point of allowing concurrent runs).
                 val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
-                // Reference legend — only built when the prompt is
-                // chat-type AND its reference flag is on. Computed once
-                // per batch.
-                val referenceLegend = if (isChatType && metaPrompt.reference)
+                // Reference legend — built when the prompt's reference
+                // flag is on. Computed once per batch.
+                val referenceLegend = if (metaPrompt.reference)
                     buildReferenceLegend(report, includeIds) else null
                 coroutineScope {
                     languages.flatMap { (lang, langNative) ->
