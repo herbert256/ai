@@ -1082,15 +1082,18 @@ fun ReportsScreen(
 
     // Share dialog
     if (showDeleteConfirm && currentReportId != null) {
+        // Capture the report id at dialog-open time so a background
+        // mutation of currentReportId between Delete tap and lambda
+        // execution can't end up deleting the wrong report.
+        val ridAtOpen = currentReportId
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Delete report?") },
             text = { Text("This permanently removes the saved report from disk.") },
             confirmButton = {
                 TextButton(onClick = {
-                    val rid = currentReportId
                     showDeleteConfirm = false
-                    onDeleteReport(rid)
+                    onDeleteReport(ridAtOpen)
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }

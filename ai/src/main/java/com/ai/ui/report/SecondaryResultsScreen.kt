@@ -1036,9 +1036,24 @@ private fun ColumnScope.CrossMetaDrillInView(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        confirmModelDelete = false
-                        crossPrompt?.let { onDeleteCrossModel(it.id, activePid, activeMdl) }
-                        selectedModelKey = null
+                        // Only dismiss the dialog + reset selection
+                        // when we actually fired the delete. The
+                        // previous flow always cleared selectedModelKey,
+                        // so a tap that fell through (crossPrompt null)
+                        // looked successful — the row vanished from
+                        // the L1 selection but the data was untouched.
+                        val cp = crossPrompt
+                        if (cp != null) {
+                            confirmModelDelete = false
+                            onDeleteCrossModel(cp.id, activePid, activeMdl)
+                            selectedModelKey = null
+                        } else {
+                            // Cross prompt unavailable — log and keep
+                            // the dialog open so the user can dismiss
+                            // explicitly.
+                            android.util.Log.w("SecondaryResults",
+                                "Cross-model delete tapped with crossPrompt = null")
+                        }
                     }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
