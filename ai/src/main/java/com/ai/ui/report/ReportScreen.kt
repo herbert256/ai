@@ -442,8 +442,15 @@ fun ReportsScreen(
             // signature) to reload and append the persisted secondary
             // first; 200 ms is long enough for the IO read to publish
             // the new translationRunSummaries before we drop the live row.
+            // Wrap the consume in NonCancellable so navigating away
+            // (or another translation finishing in the same window
+            // and re-keying this effect) can't cancel the consume
+            // mid-call — that previously left the live row stranded
+            // alongside the persisted summary, producing a duplicate.
             delay(200)
-            finishedSignature.forEach { onConsumeTranslation(it) }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                finishedSignature.forEach { onConsumeTranslation(it) }
+            }
         }
     }
     // Overlay state for any flow that can hand off to a Compose

@@ -562,7 +562,11 @@ fun ChatSessionScreen(
             leftContent = {
                 TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false) }
                 if (totalCost > 0) {
-                    Text("%.2fc".format(totalCost), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    // Sub-cent costs round to 0.00 on the 2-decimal
+                    // format; show "<0.01c" so the user can tell a
+                    // tiny cost from a literal zero.
+                    val label = if (totalCost < 0.01) "<0.01c" else "%.2fc".format(totalCost)
+                    Text(label, fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
             },
             onInfo = { navToModelInfo(provider, model) }
