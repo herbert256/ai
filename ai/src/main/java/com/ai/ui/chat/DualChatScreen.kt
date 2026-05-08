@@ -308,8 +308,11 @@ fun DualChatSessionScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
-    val config = remember { appViewModel.uiState.value.dualChatConfig ?: return@remember null }
-    if (config == null) { LaunchedEffect(Unit) { onNavigateBack() }; return }
+    val config = remember { appViewModel.uiState.value.dualChatConfig }
+    if (config == null) {
+        LaunchedEffect(Unit) { onNavigateBack() }
+        return
+    }
 
     val sessionId = remember { "dualchat_${System.currentTimeMillis()}" }
     val messages = remember { mutableStateListOf<DualMessage>() }
