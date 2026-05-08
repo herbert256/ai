@@ -577,7 +577,7 @@ private fun RefreshResultScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "refresh", title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_result", title = titleText, onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!description.isNullOrBlank()) {

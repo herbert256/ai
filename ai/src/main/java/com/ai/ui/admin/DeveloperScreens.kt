@@ -81,7 +81,7 @@ fun ApiTestScreen(
         }
         BackHandler { showModelDialog = false }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_test", title = "Select Model", onBackClick = { showModelDialog = false })
+            TitleBar(helpTopic = "developer_select_model", title = "Select Model", onBackClick = { showModelDialog = false })
             Text(
                 text = selectedProvider.displayName,
                 fontSize = 18.sp, color = AppColors.Green,
@@ -143,7 +143,7 @@ fun ApiTestScreen(
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_test", title = "Select Endpoint", onBackClick = { showEndpointDialog = false })
+            TitleBar(helpTopic = "developer_select_endpoint", title = "Select Endpoint", onBackClick = { showEndpointDialog = false })
             Text(
                 text = selectedProvider.displayName,
                 fontSize = 18.sp, color = AppColors.Green,

@@ -270,6 +270,68 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Use Housekeeping → Backup & Restore for the full-app backup; this screen is reports-only.")
         )
     ),
+    "report_view_picker" to HelpContent(
+        title = "View — picker",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen picker reached from the Report Result action row's View button. Each row is a separate view of the current report."),
+            HelpCard("Reports", "Opens the per-agent reports viewer. Detail line shows N of M agents succeeded so you can spot a partially-failed run before drilling in."),
+            HelpCard("Prompt", "Opens the report's full prompt as scrollable text. Detail line previews the first non-blank line (≤80 chars)."),
+            HelpCard("Costs", "Tokens + cost breakdown across all agents and secondaries. Detail line shows the secondary spend so far in USD when there is any."),
+            HelpCard("Per-Meta-prompt rows", "One row per Meta-prompt name with at least one persisted secondary on this report. Detail = run count; secondary line = the kind label (Rerank / Summarize / Compare / Moderate)."),
+            HelpCard("Title bar", "Static 'View' title; only the back arrow is wired here. Help points at this card.")
+        )
+    ),
+    "report_edit_picker" to HelpContent(
+        title = "Edit — picker",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen picker reached from the Report Result action row's Edit button. Each row routes to a separate edit screen for one slice of the report."),
+            HelpCard("Prompt", "Opens the multi-line prompt editor. Detail line previews the first non-blank line (≤80 chars). Saving stamps a 'Changes pending: prompt' banner on the result screen until you Regenerate."),
+            HelpCard("Title", "Single-line title editor. No pending-changes flag — title is metadata only."),
+            HelpCard("Models", "Routes back to the selection phase with the report's existing model list staged for in-place editing. The detail line says how many models are currently on the report."),
+            HelpCard("Parameters", "Opens the per-report parameter override (temperature, max tokens, top P, stop sequences, etc). Detail line is a generic field hint."),
+            HelpCard("Title bar", "Static 'Edit' title; only the back arrow is wired here. Help points at this card.")
+        )
+    ),
+    "report_cross_confirm" to HelpContent(
+        title = "Cross — confirm run",
+        cards = listOf(
+            HelpCard("Overview", "Confirmation screen shown after the Cross scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
+            HelpCard("Counts grid", "answerers × responses-per-report = total calls. Falls back to a flat 'N calls' line when scope is uneven enough that the grid math doesn't divide cleanly."),
+            HelpCard("Scope", "All reports / Top-N ranked / Manual selection. Reflects the choice made on the previous screen — back to change it."),
+            HelpCard("Answerer / Source lists", "Two cards listing the model names on each side of the cross. A model appears in both when it's both an answerer and a source."),
+            HelpCard("Cross prompt", "Preview of the prompt body (≤12 lines) that will be sent for every pair, with @RESPONSE@ filled in at run time."),
+            HelpCard("Run / Cancel", "Run is disabled while the count loads or when there are zero pairs. Cancel pops back to the previous screen without firing.")
+        )
+    ),
+    "developer_select_model" to HelpContent(
+        title = "API Test — Select Model",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen picker over the active provider's model list. Tap a row to drop the chosen model into the API Test request."),
+            HelpCard("Search field", "Filters by model id (case-insensitive). The ✕ trailing icon clears the field. Counter line shows '<filtered> of <total> models'."),
+            HelpCard("Loading state", "If the model list hasn't been fetched yet, a spinner appears in the body. Tap Fetch from the API Test page first when the list reads empty."),
+            HelpCard("Pricing column", "Per-row prompt / completion price (×10⁶ tokens). Real pricing renders in green; rows that fell through to DEFAULT_PRICING render dim with 'no pricing'."),
+            HelpCard("Title bar", "Static 'Select Model' title; the green sub-header below shows the active provider's name. Only the back arrow is wired here.")
+        )
+    ),
+    "developer_select_endpoint" to HelpContent(
+        title = "API Test — Select Endpoint",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen picker over the active provider's endpoints. The first row is the provider's default base URL; saved custom endpoints follow."),
+            HelpCard("Default row", "Drops the provider.baseUrl into the API Test request. Always present even when there are no custom endpoints saved."),
+            HelpCard("Custom rows", "One row per Endpoint defined under AI Setup → Providers → Endpoints for this provider. Label + URL on two lines (URL is monospace)."),
+            HelpCard("Title bar", "Static 'Select Endpoint' title; the green sub-header shows the active provider's name. Only the back arrow is wired here.")
+        )
+    ),
+    "refresh_result" to HelpContent(
+        title = "Refresh — result",
+        cards = listOf(
+            HelpCard("Overview", "Result screen shown after a Refresh sub-action finishes (catalog refresh, provider state, model refresh, default-agent generation). Replaces the popup result dialogs the screen used to show."),
+            HelpCard("Description block", "Short explanation of what the refresh did and why. Failure states explain what to check (API key, connectivity, etc)."),
+            HelpCard("Result rows", "One row per measured value — Status / counts / cache age. Green = loaded, red = failed, grey = neutral metric."),
+            HelpCard("Sample model entries", "Catalog refreshes (OpenRouter / LiteLLM) include up to 8 sample model keys from the cache so you can confirm real data landed."),
+            HelpCard("OK button", "Returns to the Refresh screen. Multi-row screens (Provider state, Default agents) update live while the underlying refresh runs.")
+        )
+    ),
     "report_pick_flock" to HelpContent(
         title = "Pick a flock",
         cards = listOf(

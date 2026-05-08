@@ -808,7 +808,7 @@ fun ReportsScreen(
         BackHandler { crossConfirmMetaPrompt = null }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
-                helpTopic = "secondary_cross",
+                helpTopic = "report_cross_confirm",
                 title = "Run ${crossMp.name}",
                 onBackClick = { crossConfirmMetaPrompt = null }
             )
@@ -1339,7 +1339,7 @@ fun ReportsScreen(
         }
         ReportActionPickerScreen(
             titleText = "View",
-            helpTopic = "report_result_generation",
+            helpTopic = "report_view_picker",
             options = options,
             onBack = { showViewPicker = false }
         )
@@ -1376,7 +1376,7 @@ fun ReportsScreen(
         )
         ReportActionPickerScreen(
             titleText = "Edit",
-            helpTopic = "report_result_generation",
+            helpTopic = "report_edit_picker",
             options = options,
             onBack = { showEditPicker = false }
         )
