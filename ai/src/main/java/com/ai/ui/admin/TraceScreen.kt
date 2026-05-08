@@ -734,11 +734,20 @@ fun TraceDetailScreen(
                 modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
-                val toCopy = t?.let { redactedContentFor(currentView, it) } ?: displayContent
+                // Only copy when the trace structure is parsed; the
+                // redaction pass needs that. Falling back to displayContent
+                // / rawJson would put plaintext API keys (in Authorization
+                // headers + URL ?key= params) on the clipboard.
+                val parsed = t
+                if (parsed == null) {
+                    Toast.makeText(context, "Trace not loaded yet", Toast.LENGTH_SHORT).show()
+                    return@OutlinedButton
+                }
+                val toCopy = redactedContentFor(currentView, parsed)
                 val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 clip.setPrimaryClip(ClipData.newPlainText("trace", toCopy))
                 Toast.makeText(context, "Copied (redacted)", Toast.LENGTH_SHORT).show()
-            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
+            }, enabled = t != null, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 // Save provider/model/key to prefs for EditApiRequestScreen
                 t?.let { trace ->
@@ -752,9 +761,15 @@ fun TraceDetailScreen(
                 onEditRequest()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
-                val toShare = t?.let { redactedTraceJson(it) } ?: rawJson
-                shareTrace(context, toShare, currentFilename)
-            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
+                // Same secret-leak guard as Copy — share only when the
+                // trace parsed and redactedTraceJson can run.
+                val parsed = t
+                if (parsed == null) {
+                    Toast.makeText(context, "Trace not loaded yet", Toast.LENGTH_SHORT).show()
+                    return@OutlinedButton
+                }
+                shareTrace(context, redactedTraceJson(parsed), currentFilename)
+            }, enabled = t != null, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
             }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
