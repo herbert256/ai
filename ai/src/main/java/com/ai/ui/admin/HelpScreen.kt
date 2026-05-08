@@ -178,14 +178,14 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Translation info", "Shown only for META rows that have a translateSourceTargetId resolving to a non-blank source — opens TranslationCompareScreen.")
         )
     ),
-    "secondary_cross" to HelpContent(
+    "secondary_fan_out" to HelpContent(
         title = "Fan out",
         cards = listOf(
             HelpCard("Overview", "Fan out runs every selected answerer × every source row's content. Each cell is one factcheck call; the title bar reads 'Fan out / Fan out - model / Fan out - pair' as you drill in."),
             HelpCard("Fan out (L1)", "List of every (answerer model, status) — derived from latestByPair across all results. Status icons: ✅ done, ❌ errored, ⏳ running, queued. Tap an answerer to drop to L2."),
             HelpCard("Fan out - model (L2)", "Sources for the chosen answerer (or, if Initiator role is selected, every (answerer, source) where this model is the source). Tap a source row → L3."),
             HelpCard("Fan out - pair (L3)", "Single cell — source content on top, factcheck underneath. Per-row 🐞 links to its own captured trace."),
-            HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningCrossPairs is re-enqueued via onResumeStaleCross — survives app kill mid-batch."),
+            HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningFanOutPairs is re-enqueued via onResumeStaleFanOut — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
             HelpCard("Per-model delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so L1 reflects the gap on pop-back."),
@@ -292,7 +292,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar", "Static 'Edit' title; only the back arrow is wired here. Help points at this card.")
         )
     ),
-    "report_cross_confirm" to HelpContent(
+    "report_fan_out_confirm" to HelpContent(
         title = "Fan out — confirm run",
         cards = listOf(
             HelpCard("Overview", "Confirmation screen shown after the Fan out scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
@@ -376,7 +376,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Lists every TRANSLATE call inside one run, grouped by translationRunId (or, for legacy rows, by 'lang:<targetLanguage>'). Sorted by timestamp ascending."),
             HelpCard("Header", "Provider / model line up top — every call in the run shares one model, so it's shown once. Tap the line to open Model Info. Below: '<count> calls' and the summed cost in cents (when > 0)."),
-            HelpCard("Per-row content", "Status emoji (✅ done, ⏳ blank-content, ❌ errored), source-type label (report / prompt / cross-out / cross-in / meta-prompt-name), then the actual source rebuilt from the original (so the user's Model name layout setting wins over the frozen agentName)."),
+            HelpCard("Per-row content", "Status emoji (✅ done, ⏳ blank-content, ❌ errored), source-type label (report / prompt / fan-out / fan-in / meta-prompt-name), then the actual source rebuilt from the original (so the user's Model name layout setting wins over the frozen agentName)."),
             HelpCard("Per-row tap", "Opens TranslationCallDetailScreen with original on top, translation underneath."),
             HelpCard("Restart failed translations", "Bottom-card button — disabled when erroredCount == 0. Re-runs every ❌ row in this run; ✅ rows are left alone."),
             HelpCard("Start missing translations", "Adds rows for every expected source × language pair that isn't already covered by this run. Useful after a partial cancel."),
@@ -995,7 +995,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Fan out; optional. For Other internal the Name is read-only."),
             HelpCard("Append reference legend", "Switch — adds a [N] = Provider / Model footer to the response."),
             HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (fan_out only). Anything else = the named agent in Settings.agents resolved at run time."),
-            HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @CROSS_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
+            HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @FAN_OUT_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
             HelpCard("Title bar", "helpTopic=internal_prompt_edit. The screen title reads \"Edit/Add <category singular>\"."),
             HelpCard("Pitfalls", "If you deep-link into edit before aiSettings has bootstrapped, the screen shows a \"Loading…\" placeholder and re-keys when the prompt id resolves — saving an empty form there would silently create a duplicate, so it is blocked.")
         )
@@ -1036,7 +1036,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Basics", "ID (uppercase, unique — typed input is auto-uppercased and non-alphanumeric chars become _; existing ids show \"Already in use\"), Display name, Base URL, Default model, Admin URL."),
             HelpCard("API", "API format chips (OPENAI_COMPATIBLE / ANTHROPIC / GOOGLE — only the dispatch format that matters), Chat path (default v1/chat/completions), Models path (default v1/models), Model list format (object/array), Seed field name (default \"seed\")."),
             HelpCard("Models", "Default source (API / MANUAL), Model filter regex, Hardcoded models comma-separated."),
-            HelpCard("Pricing & cost", "OpenRouter name (for cross-provider price lookup), LiteLLM prefix, Cost ticks divisor, Extract API cost switch."),
+            HelpCard("Pricing & cost", "OpenRouter name (for fan out-provider price lookup), LiteLLM prefix, Cost ticks divisor, Extract API cost switch."),
             HelpCard("Features", "Supports citations, Supports search recency. Honored only when sending requests."),
             HelpCard("Storage (collapsible)", "Prefs key — leave blank to use id.lowercase(). Once saved you cannot rename it."),
             HelpCard("Title bar", "helpTopic=provider_add. Plain back."),
@@ -1279,7 +1279,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Manual price-override list. Top button \"Add Manual Override\" opens AddManualOverrideScreen as a full-screen overlay. Empty state shows the lookup precedence (LiteLLM > OpenRouter > Default) — manual overrides slot into that chain after curated tiers."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
-            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
+            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter fan out-provider fallback → Helicone → DEFAULT."),
             HelpCard("Title bar", "helpTopic=cost_config. Plain back."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
             HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Use Housekeeping → Manual cost overrides cleanup to drop redundant entries."),

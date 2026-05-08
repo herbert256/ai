@@ -95,8 +95,8 @@ fun SettingsScreen(
     // Which Internal Prompts CRUD bucket is currently open. Set by the
     // four cards on Prompt Management; the AI_INTERNAL_PROMPTS list
     // and AI_INTERNAL_PROMPT_EDIT screens filter / pin on it. When the
-    // caller deep-links into AI_INTERNAL_PROMPT_EDIT (e.g. Cross L1's
-    // "Edit the used Cross prompt") we derive the bucket from the
+    // caller deep-links into AI_INTERNAL_PROMPT_EDIT (e.g. Fan out L1's
+    // "Edit the used Fan out prompt") we derive the bucket from the
     // prompt being edited so the edit screen pins the right category.
     var selectedInternalCategory by remember {
         mutableStateOf(

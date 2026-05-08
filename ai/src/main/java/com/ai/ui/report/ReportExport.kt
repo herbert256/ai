@@ -514,7 +514,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
         // stripped, falling back to "meta" when the name reduces to
         // nothing. Multiple Meta prompts can never collide because
         // metaByName is name-keyed, so the id collisions handled here
-        // would only be cross-language (each language renders its own
+        // would only be fan out-language (each language renders its own
         // view-block tree, and the JS uses DOM-relative scoping).
         val viewId = "meta-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
         views += View(viewId, name) { renderMetaItemsView(sb, viewId, items, maxAnchor) }

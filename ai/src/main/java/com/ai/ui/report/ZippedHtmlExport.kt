@@ -867,8 +867,8 @@ h1{color:#6B9BFF;font-size:22px;margin-bottom:8px}
 .bug{font-size:16px;text-decoration:none;margin-left:8px;vertical-align:middle;opacity:0.8}
 .bug:hover{opacity:1}
 .translate-links{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.cross-link{background:#252525;color:#64B5F6;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px}
-.cross-link:hover{background:#2c2c2c}
+.fan out-link{background:#252525;color:#64B5F6;padding:6px 12px;border-radius:4px;text-decoration:none;font-size:13px}
+.fan out-link:hover{background:#2c2c2c}
 h2{color:#8BB8FF;font-size:18px;margin-top:24px}
 h3{color:#9FCFFF;font-size:15px;margin-top:16px}
 .meta{color:#888;font-size:12px;margin-bottom:16px}

@@ -74,7 +74,7 @@ private fun computeModelUsages(
     }
     // Walk reports newest-first and stop once we have a comfortable
     // surplus of candidates — the final list is take(10) after a
-    // cross-source sort, so a 3× cap (30) covers chat / report / per-
+    // fan out-source sort, so a 3× cap (30) covers chat / report / per-
     // report secondary tiers without re-parsing every old report's
     // secondary index. Previously this scanned every report PLUS
     // every secondary file on every report on every Model Info open,
@@ -191,7 +191,7 @@ fun ModelSearchScreen(
     val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
 
     // Build aggregated model list from all active providers. Settings.withModels
-    // dedupes per-provider before persisting, so cross-provider uniqueness on
+    // dedupes per-provider before persisting, so fan out-provider uniqueness on
     // (provider.id, modelName) is guaranteed by construction.
     val allModels = remember(aiSettings) {
         activeServices.flatMap { service ->

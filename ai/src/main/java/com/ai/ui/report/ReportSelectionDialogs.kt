@@ -314,7 +314,7 @@ internal fun ReportSelectModelsScreen(
 
 // ========================================================================
 // Full-screen replacements for the +Flock / +Swarm dialogs and the
-// Meta / Cross / After-cross picker popups. Each one shows richer per-row
+// Meta / Fan out / Fan-in picker popups. Each one shows richer per-row
 // info than the cramped AlertDialog could, surfaces an "Edit …" button
 // that deep-links into Settings, and (for prompts) a "Use a one-time
 // prompt" entry that lets the user type a throwaway template inline.
@@ -517,7 +517,7 @@ internal fun ReportSelectSwarmScreen(
 }
 
 /** Full-screen internal-prompt picker. One Composable serves the Meta /
- *  Cross-out / Cross-in launcher pickers — pass the filtered prompt
+ *  Fan-out / Fan-in launcher pickers — pass the filtered prompt
  *  list, the title, and the category id used for "Edit X prompts" deep
  *  link + the "one-time prompt" InternalPrompt construction.
  *
@@ -569,8 +569,8 @@ internal fun ReportSelectInternalPromptScreen(
         // is shared across the three picker entry points.
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "fan_out" -> "secondary_cross"
-            "fan_in" -> "secondary_cross"
+            "fan_out" -> "secondary_fan_out"
+            "fan_in" -> "secondary_fan_out"
             else -> "secondary_list"
         }
         TitleBar(helpTopic = helpId, title = titleText, onBackClick = onBack)
@@ -720,7 +720,7 @@ internal fun ReportOneTimePromptScreen(
             "@TITLE@" to "report title",
             "@DATE@" to "current date",
             "@COUNT@" to "N reports",
-            "@CROSS_COUNT@" to "N-1 responses each",
+            "@FAN_OUT_COUNT@" to "N-1 responses each",
             "@REPORT@@RESPONSES@" to "iterable block — use once; @RESPONSE@ goes inside @RESPONSES@"
         )
         else -> listOf( // meta / chat / fallback
@@ -735,8 +735,8 @@ internal fun ReportOneTimePromptScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "fan_out" -> "secondary_cross"
-            "fan_in" -> "secondary_cross"
+            "fan_out" -> "secondary_fan_out"
+            "fan_in" -> "secondary_fan_out"
             else -> "internal_prompt_edit"
         }
         TitleBar(helpTopic = helpId, title = "One-time prompt", onBackClick = onBack)

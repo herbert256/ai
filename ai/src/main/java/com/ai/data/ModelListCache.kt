@@ -17,7 +17,7 @@ import java.io.File
  * those paths consistent. SharedPreferences also keeps a copy under
  * `${prefsKey}_models_response_raw` for the in-memory snapshot path
  * that drives the model picker — the file cache is the authoritative
- * disk record for cross-session use.
+ * disk record for fan out-session use.
  */
 object ModelListCache {
     private const val DIR = "model_lists"

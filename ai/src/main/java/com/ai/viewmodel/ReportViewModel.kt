@@ -31,28 +31,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
 
-    // Active cross-meta jobs keyed by "$reportId|$metaPromptId". Used
-    // by rerunCompleteCross / rerunFailedCrossPairs / resumeStaleCrossPairs
+    // Active fan-out jobs keyed by "$reportId|$metaPromptId". Used
+    // by rerunCompleteFanOut / rerunFailedFanOutPairs / resumeStaleFanOutPairs
     // so the destructive "wipe + rerun" paths can cancel and join the
     // existing run before deleting placeholders. Without this, surviving
     // coroutines from the previous run kept calling
     // SecondaryResultStorage.save on the just-deleted ids, resurrecting
     // zombie rows alongside the freshly-created placeholders and
     // double-billing the user.
-    private val crossJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private fun crossJobKey(reportId: String, metaPromptId: String) = "$reportId|$metaPromptId"
-    private fun registerCrossJob(reportId: String, metaPromptId: String, job: Job) {
-        val key = crossJobKey(reportId, metaPromptId)
-        crossJobs[key] = job
-        job.invokeOnCompletion { crossJobs.remove(key, job) }
+    private val fanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun fanOutJobKey(reportId: String, metaPromptId: String) = "$reportId|$metaPromptId"
+    private fun registerFanOutJob(reportId: String, metaPromptId: String, job: Job) {
+        val key = fanOutJobKey(reportId, metaPromptId)
+        fanOutJobs[key] = job
+        job.invokeOnCompletion { fanOutJobs.remove(key, job) }
     }
 
-    // Tracks in-flight resumeStaleCrossPairs scans per (reportId,
-    // metaPromptId). The L1 screen fires resumeStaleCrossPairs from a
-    // LaunchedEffect that re-keys whenever crossPrompt changes
-    // identity — and crossPrompt is recomputed on every aiSettings
+    // Tracks in-flight resumeStaleFanOutPairs scans per (reportId,
+    // metaPromptId). The L1 screen fires resumeStaleFanOutPairs from a
+    // LaunchedEffect that re-keys whenever fanOutPrompt changes
+    // identity — and fanOutPrompt is recomputed on every aiSettings
     // change (i.e., any settings save, even unrelated ones). Without a
-    // guard, touching Settings while a Cross is running would re-issue
+    // guard, touching Settings while a Fan out is running would re-issue
     // the listForReport scan + recovery enqueue, stacking duplicate
     // work on the executor's semaphore.
     private val staleResumeScans = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -859,29 +859,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Cross-type Meta runner: for each successful report-model
+    /** Fan-out Meta runner: for each successful report-model
      *  (the "answerer") and each source model in [scopeChoice], runs
      *  the prompt with `@RESPONSE@` substituted by the source's
      *  response body. Self-pairs are skipped. Always runs on the
-     *  Original language; cross does not fan out to translations.
+     *  Original language; fan out does not fan out to translations.
      *
      *  Persists one [SecondaryResult] per (answerer, source) with
-     *  kind=META and crossSourceAgentId=source.agentId so the result
+     *  kind=META and fanOutSourceAgentId=source.agentId so the result
      *  drill-in can group by answerer then by source.
      */
-    fun runCrossMetaPrompt(
+    fun runFanOutPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports
     ): Job? {
-        // Dedupe against an already-running cross for this
+        // Dedupe against an already-running fan out for this
         // (report, metaPrompt) — a UI double-tap on the launch
         // button or a second caller via a separate path would
         // otherwise create a parallel batch with its own
         // placeholders, doubling pairs and cost.
-        crossJobs[crossJobKey(reportId, metaPrompt.id)]?.let { existing ->
+        fanOutJobs[fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
             if (existing.isActive) return existing
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -909,8 +909,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     if (sources.isEmpty()) return@launch
                     // Pre-create every (answerer, source) placeholder
-                    // up-front so the Report Result screen's cross
-                    // summary row and the cross detail screen's L1/L2
+                    // up-front so the Report Result screen's fan out
+                    // summary row and the fan out detail screen's L1/L2
                     // counts read the *full* expected work immediately
                     // (e.g. "30 pairs · 30 pending" for 6×5) and tick
                     // down as calls complete — instead of waking up
@@ -928,14 +928,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             ).copy(
                                 metaPromptId = metaPrompt.id,
                                 metaPromptName = metaPrompt.name,
-                                crossSourceAgentId = source.agentId
+                                fanOutSourceAgentId = source.agentId
                             )
                             SecondaryResultStorage.save(context, placeholder)
                             pending.add(PendingPair(answerer, source, placeholder))
                         }
                     }
                     // Launch one coroutine per pair, gated by a
-                    // per-provider Semaphore(CROSS_PER_PROVIDER_LIMIT=3).
+                    // per-provider Semaphore(FAN_OUT_PER_PROVIDER_LIMIT=3).
                     // 6 reports on 6 different providers therefore run
                     // up to 6 × 3 = 18 calls concurrently; pairs sharing
                     // a provider queue behind that provider's 3-slot
@@ -946,14 +946,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val semByProvider = pending
                         .map { it.answerer.provider }
                         .toSet()
-                        .associateWith { Semaphore(AppViewModel.CROSS_PER_PROVIDER_LIMIT) }
+                        .associateWith { Semaphore(AppViewModel.FAN_OUT_PER_PROVIDER_LIMIT) }
                     coroutineScope {
                         pending.map { item ->
                             async {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val sem = semByProvider[item.answerer.provider] ?: return@async
                                 sem.withPermit {
-                                    appViewModel.updateRunningCrossPairs { it + item.placeholder.id }
+                                    appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
                                     try {
                                         val resolvedBase = resolveSecondaryPrompt(
                                             metaPrompt.text,
@@ -966,11 +966,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         executeSecondaryTask(
                                             context, reportId, SecondaryKind.META, metaPrompt,
                                             provider, item.answerer.model, resolved, aiSettings, report,
-                                            crossSourceAgentId = item.source.agentId,
+                                            fanOutSourceAgentId = item.source.agentId,
                                             existingPlaceholder = item.placeholder
                                         )
                                     } finally {
-                                        appViewModel.updateRunningCrossPairs { it - item.placeholder.id }
+                                        appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
                                     }
                                 }
                             }
@@ -981,18 +981,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
-        registerCrossJob(reportId, metaPrompt.id, job)
+        registerFanOutJob(reportId, metaPrompt.id, job)
         return job
     }
 
-    /** Re-launch a list of cross-pair placeholders. Re-uses the per-
+    /** Re-launch a list of fan-out pair placeholders. Re-uses the per-
      *  provider semaphore + running-pair bookkeeping pattern from
-     *  [runCrossMetaPrompt], so the L1 progress bar / stats keep
+     *  [runFanOutPrompt], so the L1 progress bar / stats keep
      *  reflecting "running" once a permit is held and "queued" while a
      *  pair is waiting. The caller has already cleared each
      *  placeholder's content/errorMessage on disk (so the row reads as
      *  pending again). */
-    private fun rerunCrossPlaceholders(
+    private fun rerunFanOutPlaceholders(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
@@ -1014,16 +1014,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     val sourceCount = successful.size
                     val semByProvider = placeholders.map { it.providerId }.toSet()
-                        .associateWith { Semaphore(AppViewModel.CROSS_PER_PROVIDER_LIMIT) }
+                        .associateWith { Semaphore(AppViewModel.FAN_OUT_PER_PROVIDER_LIMIT) }
                     coroutineScope {
                         placeholders.map { ph ->
                             async {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
-                                val source = successful.firstOrNull { it.agentId == ph.crossSourceAgentId }
+                                val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
                                 val sem = semByProvider[ph.providerId] ?: return@async
                                 sem.withPermit {
-                                    appViewModel.updateRunningCrossPairs { it + ph.id }
+                                    appViewModel.updateRunningFanOutPairs { it + ph.id }
                                     try {
                                         val resolvedBase = resolveSecondaryPrompt(
                                             metaPrompt.text,
@@ -1036,11 +1036,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         executeSecondaryTask(
                                             context, reportId, SecondaryKind.META, metaPrompt,
                                             provider, ph.model, resolved, aiSettings, report,
-                                            crossSourceAgentId = source.agentId,
+                                            fanOutSourceAgentId = source.agentId,
                                             existingPlaceholder = ph
                                         )
                                     } finally {
-                                        appViewModel.updateRunningCrossPairs { it - ph.id }
+                                        appViewModel.updateRunningFanOutPairs { it - ph.id }
                                     }
                                 }
                             }
@@ -1051,13 +1051,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
-        registerCrossJob(reportId, metaPrompt.id, job)
+        registerFanOutJob(reportId, metaPrompt.id, job)
         return job
     }
 
     /** Reset the given rows on disk so they look queued again (clears
      *  content / errorMessage / token usage / costs / duration), then
-     *  feed them into [rerunCrossPlaceholders]. The cleared rows reuse
+     *  feed them into [rerunFanOutPlaceholders]. The cleared rows reuse
      *  their original placeholder ids so the UI doesn't see them
      *  vanish-and-reappear. */
     private fun resetAndRelaunch(
@@ -1078,7 +1078,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 durationMs = null
             ).also { SecondaryResultStorage.save(context, it) }
         }
-        return rerunCrossPlaceholders(scope, context, reportId, metaPrompt, reset)
+        return rerunFanOutPlaceholders(scope, context, reportId, metaPrompt, reset)
     }
 
     /** Mark every stuck placeholder secondary on the report as errored.
@@ -1089,10 +1089,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  flip them to "Interrupted by app restart" so the row icon shows
      *  ❌ honestly instead of a never-ending spinner.
      *
-     *  Cross-out per-pair rows (crossSourceAgentId != null) are skipped
+     *  Fan-out per-pair rows (fanOutSourceAgentId != null) are skipped
      *  here because they have a dedicated resume flow at L1
-     *  ([resumeStaleCrossPairs]) — the user can re-enter L1 to relaunch
-     *  them. Other secondary kinds (cross-in / after_cross combine,
+     *  ([resumeStaleFanOutPairs]) — the user can re-enter L1 to relaunch
+     *  them. Other secondary kinds (fan-in / fan_in combine,
      *  meta runs, Rerank, Moderation, Translate per-call) get the
      *  honest red ❌. */
     fun recoverStaleSecondariesAsync(
@@ -1100,7 +1100,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         reportId: String
     ): Job = scope.launch(Dispatchers.IO) {
-        val running = appViewModel.runningCrossPairs.value
+        val running = appViewModel.runningFanOutPairs.value
         val activeTranslationRunIds = _translationRuns.value.keys
         val rows = SecondaryResultStorage.listForReport(context, reportId)
         rows.forEach { row ->
@@ -1108,8 +1108,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (row.errorMessage != null) return@forEach
             if (!row.content.isNullOrBlank()) return@forEach
             if (row.durationMs != null) return@forEach
-            // Cross-out per-pair: leave alone, L1 handles resume.
-            if (row.crossSourceAgentId != null) return@forEach
+            // Fan-out per-pair: leave alone, L1 handles resume.
+            if (row.fanOutSourceAgentId != null) return@forEach
             // Defence in depth — id is currently mid-flight (shouldn't
             // happen at startup but guards against a navigate-back-to-
             // Report-Result-mid-run race).
@@ -1127,31 +1127,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Re-enqueue cross-pair placeholders that look stuck — the row is
+    /** Re-enqueue fan-out pair placeholders that look stuck — the row is
      *  on disk as a pending placeholder (no content, no errorMessage)
-     *  but its id is *not* in [AppViewModel.runningCrossPairs]. This is the
+     *  but its id is *not* in [AppViewModel.runningFanOutPairs]. This is the
      *  case after the app process is killed mid-run: the placeholders
-     *  survive on disk but the launching coroutines are gone. The Cross
+     *  survive on disk but the launching coroutines are gone. The Fan out
      *  L1 screen calls this on entry. */
-    fun resumeStaleCrossPairs(
+    fun resumeStaleFanOutPairs(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
     ): Job? {
-        val key = crossJobKey(reportId, metaPrompt.id)
+        val key = fanOutJobKey(reportId, metaPrompt.id)
         // Drop the call if a previous resume scan for the same
         // (report, prompt) is already in flight. The L1 LaunchedEffect
         // can re-key spuriously when aiSettings flows a new copy.
         if (!staleResumeScans.add(key)) return null
         val job = scope.launch(Dispatchers.IO) {
             try {
-                val running = appViewModel.runningCrossPairs.value
+                val running = appViewModel.runningFanOutPairs.value
                 val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                     .filter {
                         it.metaPromptId == metaPrompt.id &&
-                            it.crossSourceAgentId != null &&
-                            it.afterCrossOf == null &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
                             it.content.isNullOrBlank() &&
                             it.errorMessage == null &&
                             // durationMs is stamped on every successful + errored
@@ -1164,7 +1164,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             it.id !in running
                     }
                 if (stale.isNotEmpty()) {
-                    rerunCrossPlaceholders(scope, context, reportId, metaPrompt, stale)
+                    rerunFanOutPlaceholders(scope, context, reportId, metaPrompt, stale)
                 }
             } finally {
                 staleResumeScans.remove(key)
@@ -1173,10 +1173,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return job
     }
 
-    /** Re-run cross-pair rows that errored. Resets the rows on disk
+    /** Re-run fan-out pair rows that errored. Resets the rows on disk
      *  (clears errorMessage so they read as queued again) and dispatches
-     *  via [rerunCrossPlaceholders]. */
-    fun rerunFailedCrossPairs(
+     *  via [rerunFanOutPlaceholders]. */
+    fun rerunFailedFanOutPairs(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
@@ -1185,8 +1185,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter {
                 it.metaPromptId == metaPrompt.id &&
-                    it.crossSourceAgentId != null &&
-                    it.afterCrossOf == null &&
+                    it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
                     it.errorMessage != null
             }
         return resetAndRelaunch(scope, context, reportId, metaPrompt, failed)
@@ -1194,50 +1194,50 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     /** Drop every fan_out pair-row + every fan_in combine-row for this
      *  metaPromptId on this report, then kick a fresh
-     *  [runCrossMetaPrompt]. Used by the Cross L1 "Rerun the complete
-     *  Cross" button. */
-    fun rerunCompleteCross(
+     *  [runFanOutPrompt]. Used by the Fan out L1 "Rerun the complete
+     *  Fan out" button. */
+    fun rerunCompleteFanOut(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
     ): Job? {
-        // Cancel + join any in-flight cross run for this (report,
+        // Cancel + join any in-flight fan out run for this (report,
         // metaPrompt) before deleting placeholders. Without this,
         // surviving coroutines would call SecondaryResultStorage.save
         // on the just-deleted ids, resurrecting zombie rows beside
         // the freshly-created placeholders and double-billing.
         return scope.launch(Dispatchers.IO) {
-            crossJobs[crossJobKey(reportId, metaPrompt.id)]?.let { existing ->
+            fanOutJobs[fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
                 existing.cancelAndJoin()
             }
-            // Wipe every per-pair cross-out row tied to this metaPromptId
+            // Wipe every per-pair fan-out row tied to this metaPromptId
             // so the rerun starts from a clean grid. The previous filter
-            // additionally tried to clean up after_cross rows via
-            // `afterCrossOf == metaPrompt.id`, but afterCrossOf is set
-            // to the AFTER_CROSS prompt's id (line ~1326), never the
-            // cross prompt's id, so that clause was always false — dead
-            // code disguised as cleanup. After-cross rows on the same
-            // report are left alone here; rerunning the cross doesn't
-            // know which after-cross derivatives came from this cross
+            // additionally tried to clean up fan_in rows via
+            // `fanInOf == metaPrompt.id`, but fanInOf is set
+            // to the FAN_IN prompt's id (line ~1326), never the
+            // fan out prompt's id, so that clause was always false — dead
+            // code disguised as cleanup. Fan-in rows on the same
+            // report are left alone here; rerunning the fan out doesn't
+            // know which fan-in derivatives came from this fan out
             // (no explicit link is stored), so deleting them all would
             // be over-aggressive. Users wanting a fully clean slate
-            // can delete the after-cross rows individually.
+            // can delete the fan-in rows individually.
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                 .filter {
-                    it.metaPromptId == metaPrompt.id && it.crossSourceAgentId != null
+                    it.metaPromptId == metaPrompt.id && it.fanOutSourceAgentId != null
                 }
                 .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            runCrossMetaPrompt(scope, context, reportId, metaPrompt)?.join()
+            runFanOutPrompt(scope, context, reportId, metaPrompt)?.join()
         }
     }
 
-    /** Drop every cross-pair row for this report's metaPromptId where
+    /** Drop every fan-out pair row for this report's metaPromptId where
      *  the model appears as the answerer (providerId, model match) OR
-     *  as the source (the row's crossSourceAgentId points at an agent
-     *  whose (provider, model) matches). Other Cross runs on the same
+     *  as the source (the row's fanOutSourceAgentId points at an agent
+     *  whose (provider, model) matches). Other Fan out runs on the same
      *  report (different metaPromptId) are untouched. */
-    fun deleteCrossModel(
+    fun deleteFanOutModel(
         context: Context,
         reportId: String,
         metaPromptId: String,
@@ -1256,30 +1256,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter {
                 it.metaPromptId == metaPromptId &&
-                    it.crossSourceAgentId != null &&
-                    it.afterCrossOf == null &&
+                    it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
                     (
                         (it.providerId.equals(providerId, ignoreCase = true) && it.model == model) ||
-                            (it.crossSourceAgentId in matchingAgentIds)
+                            (it.fanOutSourceAgentId in matchingAgentIds)
                     )
             }
             .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
-    /** Combines a cross-type run's per-pair factchecks plus every
+    /** Combines a fan-out run's per-pair factchecks plus every
      *  successful agent's response body into a single combined report
      *  via a single chat call on [pick]. The template's iterable block
      *  `\n\n***Report*** @REPORT@@RESPONSES@` is expanded once per
      *  successful (source) agent, with its `@RESPONSES@` populated
-     *  from the latest cross-factcheck row of every other answerer.
+     *  from the latest fan-out factcheck row of every other answerer.
      *
      *  Persists one [SecondaryResult] with kind=META and
-     *  afterCrossOf=metaPrompt.id, so the cross detail screen can show
+     *  fanInOf=metaPrompt.id, so the fan out detail screen can show
      *  it inline above the L1 list while the View bucket still buckets
      *  by `metaPromptName`.
      */
-    fun runAfterCrossMetaPrompt(
+    fun runFanInPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
@@ -1298,20 +1298,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
-                    // Wait for any in-flight cross runs on this report
+                    // Wait for any in-flight fan out runs on this report
                     // to finish before reading their per-pair rows —
                     // otherwise the combine call would build its
                     // payload from an arbitrary partial subset of
                     // factchecks while the user thinks the report is
-                    // "all of them". Each cross run is keyed by its
+                    // "all of them". Each fan out run is keyed by its
                     // own metaPromptId; a snapshot of the active jobs
                     // for THIS report is enough.
-                    val crossJobsForReport = crossJobs.entries
+                    val fanOutJobsForReport = fanOutJobs.entries
                         .filter { it.key.startsWith("$reportId|") }
                         .map { it.value }
-                    crossJobsForReport.forEach { it.join() }
-                    val crossRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                        .filter { it.crossSourceAgentId != null }
+                    fanOutJobsForReport.forEach { it.join() }
+                    val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                        .filter { it.fanOutSourceAgentId != null }
                         // Drop errored rows before bucketing — without
                         // this, the firstOrNull pick below grabs the
                         // OLDEST row (we sort ascending), which is the
@@ -1322,7 +1322,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         // successful one — closer to the user's
                         // expected "completed run" semantics.
                         .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
-                    // Bucket cross rows by (providerId, model, sourceAgentId).
+                    // Bucket fan out rows by (providerId, model, sourceAgentId).
                     // Two report rows can legitimately share (provider,
                     // model) — e.g. an Agent UUID row and a swarm:provider:model
                     // row pointing at the same model under different
@@ -1331,8 +1331,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // below picks the best-fit row per (other.provider,
                     // other.model, other.agentId, source.agentId).
                     val byPair = LinkedHashMap<String, MutableList<SecondaryResult>>()
-                    crossRows.sortedBy { it.timestamp }.forEach { r ->
-                        val src = r.crossSourceAgentId ?: return@forEach
+                    fanOutRows.sortedBy { it.timestamp }.forEach { r ->
+                        val src = r.fanOutSourceAgentId ?: return@forEach
                         byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
                     }
                     val consumed = HashSet<String>()
@@ -1362,17 +1362,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         ).copy(
                             metaPromptId = metaPrompt.id,
                             metaPromptName = metaPrompt.name,
-                            afterCrossOf = metaPrompt.id,
-                            errorMessage = "No cross factchecks available — run the cross-type factcheck prompt first."
+                            fanInOf = metaPrompt.id,
+                            errorMessage = "No fan-out factchecks available — run the fan-out factcheck prompt first."
                         )
                         SecondaryResultStorage.save(context, placeholder)
                         return@withTracerTags
                     }
-                    val resolved = resolveAfterCrossPrompt(
+                    val resolved = resolveFanInPrompt(
                         template = metaPrompt.text,
                         question = report.prompt,
                         count = perReport.size,
-                        crossCount = (perReport.size - 1).coerceAtLeast(0),
+                        fanOutCount = (perReport.size - 1).coerceAtLeast(0),
                         perReport = perReport,
                         title = report.title
                     )
@@ -1380,7 +1380,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.META, metaPrompt,
                         provider, model, resolved, aiSettings, report,
-                        afterCrossOf = metaPrompt.id
+                        fanInOf = metaPrompt.id
                     )
                 }
             } finally {
@@ -1563,11 +1563,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguage: String? = null,
         targetLanguageNative: String? = null,
         referenceLegend: String? = null,
-        crossSourceAgentId: String? = null,
-        afterCrossOf: String? = null,
+        fanOutSourceAgentId: String? = null,
+        fanInOf: String? = null,
         /** Optional pre-created placeholder. When the caller has staged
-         *  a row up-front (cross-meta does this so all N×(M-1) pair
-         *  rows surface as ⏳ on the cross detail screen the moment the
+         *  a row up-front (fan-out does this so all N×(M-1) pair
+         *  rows surface as ⏳ on the fan out detail screen the moment the
          *  run starts) we run against that row instead of creating a
          *  fresh one — otherwise the placeholder duplicates and the
          *  pre-created row never gets a result. */
@@ -1583,8 +1583,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     targetLanguageNative = targetLanguageNative,
                     metaPromptId = metaPrompt.id,
                     metaPromptName = metaPrompt.name,
-                    crossSourceAgentId = crossSourceAgentId,
-                    afterCrossOf = afterCrossOf
+                    fanOutSourceAgentId = fanOutSourceAgentId,
+                    fanInOf = fanInOf
                 )
             SecondaryResultStorage.save(context, fresh)
             fresh
@@ -1731,7 +1731,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  UI thread on viewModelScope. Survives the screen scope being
      *  cancelled mid-loop — the previous screen-scoped sweep
      *  abandoned hundreds of rows when the user navigated away
-     *  during a Cross-delete. Returns once the sweep finishes. */
+     *  during a Fan-out delete. Returns once the sweep finishes. */
     fun bulkDeleteSecondaryResults(context: Context, reportId: String, resultIds: List<String>, onComplete: () -> Unit = {}) {
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             resultIds.forEach { id ->

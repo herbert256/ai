@@ -363,7 +363,7 @@ object PricingCache {
         // stale catalog entry was silently ignored — exactly the
         // opposite of what the Cost Config screen's UI suggests.
         // Then: provider self-report → curated bulk sources →
-        // OPENROUTER cross-provider fallback → HELICONE last resort →
+        // OPENROUTER fan out-provider fallback → HELICONE last resort →
         // DEFAULT.
         manualPricing?.get("${provider.id}:$model")?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
@@ -381,7 +381,7 @@ object PricingCache {
     fun getPricingWithoutOverride(context: Context, provider: AppService, model: String): ModelPricing {
         ensureLoaded(context)
         // Mirror getPricing's precedence exactly (provider self-report
-        // first, then curated tiers, then the OpenRouter cross-provider
+        // first, then curated tiers, then the OpenRouter fan out-provider
         // fallback, then Helicone, then DEFAULT) but skip the manual
         // override step. Used by cleanupRedundantManualOverrides to
         // decide whether an override would still win the live lookup;
@@ -1032,7 +1032,7 @@ object PricingCache {
             // Prefer matches from the same provider family as the request.
             if (p.provider in ourPrefixes) return p.pricing
         }
-        // No same-provider pattern hit — fall back to the first cross-provider
+        // No same-provider pattern hit — fall back to the first fan out-provider
         // pattern as a last resort (e.g. when the user routes a model id
         // through a generic provider). Require at least 4 chars on the
         // pattern so a short string like "claude" can't hijack pricing

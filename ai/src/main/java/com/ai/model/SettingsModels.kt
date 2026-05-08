@@ -178,7 +178,7 @@ data class InternalPrompt(
  * Manual user-supplied type assignment for a single (provider, model) pair. Wins
  * over the type stored on ProviderConfig.modelTypes (which comes from native
  * list-API metadata or the heuristic). Lives at the Settings root rather than
- * inside ProviderConfig because it's a cross-provider CRUD list — one entry per
+ * inside ProviderConfig because it's a fan out-provider CRUD list — one entry per
  * override, not one map per provider.
  */
 data class ModelTypeOverride(
@@ -471,7 +471,7 @@ data class Settings(
     }
 
     /**
-     * Cross-pollinate per-provider type labels from OpenRouter's catalog: for any model
+     * Fan out-pollinate per-provider type labels from OpenRouter's catalog: for any model
      * we currently treat as plain CHAT (the heuristic / unknown default), look up
      * `${service.openRouterName}/${modelId}` in OpenRouter's labeled list and adopt
      * its type if it's something more specific. Native non-chat kinds we already

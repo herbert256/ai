@@ -15,7 +15,7 @@ import com.ai.model.*
 import com.ai.ui.shared.*
 
 /** Categories whose prompts are pure templates (no agent dispatch). */
-private val CROSS_CATEGORIES = setOf("fan_out", "fan_in")
+private val FAN_CATEGORIES = setOf("fan_out", "fan_in")
 
 /** Sentinel meaning the run-time picker should ask the user which
  *  model to fire on (the legacy behaviour). Stored verbatim in
@@ -23,7 +23,7 @@ private val CROSS_CATEGORIES = setOf("fan_out", "fan_in")
  *  name of an [Agent] in [Settings.agents]. */
 private const val AGENT_SELECT = "*select"
 
-/** Sentinel meaning "no agent applies" — used by `cross` prompts
+/** Sentinel meaning "no agent applies" — used by `fan out` prompts
  *  which fan out across every pair of report-models and never
  *  consult [Settings.agents]. */
 private const val AGENT_NA = "*n/a"
@@ -102,7 +102,7 @@ fun InternalPromptEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
-    val isCrossCategory = fixedCategory in CROSS_CATEGORIES
+    val isFanCategory = fixedCategory in FAN_CATEGORIES
     // Other Internal prompts (intro / model_info / translate / rerank
     // / moderation) are a fixed list — name is not user-editable.
     val isFixedList = fixedCategory == "internal"
@@ -117,10 +117,10 @@ fun InternalPromptEditScreen(
     var agent by remember {
         mutableStateOf(
             when {
-                // Both fan_out AND fan_in are CROSS_CATEGORIES — the
+                // Both fan_out AND fan_in are FAN_CATEGORIES — the
                 // agent slot is N/A for both. Without this, an existing
                 // fan_in prompt would surface the agent dropdown.
-                fixedCategory in CROSS_CATEGORIES -> AGENT_NA
+                fixedCategory in FAN_CATEGORIES -> AGENT_NA
                 else -> internalPrompt?.agent?.ifBlank { AGENT_SELECT } ?: AGENT_SELECT
             }
         )
@@ -226,7 +226,7 @@ fun InternalPromptEditScreen(
             Text(
                 when (fixedCategory) {
                     "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
-                    "fan_in" -> "Placeholders: @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
+                    "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
                     else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary

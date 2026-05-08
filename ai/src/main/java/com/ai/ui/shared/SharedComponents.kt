@@ -187,7 +187,7 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
  * lowest-priority fallback (it composes after any outer
  * BackHandler that was registered earlier in the screen body, but
  * BEFORE any inner BackHandlers tied to nested state). Without this
- * routing the < arrow popped past inner state — e.g. on the Cross
+ * routing the < arrow popped past inner state — e.g. on the Fan out
  * drill-in's L2 it skipped L1 and exited the screen entirely.
  */
 @Composable

@@ -60,7 +60,7 @@ fun ReportsScreenNav(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
-    val runningCrossPairs by viewModel.runningCrossPairs.collectAsState()
+    val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -94,16 +94,16 @@ fun ReportsScreenNav(
     ReportsScreen(
         uiState = uiState,
         reportsAgentResults = agentResults,
-        runningCrossPairs = runningCrossPairs,
+        runningFanOutPairs = runningFanOutPairs,
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(scope, context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
-        onRunCrossMeta = { reportId, metaPrompt, scopeChoice ->
-            reportViewModel.runCrossMetaPrompt(scope, context, reportId, metaPrompt, scopeChoice)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice ->
+            reportViewModel.runFanOutPrompt(scope, context, reportId, metaPrompt, scopeChoice)
         },
-        onRunAfterCrossMeta = { reportId, metaPrompt, pick ->
-            reportViewModel.runAfterCrossMetaPrompt(scope, context, reportId, metaPrompt, pick)
+        onRunFanIn = { reportId, metaPrompt, pick ->
+            reportViewModel.runFanInPrompt(scope, context, reportId, metaPrompt, pick)
         },
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(scope, context, reportId, modelName)
@@ -179,8 +179,8 @@ fun ReportsScreenNav(
         onNavigateToFlocksEdit = onNavigateToFlocksEdit,
         onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
         onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
-        onResumeStaleCross = { rid, mp ->
-            reportViewModel.resumeStaleCrossPairs(scope, context, rid, mp)
+        onResumeStaleFanOut = { rid, mp ->
+            reportViewModel.resumeStaleFanOutPairs(scope, context, rid, mp)
         },
         onRecoverStaleSecondaries = { rid ->
             reportViewModel.recoverStaleSecondariesAsync(scope, context, rid)
@@ -191,14 +191,14 @@ fun ReportsScreenNav(
         onStartMissingTranslations = { rid, runId ->
             reportViewModel.startMissingTranslations(scope, context, rid, runId)
         },
-        onRestartFailedCross = { rid, mp ->
-            reportViewModel.rerunFailedCrossPairs(scope, context, rid, mp)
+        onRestartFailedFanOut = { rid, mp ->
+            reportViewModel.rerunFailedFanOutPairs(scope, context, rid, mp)
         },
-        onRerunCompleteCross = { rid, mp ->
-            reportViewModel.rerunCompleteCross(scope, context, rid, mp)
+        onRerunCompleteFanOut = { rid, mp ->
+            reportViewModel.rerunCompleteFanOut(scope, context, rid, mp)
         },
-        onDeleteCrossModel = { rid, pid, prov, model ->
-            reportViewModel.deleteCrossModel(context, rid, pid, prov, model)
+        onDeleteFanOutModel = { rid, pid, prov, model ->
+            reportViewModel.deleteFanOutModel(context, rid, pid, prov, model)
         }
     )
 }
@@ -252,7 +252,7 @@ private fun decodeSavedReportModelSelection(selection: String, aiSettings: Setti
 fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
-    runningCrossPairs: Set<String> = emptySet(),
+    runningFanOutPairs: Set<String> = emptySet(),
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onStop: () -> Unit,
@@ -277,12 +277,12 @@ fun ReportsScreen(
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
-    onRunCrossMeta: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
-    onRunAfterCrossMeta: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
-     *  navigate-away during a Cross-delete doesn't abandon a half-
+     *  navigate-away during a Fan-out delete doesn't abandon a half-
      *  finished sweep. The screen-scoped fallback is the same forEach
      *  but on rememberCoroutineScope's scope, which dies with the
      *  screen. */
@@ -303,10 +303,10 @@ fun ReportsScreen(
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
-    onResumeStaleCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
-    onRestartFailedCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
-    onRerunCompleteCross: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
-    onDeleteCrossModel: (String, String, String, String) -> Unit = { _, _, _, _ -> },
+    onResumeStaleFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRestartFailedFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRerunCompleteFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onDeleteFanOutModel: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     /** Mark every blank-content / no-error / no-duration secondary
      *  on the report as errored. Fired once per report open from a
      *  LaunchedEffect — animated-hourglass icons should only spin
@@ -322,7 +322,7 @@ fun ReportsScreen(
      *  ReportViewModel.startMissingTranslations. */
     onStartMissingTranslations: (String, String) -> Unit = { _, _ -> },
     /** Deep-link callbacks fired by the full-screen +Flock / +Swarm /
-     *  Meta / Cross pickers' "Edit X" buttons. AppNavHost wires each
+     *  Meta / Fan out pickers' "Edit X" buttons. AppNavHost wires each
      *  to the matching Settings sub-screen route. */
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
@@ -347,7 +347,7 @@ fun ReportsScreen(
     var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0)) }
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
-    var crossMetaSummaries by remember { mutableStateOf(emptyList<CrossMetaRunSummary>()) }
+    var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
     // Bumped from every overlay-driven delete so the parent screen's
     // counts / row list re-read from disk on the way back. Without
@@ -359,7 +359,7 @@ fun ReportsScreen(
     // One-shot recovery sweep per report open. Marks every stuck
     // placeholder secondary (blank content + null errorMessage + null
     // durationMs that no in-memory job claims) as "Interrupted by app
-    // restart" so the inline rows / cross summary / cost summary all
+    // restart" so the inline rows / fan out summary / cost summary all
     // show ❌ instead of an animated hourglass spinning forever. The
     // bump on secondaryRefreshTick forces the polling LaunchedEffect
     // below to immediately re-read disk and pick up the marked rows.
@@ -383,29 +383,29 @@ fun ReportsScreen(
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
             translationRunSummaries = emptyList()
-            crossMetaSummaries = emptyList()
+            fanOutSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
             return@LaunchedEffect
         }
         suspend fun reload() {
             withContext(Dispatchers.IO) {
                 val all = SecondaryResultStorage.listForReport(context, rid)
-                // Cross-meta pair rows (N×(M-1) per-(answerer, source)
+                // Fan-out pair rows (N×(M-1) per-(answerer, source)
                 // factchecks) collapse into a single summary row per
-                // cross prompt, mirroring how Translation collapses N
-                // per-call rows. After_cross combine-reports rows do
+                // fan out prompt, mirroring how Translation collapses N
+                // per-call rows. Fan_in combine-reports rows do
                 // NOT fold — each run is a standalone meta call so it
                 // keeps its own row in secondaryRuns alongside Compare /
                 // Summarize / etc.
                 secondaryRuns = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
-                    .filter { it.crossSourceAgentId == null }
+                    .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translationRunSummaries = buildTranslationRunSummaries(
                     all.filter { it.kind == SecondaryKind.TRANSLATE }
                 )
-                crossMetaSummaries = buildCrossMetaSummaries(
-                    all.filter { it.crossSourceAgentId != null }
+                fanOutSummaries = buildFanOutSummaries(
+                    all.filter { it.fanOutSourceAgentId != null }
                 )
                 // Derive counts from `all` instead of calling
                 // SecondaryResultStorage.countForReport — that function
@@ -500,7 +500,7 @@ fun ReportsScreen(
     var showViewPicker by remember { mutableStateOf(false) }
     var showEditPicker by remember { mutableStateOf(false) }
     var showMetaPicker by remember { mutableStateOf(false) }
-    var showCrossPicker by remember { mutableStateOf(false) }
+    var showFanOutPicker by remember { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -528,16 +528,16 @@ fun ReportsScreen(
     var secondaryScopeMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
     var pendingSecondaryScope by remember { mutableStateOf<com.ai.data.SecondaryScope>(com.ai.data.SecondaryScope.AllReports) }
     var pendingLanguageScope by remember { mutableStateOf<com.ai.data.SecondaryLanguageScope>(com.ai.data.SecondaryLanguageScope.AllPresent) }
-    // Cross-type confirm dialog: shown after the scope screen, before
+    // Fan-out confirm dialog: shown after the scope screen, before
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
-    var crossConfirmMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
-    // After_cross run model picker. Triggered from the cross detail
-    // screen's "Combine reports and all cross responses" button.
-    var afterCrossPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
-    // First step of the after_cross flow: pick which after_cross prompt
-    // to run. Once chosen we hand off to afterCrossPickerPrompt above.
-    var showAfterCrossPromptPicker by remember { mutableStateOf(false) }
+    var fanOutConfirmMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    // Fan_in run model picker. Triggered from the fan out detail
+    // screen's "Combine reports and all fan out responses" button.
+    var fanInPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    // First step of the fan_in flow: pick which fan_in prompt
+    // to run. Once chosen we hand off to fanInPickerPrompt above.
+    var showFanInPromptPicker by remember { mutableStateOf(false) }
     // Unified Meta screen overlay reached from the Actions card.
     var showMetaScreen by remember { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
@@ -782,10 +782,10 @@ fun ReportsScreen(
                 pendingLanguageScope = chosenLangScope
                 secondaryScopeMetaPrompt = null
                 if (scopeMetaPrompt.category == "fan_out") {
-                    // No model picker for cross — answerers are always
+                    // No model picker for fan out — answerers are always
                     // every successful report-model. Jump straight to
                     // the call-count confirm dialog.
-                    crossConfirmMetaPrompt = scopeMetaPrompt
+                    fanOutConfirmMetaPrompt = scopeMetaPrompt
                 } else {
                     secondaryPickerMetaPrompt = scopeMetaPrompt
                 }
@@ -796,22 +796,22 @@ fun ReportsScreen(
         return
     }
 
-    // Cross-type confirm screen: shown after the scope screen, before
+    // Fan-out confirm screen: shown after the scope screen, before
     // the runner kicks off. Re-derives the (answerers, sources) set
     // from the chosen scope so the user can see exactly how many
     // calls they're authorising — full-screen so the per-pair preview
     // has room to breathe.
-    val crossMp = crossConfirmMetaPrompt
-    if (crossMp != null && currentReportId != null) {
+    val fanOutMp = fanOutConfirmMetaPrompt
+    if (fanOutMp != null && currentReportId != null) {
         val rid = currentReportId
-        data class CrossCounts(
+        data class FanOutCounts(
             val answerers: Int,
             val sources: Int,
             val pairs: Int,
             val answererNames: List<String>,
             val sourceNames: List<String>
         )
-        val countsState = produceState<CrossCounts?>(initialValue = null, rid, pendingSecondaryScope) {
+        val countsState = produceState<FanOutCounts?>(initialValue = null, rid, pendingSecondaryScope) {
             value = withContext(Dispatchers.IO) {
                 val report = com.ai.data.ReportStorage.getReport(context, rid) ?: return@withContext null
                 val successful = report.agents.filter {
@@ -830,7 +830,7 @@ fun ReportsScreen(
                 val pairs = successful.sumOf { ans -> sources.count { it.agentId != ans.agentId } }
                 fun label(a: com.ai.data.ReportAgent): String =
                     a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
-                CrossCounts(
+                FanOutCounts(
                     answerers = successful.size,
                     sources = sources.size,
                     pairs = pairs,
@@ -845,12 +845,12 @@ fun ReportsScreen(
             is com.ai.data.SecondaryScope.TopRanked -> "Top ${sc.count} ranked"
             is com.ai.data.SecondaryScope.Manual -> "Manual selection (${sc.agentIds.size})"
         }
-        BackHandler { crossConfirmMetaPrompt = null }
+        BackHandler { fanOutConfirmMetaPrompt = null }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
-                helpTopic = "report_cross_confirm",
-                title = "Run ${crossMp.name}",
-                onBackClick = { crossConfirmMetaPrompt = null }
+                helpTopic = "report_fan_out_confirm",
+                title = "Run ${fanOutMp.name}",
+                onBackClick = { fanOutConfirmMetaPrompt = null }
             )
             Spacer(modifier = Modifier.height(8.dp))
             Column(
@@ -858,7 +858,7 @@ fun ReportsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Running ${crossMp.name} will call every answerer model once for every other model's response. Each call uses the cross prompt below with @RESPONSE@ filled in.",
+                    "Running ${fanOutMp.name} will call every answerer model once for every other model's response. Each call uses the fan-out prompt below with @RESPONSE@ filled in.",
                     fontSize = 13.sp, color = AppColors.TextSecondary
                 )
                 Card(
@@ -914,14 +914,14 @@ fun ReportsScreen(
                         }
                     }
                 }
-                if (crossMp.text.isNotBlank()) {
+                if (fanOutMp.text.isNotBlank()) {
                     Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                     Card(
                         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            crossMp.text, fontSize = 11.sp, color = AppColors.TextDim,
+                            fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
                             modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -930,17 +930,17 @@ fun ReportsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { crossConfirmMetaPrompt = null }, modifier = Modifier.weight(1f),
+                    onClick = { fanOutConfirmMetaPrompt = null }, modifier = Modifier.weight(1f),
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("Cancel", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = {
-                        val mp = crossConfirmMetaPrompt ?: return@Button
+                        val mp = fanOutConfirmMetaPrompt ?: return@Button
                         val sc = pendingSecondaryScope
-                        crossConfirmMetaPrompt = null
+                        fanOutConfirmMetaPrompt = null
                         pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                         pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                        onRunCrossMeta(rid, mp, sc)
+                        onRunFanOut(rid, mp, sc)
                     },
                     enabled = counts != null && counts.pairs > 0,
                     modifier = Modifier.weight(1f),
@@ -973,23 +973,23 @@ fun ReportsScreen(
         return
     }
 
-    // After_cross model picker — shown when the user taps the
-    // "Combine reports and all cross responses" button on the cross
+    // Fan_in model picker — shown when the user taps the
+    // "Combine reports and all fan out responses" button on the fan out
     // detail screen. Single-pick; on confirm we kick the runner and
-    // pop back so the cross detail screen's inline preview can pick
+    // pop back so the fan out detail screen's inline preview can pick
     // up the placeholder via the isBatching poll.
-    val afterCrossPicker = afterCrossPickerPrompt
-    if (afterCrossPicker != null && currentReportId != null) {
+    val fanInPicker = fanInPickerPrompt
+    if (fanInPicker != null && currentReportId != null) {
         val rid = currentReportId
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
-            titleText = "${afterCrossPicker.name} — pick model",
+            titleText = "${fanInPicker.name} — pick model",
             modelTypeFilter = null,
             onConfirm = { pick ->
-                onRunAfterCrossMeta(rid, afterCrossPicker, pick)
-                afterCrossPickerPrompt = null
+                onRunFanIn(rid, fanInPicker, pick)
+                fanInPickerPrompt = null
             },
-            onBack = { afterCrossPickerPrompt = null },
+            onBack = { fanInPickerPrompt = null },
             onNavigateHome = onNavigateHome
         )
         return
@@ -1072,27 +1072,27 @@ fun ReportsScreen(
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
-        val afterCrossList = aiSettings.internalPrompts.filter { it.category == "fan_in" }
-        val crossPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
+        val fanInList = aiSettings.internalPrompts.filter { it.category == "fan_in" }
+        val fanOutPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
             aiSettings.internalPrompts.firstOrNull {
                 it.category == "fan_out" && it.name == listFilterByName
             }
         } else null
-        // After-cross picker — full-screen replacement of the
+        // Fan-in picker — full-screen replacement of the
         // previous AlertDialog. Rendered as an overlay on top of the
         // secondary list via the early-return pattern.
-        if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
+        if (showFanInPromptPicker && fanInList.isNotEmpty()) {
             ReportSelectInternalPromptScreen(
-                titleText = "Run an after-cross prompt",
+                titleText = "Run an fan-in prompt",
                 category = "fan_in",
-                prompts = afterCrossList,
+                prompts = fanInList,
                 onSelectPrompt = {
-                    showAfterCrossPromptPicker = false
-                    afterCrossPickerPrompt = it
+                    showFanInPromptPicker = false
+                    fanInPickerPrompt = it
                 },
-                onBack = { showAfterCrossPromptPicker = false },
+                onBack = { showFanInPromptPicker = false },
                 onEditPrompts = {
-                    showAfterCrossPromptPicker = false
+                    showFanInPromptPicker = false
                     onNavigateToInternalPromptsByCategory("fan_in")
                 }
             )
@@ -1103,19 +1103,19 @@ fun ReportsScreen(
             kind = openListKind,
             nameFilter = listFilterByName,
             isBatching = uiState.activeSecondaryBatches > 0,
-            runningCrossPairs = runningCrossPairs,
-            afterCrossPrompts = afterCrossList,
-            crossPrompt = crossPrompt,
-            onRunAfterCross = if (afterCrossList.isNotEmpty()) {
+            runningFanOutPairs = runningFanOutPairs,
+            fanInPrompts = fanInList,
+            fanOutPrompt = fanOutPrompt,
+            onRunFanIn = if (fanInList.isNotEmpty()) {
                 {
-                    if (afterCrossList.size == 1) afterCrossPickerPrompt = afterCrossList.first()
-                    else showAfterCrossPromptPicker = true
+                    if (fanInList.size == 1) fanInPickerPrompt = fanInList.first()
+                    else showFanInPromptPicker = true
                 }
             } else null,
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBulkDelete = { ids ->
                 // Off-thread sweep — N can be hundreds (≈ N(N-1) for
-                // a Cross with N agents). Routes through the parent
+                // a Fan out with N agents). Routes through the parent
                 // callback so the actual launch lives on the report
                 // VM's viewModelScope; the previous screen-scoped
                 // forEach abandoned partial deletes when the user
@@ -1127,14 +1127,14 @@ fun ReportsScreen(
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
-            onResumeStaleCross = { mp -> onResumeStaleCross(rid, mp) },
-            onRestartFailedCross = { mp -> onRestartFailedCross(rid, mp) },
-            onRerunCompleteCross = { mp ->
-                onRerunCompleteCross(rid, mp)
+            onResumeStaleFanOut = { mp -> onResumeStaleFanOut(rid, mp) },
+            onRestartFailedFanOut = { mp -> onRestartFailedFanOut(rid, mp) },
+            onRerunCompleteFanOut = { mp ->
+                onRerunCompleteFanOut(rid, mp)
                 secondaryRefreshTick++
             },
-            onDeleteCrossModel = { mpid, prov, model ->
-                onDeleteCrossModel(rid, mpid, prov, model)
+            onDeleteFanOutModel = { mpid, prov, model ->
+                onDeleteFanOutModel(rid, mpid, prov, model)
                 secondaryRefreshTick++
             }
         )
@@ -1144,15 +1144,15 @@ fun ReportsScreen(
     // Helper used by the Meta card and the Meta hub's "Add" list.
     // Every Meta-category prompt now goes through the scope screen.
     // fan_out prompts have their own button + popup and are routed
-    // via launchCrossPrompt below.
+    // via launchFanOutPrompt below.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
         secondaryScopeMetaPrompt = mp
     }
     // fan_out prompts always run the scope screen → confirm dialog
-    // → runCrossMetaPrompt path. The scope screen hides the language
+    // → runFanOutPrompt path. The scope screen hides the language
     // picker and the post-scope routing on line 645 jumps straight to
     // the call-count confirm dialog when category == "fan_out".
-    val launchCrossPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
+    val launchFanOutPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
         secondaryScopeMetaPrompt = mp
     }
 
@@ -1269,7 +1269,7 @@ fun ReportsScreen(
         return
     }
 
-    // Action-row picker overlays (Meta / Cross / View / Edit). These
+    // Action-row picker overlays (Meta / Fan out / View / Edit). These
     // render at ReportsScreen scope — not inside GenerationPhase —
     // so the parent TitleBar and the action row don't paint above
     // them when the user opens a picker.
@@ -1290,18 +1290,18 @@ fun ReportsScreen(
         )
         return
     }
-    if (showCrossPicker) {
+    if (showFanOutPicker) {
         ReportSelectInternalPromptScreen(
-            titleText = "Run a Cross prompt",
+            titleText = "Run a Fan out prompt",
             category = "fan_out",
             prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
             onSelectPrompt = {
-                showCrossPicker = false
-                launchCrossPrompt(it)
+                showFanOutPicker = false
+                launchFanOutPrompt(it)
             },
-            onBack = { showCrossPicker = false },
+            onBack = { showFanOutPicker = false },
             onEditPrompts = {
-                showCrossPicker = false
+                showFanOutPicker = false
                 onNavigateToInternalPromptsByCategory("fan_out")
             }
         )
@@ -1430,7 +1430,7 @@ fun ReportsScreen(
             com.ai.ui.shared.ReloadConfirmationDialog(
                 target = "",
                 title = "Regenerate every agent?",
-                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Cross, Translate) are kept.",
+                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
                 confirmLabel = "Regenerate",
                 onConfirm = {
                     showRegenerateConfirm = false
@@ -1503,20 +1503,20 @@ fun ReportsScreen(
                 onOpenViewPicker = { showViewPicker = true },
                 onOpenEditPicker = { showEditPicker = true },
                 onOpenMetaPicker = { showMetaPicker = true },
-                onOpenCrossPicker = { showCrossPicker = true },
+                onOpenFanOutPicker = { showFanOutPicker = true },
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
                 translationRuns = translationRuns,
                 onCancelTranslation = onCancelTranslation,
                 translationRunSummaries = translationRunSummaries,
-                crossMetaSummaries = crossMetaSummaries,
+                fanOutSummaries = fanOutSummaries,
                 onViewSecondaryName = { name, kind -> listKind = kind; listFilterByName = name },
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                crossPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
+                fanOutPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
             )
@@ -1691,20 +1691,20 @@ private fun ColumnScope.GenerationPhase(
     onOpenViewPicker: () -> Unit = {},
     onOpenEditPicker: () -> Unit = {},
     onOpenMetaPicker: () -> Unit = {},
-    onOpenCrossPicker: () -> Unit = {},
+    onOpenFanOutPicker: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onCancelTranslation: (String) -> Unit = {},
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
-    crossMetaSummaries: List<CrossMetaRunSummary> = emptyList(),
+    fanOutSummaries: List<FanOutRunSummary> = emptyList(),
     onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
     onOpenSecondaryRun: (String) -> Unit = {},
     onOpenTranslationRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    crossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanOutPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     /** Open a single trace file in the trace detail view. Wired to the
      *  per-row 🐞 icons next to agent / secondary rows. */
     onNavigateToTraceFile: (String) -> Unit = {},
@@ -1753,7 +1753,7 @@ private fun ColumnScope.GenerationPhase(
                 withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
             } ?: false
         }
-        // The View / Edit / Meta / Cross pickers live at ReportsScreen
+        // The View / Edit / Meta / Fan out pickers live at ReportsScreen
         // scope so they can render as proper full-screen overlays.
         // GenerationPhase only owns the trigger callbacks now.
         ActionRow {
@@ -1777,10 +1777,10 @@ private fun ColumnScope.GenerationPhase(
                 enabled = metaPrompts.isNotEmpty()
             )
             CompactButton(
-                onClick = onOpenCrossPicker,
+                onClick = onOpenFanOutPicker,
                 color = AppColors.Orange,
                 text = "Fan out",
-                enabled = crossPrompts.isNotEmpty()
+                enabled = fanOutPrompts.isNotEmpty()
             )
         }
 
@@ -1940,12 +1940,12 @@ private fun ColumnScope.GenerationPhase(
         translationRuns.filter { !it.isFinished && !it.cancelled }
     }
     val showSecondaryRuns = isComplete && secondaryRuns.isNotEmpty()
-    val showCrossSummaries = crossMetaSummaries.isNotEmpty()
+    val showFanOutSummaries = fanOutSummaries.isNotEmpty()
     val showLiveTranslations = isComplete && activeTranslationRuns.isNotEmpty()
     val showTranslationSummaries = isComplete && translationRunSummaries.isNotEmpty()
     // Anchor the list to the top while it's first loading. The
     // displayRows section composes immediately (it's derived from
-    // uiState's selected agents) but the secondary / cross /
+    // uiState's selected agents) but the secondary / fan out /
     // translation sections come back a tick later from disk via
     // the polling LaunchedEffect above. Without this, those
     // sections prepend above the agent rows that the user is
@@ -1958,7 +1958,7 @@ private fun ColumnScope.GenerationPhase(
     // scrollToItem loop forcibly clobbered any user swipe input in
     // the first 1.5 s after open. One-shot scroll on report open
     // is enough — Compose leaves the position alone afterwards
-    // even when secondary / cross / translation rows arrive
+    // even when secondary / fan out / translation rows arrive
     // because the list anchors to the visible item.
     LaunchedEffect(currentReportId) {
         if (currentReportId == null) return@LaunchedEffect
@@ -1999,16 +1999,16 @@ private fun ColumnScope.GenerationPhase(
                         }
                         else -> Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    // Live row "type" cell: after_cross rows always
-                    // surface as "cross-in" (matching the prompt
+                    // Live row "type" cell: fan_in rows always
+                    // surface as "fan-in" (matching the prompt
                     // category — these are combine-reports follow-ups
-                    // to a cross run). The remaining rows use the
+                    // to a fan out run). The remaining rows use the
                     // Meta prompt name ("Compare", "Critique", …)
                     // verbatim, falling back to the routing label
                     // for legacy rows that pre-date the Meta-prompt
                     // CRUD.
                     val typeLabel = when {
-                        run.afterCrossOf != null -> "cross-in"
+                        run.fanInOf != null -> "fan-in"
                         run.metaPromptName?.isNotBlank() == true -> run.metaPromptName.lowercase()
                         else -> when (run.kind) {
                             SecondaryKind.RERANK -> "rerank"
@@ -2041,15 +2041,15 @@ private fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Cross-meta summary rows — one per Meta-prompt name with at
-        // least one cross-pair (or after_cross combine-reports) row on
-        // disk. A single Run Cross click produces N×(M-1) per-pair
+        // Fan-out summary rows — one per Meta-prompt name with at
+        // least one fan-out pair (or fan_in combine-reports) row on
+        // disk. A single Run Fan out click produces N×(M-1) per-pair
         // factchecks plus an optional combine-reports follow-up; we
         // collapse them into a single line here so the agent list
         // doesn't balloon. Tap → SecondaryResultsScreen, which already
-        // detects cross rows and renders them via CrossMetaDrillInView.
-        if (showCrossSummaries) {
-            items(crossMetaSummaries, key = { "cm-${it.metaPromptName}" }) { run ->
+        // detects fan out rows and renders them via FanOutDrillInView.
+        if (showFanOutSummaries) {
+            items(fanOutSummaries, key = { "cm-${it.metaPromptName}" }) { run ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
                         onViewSecondaryName(run.metaPromptName, run.kind)
@@ -2076,7 +2076,7 @@ private fun ColumnScope.GenerationPhase(
                         Text(formatCents(run.totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
-                    // Per-row 🐞 removed — the cross drill-in screen
+                    // Per-row 🐞 removed — the fan out drill-in screen
                     // and its per-pair detail surfaces already expose
                     // the trace files through their own title bars.
                 }
@@ -2271,15 +2271,15 @@ private data class TranslationRunSummary(
     val timestamp: Long
 )
 
-/** Single synthetic row for the agent list per cross-style Meta run. A
- *  cross click produces N×(M-1) per-pair factchecks (kind=META,
- *  crossSourceAgentId set); collapsing them here keeps the result list
- *  at one line per user-initiated cross run, mirroring how
+/** Single synthetic row for the agent list per fan-out Meta run. A
+ *  fan out click produces N×(M-1) per-pair factchecks (kind=META,
+ *  fanOutSourceAgentId set); collapsing them here keeps the result list
+ *  at one line per user-initiated fan out run, mirroring how
  *  [TranslationRunSummary] collapses Translate's per-call rows. */
-private data class CrossMetaRunSummary(
+private data class FanOutRunSummary(
     /** Meta-prompt display name — used both as the row label and as the
      *  routing key for [onViewSecondaryName] which opens
-     *  [SecondaryResultsScreen]'s cross drill-in. */
+     *  [SecondaryResultsScreen]'s fan out drill-in. */
     val metaPromptName: String,
     val kind: SecondaryKind,
     val pairCount: Int,
@@ -2293,18 +2293,18 @@ private data class CrossMetaRunSummary(
     val timestamp: Long
 )
 
-/** Group cross-meta pair rows by Meta-prompt name. After_cross rows are
+/** Group fan-out pair rows by Meta-prompt name. Fan_in rows are
  *  excluded by the caller — each is its own row in secondaryRuns since
  *  there's nothing to fold (one click → one row). Legacy rows missing
  *  `metaPromptName` fall back to `metaPromptId` to keep them grouped. */
-private fun buildCrossMetaSummaries(rows: List<com.ai.data.SecondaryResult>): List<CrossMetaRunSummary> {
+private fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List<FanOutRunSummary> {
     if (rows.isEmpty()) return emptyList()
     return rows
         .groupBy { it.metaPromptName?.takeIf { n -> n.isNotBlank() } ?: (it.metaPromptId ?: "") }
         .filterKeys { it.isNotBlank() }
         .map { (name, items) ->
             val pending = items.count { it.content.isNullOrBlank() && it.errorMessage == null }
-            CrossMetaRunSummary(
+            FanOutRunSummary(
                 metaPromptName = name,
                 kind = SecondaryKind.META,
                 pairCount = items.size,

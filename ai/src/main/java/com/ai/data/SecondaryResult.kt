@@ -71,19 +71,19 @@ data class SecondaryResult(
      *  renames or deletes the Meta prompt. Null on TRANSLATE / legacy
      *  rows. */
     val metaPromptName: String? = null,
-    /** For cross-type Meta runs: agentId of the report-model whose
+    /** For fan-out Meta runs: agentId of the report-model whose
      *  response was substituted into the prompt's `@RESPONSE@` slot.
      *  This row's own (providerId, model) is the answerer that
      *  produced this content. Together they form the (answerer,
-     *  source) pair the cross drill-in keys on. Null on every
-     *  non-cross row. */
-    val crossSourceAgentId: String? = null,
-    /** For after_cross-type Meta runs: id of the [com.ai.model.InternalPrompt]
-     *  that produced this combined-report row. Lets the cross detail
+     *  source) pair the fan out drill-in keys on. Null on every
+     *  non-fan out row. */
+    val fanOutSourceAgentId: String? = null,
+    /** For fan_in-type Meta runs: id of the [com.ai.model.InternalPrompt]
+     *  that produced this combined-report row. Lets the fan out detail
      *  screen distinguish the single combined output from the per-pair
      *  factcheck rows even though both share `metaPromptName`. Null on
-     *  every non-after_cross row. */
-    val afterCrossOf: String? = null
+     *  every non-fan_in row. */
+    val fanInOf: String? = null
 )
 
 /**
@@ -231,7 +231,7 @@ object SecondaryResultStorage {
         // Delegate to listForReport so we share its fingerprint cache —
         // the previous implementation re-parsed every JSON file on
         // every call even when the per-report list was already in
-        // memory and unchanged. Cross drill-in polls this every
+        // memory and unchanged. Fan out drill-in polls this every
         // 500 ms while batching, so the redundant parses scaled with
         // (file count × poll rate) for no benefit.
         val rows = listForReport(context, reportId)
@@ -296,18 +296,18 @@ fun resolveSecondaryPrompt(
         .replace("@TITLE@", title ?: "")
 }
 
-/** Substitutes placeholders for an after_cross run.
+/** Substitutes placeholders for a fan-in run.
  *  Top-level placeholders (@QUESTION@, @TITLE@, @DATE@, @COUNT@,
- *  @CROSS_COUNT@) are plain string replaces. The iterable block
+ *  @FAN_OUT_COUNT@) are plain string replaces. The iterable block
  *  `\n\n***Report*** @REPORT@@RESPONSES@` is found once in the template
  *  and expanded N times — one per (reportBody, factchecks) entry —
  *  with @RESPONSE@ inside @RESPONSES@ replaced by each factcheck
  *  content. */
-fun resolveAfterCrossPrompt(
+fun resolveFanInPrompt(
     template: String,
     question: String,
     count: Int,
-    crossCount: Int,
+    fanOutCount: Int,
     perReport: List<Pair<String, List<String>>>,
     title: String? = null
 ): String {
@@ -317,7 +317,7 @@ fun resolveAfterCrossPrompt(
         .replace("@TITLE@", title ?: "")
         .replace("@DATE@", now)
         .replace("@COUNT@", count.toString())
-        .replace("@CROSS_COUNT@", crossCount.toString())
+        .replace("@FAN_OUT_COUNT@", fanOutCount.toString())
     val iterable = "\n\n***Report*** @REPORT@@RESPONSES@"
     val expansion = buildString {
         perReport.forEach { (reportBody, factchecks) ->

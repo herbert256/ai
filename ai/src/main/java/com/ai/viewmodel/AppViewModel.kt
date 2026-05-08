@@ -45,7 +45,7 @@ data class GeneralSettings(
      *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
      *  sites consult a single global. */
     val tracingEnabled: Boolean = true,
-    /** Controls whether combined provider+model labels (Cross drill-in
+    /** Controls whether combined provider+model labels (Fan out drill-in
      *  rows, secondary picker buttons, agent rows on Report Result,
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
@@ -207,15 +207,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    // Hot-mutating cross-pair set lives outside UiState so per-task
-    // start/finish updates (5–15 Hz during a Cross batch) don't
+    // Hot-mutating fan-out pair set lives outside UiState so per-task
+    // start/finish updates (5–15 Hz during a Fan out batch) don't
     // recompose every consumer that reads any other UiState field.
-    // Subscribers that actually care (the Cross L1 / L2 / L3 screens,
+    // Subscribers that actually care (the Fan out L1 / L2 / L3 screens,
     // the Run-button hourglass) collect this flow directly.
-    private val _runningCrossPairs = MutableStateFlow<Set<String>>(emptySet())
-    val runningCrossPairs: StateFlow<Set<String>> = _runningCrossPairs.asStateFlow()
-    internal fun updateRunningCrossPairs(block: (Set<String>) -> Set<String>) {
-        _runningCrossPairs.update(block)
+    private val _runningFanOutPairs = MutableStateFlow<Set<String>>(emptySet())
+    val runningFanOutPairs: StateFlow<Set<String>> = _runningFanOutPairs.asStateFlow()
+    internal fun updateRunningFanOutPairs(block: (Set<String>) -> Set<String>) {
+        _runningFanOutPairs.update(block)
     }
 
     init {
@@ -704,7 +704,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             withSelf.withProvider(service, cfg.copy(modelSource = ModelSource.API))
                         else withSelf
                     } else withSelf
-                    // Cross-pollinate OpenRouter labels — covers two flows:
+                    // Fan out-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
                     //   • OpenRouter fetch propagates fresh labels to every other provider
                     state.copy(aiSettings = withSource.applyOpenRouterTypes(), loadingModelsFor = state.loadingModelsFor - service)
@@ -720,7 +720,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(final)
                 }
                 if (service.id == "OPENROUTER") {
-                    // Persist the freshly cross-applied labels for every other provider.
+                    // Persist the freshly fan out-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
                         val cfg = final.getProvider(other)
                         if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
@@ -791,7 +791,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
             val successful = results.filter { it.second > 0 }.map { it.first }
             if (successful.isNotEmpty()) settingsPrefs.updateModelListTimestamps(successful)
-            // Final cross-lookup pass — guarantees that whichever order the parallel
+            // Final fan out-lookup pass — guarantees that whichever order the parallel
             // fetches finished in, OpenRouter's labels end up applied everywhere.
             _uiState.update { state -> state.copy(aiSettings = state.aiSettings.applyOpenRouterTypes()) }
             val final = _uiState.value.aiSettings
@@ -884,12 +884,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val PREFS_NAME = "eval_prefs"
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val REPORT_CONCURRENCY_LIMIT = 4
-        /** Per-provider concurrency cap for cross-meta runs. Each
+        /** Per-provider concurrency cap for fan-out runs. Each
          *  provider gets at most this many simultaneous requests in
          *  flight; different providers run their own caps in parallel.
-         *  A 6-report cross run on 6 different providers therefore
-         *  runs up to 6 × CROSS_PER_PROVIDER_LIMIT calls concurrently. */
-        internal const val CROSS_PER_PROVIDER_LIMIT = 3
+         *  A 6-report fan out run on 6 different providers therefore
+         *  runs up to 6 × FAN_OUT_PER_PROVIDER_LIMIT calls concurrently. */
+        internal const val FAN_OUT_PER_PROVIDER_LIMIT = 3
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)

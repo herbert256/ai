@@ -400,15 +400,15 @@ fun ReportCostTable(report: Report) {
         // reads "critique", etc. Rerank / moderation / translate keep
         // their fixed labels — those routing labels are the user's
         // mental model for those rows.
-        // Cross drill-in rows always read "cross-out" (per-pair
-        // factchecks) or "cross-in" (combine-reports follow-ups),
+        // Fan out drill-in rows always read "fan-out" (per-pair
+        // factchecks) or "fan-in" (combine-reports follow-ups),
         // matching the prompt-category labels surfaced on the Report
         // Result page. Other secondaries use the user-given Meta
         // prompt name; rerank / moderation / translate keep their
         // routing labels.
         val type = when {
-            s.crossSourceAgentId != null -> "cross-out"
-            s.afterCrossOf != null -> "cross-in"
+            s.fanOutSourceAgentId != null -> "fan-out"
+            s.fanInOf != null -> "fan-in"
             !s.metaPromptName.isNullOrBlank() -> s.metaPromptName.lowercase()
             else -> when (s.kind) {
                 SecondaryKind.RERANK -> "rerank"

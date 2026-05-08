@@ -52,7 +52,7 @@ internal fun SecondaryScopeScreen(
     // fan_out prompts also pick a subset of report-models as
     // "sources" (the answerer set is always the full successful list).
     // Top-Ranked / Manual scope therefore make sense for both meta and
-    // fan_out. Language fan-out, however, stays meta-only — cross
+    // fan_out. Language fan-out, however, stays meta-only — fan out
     // always runs on the original.
     val supportsSubsetScope = isMetaCategory || metaPrompt.category == "fan_out"
     var scopeMode by remember { mutableStateOf(ScopeMode.ALL) }
@@ -119,7 +119,7 @@ internal fun SecondaryScopeScreen(
                 onSelect = { scopeMode = ScopeMode.ALL }
             )
             Spacer(modifier = Modifier.height(8.dp))
-            // Top-Ranked scope makes sense for chat / cross prompts
+            // Top-Ranked scope makes sense for chat / fan out prompts
             // (both pick a subset of report-models as input). Rerank
             // and moderation runs always operate on the full set.
             if (supportsSubsetScope && reranks.isNotEmpty()) {
@@ -231,7 +231,7 @@ internal fun SecondaryScopeScreen(
             }
 
             // Translation language fan-out only applies to meta-category
-            // prompts. cross runs always use the original.
+            // prompts. fan out runs always use the original.
             if (isMetaCategory && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)

@@ -48,14 +48,14 @@ internal fun SecondaryResultsScreen(
     kind: SecondaryKind,
     nameFilter: String? = null,
     isBatching: Boolean = false,
-    runningCrossPairs: Set<String> = emptySet(),
-    afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    crossPrompt: com.ai.model.InternalPrompt? = null,
-    onRunAfterCross: (() -> Unit)? = null,
+    runningFanOutPairs: Set<String> = emptySet(),
+    fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanOutPrompt: com.ai.model.InternalPrompt? = null,
+    onRunFanIn: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant — fires off all deletes at once on Dispatchers.IO
      *  rather than calling onDelete() in a tight main-thread loop.
-     *  Used by the "Delete this Cross" confirm dialog where N can be
+     *  Used by the "Delete this Fan out" confirm dialog where N can be
      *  several hundred (≈ N(N-1) per-pair rows + combined rows). */
     onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
     onBack: () -> Unit,
@@ -63,10 +63,10 @@ internal fun SecondaryResultsScreen(
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
-    onResumeStaleCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onRestartFailedCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onRerunCompleteCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onDeleteCrossModel: (String, String, String) -> Unit = { _, _, _ -> }
+    onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -84,7 +84,7 @@ internal fun SecondaryResultsScreen(
     // produceStates each called SecondaryResultStorage.listForReport,
     // which re-parses every JSON file in the report's secondary dir
     // regardless of the requested kind (kind filtering is post-parse).
-    // For an N-agent Cross run that's 3 × N(N-1) re-parses every
+    // For an N-agent Fan out run that's 3 × N(N-1) re-parses every
     // 500 ms while batching. One read, three derived views.
     val allRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
         value = withContext(Dispatchers.IO) {
@@ -100,13 +100,13 @@ internal fun SecondaryResultsScreen(
             rowName == nameFilter
         }
     }
-    // After_cross rows on this report regardless of nameFilter — the
-    // filter targets the cross prompt's name, but after_cross rows
-    // carry the (different) after_cross prompt's name. Loaded
-    // unconditionally so the cross detail screen can list every
+    // Fan_in rows on this report regardless of nameFilter — the
+    // filter targets the fan out prompt's name, but fan_in rows
+    // carry the (different) fan_in prompt's name. Loaded
+    // unconditionally so the fan out detail screen can list every
     // combine-reports follow-up that this report has spawned.
-    val afterCrossRows = remember(allRows) {
-        allRows.filter { it.kind == SecondaryKind.META && it.afterCrossOf != null }
+    val fanInRows = remember(allRows) {
+        allRows.filter { it.kind == SecondaryKind.META && it.fanInOf != null }
     }
     // TRANSLATE rows on this report — drives the language picker for
     // chat-type META views. Languages not seen on TRANSLATE rows never
@@ -167,7 +167,7 @@ internal fun SecondaryResultsScreen(
         // text instead of the translation.
         filteredResults.firstOrNull { it.id == id }
             ?: results.firstOrNull { it.id == id }
-            ?: afterCrossRows.firstOrNull { it.id == id }
+            ?: fanInRows.firstOrNull { it.id == id }
     }
     if (openResult != null) {
         SecondaryResultDetailScreen(
@@ -188,19 +188,19 @@ internal fun SecondaryResultsScreen(
     // pre-dating the Meta-prompt CRUD). No hardcoded plural labels —
     // the screen is driven entirely by what the bucket button said.
     val baseTitle = nameFilter ?: com.ai.data.legacyKindDisplayName(kind)
-    // Cross drill-in paints its own per-level TitleBar (L1: prompt
+    // Fan out drill-in paints its own per-level TitleBar (L1: prompt
     // name + title; L2: active model name with info / delete in the
-    // menu bar; L3: "Cross level 3"). The parent TitleBar is
+    // menu bar; L3: "Fan out level 3"). The parent TitleBar is
     // suppressed in that case so we don't render two stacked headers.
-    val crossRowsAll = filteredResults.filter { it.afterCrossOf == null }
-    val isCrossDrillIn = kind == SecondaryKind.META &&
-        crossRowsAll.any { it.crossSourceAgentId != null }
+    val fanOutRowsAll = filteredResults.filter { it.fanInOf == null }
+    val isFanOutDrillIn = kind == SecondaryKind.META &&
+        fanOutRowsAll.any { it.fanOutSourceAgentId != null }
     // META rows surface inside MetaResultsPickerView (the picker
     // buttons + inline body). Hoist the selected-id state up here so
     // the parent's TitleBar can offer the trace icon for the
     // currently-selected secondary — the picker view used to carry
     // its own inline 🐞.
-    val isMetaPickerMode = kind == SecondaryKind.META && !isCrossDrillIn
+    val isMetaPickerMode = kind == SecondaryKind.META && !isFanOutDrillIn
     val pickerSelectedId = if (isMetaPickerMode) {
         rememberSaveable(filteredResults.map { it.id }) { mutableStateOf(filteredResults.firstOrNull()?.id) }
     } else null
@@ -217,7 +217,7 @@ internal fun SecondaryResultsScreen(
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        if (!isCrossDrillIn) {
+        if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
@@ -285,38 +285,38 @@ internal fun SecondaryResultsScreen(
             return@Column
         }
 
-        // Cross-type META: every cross row carries a crossSourceAgentId
+        // Fan-out META: every fan out row carries a fanOutSourceAgentId
         // pointing at the source whose response was factchecked. The
         // L1 → L2 → L3 drill-in below replaces the flat picker. The
-        // after_cross combine-reports rows live in afterCrossRows
+        // fan_in combine-reports rows live in fanInRows
         // (loaded unconditionally above so the nameFilter doesn't hide
         // them) and surface as the second list above the answerers.
-        if (isCrossDrillIn) {
-            CrossMetaDrillInView(
+        if (isFanOutDrillIn) {
+            FanOutDrillInView(
                 reportId = reportId,
-                results = crossRowsAll,
-                combinedRows = afterCrossRows,
-                afterCrossPrompts = afterCrossPrompts,
-                crossPrompt = crossPrompt,
-                runningCrossPairs = runningCrossPairs,
-                onRunAfterCross = onRunAfterCross,
+                results = fanOutRowsAll,
+                combinedRows = fanInRows,
+                fanInPrompts = fanInPrompts,
+                fanOutPrompt = fanOutPrompt,
+                runningFanOutPairs = runningFanOutPairs,
+                onRunFanIn = onRunFanIn,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
                 onOpen = { id -> openId = id },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
-                onResumeStaleCross = onResumeStaleCross,
-                onRestartFailedCross = onRestartFailedCross,
-                onRerunCompleteCross = onRerunCompleteCross,
+                onResumeStaleFanOut = onResumeStaleFanOut,
+                onRestartFailedFanOut = onRestartFailedFanOut,
+                onRerunCompleteFanOut = onRerunCompleteFanOut,
                 // The other lifecycle callbacks (resume/restart/rerun)
                 // each kick a fresh batch, which spins the polling
                 // loop and refreshes implicitly. Per-model delete is
                 // the standout — it removes rows but never starts a
                 // batch, so without an explicit bump L1 paints stale
                 // data once L2 pops back.
-                onDeleteCrossModel = { mpid, prov, model ->
-                    onDeleteCrossModel(mpid, prov, model); refreshTick++
+                onDeleteFanOutModel = { mpid, prov, model ->
+                    onDeleteFanOutModel(mpid, prov, model); refreshTick++
                 },
                 onBack = onBack
             )
@@ -422,7 +422,7 @@ private fun ColumnScope.MetaResultsPickerView(
     // too. The confirm dialog moved up alongside.
 }
 
-/** Role-aware row in the L2 list — built by [CrossMetaDrillInView]
+/** Role-aware row in the L2 list — built by [FanOutDrillInView]
  *  and passed to [OnePageView] / used for prev-next stepping on L3. */
 private data class L2Row(
     /** Stable key: source.agentId for Responder, "$pid|$mdl|$srcAgentId"
@@ -448,11 +448,11 @@ private data class L2Row(
     val sourceAgentId: String? = null
 )
 
-/** L1 → L2 → L3 drill-in for cross-type META results.
+/** L1 → L2 → L3 drill-in for fan-out META results.
  *  L1: list of every successful report-model that produced at least
  *      one factcheck row (the "answerer"), with progress bars + stats
  *      + a button row for restart-failed / show-prompt / edit-prompt
- *      / rerun-complete / delete-cross.
+ *      / rerun-complete / delete-fan out.
  *  L2: for the chosen model, list rows according to the active
  *      [Role]: Responder lists every source the model factchecked,
  *      Initiator lists every answerer that factchecked the model.
@@ -465,16 +465,16 @@ private data class L2Row(
  *      order.
  */
 @Composable
-private fun ColumnScope.CrossMetaDrillInView(
+private fun ColumnScope.FanOutDrillInView(
     reportId: String,
     results: List<SecondaryResult>,
     combinedRows: List<SecondaryResult> = emptyList(),
-    afterCrossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    crossPrompt: com.ai.model.InternalPrompt? = null,
-    runningCrossPairs: Set<String> = emptySet(),
-    onRunAfterCross: (() -> Unit)? = null,
+    fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanOutPrompt: com.ai.model.InternalPrompt? = null,
+    runningFanOutPairs: Set<String> = emptySet(),
+    onRunFanIn: (() -> Unit)? = null,
     onDelete: (String) -> Unit,
-    /** Bulk variant for the per-cross delete sweep. */
+    /** Bulk variant for the per-fan out delete sweep. */
     onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
     /** Open a SecondaryResultDetailScreen for the given row id. Used by
      *  the combined-reports list above the answerers — tapping a row
@@ -483,11 +483,11 @@ private fun ColumnScope.CrossMetaDrillInView(
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
-    onResumeStaleCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onRestartFailedCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onRerunCompleteCross: (com.ai.model.InternalPrompt) -> Unit = {},
-    onDeleteCrossModel: (String, String, String) -> Unit = { _, _, _ -> },
-    /** Exit the cross drill-in entirely. Wired to the L1 TitleBar's
+    onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> },
+    /** Exit the fan out drill-in entirely. Wired to the L1 TitleBar's
      *  "< Back" — L2 / L3 back arrows pop one level instead. */
     onBack: () -> Unit = {}
 ) {
@@ -523,7 +523,7 @@ private fun ColumnScope.CrossMetaDrillInView(
     val latestByPair = remember(results) {
         val byKey = LinkedHashMap<String, SecondaryResult>()
         results.sortedWith(compareBy({ it.timestamp }, { it.id })).forEach { row ->
-            val src = row.crossSourceAgentId ?: return@forEach
+            val src = row.fanOutSourceAgentId ?: return@forEach
             val key = "${row.providerId}|${row.model}|$src"
             byKey[key] = row // last write wins → newest
         }
@@ -532,19 +532,19 @@ private fun ColumnScope.CrossMetaDrillInView(
 
     // Re-enqueue placeholders that survived an app kill (no content,
     // no error, and not currently in flight). The viewmodel filters by
-    // metaPromptId so other Cross runs on the same report aren't
-    // touched. No-op when crossPrompt is null (legacy rows without a
+    // metaPromptId so other Fan out runs on the same report aren't
+    // touched. No-op when fanOutPrompt is null (legacy rows without a
     // metaPromptId).
-    LaunchedEffect(reportId, crossPrompt?.id) {
-        crossPrompt?.let { onResumeStaleCross(it) }
+    LaunchedEffect(reportId, fanOutPrompt?.id) {
+        fanOutPrompt?.let { onResumeStaleFanOut(it) }
     }
 
-    // Scope rememberSaveable buckets per-(report, cross prompt). Without
-    // the key suffix, rotating the device while looking at Cross
+    // Scope rememberSaveable buckets per-(report, fan out prompt). Without
+    // the key suffix, rotating the device while looking at Fan out
     // prompt B's L2 selection restored prompt A's saved value first,
     // and only the subsequent LaunchedEffect cleared it — but rotation
     // already painted one frame with prompt A's stale selection.
-    val savePromptKey = "${reportId}/${crossPrompt?.id ?: "none"}"
+    val savePromptKey = "${reportId}/${fanOutPrompt?.id ?: "none"}"
     var selectedModelKey by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
     // L2 role state — Responder = this model is the answerer (existing
     // behaviour); Initiator = this model is the source. Saved so the
@@ -552,17 +552,17 @@ private fun ColumnScope.CrossMetaDrillInView(
     var selectedRole by rememberSaveable(savePromptKey) { mutableStateOf("Responder") }
     var l3AnswererKey by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
     var l3SourceAgentId by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
-    // Switching between Cross prompts on the same report keeps the
+    // Switching between Fan out prompts on the same report keeps the
     // composable instance alive — without this, the L2 role + drill-in
     // selection from Prompt A would carry over to a freshly opened
     // Prompt B (whose agent set may not even contain the carried key).
-    LaunchedEffect(crossPrompt?.id) {
+    LaunchedEffect(fanOutPrompt?.id) {
         selectedRole = "Responder"
         selectedModelKey = null
         l3AnswererKey = null
         l3SourceAgentId = null
     }
-    // Likewise: opening a different model on the same Cross should
+    // Likewise: opening a different model on the same Fan out should
     // start in Responder mode and with no L3 selection. Without this,
     // the role state set on Model A's L2 carries to Model B's L2 even
     // though the user picked it from a fresh L1 row.
@@ -595,15 +595,15 @@ private fun ColumnScope.CrossMetaDrillInView(
     }
 
     // Read-only prompt viewer overlay
-    if (showPromptViewer && crossPrompt != null) {
-        Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
+    if (showPromptViewer && fanOutPrompt != null) {
+        Text(fanOutPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-        if (crossPrompt.title.isNotBlank()) {
-            Text(crossPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
+        if (fanOutPrompt.title.isNotBlank()) {
+            Text(fanOutPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
         }
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
-            Text(crossPrompt.text, fontSize = 13.sp, color = AppColors.TextSecondary,
+            Text(fanOutPrompt.text, fontSize = 13.sp, color = AppColors.TextSecondary,
                 fontFamily = FontFamily.Monospace)
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -623,12 +623,12 @@ private fun ColumnScope.CrossMetaDrillInView(
     // queued. Done has to come before running so a row that finished
     // with an empty body (durationMs set, content blank) doesn't
     // briefly read as "running" if the executor's finally hasn't
-    // dropped its id from runningCrossPairs yet.
+    // dropped its id from runningFanOutPairs yet.
     fun rowState(row: SecondaryResult?): String = when {
         row == null -> "queued"
         row.errorMessage != null -> "errored"
         !row.content.isNullOrBlank() || row.durationMs != null -> "done"
-        row.id in runningCrossPairs -> "running"
+        row.id in runningFanOutPairs -> "running"
         else -> "queued"
     }
 
@@ -678,19 +678,19 @@ private fun ColumnScope.CrossMetaDrillInView(
             val multiAgent = activeAgents.size > 1
             val byPair = results
                 .filter {
-                    it.crossSourceAgentId in activeAgentIds &&
-                        it.afterCrossOf == null
+                    it.fanOutSourceAgentId in activeAgentIds &&
+                        it.fanInOf == null
                 }
-                .groupBy { "${it.providerId}|${it.model}|${it.crossSourceAgentId}" }
+                .groupBy { "${it.providerId}|${it.model}|${it.fanOutSourceAgentId}" }
                 .mapValues { (_, rs) -> rs.maxByOrNull { it.timestamp }!! }
                 .values
             byPair.sortedWith(
                 compareBy(
                     { ansOrder["${it.providerId}|${it.model}"] ?: Int.MAX_VALUE },
-                    { srcOrder[it.crossSourceAgentId] ?: Int.MAX_VALUE }
+                    { srcOrder[it.fanOutSourceAgentId] ?: Int.MAX_VALUE }
                 )
             ).map { row ->
-                val srcAgentId = row.crossSourceAgentId.orEmpty()
+                val srcAgentId = row.fanOutSourceAgentId.orEmpty()
                 val src = activeAgents.firstOrNull { it.agentId == srcAgentId }
                 val sourceLabel = if (multiAgent && src != null) {
                     val pn = AppService.findById(src.provider)?.displayName ?: src.provider
@@ -733,7 +733,7 @@ private fun ColumnScope.CrossMetaDrillInView(
         // open it. The previous inline icon above the source body is
         // gone now; the TitleBar names the source and offers its
         // trace, the answerer/factcheck pane below keeps its own 🐞
-        // for the cross-call trace.
+        // for the fan-out call trace.
         val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
             value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
                 ApiTracer.getTraceFiles()
@@ -743,7 +743,7 @@ private fun ColumnScope.CrossMetaDrillInView(
         }
         val srcTrace = srcTraceState.value
         TitleBar(
-            helpTopic = "secondary_cross",
+            helpTopic = "secondary_fan_out",
             title = "Fan out - pair",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
@@ -825,7 +825,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                         pairResult.durationMs != null -> {
                             Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
                         }
-                        pairResult.id in runningCrossPairs -> {
+                        pairResult.id in runningFanOutPairs -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -924,7 +924,7 @@ private fun ColumnScope.CrossMetaDrillInView(
         // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
         TitleBar(
-            helpTopic = "secondary_cross",
+            helpTopic = "secondary_fan_out",
             title = "Fan out - model",
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
@@ -1046,26 +1046,26 @@ private fun ColumnScope.CrossMetaDrillInView(
         if (confirmModelDelete) {
             AlertDialog(
                 onDismissRequest = { confirmModelDelete = false },
-                title = { Text("Delete this model from the cross?") },
+                title = { Text("Delete this model from the fan out?") },
                 text = {
                     Text("Drop every factcheck row where $provName / $activeMdl is " +
-                        "either the answerer or the source. Other Cross runs on this " +
+                        "either the answerer or the source. Other Fan out runs on this " +
                         "report are not affected. Can't be undone.")
                 },
                 confirmButton = {
-                    // Disable the Delete button when crossPrompt is
+                    // Disable the Delete button when fanOutPrompt is
                     // null instead of letting the click fall through
                     // and silently no-op. Audit Bug 28: the previous
                     // flow opened the dialog, the user tapped Delete,
                     // nothing happened, the dialog stayed open — and
                     // the user had no signal why.
-                    val cp = crossPrompt
+                    val cp = fanOutPrompt
                     TextButton(
                         enabled = cp != null,
                         onClick = {
                             if (cp != null) {
                                 confirmModelDelete = false
-                                onDeleteCrossModel(cp.id, activePid, activeMdl)
+                                onDeleteFanOutModel(cp.id, activePid, activeMdl)
                                 selectedModelKey = null
                             }
                         }
@@ -1098,24 +1098,24 @@ private fun ColumnScope.CrossMetaDrillInView(
         successful.map { "${it.provider}|${it.model}" }.distinct() + orphanKeys
     }
 
-    // Stats — derived from the cross rows + running set. A row counts
+    // Stats — derived from the fan out rows + running set. A row counts
     // as processed once the executor has stamped durationMs (set on
     // every successful and errored save, cleared by resetAndRelaunch).
     // Without that signal, a successful call that returned an empty
     // body (no text, no error) would slip past the content-non-blank
-    // check, get dropped from runningCrossPairs in the finally block,
+    // check, get dropped from runningFanOutPairs in the finally block,
     // and silently land in Queued instead of Done. Memoized so the
     // four passes only re-run when the inputs actually change instead
     // of on every recomposition (e.g., L2 ↔ L1 navigation, prompt
     // viewer overlay open/close).
     data class Stats(val total: Int, val done: Int, val errored: Int, val running: Int)
-    val stats = remember(results, runningCrossPairs) {
+    val stats = remember(results, runningFanOutPairs) {
         var done = 0; var errored = 0; var running = 0
         results.forEach { r ->
             when {
                 r.errorMessage != null -> errored++
                 !r.content.isNullOrBlank() || r.durationMs != null -> done++
-                r.id in runningCrossPairs -> running++
+                r.id in runningFanOutPairs -> running++
             }
         }
         Stats(results.size, done, errored, running)
@@ -1132,14 +1132,14 @@ private fun ColumnScope.CrossMetaDrillInView(
     // so the user can tell which Fan out prompt this run came from
     // without losing the screen identity.
     TitleBar(
-        helpTopic = "secondary_cross",
+        helpTopic = "secondary_fan_out",
         title = "Fan out",
         onBackClick = onBack
     )
     val l1SubHeader = when {
-        crossPrompt == null -> ""
-        crossPrompt.title.isBlank() -> crossPrompt.name
-        else -> "${crossPrompt.name} — ${crossPrompt.title}"
+        fanOutPrompt == null -> ""
+        fanOutPrompt.title.isBlank() -> fanOutPrompt.name
+        else -> "${fanOutPrompt.name} — ${fanOutPrompt.title}"
     }
     if (l1SubHeader.isNotBlank()) {
         Text(
@@ -1169,15 +1169,15 @@ private fun ColumnScope.CrossMetaDrillInView(
     // Per-row aggregated counters + cost. Hoisted out of the
     // LazyColumn item body so the O(N²) inner scan only runs when
     // one of its inputs actually changes (latestByPair, successful,
-    // runningCrossPairs, orphan list). Without this, every
+    // runningFanOutPairs, orphan list). Without this, every
     // recomposition — and there are many during a live batch as
-    // runningCrossPairs mutates 2× per pair — re-scanned the full
+    // runningFanOutPairs mutates 2× per pair — re-scanned the full
     // grid for every visible row.
     data class L1RowStats(
         val ok: Int, val err: Int, val run: Int,
         val totalSources: Int, val cost: Double
     )
-    val rowStatsByKey = remember(modelKeys, latestByPair, successful, runningCrossPairs, orphanKeys) {
+    val rowStatsByKey = remember(modelKeys, latestByPair, successful, runningFanOutPairs, orphanKeys) {
         val orphanSet = orphanKeys.toHashSet()
         modelKeys.associateWith { ak ->
             val parts = ak.split("|")
@@ -1196,7 +1196,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                     when {
                         res.errorMessage != null -> err++
                         !res.content.isNullOrBlank() || res.durationMs != null -> ok++
-                        res.id in runningCrossPairs -> run++
+                        res.id in runningFanOutPairs -> run++
                     }
                 }
                 L1RowStats(ok, err, run, total, cost)
@@ -1220,7 +1220,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                         when {
                             res.errorMessage != null -> err++
                             !res.content.isNullOrBlank() || res.durationMs != null -> ok++
-                            res.id in runningCrossPairs -> run++
+                            res.id in runningFanOutPairs -> run++
                         }
                     }
                 }
@@ -1244,7 +1244,7 @@ private fun ColumnScope.CrossMetaDrillInView(
     }
 
     // Scroll to the top whenever a new combined-reports row appears
-    // (the user just tapped "Combine reports and all cross responses"
+    // (the user just tapped "Combine reports and all fan out responses"
     // — the placeholder row materialises a tick or two later, and we
     // want it visible immediately so it doesn't get lost below the
     // fold). Tracking the count change rather than identity covers
@@ -1258,7 +1258,7 @@ private fun ColumnScope.CrossMetaDrillInView(
         lastCombinedSize = combinedRows.size
     }
     LazyColumn(state = l1ListState, modifier = Modifier.weight(1f)) {
-        // After_cross combine-reports follow-ups for this report.
+        // Fan_in combine-reports follow-ups for this report.
         if (combinedRows.isNotEmpty()) {
             item(key = "ac-header") {
                 Text("Combined reports", fontSize = 12.sp,
@@ -1283,9 +1283,9 @@ private fun ColumnScope.CrossMetaDrillInView(
                             // Combined-report rows have no queued
                             // state — they're created at the moment
                             // the user taps "Combine reports and all
-                            // cross responses" and run to completion
+                            // fan out responses" and run to completion
                             // serially. The id is never added to
-                            // runningCrossPairs (that's per-pair
+                            // runningFanOutPairs (that's per-pair
                             // factcheck plumbing only), so the prior
                             // 🕓 fallback would stick on a row that's
                             // actually in flight. Animated hourglass
@@ -1395,62 +1395,62 @@ private fun ColumnScope.CrossMetaDrillInView(
     // the model rows + stats, and the user expands to find the
     // run-management actions.
     var confirmRerunComplete by remember { mutableStateOf(false) }
-    var confirmCrossDelete by remember { mutableStateOf(false) }
+    var confirmFanOutDelete by remember { mutableStateOf(false) }
     Spacer(modifier = Modifier.height(8.dp))
     CollapsibleCard("Actions") {
-        if (afterCrossPrompts.isNotEmpty() && onRunAfterCross != null) {
+        if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
             Button(
-                onClick = { onRunAfterCross() },
+                onClick = { onRunFanIn() },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) {
-                Text("Combine reports and all cross responses",
+                Text("Combine reports and all fan-out responses",
                     fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
         }
         Button(
-            onClick = { crossPrompt?.let { onRestartFailedCross(it) } },
-            enabled = crossPrompt != null && erroredCount > 0,
+            onClick = { fanOutPrompt?.let { onRestartFailedFanOut(it) } },
+            enabled = fanOutPrompt != null && erroredCount > 0,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
         ) { Text("Restart all failed API calls", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         Button(
             onClick = { showPromptViewer = true },
-            enabled = crossPrompt != null,
+            enabled = fanOutPrompt != null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) { Text("Show the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        ) { Text("Show the used Fan out prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         Button(
-            onClick = { crossPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
-            enabled = crossPrompt != null,
+            onClick = { fanOutPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
+            enabled = fanOutPrompt != null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) { Text("Edit the used Cross prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        ) { Text("Edit the used Fan out prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         Button(
             onClick = { confirmRerunComplete = true },
-            enabled = crossPrompt != null,
+            enabled = fanOutPrompt != null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Rerun the complete Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        ) { Text("Rerun the complete Fan out", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         Button(
-            onClick = { confirmCrossDelete = true },
+            onClick = { confirmFanOutDelete = true },
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-        ) { Text("Delete this Cross", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        ) { Text("Delete this Fan out", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
 
     if (confirmRerunComplete) {
         AlertDialog(
             onDismissRequest = { confirmRerunComplete = false },
-            title = { Text("Rerun the complete Cross?") },
+            title = { Text("Rerun the complete Fan out?") },
             text = {
-                Text("Delete every cross row and start a fresh run. " +
+                Text("Delete every fan-out row and start a fresh run. " +
                     "Combined-report follow-ups for this prompt will also be dropped.")
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmRerunComplete = false
-                    crossPrompt?.let { onRerunCompleteCross(it) }
+                    fanOutPrompt?.let { onRerunCompleteFanOut(it) }
                 }) { Text("Rerun", color = AppColors.Orange, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -1460,26 +1460,26 @@ private fun ColumnScope.CrossMetaDrillInView(
             }
         )
     }
-    if (confirmCrossDelete) {
+    if (confirmFanOutDelete) {
         val totalRows = results.size + combinedRows.size
         AlertDialog(
-            onDismissRequest = { confirmCrossDelete = false },
-            title = { Text("Delete cross run?") },
+            onDismissRequest = { confirmFanOutDelete = false },
+            title = { Text("Delete fan-out run?") },
             text = {
                 Text(
-                    "Drop every per-pair factcheck for this cross run" +
+                    "Drop every per-pair factcheck for this fan-out run" +
                         (if (combinedRows.isNotEmpty()) " plus the combined-report follow-up" else "") +
                         " — $totalRows rows. Can't be undone."
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmCrossDelete = false
+                    confirmFanOutDelete = false
                     onBulkDelete((results + combinedRows).map { it.id })
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmCrossDelete = false }) {
+                TextButton(onClick = { confirmFanOutDelete = false }) {
                     Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }
@@ -1511,7 +1511,7 @@ private fun StatRow(label: String, value: String, valueColor: Color) {
  *
  *  The list lives in a LazyColumn — Compose's `verticalScroll`
  *  doesn't virtualise, and these blocks each render a
- *  ContentWithThinkSections that can be tens of KB on long Crosses. */
+ *  ContentWithThinkSections that can be tens of KB on long fan-out runs. */
 private sealed class OnePageItem {
     abstract val key: String
     data class SourceHeader(

@@ -81,7 +81,7 @@ internal fun TranslationRunDetailScreen(
 
     // Source META rows for the report — keyed by id so each TRANSLATE
     // row can resolve its translateSourceTargetId into a "type" label
-    // (cross-out / cross-in / metaPromptName / "meta"). PROMPT and
+    // (fan-out / fan-in / metaPromptName / "meta"). PROMPT and
     // AGENT rows don't need this lookup; their type is a constant.
     val metaSourcesById by produceState(initialValue = emptyMap<String, SecondaryResult>(), reportId, refreshTick) {
         value = withContext(Dispatchers.IO) {
@@ -107,8 +107,8 @@ internal fun TranslationRunDetailScreen(
             val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
             when {
                 src == null -> "meta"
-                src.crossSourceAgentId != null -> "cross-out"
-                src.afterCrossOf != null -> "cross-in"
+                src.fanOutSourceAgentId != null -> "fan-out"
+                src.fanInOf != null -> "fan-in"
                 !src.metaPromptName.isNullOrBlank() -> src.metaPromptName.lowercase()
                 else -> "meta"
             }
@@ -242,8 +242,8 @@ internal fun TranslationRunDetailScreen(
                     }
                     Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                     // What kind of source row this translation came from
-                    // — "report" for an agent response, "cross-out" /
-                    // "cross-in" for cross drill-in rows, the meta
+                    // — "report" for an agent response, "fan-out" /
+                    // "fan-in" for fan out drill-in rows, the meta
                     // prompt name for chat-type META rows, "prompt" for
                     // the report prompt itself.
                     Text(
