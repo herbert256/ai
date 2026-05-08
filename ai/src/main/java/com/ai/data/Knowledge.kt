@@ -65,7 +65,32 @@ data class KnowledgeChunk(
     val ordinal: Int,
     val text: String,
     val embedding: FloatArray
-)
+) {
+    // Override the auto-generated equals / hashCode so the FloatArray
+    // field uses contentEquals / contentHashCode rather than reference
+    // identity. Without this `==` between two chunks parsed from the
+    // same on-disk JSON returns false on the embedding side and the
+    // composite never matches — broken silently because no current
+    // call site was using == until a future one does.
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is KnowledgeChunk) return false
+        return id == other.id &&
+            sourceId == other.sourceId &&
+            ordinal == other.ordinal &&
+            text == other.text &&
+            embedding.contentEquals(other.embedding)
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + sourceId.hashCode()
+        result = 31 * result + ordinal
+        result = 31 * result + text.hashCode()
+        result = 31 * result + embedding.contentHashCode()
+        return result
+    }
+}
 
 /**
  * Per-KB directory layout:
