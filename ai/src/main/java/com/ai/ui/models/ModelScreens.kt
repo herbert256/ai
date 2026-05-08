@@ -740,10 +740,15 @@ fun ModelInfoScreen(
 
                     // Last 10 usages of this model — chat sessions,
                     // reports, and per-report secondaries (translate /
-                    // meta / rerank / moderate). Card is omitted
-                    // entirely when nothing matches so an unused model
-                    // doesn't show an empty placeholder.
-                    if (recentUsages.isNotEmpty()) {
+                    // meta / rerank / moderate). Card is also shown
+                    // when only the cumulative AI Usage counter has
+                    // entries for this model (one-shot test calls /
+                    // model refresh probes increment usage stats
+                    // without persisting a chat or report). Hidden
+                    // entirely when both signals are empty so an
+                    // untouched model doesn't render a placeholder.
+                    val hasUsageStats = usageEntry != null && usageEntry.callCount > 0
+                    if (recentUsages.isNotEmpty() || hasUsageStats) {
                         item {
                             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -767,6 +772,28 @@ fun ModelInfoScreen(
                                             Text(
                                                 dateFormat.format(java.util.Date(entry.timestamp)),
                                                 fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                    // Cumulative AI Usage counter — appended after
+                                    // the specific events. Captures one-shot test
+                                    // calls / model refreshes that bumped the
+                                    // counter but didn't persist any session row.
+                                    if (hasUsageStats) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "AI Usage", fontSize = 12.sp, color = AppColors.Orange,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                "${usageEntry!!.callCount} calls · ${usageEntry.totalTokens} tokens",
+                                                fontSize = 13.sp, color = Color.White,
+                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
