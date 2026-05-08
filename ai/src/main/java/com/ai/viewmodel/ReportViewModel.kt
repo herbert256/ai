@@ -111,6 +111,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val externalSystemPrompt = state.externalSystemPrompt
             val imageBase64 = state.reportImageBase64
             val imageMime = state.reportImageMime
+            // Drop the per-report image / per-report flags from UiState
+            // as soon as we've captured them into local vals. Otherwise
+            // a megabyte-sized base64 photo stays resident on UiState
+            // until the report finishes (or forever if the user navigates
+            // away and never comes back). The locals here keep the
+            // bytes alive for the agents that need them.
+            appViewModel.updateUiState { it.copy(
+                reportImageBase64 = null, reportImageMime = null,
+                reportWebSearchTool = false, reportReasoningEffort = null
+            ) }
             // Layer the per-report advanced overlay on top of any preset
             // merge — "later non-null wins" (matches Settings.mergeParameters
             // semantics for the preset chain). Either layer alone produces
@@ -202,8 +212,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                     }.awaitAll()
                 }
-                appViewModel.updateUiState { it.copy(reportImageBase64 = null, reportImageMime = null, reportWebSearchTool = false, reportReasoningEffort = null) }
-
                 if (reportRunningInBackground) {
                     reportRunningInBackground = false
                     withContext(Dispatchers.Main) {
