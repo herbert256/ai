@@ -421,6 +421,16 @@ fun ChatSessionScreen(
         // tokens; the conversation text alone misses that).
         val toolOverhead = if (useWebSearch) (PricingCache.liteLLMToolUseOverhead(provider, model) ?: 0) else 0
         val inputTokens = messages.sumOf { AppViewModel.estimateTokens(it.content) } + toolOverhead
+        // Snapshot the per-turn flags + attachments at entry. The
+        // coroutine below captures these by-reference; if the user
+        // toggles 🌐 / changes 📚 selection / changes 🧠 effort while
+        // streaming, the in-flight request would otherwise read the
+        // updated values instead of the ones that were active when
+        // they hit Send.
+        val sentWebSearch = useWebSearch
+        val sentReasoning = reasoningEffort
+        val sentKbIds = attachedKnowledgeBaseIds
+        val sentMessages = messages
 
         scope.launch {
             isStreaming = true; streamingContentState.value = ""
@@ -428,7 +438,7 @@ fun ChatSessionScreen(
             val previousCategory = com.ai.data.ApiTracer.currentCategory
             com.ai.data.ApiTracer.currentCategory = "Chat"
             try {
-                onSendMessageStream(messages, useWebSearch, reasoningEffort, attachedKnowledgeBaseIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
+                onSendMessageStream(sentMessages, sentWebSearch, sentReasoning, sentKbIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
                 messages = messages + assistantMsg
                 saveSession(messages)
