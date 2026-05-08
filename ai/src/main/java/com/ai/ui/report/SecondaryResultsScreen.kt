@@ -542,13 +542,19 @@ private fun ColumnScope.CrossMetaDrillInView(
         crossPrompt?.let { onResumeStaleCross(it) }
     }
 
-    var selectedModelKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // Scope rememberSaveable buckets per-(report, cross prompt). Without
+    // the key suffix, rotating the device while looking at Cross
+    // prompt B's L2 selection restored prompt A's saved value first,
+    // and only the subsequent LaunchedEffect cleared it — but rotation
+    // already painted one frame with prompt A's stale selection.
+    val savePromptKey = "${reportId}/${crossPrompt?.id ?: "none"}"
+    var selectedModelKey by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
     // L2 role state — Responder = this model is the answerer (existing
     // behaviour); Initiator = this model is the source. Saved so the
     // user can drill out and back without losing the toggle.
-    var selectedRole by rememberSaveable { mutableStateOf("Responder") }
-    var l3AnswererKey by rememberSaveable { mutableStateOf<String?>(null) }
-    var l3SourceAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedRole by rememberSaveable(savePromptKey) { mutableStateOf("Responder") }
+    var l3AnswererKey by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
+    var l3SourceAgentId by rememberSaveable(savePromptKey) { mutableStateOf<String?>(null) }
     // Switching between Cross prompts on the same report keeps the
     // composable instance alive — without this, the L2 role + drill-in
     // selection from Prompt A would carry over to a freshly opened
