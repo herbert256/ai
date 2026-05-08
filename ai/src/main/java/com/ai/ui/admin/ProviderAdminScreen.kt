@@ -71,11 +71,22 @@ fun ProviderAdminScreen(
                         if (url.isBlank()) {
                             Toast.makeText(context, "No admin URL configured for ${provider.displayName}", Toast.LENGTH_SHORT).show()
                         } else {
-                            try {
-                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                                context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, "Couldn't open: ${e.message}", Toast.LENGTH_SHORT).show()
+                            // Validate the scheme. A user-imported provider
+                            // definition could in principle smuggle in
+                            // adminUrl="javascript:…" or "intent:#Intent;…",
+                            // which an unguarded ACTION_VIEW would launch.
+                            // Only http(s) is meaningful for an admin
+                            // page anyway; anything else gets refused.
+                            val scheme = runCatching { url.toUri().scheme?.lowercase() }.getOrNull()
+                            if (scheme != "http" && scheme != "https") {
+                                Toast.makeText(context, "Refusing non-http(s) admin URL: $scheme", Toast.LENGTH_SHORT).show()
+                            } else {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Couldn't open: ${e.message}", Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                     }
