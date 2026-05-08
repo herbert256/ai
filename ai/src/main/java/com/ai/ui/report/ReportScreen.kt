@@ -1875,8 +1875,13 @@ private fun ColumnScope.GenerationPhase(
         // own row and its own Cancel.
         if (showLiveTranslations) {
             items(activeTranslationRuns, key = { "tr-live-${it.runId}" }) { run ->
+                // Tap anywhere on the row body to open the live run
+                // detail (per-call list with current progress); the
+                // inline Cancel TextButton handles its own click and
+                // doesn't propagate.
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        .clickable { onOpenTranslationRun(run.runId) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
@@ -1958,9 +1963,14 @@ private fun ColumnScope.GenerationPhase(
             val result = reportsAgentResults[agentId]
             val displayName = row.displayName
 
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).then(
-                if (result != null) Modifier.clickable { onViewAgent(agentId) } else Modifier
-            ), verticalAlignment = Alignment.CenterVertically) {
+            // Always clickable — pending / running / errored rows
+            // open the same detail screen so the user can remove or
+            // re-run the agent. Staged-only rows (no agent on disk
+            // yet) land on the detail screen's "Result not found"
+            // empty state, where the back gesture returns them here.
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                .clickable { onViewAgent(agentId) },
+                verticalAlignment = Alignment.CenterVertically) {
                 // Status icon - newly-staged rows get a NEW badge (no result yet because
                 // the user hasn't re-run); pending hourglass spins; success/failure static.
                 if (row.isNew) {
