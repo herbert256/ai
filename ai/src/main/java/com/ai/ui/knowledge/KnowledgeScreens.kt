@@ -130,9 +130,20 @@ fun KnowledgeListScreen(
     LaunchedEffect(Unit) { refreshTick++ }
 }
 
+@Composable
 private fun embedderLabel(kb: KnowledgeBase): String =
-    if (kb.embedderProviderId == "LOCAL") "Local · ${kb.embedderModel}"
-    else "${AppService.findById(kb.embedderProviderId)?.displayName ?: kb.embedderProviderId} · ${kb.embedderModel}"
+    embedderOptionLabel(kb.embedderProviderId, kb.embedderModel)
+
+/** Shared formatter for the embedder picker + KB row labels. Local
+ *  embedders read as "Local · model"; remote embedders go through
+ *  modelLabel so the "Model name layout" setting wins. */
+@Composable
+private fun embedderOptionLabel(providerId: String, model: String): String =
+    if (providerId == "LOCAL") "Local · $model"
+    else {
+        val prov = AppService.findById(providerId)?.displayName ?: providerId
+        com.ai.ui.shared.modelLabel(prov, model)
+    }
 
 /**
  * Wizard for picking a name + embedder when creating a new KB.
@@ -188,13 +199,20 @@ fun NewKnowledgeBaseScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = AppColors.outlinedButtonColors()
                 ) {
-                    Text(selected?.third ?: "Pick an embedder",
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // selected.third is a frozen label from when the
+                    // option list was built; rebuild via modelLabel so
+                    // the "Model name layout" setting wins.
+                    Text(
+                        selected?.let { embedderOptionLabel(it.first, it.second) } ?: "Pick an embedder",
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                 }
                 DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                     options.forEach { opt ->
-                        DropdownMenuItem(text = { Text(opt.third) },
-                            onClick = { selected = opt; pickerOpen = false })
+                        DropdownMenuItem(
+                            text = { Text(embedderOptionLabel(opt.first, opt.second)) },
+                            onClick = { selected = opt; pickerOpen = false }
+                        )
                     }
                 }
             }

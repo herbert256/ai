@@ -249,7 +249,15 @@ private fun ReportsViewerScreenLoaded(
                         onClick = { selectedAgentId = agent.agentId },
                         colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Purple else Color(0xFF3A3A4A)),
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp)
-                    ) { Text(agent.agentName, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) }
+                    ) {
+                        // agent.agentName is stored as "Provider /
+                        // Model"; rebuild from the underlying fields
+                        // so the "Model name layout" setting decides
+                        // whether the provider half shows.
+                        val agentProv = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                        Text(com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / "),
+                            fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                    }
                 }
             }
 

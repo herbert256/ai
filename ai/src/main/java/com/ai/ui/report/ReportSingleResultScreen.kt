@@ -134,7 +134,7 @@ fun ReportSingleResultScreen(
 
     if (showTranslationCompare && sourceAgentBody != null && agent.responseBody != null) {
         TranslationCompareScreen(
-            title = "Translation info — ${provider.displayName} / ${agent.model}",
+            title = "Translation info — ${com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " / ")}",
             originalLabel = "Original",
             originalContent = sourceAgentBody,
             translatedLabel = "Translation",

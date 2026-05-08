@@ -88,14 +88,14 @@ fun SemanticSearchScreen(
                 colors = AppColors.outlinedButtonColors()
             ) {
                 Text(
-                    text = picked?.let { (s, m) -> "${s.displayName} / $m" } ?: "Pick embedding model",
+                    text = picked?.let { (s, m) -> com.ai.ui.shared.modelLabel(s.displayName, m, separator = " / ") } ?: "Pick embedding model",
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                 embeddingChoices.forEach { (s, m) ->
                     DropdownMenuItem(
-                        text = { Text("${s.displayName} / $m") },
+                        text = { Text(com.ai.ui.shared.modelLabel(s.displayName, m, separator = " / ")) },
                         onClick = { picked = s to m; pickerOpen = false }
                     )
                 }

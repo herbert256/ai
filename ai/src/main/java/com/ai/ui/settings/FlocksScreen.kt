@@ -157,7 +157,8 @@ fun FlockEditScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(agent.name, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${agent.provider.displayName} \u00B7 $effectiveModel", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(com.ai.ui.shared.modelLabel(agent.provider.displayName, effectiveModel),
+                            fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }

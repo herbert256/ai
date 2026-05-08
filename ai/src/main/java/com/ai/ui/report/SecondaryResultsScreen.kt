@@ -1709,7 +1709,7 @@ internal fun SecondaryResultDetailScreen(
 
     if (showTranslationCompare && sourceContent != null && result.content != null) {
         TranslationCompareScreen(
-            title = "Translation info — $title — $provider / ${result.model}",
+            title = "Translation info — $title — ${com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")}",
             originalLabel = "Original",
             originalContent = sourceContent,
             translatedLabel = "Translation",

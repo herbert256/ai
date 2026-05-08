@@ -195,8 +195,13 @@ internal fun SecondaryScopeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Checkbox(checked = checked, onCheckedChange = { manualPicked[a.agentId] = it })
+                                // agentName carries "Provider / Model"
+                                // verbatim; rebuild from a.provider /
+                                // a.model so the Model name layout
+                                // setting wins.
+                                val agentProv = AppService.findById(a.provider)?.displayName ?: a.provider
                                 Text(
-                                    a.agentName.ifBlank { "${AppService.findById(a.provider)?.displayName ?: a.provider} / ${a.model}" },
+                                    com.ai.ui.shared.modelLabel(agentProv, a.model, separator = " / "),
                                     fontSize = 13.sp, color = Color.White,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)

@@ -358,7 +358,9 @@ fun SelectAgentScreen(
                             WebSearchBadge(aiSettings.isWebSearchCapable(agent.provider, effectiveModel))
                             ReasoningBadge(aiSettings.isReasoningCapable(agent.provider, effectiveModel))
                         }
-                        Text("${agent.provider.displayName} \u00B7 $effectiveModel", style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(modelLabel(agent.provider.displayName, effectiveModel),
+                            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                     Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
