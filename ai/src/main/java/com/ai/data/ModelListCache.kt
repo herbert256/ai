@@ -26,8 +26,16 @@ object ModelListCache {
     private fun dir(context: Context): File =
         File(context.filesDir, DIR).also { if (!it.exists()) it.mkdirs() }
 
+    /** A custom-provider id can in principle contain '/', '..', etc.
+     *  Without sanitisation an id like "../../shared_prefs" would
+     *  resolve fileFor() outside the cache directory. Strip every
+     *  character that isn't alphanumeric / dash / underscore so the
+     *  result is always a flat file inside [dir]. */
+    private fun safeId(providerId: String): String =
+        providerId.replace(Regex("[^A-Za-z0-9._-]"), "_")
+
     private fun fileFor(context: Context, providerId: String): File =
-        File(dir(context), "$providerId.$EXT")
+        File(dir(context), "${safeId(providerId)}.$EXT")
 
     /** Persist [rawResponse] for [providerId]. No-op when the body is
      *  null or blank — fetches that produced no body shouldn't
