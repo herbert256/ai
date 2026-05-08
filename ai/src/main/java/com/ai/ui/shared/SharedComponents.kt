@@ -105,6 +105,18 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
 /**
  * Generic title bar used across all screens.
  * Shows a back button on the left, optional title in the middle, and "AI" on the right.
+ *
+ * The < button does NOT call [onBackClick] directly — it invokes the
+ * host activity's back-press dispatcher, so any [BackHandler] a
+ * screen registers (overlay open, drill-in level, edit-cancel) wins
+ * just as it does for the system / gesture back. To keep the visible
+ * back button working when no other handler is enabled, TitleBar
+ * registers its own `BackHandler { onBackClick() }` as the
+ * lowest-priority fallback (it composes after any outer
+ * BackHandler that was registered earlier in the screen body, but
+ * BEFORE any inner BackHandlers tied to nested state). Without this
+ * routing the < arrow popped past inner state — e.g. on the Cross
+ * drill-in's L2 it skipped L1 and exited the screen entirely.
  */
 @Composable
 fun TitleBar(
@@ -115,6 +127,19 @@ fun TitleBar(
     leftContent: (@Composable RowScope.() -> Unit)? = null,
     centered: Boolean = false
 ) {
+    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    if (onBackClick != null) {
+        androidx.activity.compose.BackHandler { onBackClick() }
+    }
+    val handleBack: () -> Unit = remember(backDispatcher, onBackClick) {
+        {
+            when {
+                backDispatcher != null -> backDispatcher.onBackPressed()
+                onBackClick != null -> onBackClick()
+                else -> {}
+            }
+        }
+    }
     if (centered) {
         Box(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -136,7 +161,7 @@ fun TitleBar(
                     leftContent()
                 }
             } else if (onBackClick != null) {
-                TextButton(onClick = onBackClick) {
+                TextButton(onClick = handleBack) {
                     Text(backText, color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
             } else {

@@ -193,16 +193,8 @@ internal fun SecondaryResultsScreen(
     // the fresh L1 view until the user taps a row.
     LaunchedEffect(isCrossDrillIn, nameFilter) { if (!isCrossDrillIn) crossLevel = 1 }
     val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
-    // Route the TitleBar's < arrow through the same back-press
-    // dispatcher the hardware/gesture back uses, so it respects the
-    // level-aware BackHandlers registered inside CrossMetaDrillInView
-    // (L3 back → L2; L2 back → L1; L1 back → onBack()). Wiring it
-    // directly to onBack() popped the screen one screen too far when
-    // the user was on Cross L2 or L3.
-    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
-    val titleBarBack: () -> Unit = { backDispatcher?.onBackPressed() ?: onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = title, onBackClick = titleBarBack, onAiClick = onNavigateHome)
+        TitleBar(title = title, onBackClick = onBack, onAiClick = onNavigateHome)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (showLanguagePicker) {
