@@ -309,9 +309,33 @@ object KnowledgeService {
         val unique = "${System.currentTimeMillis()}_$safe"
         val dir = java.io.File(context.filesDir, "knowledge/$kbId/files").also { it.mkdirs() }
         val target = java.io.File(dir, unique)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { out -> input.copyTo(out) }
-        } ?: error("Could not open $uri")
+        // Write via a sibling tmp file + atomic rename + fsync so a
+        // process kill mid-copy can't leave a half-written source on
+        // disk that the indexer would later treat as the full file.
+        val tmp = java.io.File(dir, "$unique.tmp")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(tmp).use { out ->
+                    input.copyTo(out)
+                    out.flush()
+                    try { out.fd.sync() } catch (_: java.io.IOException) { /* best effort */ }
+                }
+            } ?: error("Could not open $uri")
+            try {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                    java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(
+                    tmp.toPath(), target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                )
+            }
+        } finally {
+            if (tmp.exists()) tmp.delete()
+        }
         return Uri.fromFile(target)
     }
 }
