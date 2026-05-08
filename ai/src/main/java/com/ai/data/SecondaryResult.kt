@@ -198,6 +198,11 @@ object SecondaryResultStorage {
         lock.withLock {
             val dir = rootDir?.let { File(it, reportId) } ?: return
             File(dir, "$resultId.json").delete()
+            // Without invalidating, listForReport's mtime-keyed cache
+            // can return the deleted row on the next read because the
+            // file count + mtime can match the pre-delete snapshot
+            // when filesystem mtime resolution is coarse.
+            listCache.remove(reportId)
         }
     }
 
@@ -207,6 +212,7 @@ object SecondaryResultStorage {
             val dir = rootDir?.let { File(it, reportId) } ?: return
             dir.listFiles()?.forEach { it.delete() }
             dir.delete()
+            listCache.remove(reportId)
         }
     }
 
