@@ -223,21 +223,18 @@ fun ReportSingleResultScreen(
             }
         }
 
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (canShowTranslation) {
+        if (canShowTranslation) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = { showTranslationCompare = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
-            Button(
-                onClick = { showContinuePicker = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = canContinueInChat,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("💬 Continue in chat", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
+        // The "💬 Continue in chat" body button collapsed into the
+        // title-bar 💬 icon (gated on canContinueInChat) — same
+        // destination, single entry point.
     }
 
     if (confirmReload) {
