@@ -72,7 +72,7 @@ class AppService(
             defaultModel = ""
         )
         val entries: List<AppService> get() = ProviderRegistry.getAll()
-        fun findById(id: String): AppService? = if (id == "LOCAL") LOCAL else ProviderRegistry.findById(id)
+        fun findById(id: String): AppService? = if (id.equals("LOCAL", ignoreCase = true)) LOCAL else ProviderRegistry.findById(id)
         fun valueOf(id: String): AppService = findById(id)
             ?: throw IllegalArgumentException("Unknown AppService: $id")
     }
