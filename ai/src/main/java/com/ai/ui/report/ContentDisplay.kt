@@ -247,9 +247,11 @@ private fun ReportsViewerScreenLoaded(
     }
     val headerTraceFilename = headerTraceFilenameState.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val providerName = selectedReportAgent?.let { AppService.findById(it.provider)?.displayName ?: it.provider } ?: "View Reports"
+        // Static page title; the active model is already visible
+        // because its picker button below highlights purple, so the
+        // separate model-header text line is gone.
         TitleBar(
-            helpTopic = "content_view", title = providerName, onBackClick = onDismiss,
+            helpTopic = "content_view", title = "Model response", onBackClick = onDismiss,
             onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
                 { onNavigateToTraceFile(headerTraceFilename) }
             } else null
@@ -261,7 +263,7 @@ private fun ReportsViewerScreenLoaded(
         if (agentsWithResults.isNotEmpty()) {
             @OptIn(ExperimentalLayoutApi::class)
             FlowRow(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 agentsWithResults.forEach { agent ->
@@ -280,18 +282,6 @@ private fun ReportsViewerScreenLoaded(
                             fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
-            }
-
-            if (selectedReportAgent != null) {
-                val provDisplay = AppService.findById(selectedReportAgent.provider)?.displayName ?: selectedReportAgent.provider
-                // Body model header \u2014 the inline \ud83d\udc1e ladybug moved
-                // into the title-bar \ud83d\udc1e slot above; same lookup,
-                // single entry point.
-                Text(
-                    com.ai.ui.shared.modelLabel(provDisplay, selectedReportAgent.model, separator = " \u2014 "),
-                    fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
-                )
             }
         }
 
