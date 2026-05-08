@@ -724,10 +724,27 @@ private fun ColumnScope.CrossMetaDrillInView(
             val pn = AppService.findById(pid)?.displayName ?: pid
             com.ai.ui.shared.modelLabel(pn, mdl, separator = " / ")
         }
+        // Source-side trace — closest report-agent run for the source
+        // model. Hoisted above the TitleBar so the bar's 🐞 slot can
+        // open it. The previous inline icon above the source body is
+        // gone now; the TitleBar names the source and offers its
+        // trace, the answerer/factcheck pane below keeps its own 🐞
+        // for the cross-call trace.
+        val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
+            value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
+                ApiTracer.getTraceFiles()
+                    .filter { it.reportId == reportId && it.model == sourceAgent.model }
+                    .maxByOrNull { it.timestamp }?.filename
+            }
+        }
+        val srcTrace = srcTraceState.value
         TitleBar(
             helpTopic = "secondary_cross",
             title = sourceLabel,
-            onBackClick = { l3AnswererKey = null; l3SourceAgentId = null }
+            onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
+            onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
+                { onNavigateToTraceFile(srcTrace) }
+            } else null
         )
         Spacer(modifier = Modifier.height(4.dp))
         // Source response (top) + answerer factcheck (bottom). Top
@@ -740,35 +757,15 @@ private fun ColumnScope.CrossMetaDrillInView(
         ) {
             val halfMax = maxHeight / 2
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top half — source's original report response. The
-                // legacy "Source response" header is gone (the
-                // TitleBar already names the source); the 🐞 shifts
-                // to a tiny right-aligned row above the body when a
-                // trace exists.
-                val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
-                    value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == reportId && it.model == sourceAgent.model }
-                            .maxByOrNull { it.timestamp }?.filename
-                    }
-                }
-                val srcTrace = srcTraceState.value
                 Column(
                     modifier = Modifier.fillMaxWidth().heightIn(max = halfMax)
+                        .verticalScroll(rememberScrollState())
                 ) {
-                    if (ApiTracer.isTracingEnabled && srcTrace != null) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Text("🐞", fontSize = 16.sp,
-                                modifier = Modifier.clickable { onNavigateToTraceFile(srcTrace) })
-                        }
-                    }
-                    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                        val srcBody = sourceAgent?.responseBody
-                        if (srcBody.isNullOrBlank()) {
-                            Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        } else {
-                            ContentWithThinkSections(analysis = srcBody)
-                        }
+                    val srcBody = sourceAgent?.responseBody
+                    if (srcBody.isNullOrBlank()) {
+                        Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                    } else {
+                        ContentWithThinkSections(analysis = srcBody)
                     }
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
