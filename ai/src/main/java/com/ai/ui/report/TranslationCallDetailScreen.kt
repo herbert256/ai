@@ -102,7 +102,7 @@ internal fun TranslationCallDetailScreen(
     // for PROMPT rows the prompt is user-typed and has no model, so
     // fall back to "Prompt". META rows that pre-date metaPromptName
     // fall back to the kind label.
-    val sourceLabel = source.model
+    val sourceLabel = source.model?.takeIf { it.isNotBlank() }
         ?: when (result.translateSourceKind) {
             "PROMPT" -> "Prompt"
             "META" -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"

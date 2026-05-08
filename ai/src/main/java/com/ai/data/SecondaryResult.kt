@@ -222,24 +222,23 @@ object SecondaryResultStorage {
      *  Meta card uses [countByMetaName] instead. */
     data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int)
     fun countForReport(context: Context, reportId: String): Counts {
-        init(context)
-        return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock Counts(0, 0, 0, 0)
-            if (!dir.exists()) return@withLock Counts(0, 0, 0, 0)
-            var rerank = 0; var meta = 0; var moderation = 0; var translate = 0
-            dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
-                try {
-                    val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
-                    when (r.kind) {
-                        SecondaryKind.RERANK -> rerank++
-                        SecondaryKind.META -> meta++
-                        SecondaryKind.MODERATION -> moderation++
-                        SecondaryKind.TRANSLATE -> translate++
-                    }
-                } catch (_: Exception) {}
+        // Delegate to listForReport so we share its fingerprint cache —
+        // the previous implementation re-parsed every JSON file on
+        // every call even when the per-report list was already in
+        // memory and unchanged. Cross drill-in polls this every
+        // 500 ms while batching, so the redundant parses scaled with
+        // (file count × poll rate) for no benefit.
+        val rows = listForReport(context, reportId)
+        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0
+        for (r in rows) {
+            when (r.kind) {
+                SecondaryKind.RERANK -> rerank++
+                SecondaryKind.META -> meta++
+                SecondaryKind.MODERATION -> moderation++
+                SecondaryKind.TRANSLATE -> translate++
             }
-            Counts(rerank, meta, moderation, translate)
         }
+        return Counts(rerank, meta, moderation, translate)
     }
 
     /** Group non-translate Meta results on a report by the user-given

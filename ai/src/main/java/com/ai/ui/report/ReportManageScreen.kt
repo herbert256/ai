@@ -170,13 +170,17 @@ private fun zipAllReports(context: android.content.Context): Pair<File?, Int> {
     val reportsDir = File(context.filesDir, "reports")
     val secondaryDir = File(context.filesDir, "secondary")
     ZipOutputStream(FileOutputStream(outFile)).use { zip ->
-        reportsDir.listFiles()?.forEach { f ->
+        // Filter `.tmp` files left over from interrupted writeTextAtomic
+        // calls — they're not valid report JSON, so including them would
+        // make a later restore choke on parse failures. The .tmp files
+        // are eventually cleaned up on the next successful save anyway.
+        reportsDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
             zip.putNextEntry(ZipEntry("reports/${f.name}"))
             f.inputStream().use { it.copyTo(zip) }
             zip.closeEntry()
         }
         secondaryDir.listFiles()?.forEach { perReport ->
-            if (perReport.isDirectory) perReport.listFiles()?.forEach { f ->
+            if (perReport.isDirectory) perReport.listFiles { f -> f.extension == "json" }?.forEach { f ->
                 zip.putNextEntry(ZipEntry("secondary/${perReport.name}/${f.name}"))
                 f.inputStream().use { it.copyTo(zip) }
                 zip.closeEntry()
