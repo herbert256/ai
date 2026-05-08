@@ -618,7 +618,16 @@ data class Settings(
 
     fun removeAgent(agentId: String) = copy(
         agents = agents.filter { it.id != agentId },
-        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) }
+        flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id != agentId }) },
+        // Clear references to this agent from internal prompts so a
+        // re-pinned prompt doesn't show "DeletedAgent" in the picker
+        // (and the picker didn't have a UI path to fix it before
+        // because removed agents were already filtered from the
+        // active list). Reset to the "*select" sentinel that
+        // existing pinning expects to mean "no specific agent".
+        internalPrompts = internalPrompts.map {
+            if (it.agent == agentId) it.copy(agent = "*select") else it
+        }
     )
 
     fun getModelListUrl(service: AppService) = getProvider(service).modelListUrl
