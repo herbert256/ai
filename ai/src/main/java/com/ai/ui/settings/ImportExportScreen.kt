@@ -110,13 +110,30 @@ fun ImportExportScreen(
         Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
+    // RFC-4180 minimal CSV field escape: wrap in double quotes when the
+    // value contains comma / quote / newline; double up any embedded
+    // quotes. The previous export interpolated raw values, so a model
+    // id containing a comma broke the row layout and the import path
+    // (naive split on `,`) silently corrupted the user's overrides.
+    fun csvField(value: String): String {
+        if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
+            return "\"" + value.replace("\"", "\"\"") + "\""
+        }
+        return value
+    }
+
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val manual = PricingCache.getAllManualPricing(context)
         val lines = mutableListOf("provider,model,input_per_million,output_per_million")
         manual.forEach { (key, pricing) ->
             val parts = key.split(":", limit = 2)
-            lines.add("${parts[0]},${parts.getOrElse(1) { "" }},${pricing.promptPrice * 1_000_000},${pricing.completionPrice * 1_000_000}")
+            lines.add(listOf(
+                csvField(parts[0]),
+                csvField(parts.getOrElse(1) { "" }),
+                "${pricing.promptPrice * 1_000_000}",
+                "${pricing.completionPrice * 1_000_000}"
+            ).joinToString(","))
         }
         writeToUri(uri, lines.joinToString("\n"))
         Toast.makeText(context, "${manual.size} cost entries exported", Toast.LENGTH_SHORT).show()
@@ -150,7 +167,7 @@ fun ImportExportScreen(
             kept++
             lines.add(
                 listOf(
-                    provider.id, model, "", "",
+                    csvField(provider.id), csvField(model), "", "",
                     fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
                     fmt(b.modelsDev?.promptPrice), fmt(b.modelsDev?.completionPrice),
                     fmt(b.helicone?.promptPrice), fmt(b.helicone?.completionPrice),
