@@ -767,7 +767,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun metaTypeToKind(type: String): SecondaryKind = when (type) {
         "rerank" -> SecondaryKind.RERANK
         "moderation" -> SecondaryKind.MODERATION
-        else -> SecondaryKind.META  // every chat-type Meta routes through the chat API
+        "chat", "" -> SecondaryKind.META  // chat-type Meta routes through the chat API
+        else -> {
+            // Future schema additions (e.g. an "embed" or "tts" type)
+            // shouldn't silently route through the META chat path —
+            // log so the misroute is visible.
+            android.util.Log.w("ReportViewModel.metaTypeToKind",
+                "Unknown meta prompt type '$type' — falling back to META chat path")
+            SecondaryKind.META
+        }
     }
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
