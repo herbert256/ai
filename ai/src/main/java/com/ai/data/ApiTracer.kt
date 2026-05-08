@@ -72,7 +72,13 @@ object ApiTracer {
             if (!dir.exists()) dir.mkdirs()
             val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
             val seq = fileSequence.incrementAndGet().toString(36)
-            val filename = "${trace.hostname}_${ts}_${seq}.json"
+            // Sanitise hostname so a `host:port` style host (some
+            // configurations pass a port through) doesn't produce a
+            // filename with `:` — Android's filesystem rejects that and
+            // the trace silently fails to land. Replace any
+            // non-alphanumeric / dot / dash with `_`.
+            val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
+            val filename = "${safeHost}_${ts}_${seq}.json"
             try {
                 // Atomic so a process death mid-write leaves no
                 // half-JSON behind — the streaming parser silently
@@ -240,8 +246,18 @@ class TracingInterceptor : Interceptor {
             response.body?.let { body ->
                 try {
                     val source = body.source()
-                    source.request(Long.MAX_VALUE)
-                    source.buffer.clone().readUtf8()
+                    // Cap the buffered read at 8 MB. Trace files are
+                    // primarily used for debugging — a 50 MB OpenRouter
+                    // model-list response captured verbatim doubles
+                    // process memory pressure for no diagnostic gain.
+                    // Above the cap we keep the prefix (which contains
+                    // headers / IDs / first chunks of content) and
+                    // append a marker so the user knows it's clipped.
+                    val cap = 8L * 1024 * 1024
+                    source.request(cap)
+                    val buffered = source.buffer.size
+                    val text = source.buffer.clone().readUtf8(minOf(buffered, cap))
+                    if (buffered >= cap) "$text\n…[trace truncated at ${cap / (1024 * 1024)} MiB]" else text
                 } catch (_: Exception) { null }
             }
         }
