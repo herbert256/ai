@@ -188,23 +188,18 @@ internal fun SecondaryResultsScreen(
     // pre-dating the Meta-prompt CRUD). No hardcoded plural labels —
     // the screen is driven entirely by what the bucket button said.
     val baseTitle = nameFilter ?: com.ai.data.legacyKindDisplayName(kind)
-    // Cross runs paint a "Cross level N" title that tracks the drill-in
-    // depth (L1 answerers → L2 sources → L3 split view). The drill-in
-    // reports its current level via onLevelChange below.
+    // Cross drill-in paints its own per-level TitleBar (L1: prompt
+    // name + title; L2: active model name with info / delete in the
+    // menu bar; L3: "Cross level 3"). The parent TitleBar is
+    // suppressed in that case so we don't render two stacked headers.
     val crossRowsAll = filteredResults.filter { it.afterCrossOf == null }
     val isCrossDrillIn = kind == SecondaryKind.META &&
         crossRowsAll.any { it.crossSourceAgentId != null }
-    var crossLevel by rememberSaveable { mutableIntStateOf(1) }
-    // Reset the level back to 1 whenever the user is no longer in a
-    // cross drill-in (different prompt, or the screen reverts to a
-    // non-cross bucket). Without this, opening Cross-A → drilling to
-    // L3 → backing out → opening Cross-B paints "Cross level 3" on
-    // the fresh L1 view until the user taps a row.
-    LaunchedEffect(isCrossDrillIn, nameFilter) { if (!isCrossDrillIn) crossLevel = 1 }
-    val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "secondary_list", title = title, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
+        if (!isCrossDrillIn) {
+            TitleBar(helpTopic = "secondary_list", title = baseTitle, onBackClick = onBack)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         if (showLanguagePicker) {
             LanguagePickerRow(
@@ -259,7 +254,7 @@ internal fun SecondaryResultsScreen(
                 onDeleteCrossModel = { mpid, prov, model ->
                     onDeleteCrossModel(mpid, prov, model); refreshTick++
                 },
-                onLevelChange = { crossLevel = it }
+                onBack = onBack
             )
             return@Column
         }
@@ -488,11 +483,9 @@ private fun ColumnScope.CrossMetaDrillInView(
     onRestartFailedCross: (com.ai.model.InternalPrompt) -> Unit = {},
     onRerunCompleteCross: (com.ai.model.InternalPrompt) -> Unit = {},
     onDeleteCrossModel: (String, String, String) -> Unit = { _, _, _ -> },
-    /** Called whenever the drill-in level changes (1 = answerers list,
-     *  2 = sources list for the chosen answerer, 3 = source/factcheck
-     *  split view). Lets the parent screen reflect the depth in its
-     *  TitleBar — "Cross level 1/2/3". */
-    onLevelChange: (Int) -> Unit = {}
+    /** Exit the cross drill-in entirely. Wired to the L1 TitleBar's
+     *  "< Back" — L2 / L3 back arrows pop one level instead. */
+    onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
     // Load the parent report once so L1 / L2 can label rows by the
@@ -587,7 +580,6 @@ private fun ColumnScope.CrossMetaDrillInView(
         selectedModelKey != null -> 2
         else -> 1
     }
-    LaunchedEffect(currentLevel) { onLevelChange(currentLevel) }
 
     BackHandler(enabled = showPromptViewer) { showPromptViewer = false }
     BackHandler(enabled = showOnePageView) { showOnePageView = false }
@@ -732,6 +724,11 @@ private fun ColumnScope.CrossMetaDrillInView(
             val pn = AppService.findById(pid)?.displayName ?: pid
             com.ai.ui.shared.modelLabel(pn, mdl, separator = " / ")
         }
+        TitleBar(
+            helpTopic = "secondary_cross",
+            title = "Cross level 3",
+            onBackClick = { l3AnswererKey = null; l3SourceAgentId = null }
+        )
         Spacer(modifier = Modifier.height(4.dp))
         Text("Source: $sourceLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
             fontFamily = FontFamily.Monospace)
@@ -905,32 +902,24 @@ private fun ColumnScope.CrossMetaDrillInView(
                     .maxByOrNull { it.timestamp }?.filename
             }
         }
-        // First line: provider / model
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
-                fontSize = 14.sp, color = AppColors.Blue,
-                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-                    .modelInfoClickable(activeProviderService, activeMdl))
-            // 🐞 only in Initiator role — opens the trace of this
-            // model's report-agent run (the call that produced the
-            // source response).
-            if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && activeModelTrace != null) {
-                Text("🐞", fontSize = 18.sp,
-                    modifier = Modifier.padding(start = 8.dp)
-                        .clickable { activeModelTrace?.let(onNavigateToTraceFile) })
-            }
-            // ℹ — Model Info for the active model.
-            if (activeProviderService != null) {
-                Text("ℹ", fontSize = 18.sp, color = AppColors.Blue,
-                    modifier = Modifier.padding(start = 8.dp)
-                        .clickable { onNavigateToModelInfo(activeProviderService, activeMdl) })
-            }
-            // 🗑 — drop the model from this Cross (both roles).
-            Text("🗑", fontSize = 18.sp, color = AppColors.Red,
-                modifier = Modifier.padding(start = 8.dp)
-                    .clickable { confirmModelDelete = true })
-        }
+        // Title bar: model name as the title; ℹ → Model Info, 🗑 → drop
+        // the model from this Cross, 🐞 (Initiator only) → trace for
+        // this model's report-agent run. The body row carrying these
+        // used to live just below — moved to the menu bar so the
+        // screen body shows the role row + list directly.
+        val l2Trace = activeModelTrace
+        TitleBar(
+            helpTopic = "secondary_cross",
+            title = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
+            onBackClick = { selectedModelKey = null },
+            onInfo = if (activeProviderService != null) {
+                { onNavigateToModelInfo(activeProviderService, activeMdl) }
+            } else null,
+            onDelete = { confirmModelDelete = true },
+            onTrace = if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && l2Trace != null) {
+                { onNavigateToTraceFile(l2Trace) }
+            } else null
+        )
         // Second line: Role + Switch role button
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 4.dp)) {
@@ -1112,15 +1101,21 @@ private fun ColumnScope.CrossMetaDrillInView(
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
-    // Cross prompt name heading + optional title subline.
-    if (crossPrompt != null) {
-        Text(crossPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
-            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
-        if (crossPrompt.title.isNotBlank()) {
-            Text(crossPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
+    // L1 title bar: "<prompt name> - <prompt title>" (or just the
+    // name when title is blank). The body heading that used to
+    // duplicate this lived here — moved to the menu bar so the
+    // screen body starts with the progress bar / stats / list.
+    val l1Title = when {
+        crossPrompt == null -> "Cross"
+        crossPrompt.title.isBlank() -> crossPrompt.name
+        else -> "${crossPrompt.name} - ${crossPrompt.title}"
     }
+    TitleBar(
+        helpTopic = "secondary_cross",
+        title = l1Title,
+        onBackClick = onBack
+    )
+    Spacer(modifier = Modifier.height(8.dp))
 
     // Top progress bar — total expected pairs.
     if (pendingCount > 0 && totalPairs > 0) {
