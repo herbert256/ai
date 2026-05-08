@@ -289,6 +289,17 @@ fun ChatSessionScreen(
     // per turn via the pulldown next to the web-search chip.
     var reasoningEffort by remember { mutableStateOf(parameters.reasoningEffort ?: "") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    // Clamp the persisted reasoning level against the active model's
+    // supported set on first composition. A session resumed from a
+    // model that supports `max` against a model that only supports
+    // low/medium/high used to ship the unsupported value through to
+    // the API.
+    LaunchedEffect(provider, model) {
+        val supported = aiSettings.getProvider(provider).modelCapabilities[model]?.reasoningEffortLevels
+        if (!supported.isNullOrEmpty() && reasoningEffort.isNotBlank() && reasoningEffort !in supported) {
+            reasoningEffort = ""
+        }
+    }
     // Cheap layered detection — LiteLLM, then models.dev. Null from
     // both = no info; we fall back to "show the pulldown" when the
     // model id contains common reasoning-family markers, otherwise hide.
