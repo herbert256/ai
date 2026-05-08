@@ -45,7 +45,10 @@ object ModelListCache {
     fun save(context: Context, providerId: String, rawResponse: String?) {
         if (rawResponse.isNullOrBlank()) return
         try {
-            fileFor(context, providerId).writeText(rawResponse)
+            // Atomic write so a process kill mid-save can't leave a
+            // truncated JSON file that the next loadJson treats as
+            // a real but partial response.
+            fileFor(context, providerId).writeTextAtomic(rawResponse)
         } catch (e: Exception) {
             android.util.Log.w("ModelListCache", "save($providerId) failed: ${e.message}")
         }

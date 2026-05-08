@@ -48,7 +48,12 @@ private fun parseSseStream(
     extractContent: (eventType: String?, data: String) -> String?,
     isFinalChunk: (eventType: String?, data: String) -> Boolean = { _, _ -> false }
 ): Flow<String> = flow {
-    val reader = body.charStream().buffered()
+    // Always decode as UTF-8 — body.charStream() consults the
+    // Content-Type charset, but provider servers often omit it on
+    // SSE streams and OkHttp falls back to ISO-8859-1, mangling
+    // multi-byte characters (anything non-ASCII in the response
+    // text) in the parsed event payload.
+    val reader = java.io.InputStreamReader(body.byteStream(), Charsets.UTF_8).buffered()
     try {
         // Per the W3C SSE spec, an event is delimited by a blank line.
         // Multiple `data:` lines inside one event must be concatenated
