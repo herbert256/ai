@@ -142,7 +142,30 @@ object ProviderRegistry {
 
     private fun parseProvidersJson(json: String): List<AppService> {
         val defs: List<ProviderDefinition> = createAppGson().fromJson(json, providerListType)
-        return defs.map { it.toAppService() }
+        // Gson reflection bypasses Kotlin's null-safety checks, so a
+        // malformed entry can deserialise with a null id / displayName /
+        // baseUrl. Filter those out instead of letting them surface as
+        // an NPE the first time someone reads `service.id.lowercase()`
+        // or similar — a single bad entry should not corrupt the whole
+        // registry. Logged so the issue is at least visible.
+        return defs.mapNotNull { def ->
+            @Suppress("USELESS_CAST")
+            val id = def.id as String?
+            @Suppress("USELESS_CAST")
+            val name = def.displayName as String?
+            @Suppress("USELESS_CAST")
+            val baseUrl = def.baseUrl as String?
+            if (id.isNullOrBlank() || name.isNullOrBlank() || baseUrl.isNullOrBlank()) {
+                android.util.Log.w("ProviderRegistry",
+                    "Skipping malformed provider entry (id=$id, displayName=$name, baseUrl=$baseUrl)")
+                null
+            } else {
+                try { def.toAppService() } catch (e: Exception) {
+                    android.util.Log.w("ProviderRegistry", "Skipping provider $id — toAppService threw: ${e.message}")
+                    null
+                }
+            }
+        }
     }
 
     fun getAll(): List<AppService> = providers.toList()
