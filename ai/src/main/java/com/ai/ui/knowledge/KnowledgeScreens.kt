@@ -538,7 +538,14 @@ fun KnowledgeAttachDialog(
     onDismiss: () -> Unit,
     onConfirm: (Set<String>) -> Unit
 ) {
-    val selected = remember(initialSelectedIds) { mutableStateOf(initialSelectedIds) }
+    // Key on the contents (a stable string) rather than the Set object
+    // identity. The parent recomposes with a fresh Set instance on
+    // every refreshTick, so a content-equal but identity-different
+    // Set reset the user's mid-edit selection. Using a sorted joined
+    // key keeps remember stable as long as the actual ids haven't
+    // changed.
+    val selectedKey = initialSelectedIds.sorted().joinToString(",")
+    val selected = remember(selectedKey) { mutableStateOf(initialSelectedIds) }
     val anchorEmbedder = remember(selected.value, knowledgeBases) {
         knowledgeBases.firstOrNull { it.id in selected.value }
             ?.let { it.embedderProviderId to it.embedderModel }
