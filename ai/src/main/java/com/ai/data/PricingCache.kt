@@ -331,20 +331,19 @@ object PricingCache {
         // billing rate, more accurate than LiteLLM's community
         // mirror.
         if (isTogether) findTogetherPricing(provider, model)?.let { return it }
-        // Curated bulk sources first, then user OVERRIDE, then OPENROUTER
-        // fallback, then Helicone as last resort before DEFAULT. Order:
-        // LITELLM → MODELSDEV → LLMPRICES → AA → OVERRIDE → OPENROUTER →
-        // HELICONE. Helicone is intentionally placed last (even after the
-        // OpenRouter fallback) because its catalog has known data-quality
-        // issues — wrong claude-opus-4-5 rate, "includes"-operator rules
-        // that hijack whole families, dated-snapshot price drift. We
-        // still consult it before giving up to DEFAULT so the data has
-        // some chance of helping when no other source has the model.
+        // User OVERRIDE wins over every curated bulk source. The
+        // previous order put OVERRIDE behind LITELLM/MODELSDEV/etc., so
+        // a user adding a manual override specifically to correct a
+        // stale catalog entry was silently ignored — exactly the
+        // opposite of what the Cost Config screen's UI suggests.
+        // Then: provider self-report → curated bulk sources →
+        // OPENROUTER cross-provider fallback → HELICONE last resort →
+        // DEFAULT.
+        manualPricing?.get("${provider.id}:$model")?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         findHeliconePricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
