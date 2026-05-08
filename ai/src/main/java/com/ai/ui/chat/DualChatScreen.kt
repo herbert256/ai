@@ -313,6 +313,14 @@ fun DualChatSessionScreen(
         LaunchedEffect(Unit) { onNavigateBack() }
         return
     }
+    // Drop the staged config from UiState now that we've captured it
+    // into the screen's `config` local. Without this clear, leaving
+    // and re-entering this screen reused the same config object —
+    // which the user may have intended to be one-shot. Mirrors the
+    // generateGenericReports pattern of "capture then drop".
+    LaunchedEffect(Unit) {
+        appViewModel.updateUiState { it.copy(dualChatConfig = null) }
+    }
 
     val sessionId = remember { "dualchat_${System.currentTimeMillis()}" }
     val messages = remember { mutableStateListOf<DualMessage>() }
