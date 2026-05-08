@@ -764,70 +764,7 @@ fun ModelInfoScreen(
                         }
                     }
 
-                    // Last 10 usages of this model — chat sessions,
-                    // reports, and per-report secondaries (translate /
-                    // meta / rerank / moderate). Card is also shown
-                    // when only the cumulative AI Usage counter has
-                    // entries for this model (one-shot test calls /
-                    // model refresh probes increment usage stats
-                    // without persisting a chat or report). Hidden
-                    // entirely when both signals are empty so an
-                    // untouched model doesn't render a placeholder.
                     val hasUsageStats = (usageEntry?.callCount ?: 0) > 0
-                    if (recentUsages.isNotEmpty() || hasUsageStats) {
-                        item {
-                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Last usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-                                    val dateFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
-                                    recentUsages.forEach { entry ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().clickable { entry.onOpen() }.padding(vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                entry.typeLabel, fontSize = 12.sp, color = AppColors.Orange,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                entry.title, fontSize = 13.sp, color = Color.White,
-                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                dateFormat.format(java.util.Date(entry.timestamp)),
-                                                fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-                                            )
-                                        }
-                                    }
-                                    // Cumulative AI Usage counter — appended after
-                                    // the specific events. Captures one-shot test
-                                    // calls / model refreshes that bumped the
-                                    // counter but didn't persist any session row.
-                                    val ueRow = usageEntry
-                                    if (hasUsageStats && ueRow != null) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                "AI Usage", fontSize = 12.sp, color = AppColors.Orange,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
-                                            )
-                                            Text(
-                                                "${ueRow.callCount} calls · ${ueRow.totalTokens} tokens",
-                                                fontSize = 13.sp, color = Color.White,
-                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
-                                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     // Action buttons: start a chat, or create an agent for this model.
                     item {
@@ -1275,6 +1212,73 @@ fun ModelInfoScreen(
                         item {
                             Text("No information found for this model. Ensure OpenRouter and HuggingFace API keys are configured.",
                                 fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(16.dp))
+                        }
+                    }
+
+                    // Last 10 usages of this model — chat sessions,
+                    // reports, and per-report secondaries (translate /
+                    // meta / rerank / moderate). Card is also shown
+                    // when only the cumulative AI Usage counter has
+                    // entries for this model (one-shot test calls /
+                    // model refresh probes increment usage stats
+                    // without persisting a chat or report). Pinned at
+                    // the bottom of the screen — the model's
+                    // catalog / source-of-truth metadata is what the
+                    // user usually opens this screen to read; the
+                    // usage history is reference information for
+                    // when they're ready to dig into past activity.
+                    if (recentUsages.isNotEmpty() || hasUsageStats) {
+                        item {
+                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Last usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    val dateFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
+                                    recentUsages.forEach { entry ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clickable { entry.onOpen() }.padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                entry.typeLabel, fontSize = 12.sp, color = AppColors.Orange,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                entry.title, fontSize = 13.sp, color = Color.White,
+                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                dateFormat.format(java.util.Date(entry.timestamp)),
+                                                fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                    // Cumulative AI Usage counter — appended after
+                                    // the specific events. Captures one-shot test
+                                    // calls / model refreshes that bumped the
+                                    // counter but didn't persist any session row.
+                                    val ueRow = usageEntry
+                                    if (hasUsageStats && ueRow != null) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "AI Usage", fontSize = 12.sp, color = AppColors.Orange,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                "${ueRow.callCount} calls · ${ueRow.totalTokens} tokens",
+                                                fontSize = 13.sp, color = Color.White,
+                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
