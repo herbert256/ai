@@ -246,7 +246,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        settingsPrefs.flushUsageStats()
+        // Flush off the main thread — flushUsageStats does a
+        // SharedPreferences commit which blocks on disk I/O. Use
+        // GlobalScope + NonCancellable so the work survives the
+        // ViewModel's scope cancellation that's already in flight.
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            runCatching { settingsPrefs.flushUsageStats() }
+        }
         // viewModelScope cancellation runs every active flow's
         // withTracerTags finally on the way out — that restores the
         // previous (reportId, category). No manual clear needed.

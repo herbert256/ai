@@ -553,7 +553,14 @@ data class Settings(
             providers = providers - service, endpoints = endpoints - service, providerStates = providerStates - service.id,
             agents = agents.filter { it.provider.id != service.id },
             flocks = flocks.map { it.copy(agentIds = it.agentIds.filter { id -> id !in removedAgentIds }) },
-            swarms = swarms.map { it.copy(members = it.members.filter { m -> m.provider.id != service.id }) }
+            swarms = swarms.map { it.copy(members = it.members.filter { m -> m.provider.id != service.id }) },
+            // Clear references to the removed agents from internal
+            // prompts so they don't keep pointing at IDs that no
+            // longer exist. Same "*select" sentinel removeAgent
+            // uses.
+            internalPrompts = internalPrompts.map {
+                if (it.agent in removedAgentIds) it.copy(agent = "*select") else it
+            }
         )
     }
 

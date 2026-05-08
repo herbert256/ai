@@ -57,7 +57,15 @@ object EmbeddingsStore {
     }
 
     internal fun put(filesDir: File, docId: String, providerId: String, model: String, content: String, vector: List<Double>) {
-        fileFor(filesDir, docId, providerId, model, content).writeTextAtomic(gson.toJson(vector))
+        // writeTextAtomic returns false on disk-full / permission /
+        // any I/O failure. Surface it as a log warning so a
+        // corruption-during-store doesn't go unnoticed; the cache
+        // is fine to miss next read so we don't escalate further.
+        val f = fileFor(filesDir, docId, providerId, model, content)
+        if (!f.writeTextAtomic(gson.toJson(vector))) {
+            android.util.Log.w("EmbeddingsStore",
+                "put($docId, $providerId, $model) failed to write ${f.absolutePath}")
+        }
     }
 
     fun clearAll(context: Context) {

@@ -1008,9 +1008,12 @@ object PricingCache {
         }
         // No same-provider pattern hit — fall back to the first cross-provider
         // pattern as a last resort (e.g. when the user routes a model id
-        // through a generic provider).
+        // through a generic provider). Require at least 4 chars on the
+        // pattern so a short string like "claude" can't hijack pricing
+        // from an unrelated provider's catalog.
         for (p in patterns) {
             val pat = normalizeModelId(p.pattern)
+            if (pat.length < 4) continue
             val matches = when (p.operator) {
                 "startsWith" -> target.startsWith(pat)
                 "includes" -> target.contains(pat)
@@ -1278,16 +1281,22 @@ object PricingCache {
         if (f.exists()) return runCatching { f.readText() }.getOrNull()
         val prefs = getPrefs(context)
         val fromPrefs = prefs.getString(prefsKey, null) ?: return null
-        f.writeTextAtomic(fromPrefs)
-        prefs.edit { remove(prefsKey) }
+        // Only drop the prefs key after the on-disk copy actually
+        // landed. The previous flow removed the prefs entry
+        // unconditionally, so a writeTextAtomic failure (disk full,
+        // permission, OOM mid-write) silently wiped the only copy.
+        if (f.writeTextAtomic(fromPrefs)) {
+            prefs.edit { remove(prefsKey) }
+        }
         return fromPrefs
     }
 
     /** Atomically write a tier blob and drop the legacy prefs key if it lingers. */
     private fun saveBlob(context: Context, prefsKey: String, json: String) {
-        blobFile(context, prefsKey).writeTextAtomic(json)
-        val prefs = getPrefs(context)
-        if (prefs.contains(prefsKey)) prefs.edit { remove(prefsKey) }
+        if (blobFile(context, prefsKey).writeTextAtomic(json)) {
+            val prefs = getPrefs(context)
+            if (prefs.contains(prefsKey)) prefs.edit { remove(prefsKey) }
+        }
     }
 
     /** Lazy first-call population for every cache tier. Cold-call cost is dominated

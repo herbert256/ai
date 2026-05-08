@@ -634,7 +634,7 @@ private fun rerankResultsToJson(results: List<CohereRerankResult>): String {
         val obj = com.google.gson.JsonObject().apply {
             addProperty("id", r.index + 1)
             addProperty("rank", rank + 1)
-            addProperty("score", (r.relevance_score * 100).toInt().coerceIn(0, 100))
+            addProperty("score", Math.round(r.relevance_score * 100).toInt().coerceIn(0, 100))
             addProperty("reason", "Relevance score: %.4f".format(r.relevance_score))
         }
         arr.add(obj)

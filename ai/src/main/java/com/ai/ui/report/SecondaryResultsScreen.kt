@@ -854,9 +854,12 @@ private fun ColumnScope.CrossMetaDrillInView(
             Button(
                 onClick = {
                     val prev = l2Rows.getOrNull(currentIdx - 1) ?: return@Button
-                    val parts = prev.l3PairKey.split("|")
-                    val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
-                    val src = parts.getOrNull(2).orEmpty()
+                    // l3PairKey is "$pid|$mdl|$srcAgentId" — split
+                    // off the last segment so a model name with a `|`
+                    // in it doesn't shift the ans / src boundary.
+                    val pivot = prev.l3PairKey.lastIndexOf('|')
+                    val ans = if (pivot > 0) prev.l3PairKey.substring(0, pivot) else prev.l3PairKey
+                    val src = if (pivot > 0) prev.l3PairKey.substring(pivot + 1) else ""
                     l3AnswererKey = ans
                     l3SourceAgentId = src
                 },
@@ -867,9 +870,9 @@ private fun ColumnScope.CrossMetaDrillInView(
             Button(
                 onClick = {
                     val next = l2Rows.getOrNull(currentIdx + 1) ?: return@Button
-                    val parts = next.l3PairKey.split("|")
-                    val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
-                    val src = parts.getOrNull(2).orEmpty()
+                    val pivot = next.l3PairKey.lastIndexOf('|')
+                    val ans = if (pivot > 0) next.l3PairKey.substring(0, pivot) else next.l3PairKey
+                    val src = if (pivot > 0) next.l3PairKey.substring(pivot + 1) else ""
                     l3AnswererKey = ans
                     l3SourceAgentId = src
                 },
@@ -987,9 +990,12 @@ private fun ColumnScope.CrossMetaDrillInView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .clickable {
-                                val parts = row.l3PairKey.split("|")
-                                val ans = "${parts.getOrNull(0).orEmpty()}|${parts.getOrNull(1).orEmpty()}"
-                                val src = parts.getOrNull(2).orEmpty()
+                                // Split off the trailing srcAgentId via
+                                // lastIndexOf so a model name with a `|`
+                                // doesn't shift the boundary.
+                                val pivot = row.l3PairKey.lastIndexOf('|')
+                                val ans = if (pivot > 0) row.l3PairKey.substring(0, pivot) else row.l3PairKey
+                                val src = if (pivot > 0) row.l3PairKey.substring(pivot + 1) else ""
                                 if (src.isNotBlank()) {
                                     l3AnswererKey = ans
                                     l3SourceAgentId = src

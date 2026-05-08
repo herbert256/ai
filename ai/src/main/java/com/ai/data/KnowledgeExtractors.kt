@@ -59,8 +59,11 @@ internal object KnowledgeExtractors {
     }
 
     private fun readUriText(context: Context, uri: Uri): String {
+        // Force UTF-8 — bufferedReader() falls back to the platform
+        // default charset (Charset.defaultCharset()), which on some
+        // OEM ROMs isn't UTF-8 and mangles non-ASCII bytes.
         return context.contentResolver.openInputStream(uri).use { inp ->
-            requireNotNull(inp) { "Could not open $uri" }.bufferedReader().readText()
+            requireNotNull(inp) { "Could not open $uri" }.reader(Charsets.UTF_8).buffered().readText()
         }.normalised()
     }
 
@@ -506,7 +509,7 @@ internal object KnowledgeExtractors {
             dataBuffer.clear()
         }
         context.contentResolver.openInputStream(uri).use { inp ->
-            requireNotNull(inp) { "Could not open $uri" }.bufferedReader().use { br ->
+            requireNotNull(inp) { "Could not open $uri" }.reader(Charsets.UTF_8).buffered().use { br ->
                 // Mark + 1 KB sample for delimiter sniff, then reset and stream-parse the
                 // whole file. Default BufferedReader buffer is 8 KB, so a 2 KB readahead is
                 // safe. Avoids the original readText() that materialised the entire CSV.

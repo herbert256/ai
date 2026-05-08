@@ -312,14 +312,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
 
-        if (response.isSuccess) {
-            ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
-                response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
-                response.tokenUsage, cost, response.citations, response.searchResults,
-                response.relatedQuestions, response.rawUsageJson, durationMs)
-        } else {
-            ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
-                response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)
+        // Persist the terminal state under NonCancellable so a Stop /
+        // navigate-away that arrives between the API return and this
+        // disk write doesn't strand the agent row in RUNNING on disk.
+        // The async helpers themselves marshal the I/O off-thread.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            if (response.isSuccess) {
+                ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
+                    response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
+                    response.tokenUsage, cost, response.citations, response.searchResults,
+                    response.relatedQuestions, response.rawUsageJson, durationMs)
+            } else {
+                ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
+                    response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)
+            }
         }
 
         if (response.error == null && response.tokenUsage != null) {

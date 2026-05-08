@@ -346,8 +346,21 @@ fun ProviderModelSettingsScreen(
                                             launch {
                                                 sem.acquire()
                                                 try {
-                                                    val (ok, trace) = onTestSpecificModel(m, MODEL_TEST_PROMPT)
-                                                    testStatuses = testStatuses + (m to if (ok) ModelTestStatus.Ok else ModelTestStatus.Fail(trace))
+                                                    // runCatching contains a thrown exception
+                                                    // inside a single test instead of letting
+                                                    // it propagate up structured-concurrency-
+                                                    // style and cancel every sibling. The
+                                                    // sibling cancellations would otherwise
+                                                    // leave them stuck on Running forever.
+                                                    val r = runCatching { onTestSpecificModel(m, MODEL_TEST_PROMPT) }
+                                                    val (ok, trace) = r.getOrElse { false to null }
+                                                    // Drop late writes for models the user
+                                                    // already removed (the dropdown's prune
+                                                    // happens on the main thread; we re-check
+                                                    // against the current models list).
+                                                    if (m in models) {
+                                                        testStatuses = testStatuses + (m to if (ok) ModelTestStatus.Ok else ModelTestStatus.Fail(trace))
+                                                    }
                                                 } finally {
                                                     sem.release()
                                                 }
@@ -597,7 +610,17 @@ fun ProviderSettingsScreen(
             extractApiCost = defExtractApiCost,
             costTicksDivisor = defCostTicksDivisor.trim().toDoubleOrNull()?.takeIf { it > 0.0 },
             modelListFormat = defModelListFormat,
-            modelFilter = defModelFilter.trim().ifBlank { null },
+            // Persist a regex only if it actually compiles. A bad
+            // pattern (`*`, `[unclosed`) would otherwise blow up at
+            // dispatch time with PatternSyntaxException; dropping
+            // it here keeps the auto-save edge non-destructive —
+            // the user keeps the typed value in the field, the
+            // persisted modelFilter just stays at the last good
+            // value until they fix the typo.
+            modelFilter = defModelFilter.trim().ifBlank { null }
+                ?.let { typed ->
+                    if (runCatching { Regex(typed) }.isSuccess) typed else service.modelFilter
+                },
             litellmPrefix = defLitellmPrefix.trim().ifBlank { null },
             hardcodedModels = hardcoded.ifEmpty { null },
             defaultModelSource = defDefaultModelSource

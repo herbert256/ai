@@ -36,7 +36,11 @@ fun ModelTypesScreen(
 ) {
     BackHandler { onBack() }
 
-    var paths by rememberSaveable(generalSettings) {
+    // Key on defaultTypePaths only — the previous full-settings
+    // key reset local edits whenever an unrelated field (userName,
+    // model layout, …) was debounced-saved elsewhere, throwing
+    // away in-flight typing on this screen.
+    var paths by rememberSaveable(generalSettings.defaultTypePaths) {
         mutableStateOf(ModelType.ALL.associateWith { generalSettings.defaultTypePaths[it] ?: "" })
     }
 
