@@ -306,7 +306,9 @@ object KnowledgeService {
      *  file:// Uri pointing at the copy. */
     private fun persistSourceLocally(context: Context, kbId: String, uri: Uri, displayName: String): Uri {
         val safe = displayName.replace(Regex("[^A-Za-z0-9._-]+"), "_")
-        val unique = "${System.currentTimeMillis()}_$safe"
+        // Append a UUID short — bare millis collides on near-simultaneous
+        // shares (two files in the same ms produced an overwrite).
+        val unique = "${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}_$safe"
         val dir = java.io.File(context.filesDir, "knowledge/$kbId/files").also { it.mkdirs() }
         val target = java.io.File(dir, unique)
         // Write via a sibling tmp file + atomic rename + fsync so a

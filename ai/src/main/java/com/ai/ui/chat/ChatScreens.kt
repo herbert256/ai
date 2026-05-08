@@ -983,8 +983,16 @@ private fun AnimatedTextLines(content: String) {
 
     LaunchedEffect(content) {
         if (lines.size < visibleLineCount) visibleLineCount = lines.size
+        // Fade lines in at ~80ms per line for normal-length responses,
+        // and snap to fully-visible when there are too many to reveal
+        // gracefully — a 100-line response was previously taking 50
+        // seconds at the old 500ms cadence.
+        if (lines.size > 30) {
+            visibleLineCount = lines.size
+            return@LaunchedEffect
+        }
         while (visibleLineCount < lines.size) {
-            kotlinx.coroutines.delay(500)
+            kotlinx.coroutines.delay(80)
             visibleLineCount = minOf(visibleLineCount + 1, lines.size)
         }
     }

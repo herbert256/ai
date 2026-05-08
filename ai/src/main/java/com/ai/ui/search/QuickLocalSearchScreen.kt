@@ -113,7 +113,7 @@ fun QuickLocalSearchScreen(
 private data class QuickHit(val reportId: String, val title: String, val timestamp: String)
 
 private fun runQuickSearch(context: android.content.Context, word: String): List<QuickHit> {
-    val needle = word.lowercase()
+    val needle = word.lowercase(java.util.Locale.ROOT)
     if (needle.isBlank()) return emptyList()
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
