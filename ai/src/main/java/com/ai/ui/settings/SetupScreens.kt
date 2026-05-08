@@ -459,6 +459,31 @@ fun ExternalServicesScreen(
     var orKey by remember { mutableStateOf(openRouterApiKey) }
     var aaKey by remember { mutableStateOf(artificialAnalysisApiKey) }
 
+    // Debounce keystrokes — every character was firing a prefs write,
+    // so pasting a 96-char key wrote 96 times in rapid succession.
+    // Wait 400ms of quiet (matches SettingsMainScreen's debounce) and
+    // also flush on dispose so a fast back-press doesn't lose the
+    // typed value.
+    LaunchedEffect(hfKey) {
+        kotlinx.coroutines.delay(400)
+        if (hfKey != huggingFaceApiKey) onSaveHuggingFaceApiKey(hfKey)
+    }
+    LaunchedEffect(orKey) {
+        kotlinx.coroutines.delay(400)
+        if (orKey != openRouterApiKey) onSaveOpenRouterApiKey(orKey)
+    }
+    LaunchedEffect(aaKey) {
+        kotlinx.coroutines.delay(400)
+        if (aaKey != artificialAnalysisApiKey) onSaveArtificialAnalysisApiKey(aaKey)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (hfKey != huggingFaceApiKey) onSaveHuggingFaceApiKey(hfKey)
+            if (orKey != openRouterApiKey) onSaveOpenRouterApiKey(orKey)
+            if (aaKey != artificialAnalysisApiKey) onSaveArtificialAnalysisApiKey(aaKey)
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -473,7 +498,7 @@ fun ExternalServicesScreen(
                 Text("HuggingFace", fontWeight = FontWeight.Bold, color = Color.White)
                 Text("Used for model information lookup", fontSize = 12.sp, color = AppColors.TextTertiary)
                 OutlinedTextField(
-                    value = hfKey, onValueChange = { hfKey = it; onSaveHuggingFaceApiKey(it) },
+                    value = hfKey, onValueChange = { hfKey = it },
                     label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
@@ -483,7 +508,7 @@ fun ExternalServicesScreen(
                 Text("OpenRouter", fontWeight = FontWeight.Bold, color = Color.White)
                 Text("Used for pricing data and model specifications", fontSize = 12.sp, color = AppColors.TextTertiary)
                 OutlinedTextField(
-                    value = orKey, onValueChange = { orKey = it; onSaveOpenRouterApiKey(it) },
+                    value = orKey, onValueChange = { orKey = it },
                     label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
@@ -493,7 +518,7 @@ fun ExternalServicesScreen(
                 Text("Artificial Analysis", fontWeight = FontWeight.Bold, color = Color.White)
                 Text("Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api", fontSize = 12.sp, color = AppColors.TextTertiary)
                 OutlinedTextField(
-                    value = aaKey, onValueChange = { aaKey = it; onSaveArtificialAnalysisApiKey(it) },
+                    value = aaKey, onValueChange = { aaKey = it },
                     label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
