@@ -111,6 +111,9 @@ fun ReportsScreenNav(
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
         },
+        onBulkDeleteSecondaries = { reportId, ids, onDone ->
+            reportViewModel.bulkDeleteSecondaryResults(context, reportId, ids, onDone)
+        },
         onGenerate = { models, paramsIds, reportType ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
             val swarmIds = models.filter { it.sourceType == "swarm" && it.type == "model" }.mapNotNull { it.sourceId }.toSet()
@@ -278,6 +281,15 @@ fun ReportsScreen(
     onRunAfterCrossMeta: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
+    /** Bulk delete on the report VM's viewModelScope so a Stop /
+     *  navigate-away during a Cross-delete doesn't abandon a half-
+     *  finished sweep. The screen-scoped fallback is the same forEach
+     *  but on rememberCoroutineScope's scope, which dies with the
+     *  screen. */
+    onBulkDeleteSecondaries: (String, List<String>, () -> Unit) -> Unit = { rid, ids, done ->
+        ids.forEach { onDeleteSecondary(rid, it) }
+        done()
+    },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
@@ -1116,13 +1128,12 @@ fun ReportsScreen(
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBulkDelete = { ids ->
                 // Off-thread sweep — N can be hundreds (≈ N(N-1) for
-                // a Cross with N agents). Doing this serially on the
-                // main thread would freeze the UI; one refresh tick
-                // at the end picks up the now-empty directory.
-                scope.launch(Dispatchers.IO) {
-                    ids.forEach { onDeleteSecondary(rid, it) }
-                    withContext(Dispatchers.Main) { secondaryRefreshTick++ }
-                }
+                // a Cross with N agents). Routes through the parent
+                // callback so the actual launch lives on the report
+                // VM's viewModelScope; the previous screen-scoped
+                // forEach abandoned partial deletes when the user
+                // navigated away mid-sweep.
+                onBulkDeleteSecondaries(rid, ids) { secondaryRefreshTick++ }
             },
             onBack = { listKind = null; listFilterByName = null },
             onNavigateHome = onNavigateHome,

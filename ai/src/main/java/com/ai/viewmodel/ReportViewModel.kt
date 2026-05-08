@@ -1726,6 +1726,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
+    /** Bulk-delete every secondary result row in [resultIds] off the
+     *  UI thread on viewModelScope. Survives the screen scope being
+     *  cancelled mid-loop — the previous screen-scoped sweep
+     *  abandoned hundreds of rows when the user navigated away
+     *  during a Cross-delete. Returns once the sweep finishes. */
+    fun bulkDeleteSecondaryResults(context: Context, reportId: String, resultIds: List<String>, onComplete: () -> Unit = {}) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            resultIds.forEach { id ->
+                runCatching { SecondaryResultStorage.delete(context, reportId, id) }
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            withContext(Dispatchers.Main) { onComplete() }
+        }
+    }
+
     /** Re-run the API call for a single agent on a finished report,
      *  replacing its persisted result. Mirrors the flow [generateGenericReports]
      *  uses for a fresh run (rebuild ReportTask → executeReportTask) but
