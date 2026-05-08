@@ -1152,6 +1152,7 @@ fun ReportsScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title reflects the phase: selection (adding models) vs generation (showing results).
         TitleBar(
+            helpTopic = "report_result_generation",
             title = if (isGenerating) uiState.genericPromptTitle.ifBlank { "AI Reports" } else "AI Report - Models",
             onBackClick = onDismiss,
             onTrace = if (isGenerating && currentReportId != null) {

@@ -154,6 +154,7 @@ internal fun ManualModelTypeEditScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
+            helpTopic = "manual_model_types",
             title = if (initial == null) "Add override" else "Edit override",
             onBackClick = onCancel
         )

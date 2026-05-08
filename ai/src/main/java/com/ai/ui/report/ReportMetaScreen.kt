@@ -112,7 +112,7 @@ internal fun ReportMetaScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Meta", onBackClick = onBack)
+        TitleBar(helpTopic = "report_meta", title = "Meta", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (results.isEmpty()) {

@@ -164,7 +164,10 @@ fun AppNavHost(
             launchSingleTop = true
         }
     }
-    val rootNavigateHelp: () -> Unit = { navController.navigate(NavRoutes.HELP) }
+    val rootNavigateHelp: (String?) -> Unit = { topic ->
+        if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
+        else navController.navigate(NavRoutes.helpForTopic(topic))
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
@@ -782,6 +785,12 @@ fun AppNavHost(
         }
         composable(NavRoutes.HELP) {
             HelpScreen(onBack = safePopBack, onNavigateHome = navigateHome)
+        }
+        composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
+            val topicId = try {
+                java.net.URLDecoder.decode(entry.arguments?.getString("topicId") ?: "", "UTF-8")
+            } catch (_: Exception) { "" }
+            HelpScreen(topicId = topicId, onBack = safePopBack, onNavigateHome = navigateHome)
         }
         composable(NavRoutes.TRACE_LIST) {
             TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,

@@ -159,6 +159,7 @@ internal fun TranslationRunDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
+            helpTopic = "translation_run",
             title = title, onBackClick = onBack,
             onTrace = if (traceEnabled) onNavigateToTraceList else null,
             onDelete = { confirmDelete = true },

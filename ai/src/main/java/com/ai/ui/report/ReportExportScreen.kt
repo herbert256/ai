@@ -59,7 +59,7 @@ fun ReportExportScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Export", onBackClick = onBack)
+        TitleBar(helpTopic = "report_export", title = "Export", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(

@@ -46,7 +46,7 @@ fun ChatHistoryScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Chat History", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_history", title = "Chat History", onBackClick = onNavigateBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         if (allSessions.isEmpty()) {
@@ -204,7 +204,7 @@ fun ChatSearchScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Search Chats", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_history", title = "Search Chats", onBackClick = onNavigateBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(

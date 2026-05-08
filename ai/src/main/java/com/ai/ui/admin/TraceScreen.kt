@@ -207,6 +207,7 @@ fun TraceListScreen(
             }
             val canClear = reportId == null && modelFilter == null && allTraceFiles.isNotEmpty()
             TitleBar(
+                helpTopic = "trace_list",
                 title = title, onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null
             )
@@ -437,7 +438,7 @@ private fun TraceModelPickerOverlay(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Pick model", onBackClick = onBack)
+        TitleBar(helpTopic = "trace_pick_model", title = "Pick model", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
@@ -602,6 +603,7 @@ fun TraceDetailScreen(
     }
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
+            helpTopic = "trace_detail",
             title = "Trace: $statusCode", onBackClick = onBack,
             onInfo = if (infoProvider != null && infoTraceModel != null) {
                 { onNavigateToModelInfo(infoProvider, infoTraceModel) }

@@ -80,6 +80,7 @@ fun HistoryScreenNav(
         var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
             TitleBar(
+                helpTopic = "history",
                 title = "History", onBackClick = onNavigateBack,
                 onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null
             )

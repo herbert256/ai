@@ -145,7 +145,7 @@ fun DualChatSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Dual AI Chat", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", onBackClick = onNavigateBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -400,6 +400,7 @@ fun DualChatSessionScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
+            helpTopic = "dual_chat_session",
             title = "Dual Chat", onBackClick = onNavigateBack,
             onInfo = { showInfoPicker = true }
         )

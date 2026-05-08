@@ -64,7 +64,7 @@ fun KnowledgeListScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "AI Knowledge", onBackClick = onBack)
+        TitleBar(helpTopic = "knowledge_list", title = "AI Knowledge", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Text("Attach PDFs, text files, markdown, or web pages here. Knowledge bases can be linked to a Report or a Chat to inject relevant excerpts before each call.",
             fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -174,7 +174,7 @@ fun NewKnowledgeBaseScreen(
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "New knowledge base", onBackClick = onBack)
+        TitleBar(helpTopic = "knowledge_list", title = "New knowledge base", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
@@ -333,6 +333,7 @@ fun KnowledgeDetailScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
+            helpTopic = "knowledge_detail",
             title = kb?.name ?: "Knowledge base", onBackClick = onBack,
             onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
         )

@@ -9,6 +9,7 @@ object NavRoutes {
     const val SETTINGS_AGENT_EDIT = "settings_agent_edit/{agentId}"
     const val SETTINGS_INTERNAL_PROMPT_EDIT = "settings_internal_prompt_edit/{promptId}"
     const val HELP = "help"
+    const val HELP_FOR_TOPIC = "help/{topicId}"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
     const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"
@@ -74,4 +75,5 @@ object NavRoutes {
     fun aiChatParams(provider: String, model: String) = "ai_chat_params/$provider/${encode(model)}"
     fun aiChatSession(provider: String, model: String) = "ai_chat_session/$provider/${encode(model)}"
     fun aiNewReportWithParams(title: String, prompt: String) = "ai_new_report/${encode(title)}/${encode(prompt)}"
+    fun helpForTopic(topicId: String) = "help/${encode(topicId)}"
 }

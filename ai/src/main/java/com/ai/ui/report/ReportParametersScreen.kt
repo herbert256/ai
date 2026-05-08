@@ -31,7 +31,7 @@ fun ReportAdvancedParametersScreen(
     var searchRecency by remember { mutableStateOf(currentParameters?.searchRecency ?: "") }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Advanced Parameters", onBackClick = onBack)
+        TitleBar(helpTopic = "report_parameters", title = "Advanced Parameters", onBackClick = onBack)
         Spacer(modifier = Modifier.height(16.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

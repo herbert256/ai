@@ -195,7 +195,7 @@ internal fun SecondaryResultsScreen(
     LaunchedEffect(isCrossDrillIn, nameFilter) { if (!isCrossDrillIn) crossLevel = 1 }
     val title = if (isCrossDrillIn) "Cross level $crossLevel" else baseTitle
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = title, onBackClick = onBack)
+        TitleBar(helpTopic = "secondary_list", title = title, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (showLanguagePicker) {
@@ -1723,6 +1723,7 @@ internal fun SecondaryResultDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
+            helpTopic = "secondary_detail",
             title = "$title — $provider", onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },

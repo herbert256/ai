@@ -68,7 +68,7 @@ fun SemanticSearchScreen(
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Semantic search", onBackClick = onBack)
+        TitleBar(helpTopic = "search_semantic", title = "Semantic search", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (embeddingChoices.isEmpty()) {

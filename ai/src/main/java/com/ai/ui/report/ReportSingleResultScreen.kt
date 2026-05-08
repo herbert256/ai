@@ -94,13 +94,13 @@ fun ReportSingleResultScreen(
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(title = "View result", onBackClick = onBack)
+            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack)
         }
         return
     }
     if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(title = "View result", onBackClick = onBack)
+            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack)
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Result not found", color = AppColors.TextSecondary, fontSize = 16.sp)
             }
@@ -151,6 +151,7 @@ fun ReportSingleResultScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
+            helpTopic = "report_single_result",
             title = provider.displayName, onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmRemove = true },
@@ -291,7 +292,7 @@ private fun ContinueInChatPickerScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(title = "Continue in chat", onBackClick = onBack)
+        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", onBackClick = onBack)
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 "Pick how you want to continue in chat:",

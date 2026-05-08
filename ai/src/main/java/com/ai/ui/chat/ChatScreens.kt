@@ -97,7 +97,7 @@ fun ChatParametersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Chat Parameters", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", onBackClick = onNavigateBack)
         Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
             fontSize = 12.sp, color = AppColors.TextTertiary,
             modifier = Modifier.modelInfoClickable(provider, model))
@@ -505,6 +505,7 @@ fun ChatSessionScreen(
     ) {
         val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
         TitleBar(
+            helpTopic = "chat_session",
             title = "Chat", onBackClick = onNavigateBack,
             leftContent = {
                 TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false) }

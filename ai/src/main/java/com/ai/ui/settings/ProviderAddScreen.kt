@@ -61,7 +61,7 @@ fun ProviderAddScreen(
         displayName.isNotBlank() && baseUrl.isNotBlank() && defaultModel.isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Add provider", onBackClick = onBack)
+        TitleBar(helpTopic = "provider_add", title = "Add provider", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -79,8 +79,10 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
 val LocalShowBackButton = compositionLocalOf { true }
 
 /** Provided by AppNavHost so the title-bar Help icon can navigate
- *  to the general help page without prop-drilling a callback. */
-val LocalNavigateToHelp = compositionLocalOf<() -> Unit> { {} }
+ *  to a help page without prop-drilling a callback. The argument is
+ *  the screen-specific topic ID (e.g., "agents", "report_result");
+ *  null / blank routes to the compact General Help overview. */
+val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
 
 /** Provided by AppNavHost so the title-bar Home icon can navigate
  *  to the Hub without prop-drilling a callback. Replaces the role
@@ -194,6 +196,7 @@ fun TitleBar(
     backText: String = "< Back",
     leftContent: (@Composable RowScope.() -> Unit)? = null,
     centered: Boolean = false,
+    helpTopic: String? = null,
     onTrace: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onInfo: (() -> Unit)? = null,
@@ -256,7 +259,7 @@ fun TitleBar(
                 onInfo = onInfo,
                 onDelete = onDelete,
                 onTrace = onTrace,
-                onHelp = navigateHelp
+                onHelp = { navigateHelp(helpTopic) }
             )
         }
     }

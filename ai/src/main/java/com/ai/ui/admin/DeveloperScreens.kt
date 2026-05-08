@@ -105,7 +105,7 @@ fun ApiTestScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "API Test", onBackClick = onBackClick)
+        TitleBar(helpTopic = "developer_test", title = "API Test", onBackClick = onBackClick)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Provider selector
@@ -227,7 +227,7 @@ fun EditApiRequestScreen(
     var editableJson by remember { mutableStateOf(initialJson) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Edit Request", onBackClick = onBackClick)
+        TitleBar(helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick)
 
         // Info card
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {

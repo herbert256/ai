@@ -123,6 +123,7 @@ internal fun TranslationCallDetailScreen(
             val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
             val traceEnabled = ApiTracer.isTracingEnabled && translationTraceFilename != null
             TitleBar(
+                helpTopic = "translation_call",
                 title = titleLang, onBackClick = onBack,
                 onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
                 onInfo = if (translationProviderService != null && result.model.isNotBlank()) {

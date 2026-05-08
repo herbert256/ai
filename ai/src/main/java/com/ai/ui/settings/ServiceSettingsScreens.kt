@@ -117,7 +117,7 @@ fun ModelsListScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "Models", onBackClick = onBackToAiSetup)
+        TitleBar(helpTopic = "models", title = "Models", onBackClick = onBackToAiSetup)
         Spacer(modifier = Modifier.height(12.dp))
         // Only show providers with a working API key (state == "ok"), matching the "Active"
         // filter on the Providers screen.
@@ -279,7 +279,7 @@ fun ProviderModelSettingsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = "${service.displayName} models", onBackClick = onBack)
+        TitleBar(helpTopic = "models", title = "${service.displayName} models", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -650,7 +650,7 @@ fun ProviderSettingsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = service.displayName, onBackClick = onBackToSettings)
+        TitleBar(helpTopic = "provider_edit", title = service.displayName, onBackClick = onBackToSettings)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -54,7 +54,7 @@ fun ProviderAdminScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Provider administration", onBackClick = onBack)
+        TitleBar(helpTopic = "provider_admin", title = "Provider administration", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             "All ${rows.size} providers. Tap a row to open the provider's admin / signup console.",

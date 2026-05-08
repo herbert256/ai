@@ -238,7 +238,7 @@ fun HousekeepingScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Housekeeping", onBackClick = onBackToHome)
+        TitleBar(helpTopic = "housekeeping", title = "Housekeeping", onBackClick = onBackToHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 

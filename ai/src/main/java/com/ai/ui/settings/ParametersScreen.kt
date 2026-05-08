@@ -85,7 +85,7 @@ fun ParametersEditScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(title = if (isEditing) "Edit Parameters" else "Add Parameters", onBackClick = onBack)
+        TitleBar(helpTopic = "parameters_edit", title = if (isEditing) "Edit Parameters" else "Add Parameters", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

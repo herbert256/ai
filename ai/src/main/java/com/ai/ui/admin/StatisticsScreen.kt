@@ -93,6 +93,7 @@ fun UsageScreen(
     var confirmClear by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
+            helpTopic = "statistics",
             title = "AI Usage", onBackClick = onBack,
             onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null
         )
@@ -248,7 +249,7 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Cost Config", onBackClick = onBack)
+        TitleBar(helpTopic = "cost_config", title = "Cost Config", onBackClick = onBack)
 
         Button(onClick = { showAddScreen = true }, modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -407,7 +408,7 @@ internal fun AddManualOverrideScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Add Override", onBackClick = onBack)
+        TitleBar(helpTopic = "cost_override", title = "Add Override", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {

@@ -313,7 +313,7 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_swarm", title = titleText, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -422,7 +422,7 @@ internal fun ReportSelectFromReportScreen(
     val tsFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Pick previous report", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_agent", title = "Pick previous report", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
