@@ -36,8 +36,18 @@ fun FlocksScreen(
         sortKey = { it.name },
         itemTitle = { it.name },
         itemSubtitle = { flock ->
-            val agents = aiSettings.getAgentsForFlock(flock).filter { aiSettings.isProviderActive(it.provider) }
-            "${agents.size} agents: ${agents.joinToString(", ") { it.name }}"
+            // Show every member, including those whose provider is
+            // currently inactive — the previous "agents.size" was
+            // computed AFTER the active-provider filter, so a flock
+            // with 5 members of which 2 had inactive providers showed
+            // "3 agents:" while the edit screen showed all 5. Same
+            // reasoning as the AgentsScreen filter fix: list reality,
+            // not a context-dependent subset.
+            val all = aiSettings.getAgentsForFlock(flock)
+            val active = all.filter { aiSettings.isProviderActive(it.provider) }
+            val countLabel = if (active.size != all.size) "${active.size}/${all.size} agents"
+                             else "${all.size} agents"
+            "$countLabel: ${all.joinToString(", ") { it.name }}"
         },
         onAdd = onAddFlock,
         onEdit = { onEditFlock(it.id) },
