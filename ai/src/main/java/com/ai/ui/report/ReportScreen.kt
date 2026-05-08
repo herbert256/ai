@@ -474,6 +474,14 @@ fun ReportsScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showInfoPicker by remember { mutableStateOf(false) }
+    // Action-row pickers — hoisted up here so they render as proper
+    // full-screen overlays. When they lived inside GenerationPhase the
+    // parent TitleBar + ActionRow had already painted above them, so
+    // the picker visibly stacked on top of a half-drawn screen.
+    var showViewPicker by remember { mutableStateOf(false) }
+    var showEditPicker by remember { mutableStateOf(false) }
+    var showMetaPicker by remember { mutableStateOf(false) }
+    var showCrossPicker by remember { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -1243,6 +1251,138 @@ fun ReportsScreen(
         return
     }
 
+    // Action-row picker overlays (Meta / Cross / View / Edit). These
+    // render at ReportsScreen scope — not inside GenerationPhase —
+    // so the parent TitleBar and the action row don't paint above
+    // them when the user opens a picker.
+    if (showMetaPicker) {
+        ReportSelectInternalPromptScreen(
+            titleText = "Run a Meta prompt",
+            category = "meta",
+            prompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
+            onSelectPrompt = {
+                showMetaPicker = false
+                launchMetaPrompt(it)
+            },
+            onBack = { showMetaPicker = false },
+            onEditPrompts = {
+                showMetaPicker = false
+                onNavigateToInternalPromptsByCategory("meta")
+            }
+        )
+        return
+    }
+    if (showCrossPicker) {
+        ReportSelectInternalPromptScreen(
+            titleText = "Run a Cross prompt",
+            category = "cross_out",
+            prompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
+            onSelectPrompt = {
+                showCrossPicker = false
+                launchCrossPrompt(it)
+            },
+            onBack = { showCrossPicker = false },
+            onEditPrompts = {
+                showCrossPicker = false
+                onNavigateToInternalPromptsByCategory("cross_out")
+            }
+        )
+        return
+    }
+    if (showViewPicker) {
+        val successful = reportsAgentResults.count { it.value.isSuccess }
+        val totalAgents = reportsAgentResults.size
+        val secondaryCost = secondaryTotals.inputCost + secondaryTotals.outputCost
+        val secondaryTokens = secondaryTotals.inputTokens + secondaryTotals.outputTokens
+        val promptPreview = uiState.genericPromptText.lineSequence()
+            .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
+        val viewBuckets = buildViewBuckets(secondaryRuns)
+        val options = buildList {
+            add(ReportActionOption(
+                label = "Reports",
+                detail = if (totalAgents == 0) "No agent results yet"
+                else "$successful of $totalAgents agents succeeded",
+                onClick = {
+                    showViewPicker = false
+                    selectedAgentForViewer = null; viewerSection = null; showViewer = true
+                }
+            ))
+            add(ReportActionOption(
+                label = "Prompt",
+                detail = promptPreview,
+                onClick = {
+                    showViewPicker = false
+                    selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
+                }
+            ))
+            add(ReportActionOption(
+                label = "Costs",
+                detail = if (secondaryTokens > 0)
+                    "Tokens & cost — secondary so far: %.4f USD".format(secondaryCost)
+                else "Tokens & cost breakdown",
+                onClick = {
+                    showViewPicker = false
+                    selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
+                }
+            ))
+            viewBuckets.forEach { (name, kind, count) ->
+                add(ReportActionOption(
+                    label = name,
+                    detail = "$count run${if (count == 1) "" else "s"}",
+                    secondary = com.ai.data.legacyKindDisplayName(kind),
+                    onClick = {
+                        showViewPicker = false
+                        listKind = kind; listFilterByName = name
+                    }
+                ))
+            }
+        }
+        ReportActionPickerScreen(
+            titleText = "View",
+            helpTopic = "report_result_generation",
+            options = options,
+            onBack = { showViewPicker = false }
+        )
+        return
+    }
+    if (showEditPicker && currentReportId != null) {
+        val rid = currentReportId
+        val titlePreview = uiState.genericPromptTitle.ifBlank { "(untitled)" }
+        val promptPreview = uiState.genericPromptText.lineSequence()
+            .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
+        val modelCount = reportsAgentResults.size
+        val options = listOf(
+            ReportActionOption(
+                label = "Prompt",
+                detail = promptPreview,
+                onClick = { showEditPicker = false; showEditPrompt = true }
+            ),
+            ReportActionOption(
+                label = "Title",
+                detail = titlePreview,
+                onClick = { showEditPicker = false; showEditTitle = true }
+            ),
+            ReportActionOption(
+                label = "Models",
+                detail = if (modelCount == 0) "Adjust the model list"
+                else "$modelCount model${if (modelCount == 1) "" else "s"} on this report",
+                onClick = { showEditPicker = false; onEditModels(rid) }
+            ),
+            ReportActionOption(
+                label = "Parameters",
+                detail = "Temperature, max tokens, top_p, stop sequences",
+                onClick = { showEditPicker = false; showEditParameters = true }
+            )
+        )
+        ReportActionPickerScreen(
+            titleText = "Edit",
+            helpTopic = "report_result_generation",
+            options = options,
+            onBack = { showEditPicker = false }
+        )
+        return
+    }
+
     // Main UI
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Title reflects the phase: selection (adding models) vs generation (showing results).
@@ -1315,20 +1455,17 @@ fun ReportsScreen(
                 currentReportId = currentReportId,
                 onStop = onStop,
                 onContinueInBackground = onContinueInBackground,
-                onViewResults = { selectedAgentForViewer = null; viewerSection = null; showViewer = true },
-                onViewPrompt = { selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true },
-                onViewCosts = { selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true },
                 onViewAgent = { agentId -> singleResultAgentId = agentId },
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
-                onEditPrompt = { showEditPrompt = true },
-                onEditTitle = { showEditTitle = true },
-                onEditModels = { currentReportId?.let(onEditModels) },
-                onEditParameters = { showEditParameters = true },
                 onDelete = { showDeleteConfirm = true },
                 onCopy = { currentReportId?.let(onCopyReport) },
                 onTogglePin = { currentReportId?.let(onTogglePinReport) },
                 onTranslate = { showTranslateLanguagePicker = true },
+                onOpenViewPicker = { showViewPicker = true },
+                onOpenEditPicker = { showEditPicker = true },
+                onOpenMetaPicker = { showMetaPicker = true },
+                onOpenCrossPicker = { showCrossPicker = true },
                 secondaryCounts = secondaryCounts,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
@@ -1341,12 +1478,9 @@ fun ReportsScreen(
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onLaunchMetaPrompt = launchMetaPrompt,
                 crossPrompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
-                onLaunchCrossPrompt = launchCrossPrompt,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
-                onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory
+                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
             )
         }
     }
@@ -1505,20 +1639,21 @@ private fun ColumnScope.GenerationPhase(
     currentReportId: String?,
     onStop: () -> Unit,
     onContinueInBackground: () -> Unit,
-    onViewResults: () -> Unit,
-    onViewPrompt: () -> Unit,
-    onViewCosts: () -> Unit,
     onViewAgent: (String) -> Unit,
     onShare: () -> Unit,
     onTrace: () -> Unit,
-    onEditPrompt: () -> Unit,
-    onEditTitle: () -> Unit = {},
-    onEditModels: () -> Unit,
-    onEditParameters: () -> Unit,
     onDelete: () -> Unit,
     onCopy: () -> Unit = {},
     onTogglePin: () -> Unit = {},
     onTranslate: () -> Unit = {},
+    /** Open the action-row pickers. The picker bodies live at
+     *  ReportsScreen scope so they render as proper full-screen
+     *  overlays — these callbacks just flip the parent's visibility
+     *  state. */
+    onOpenViewPicker: () -> Unit = {},
+    onOpenEditPicker: () -> Unit = {},
+    onOpenMetaPicker: () -> Unit = {},
+    onOpenCrossPicker: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
@@ -1531,20 +1666,14 @@ private fun ColumnScope.GenerationPhase(
     onOpenTranslationRun: (String) -> Unit = {},
     onOpenMeta: () -> Unit = {},
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    onLaunchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = {},
     crossPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    onLaunchCrossPrompt: (com.ai.model.InternalPrompt) -> Unit = {},
     /** Open a single trace file in the trace detail view. Wired to the
      *  per-row 🐞 icons next to agent / secondary rows. */
     onNavigateToTraceFile: (String) -> Unit = {},
     /** Open the trace list filtered to (reportId, category). Wired to
      *  the per-row 🐞 on translation runs which collapse multiple
      *  per-call traces into a single category-scoped list. */
-    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
-    /** Deep link from the new full-screen Meta / Cross pickers'
-     *  "Edit prompts" button. Category is one of "meta" /
-     *  "cross_out" / "cross_in". */
-    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -1586,17 +1715,12 @@ private fun ColumnScope.GenerationPhase(
                 withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
             } ?: false
         }
-        var showViewPicker by remember { mutableStateOf(false) }
-        var showEditPicker by remember { mutableStateOf(false) }
-        var showMetaPicker by remember { mutableStateOf(false) }
-        var showCrossPicker by remember { mutableStateOf(false) }
-        // Per-Meta-prompt viewer buckets — one row per unique prompt
-        // name with at least one persisted secondary on this report.
-        // Re-derived as batches finish; surfaced inside the View popup.
-        val viewBuckets = remember(secondaryRuns) { buildViewBuckets(secondaryRuns) }
+        // The View / Edit / Meta / Cross pickers live at ReportsScreen
+        // scope so they can render as proper full-screen overlays.
+        // GenerationPhase only owns the trigger callbacks now.
         ActionRow {
-            CompactButton(onClick = { showViewPicker = true }, color = AppColors.Purple, text = "View")
-            CompactButton(onClick = { showEditPicker = true }, color = AppColors.Indigo, text = "Edit")
+            CompactButton(onClick = onOpenViewPicker, color = AppColors.Purple, text = "View")
+            CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
             // Regenerate moved to the title-bar 🔄 icon (with a
             // confirm dialog naming the row count) so the action
             // row stays focused on per-report navigation choices.
@@ -1609,135 +1733,19 @@ private fun ColumnScope.GenerationPhase(
             )
             CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
             CompactButton(
-                onClick = { showMetaPicker = true },
+                onClick = onOpenMetaPicker,
                 color = AppColors.Orange,
                 text = "Meta",
                 enabled = metaPrompts.isNotEmpty()
             )
             CompactButton(
-                onClick = { showCrossPicker = true },
+                onClick = onOpenCrossPicker,
                 color = AppColors.Orange,
                 text = "Cross",
                 enabled = crossPrompts.isNotEmpty()
             )
         }
 
-        if (showViewPicker) {
-            val successful = reportsAgentResults.count { it.value.isSuccess }
-            val totalAgents = reportsAgentResults.size
-            val secondaryCost = secondaryTotals.inputCost + secondaryTotals.outputCost
-            val secondaryTokens = secondaryTotals.inputTokens + secondaryTotals.outputTokens
-            val promptPreview = uiState.genericPromptText.lineSequence()
-                .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
-            val options = buildList {
-                add(ReportActionOption(
-                    label = "Reports",
-                    detail = if (totalAgents == 0) "No agent results yet"
-                    else "$successful of $totalAgents agents succeeded",
-                    onClick = { showViewPicker = false; onViewResults() }
-                ))
-                add(ReportActionOption(
-                    label = "Prompt",
-                    detail = promptPreview,
-                    onClick = { showViewPicker = false; onViewPrompt() }
-                ))
-                add(ReportActionOption(
-                    label = "Costs",
-                    detail = if (secondaryTokens > 0)
-                        "Tokens & cost — secondary so far: %.4f USD".format(secondaryCost)
-                    else "Tokens & cost breakdown",
-                    onClick = { showViewPicker = false; onViewCosts() }
-                ))
-                viewBuckets.forEach { (name, kind, count) ->
-                    add(ReportActionOption(
-                        label = name,
-                        detail = "$count run${if (count == 1) "" else "s"}",
-                        secondary = com.ai.data.legacyKindDisplayName(kind),
-                        onClick = { showViewPicker = false; onViewSecondaryName(name, kind) }
-                    ))
-                }
-            }
-            ReportActionPickerScreen(
-                titleText = "View",
-                helpTopic = "report_result_generation",
-                options = options,
-                onBack = { showViewPicker = false }
-            )
-            return
-        }
-
-        if (showEditPicker) {
-            val titlePreview = uiState.genericPromptTitle.ifBlank { "(untitled)" }
-            val promptPreview = uiState.genericPromptText.lineSequence()
-                .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
-            val modelCount = reportsAgentResults.size
-            val options = listOf(
-                ReportActionOption(
-                    label = "Prompt",
-                    detail = promptPreview,
-                    onClick = { showEditPicker = false; onEditPrompt() }
-                ),
-                ReportActionOption(
-                    label = "Title",
-                    detail = titlePreview,
-                    onClick = { showEditPicker = false; onEditTitle() }
-                ),
-                ReportActionOption(
-                    label = "Models",
-                    detail = if (modelCount == 0) "Adjust the model list"
-                    else "$modelCount model${if (modelCount == 1) "" else "s"} on this report",
-                    onClick = { showEditPicker = false; onEditModels() }
-                ),
-                ReportActionOption(
-                    label = "Parameters",
-                    detail = "Temperature, max tokens, top_p, stop sequences",
-                    onClick = { showEditPicker = false; onEditParameters() }
-                )
-            )
-            ReportActionPickerScreen(
-                titleText = "Edit",
-                helpTopic = "report_result_generation",
-                options = options,
-                onBack = { showEditPicker = false }
-            )
-            return
-        }
-
-        if (showMetaPicker) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Run a Meta prompt",
-                category = "meta",
-                prompts = metaPrompts,
-                onSelectPrompt = {
-                    showMetaPicker = false
-                    onLaunchMetaPrompt(it)
-                },
-                onBack = { showMetaPicker = false },
-                onEditPrompts = {
-                    showMetaPicker = false
-                    onNavigateToInternalPromptsByCategory("meta")
-                }
-            )
-            return
-        }
-
-        if (showCrossPicker) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Run a Cross prompt",
-                category = "cross_out",
-                prompts = crossPrompts,
-                onSelectPrompt = {
-                    showCrossPicker = false
-                    onLaunchCrossPrompt(it)
-                },
-                onBack = { showCrossPicker = false },
-                onEditPrompts = {
-                    showCrossPicker = false
-                    onNavigateToInternalPromptsByCategory("cross_out")
-                }
-            )
-            return
-        }
     }
     Spacer(modifier = Modifier.height(8.dp))
 
