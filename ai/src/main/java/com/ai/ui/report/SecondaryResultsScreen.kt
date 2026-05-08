@@ -241,7 +241,15 @@ internal fun SecondaryResultsScreen(
                 onResumeStaleCross = onResumeStaleCross,
                 onRestartFailedCross = onRestartFailedCross,
                 onRerunCompleteCross = onRerunCompleteCross,
-                onDeleteCrossModel = onDeleteCrossModel,
+                // The other lifecycle callbacks (resume/restart/rerun)
+                // each kick a fresh batch, which spins the polling
+                // loop and refreshes implicitly. Per-model delete is
+                // the standout — it removes rows but never starts a
+                // batch, so without an explicit bump L1 paints stale
+                // data once L2 pops back.
+                onDeleteCrossModel = { mpid, prov, model ->
+                    onDeleteCrossModel(mpid, prov, model); refreshTick++
+                },
                 onLevelChange = { crossLevel = it }
             )
             return@Column
@@ -407,15 +415,27 @@ private fun ColumnScope.MetaResultsPickerView(
 /** Role-aware row in the L2 list — built by [CrossMetaDrillInView]
  *  and passed to [OnePageView] / used for prev-next stepping on L3. */
 private data class L2Row(
-    /** Stable key: source.agentId for Responder, "$pid|$mdl" for
-     *  Initiator. */
+    /** Stable key: source.agentId for Responder, "$pid|$mdl|$srcAgentId"
+     *  for Initiator (one row per (answerer, source) pair so
+     *  multi-agent active models surface every factcheck). */
     val key: String,
     val provider: String,
     val model: String,
     /** "$answererPid|$answererMdl|$srcAgentId" — the pair the row maps
      *  to on L3. */
     val l3PairKey: String,
-    val pair: SecondaryResult?
+    val pair: SecondaryResult?,
+    /** In Initiator mode when the active model has more than one
+     *  source agent (Swarm), this disambiguates which source the row
+     *  factchecked. Rendered as a sub-label beneath the answerer
+     *  line. Null in Responder mode and in single-agent Initiator
+     *  cases (the source is unambiguous). */
+    val sourceLabel: String? = null,
+    /** Source agent id for Initiator rows; needed by OnePageView to
+     *  group rows by source under one shared "source response"
+     *  header. Null in Responder mode (the row's `key` is the source
+     *  agent id there). */
+    val sourceAgentId: String? = null
 )
 
 /** L1 → L2 → L3 drill-in for cross-type META results.
@@ -522,6 +542,17 @@ private fun ColumnScope.CrossMetaDrillInView(
         l3AnswererKey = null
         l3SourceAgentId = null
     }
+    // Likewise: opening a different model on the same Cross should
+    // start in Responder mode and with no L3 selection. Without this,
+    // the role state set on Model A's L2 carries to Model B's L2 even
+    // though the user picked it from a fresh L1 row.
+    LaunchedEffect(selectedModelKey) {
+        if (selectedModelKey != null) {
+            selectedRole = "Responder"
+            l3AnswererKey = null
+            l3SourceAgentId = null
+        }
+    }
     // Full-screen overlays inside this view — `if (showX) { X(); return }`
     // pattern documented in CLAUDE.md so the parent's rememberSaveable
     // state survives.
@@ -590,10 +621,10 @@ private fun ColumnScope.CrossMetaDrillInView(
         if (activeKey == null) emptyList()
         else successful.filter { it.provider == activePid && it.model == activeMdl }
     }
-    val activeAgentIds = activeAgents.map { it.agentId }.toSet()
+    val activeAgentIds = remember(activeAgents) { activeAgents.map { it.agentId }.toHashSet() }
 
     // L2 list rows — ordering depends on role.
-    val l2Rows: List<L2Row> = remember(activeKey, selectedRole, latestByPair, successful, results) {
+    val l2Rows: List<L2Row> = remember(activeKey, selectedRole, latestByPair, successful, results, activeAgents) {
         if (activeKey == null) emptyList()
         else if (selectedRole == "Responder") {
             // sources = every successful agent except this model itself
@@ -605,31 +636,56 @@ private fun ColumnScope.CrossMetaDrillInView(
                         key = src.agentId,
                         provider = src.provider, model = src.model,
                         l3PairKey = "$activeKey|${src.agentId}",
-                        pair = pair
+                        pair = pair,
+                        sourceAgentId = src.agentId
                     )
                 }
         } else {
-            // Initiator — list answerers (provider, model) that have a
-            // row whose crossSourceAgentId matches one of this model's
-            // agents. De-dup by answerer (provider, model); use the
-            // first matching active agent as the canonical source for
-            // L3 drill-in.
-            val canonicalSrc = activeAgents.firstOrNull()?.agentId
-            results
-                .filter { it.crossSourceAgentId in activeAgentIds && it.afterCrossOf == null }
-                .groupBy { "${it.providerId}|${it.model}" }
-                .map { (ans, rows) ->
-                    val parts = ans.split("|")
-                    val pid = parts.getOrNull(0).orEmpty()
-                    val mdl = parts.getOrNull(1).orEmpty()
-                    val pair = rows.maxByOrNull { it.timestamp }
-                    L2Row(
-                        key = ans,
-                        provider = pid, model = mdl,
-                        l3PairKey = "$ans|${canonicalSrc ?: ""}",
-                        pair = pair
-                    )
+            // Initiator — every (answerer pid+mdl, source agentId)
+            // pair where the source is one of this model's agents.
+            // For multi-agent active models (Swarm) this surfaces
+            // every factcheck instead of collapsing them to one row
+            // per answerer (which would hide rows + undercount cost).
+            // Order: answerer in successful order, then by source
+            // agent in activeAgents order, so consecutive rows of the
+            // same answerer cluster together.
+            val ansOrder = successful
+                .filter { it.agentId !in activeAgentIds }
+                .map { "${it.provider}|${it.model}" }
+                .distinct()
+                .withIndex()
+                .associate { (i, k) -> k to i }
+            val srcOrder = activeAgents.withIndex().associate { (i, a) -> a.agentId to i }
+            val multiAgent = activeAgents.size > 1
+            val byPair = results
+                .filter {
+                    it.crossSourceAgentId in activeAgentIds &&
+                        it.afterCrossOf == null
                 }
+                .groupBy { "${it.providerId}|${it.model}|${it.crossSourceAgentId}" }
+                .mapValues { (_, rs) -> rs.maxByOrNull { it.timestamp }!! }
+                .values
+            byPair.sortedWith(
+                compareBy(
+                    { ansOrder["${it.providerId}|${it.model}"] ?: Int.MAX_VALUE },
+                    { srcOrder[it.crossSourceAgentId] ?: Int.MAX_VALUE }
+                )
+            ).map { row ->
+                val srcAgentId = row.crossSourceAgentId.orEmpty()
+                val src = activeAgents.firstOrNull { it.agentId == srcAgentId }
+                val sourceLabel = if (multiAgent && src != null) {
+                    val pn = AppService.findById(src.provider)?.displayName ?: src.provider
+                    "↤ $pn / ${src.model}"
+                } else null
+                L2Row(
+                    key = "${row.providerId}|${row.model}|$srcAgentId",
+                    provider = row.providerId, model = row.model,
+                    l3PairKey = "${row.providerId}|${row.model}|$srcAgentId",
+                    pair = row,
+                    sourceLabel = sourceLabel,
+                    sourceAgentId = srcAgentId
+                )
+            }
         }
     }
 
@@ -793,6 +849,19 @@ private fun ColumnScope.CrossMetaDrillInView(
         val provName = AppService.findById(activePid)?.displayName ?: activePid
         val activeProviderService = AppService.findById(activePid)
         var confirmModelDelete by remember { mutableStateOf(false) }
+        // Trace filename for the active model's report-agent run.
+        // Hoisted out of the `if (selectedRole == "Initiator")` block
+        // so toggling role doesn't kill and restart the produceState
+        // (which has to walk ApiTracer.getTraceFiles() on cold cache).
+        // The 🐞 still only renders in Initiator mode below.
+        val activeFirstAgent = activeAgents.firstOrNull()
+        val activeModelTrace by produceState<String?>(initialValue = null, reportId, activeFirstAgent?.model) {
+            value = if (activeFirstAgent == null) null else withContext(Dispatchers.IO) {
+                ApiTracer.getTraceFiles()
+                    .filter { it.reportId == reportId && it.model == activeFirstAgent.model }
+                    .maxByOrNull { it.timestamp }?.filename
+            }
+        }
         // First line: provider / model
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("$provName / $activeMdl", fontSize = 14.sp, color = AppColors.Blue,
@@ -801,21 +870,10 @@ private fun ColumnScope.CrossMetaDrillInView(
             // 🐞 only in Initiator role — opens the trace of this
             // model's report-agent run (the call that produced the
             // source response).
-            if (selectedRole == "Initiator") {
-                val firstAgent = activeAgents.firstOrNull()
-                val modelTraceState = produceState<String?>(initialValue = null, reportId, firstAgent?.model) {
-                    value = if (firstAgent == null) null else withContext(Dispatchers.IO) {
-                        ApiTracer.getTraceFiles()
-                            .filter { it.reportId == reportId && it.model == firstAgent.model }
-                            .maxByOrNull { it.timestamp }?.filename
-                    }
-                }
-                val tr = modelTraceState.value
-                if (ApiTracer.isTracingEnabled && tr != null) {
-                    Text("🐞", fontSize = 18.sp,
-                        modifier = Modifier.padding(start = 8.dp)
-                            .clickable { onNavigateToTraceFile(tr) })
-                }
+            if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && activeModelTrace != null) {
+                Text("🐞", fontSize = 18.sp,
+                    modifier = Modifier.padding(start = 8.dp)
+                        .clickable { activeModelTrace?.let(onNavigateToTraceFile) })
             }
             // ℹ — Model Info for the active model.
             if (activeProviderService != null) {
@@ -841,8 +899,11 @@ private fun ColumnScope.CrossMetaDrillInView(
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        // Per-model total cost
-        val totalCost = l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
+        // Per-model total cost. Memoised so role flip / batching tick
+        // recompositions don't re-walk the list.
+        val totalCost = remember(l2Rows) {
+            l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
+        }
         if (totalCost > 0.0) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("Total", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
@@ -894,6 +955,11 @@ private fun ColumnScope.CrossMetaDrillInView(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("$rowProv · ${row.model}", fontSize = 14.sp, color = Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            row.sourceLabel?.let { label ->
+                                Text(label, fontSize = 11.sp, color = AppColors.TextTertiary,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                         if (cost > 0.0) {
                             Text(formatCents(cost), fontSize = 11.sp,
@@ -1316,9 +1382,31 @@ private fun StatRow(label: String, value: String, valueColor: Color) {
  *  Responder (active model is the answerer): for every source on L2,
  *  show the source's report response followed by the active model's
  *  factcheck of it.
- *  Initiator (active model is the source): show the active model's
- *  report response once at the top, then for each answerer on L2 show
- *  that answerer's factcheck. */
+ *  Initiator (active model is the source): group L2 rows by source
+ *  agent (multi-agent active models surface one block per agent).
+ *  Each group prints the source response once, then every answerer's
+ *  factcheck of that source.
+ *
+ *  The list lives in a LazyColumn — Compose's `verticalScroll`
+ *  doesn't virtualise, and these blocks each render a
+ *  ContentWithThinkSections that can be tens of KB on long Crosses. */
+private sealed class OnePageItem {
+    abstract val key: String
+    data class SourceHeader(
+        override val key: String,
+        val provName: String,
+        val model: String,
+        val responseBody: String?
+    ) : OnePageItem()
+    data class Factcheck(
+        override val key: String,
+        val ansProv: String,
+        val ansMdl: String,
+        val showAnswererHeader: Boolean,
+        val pair: SecondaryResult?
+    ) : OnePageItem()
+}
+
 @Composable
 private fun OnePageView(
     reportId: String,
@@ -1333,6 +1421,64 @@ private fun OnePageView(
 ) {
     BackHandler { onClose() }
     val provName = AppService.findById(activePid)?.displayName ?: activePid
+
+    // Flatten into a stable item list driven by role. Source bodies
+    // appear once per source agent so the multi-agent Initiator view
+    // doesn't duplicate large markdown blocks under every answerer.
+    val items = remember(role, l2Rows, activeAgents, activePid, activeMdl, provName) {
+        if (role == "Initiator") {
+            val list = mutableListOf<OnePageItem>()
+            // Group rows by their source agent. Each group emits one
+            // source header + one factcheck item per answerer.
+            val grouped = l2Rows.groupBy { it.sourceAgentId.orEmpty() }
+            // Preserve activeAgents ordering for source iteration so
+            // the layout stays stable when l2Rows order shifts.
+            val sourceAgentIds = if (activeAgents.isEmpty()) grouped.keys.toList()
+                else activeAgents.map { it.agentId }.filter { grouped.containsKey(it) }
+            sourceAgentIds.forEach { srcAgentId ->
+                val rows = grouped[srcAgentId].orEmpty()
+                val src = activeAgents.firstOrNull { it.agentId == srcAgentId }
+                list += OnePageItem.SourceHeader(
+                    key = "src-$srcAgentId",
+                    provName = provName,
+                    model = activeMdl,
+                    responseBody = src?.responseBody
+                )
+                rows.forEach { row ->
+                    val ansProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    list += OnePageItem.Factcheck(
+                        key = "fc-${row.l3PairKey}",
+                        ansProv = ansProv,
+                        ansMdl = row.model,
+                        showAnswererHeader = true,
+                        pair = row.pair
+                    )
+                }
+            }
+            list
+        } else {
+            // Responder — one source response + factcheck per L2 row.
+            l2Rows.flatMap { row ->
+                val src = agentsById[row.key]
+                val srcProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                listOf(
+                    OnePageItem.SourceHeader(
+                        key = "src-${row.key}",
+                        provName = srcProv,
+                        model = row.model,
+                        responseBody = src?.responseBody
+                    ),
+                    OnePageItem.Factcheck(
+                        key = "fc-${row.l3PairKey}",
+                        ansProv = "", ansMdl = "",
+                        showAnswererHeader = false,
+                        pair = row.pair
+                    )
+                )
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(8.dp)) {
@@ -1348,71 +1494,45 @@ private fun OnePageView(
             ) { Text("Close", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         HorizontalDivider(color = AppColors.DividerDark)
-        Column(modifier = Modifier.weight(1f).fillMaxWidth()
-            .verticalScroll(rememberScrollState()).padding(8.dp)) {
-            if (role == "Initiator") {
-                val srcAgent = activeAgents.firstOrNull()
-                val srcBody = srcAgent?.responseBody
-                Text("$provName / $activeMdl — report response",
-                    fontSize = 13.sp, color = AppColors.Blue,
-                    fontWeight = FontWeight.SemiBold)
-                Spacer(modifier = Modifier.height(4.dp))
-                if (srcBody.isNullOrBlank()) {
-                    Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                } else {
-                    ContentWithThinkSections(analysis = srcBody)
-                }
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 12.dp))
-                l2Rows.forEach { row ->
-                    val ansProv = AppService.findById(row.provider)?.displayName ?: row.provider
-                    Text("$ansProv / ${row.model} — factcheck",
-                        fontSize = 13.sp, color = AppColors.Green,
-                        fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val pair = row.pair
-                    when {
-                        pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        pair.errorMessage != null ->
-                            Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
-                        pair.content.isNullOrBlank() ->
-                            Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
-                        else -> ContentWithThinkSections(analysis = pair.content)
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp)) {
+            items(items, key = { it.key }) { item ->
+                when (item) {
+                    is OnePageItem.SourceHeader -> {
+                        Text("${item.provName} / ${item.model} — report response",
+                            fontSize = 13.sp, color = AppColors.Blue,
+                            fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val body = item.responseBody
+                        if (body.isNullOrBlank()) {
+                            Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                        } else {
+                            ContentWithThinkSections(analysis = body)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = AppColors.DividerDark)
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            } else {
-                l2Rows.forEach { row ->
-                    val src = agentsById[row.key]
-                    val srcProv = AppService.findById(row.provider)?.displayName ?: row.provider
-                    Text("$srcProv / ${row.model} — report response",
-                        fontSize = 13.sp, color = AppColors.Blue,
-                        fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val srcBody = src?.responseBody
-                    if (srcBody.isNullOrBlank()) {
-                        Text("(source response missing)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                    } else {
-                        ContentWithThinkSections(analysis = srcBody)
+                    is OnePageItem.Factcheck -> {
+                        if (item.showAnswererHeader) {
+                            Text("${item.ansProv} / ${item.ansMdl} — factcheck",
+                                fontSize = 13.sp, color = AppColors.Green,
+                                fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
+                                fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val pair = item.pair
+                        when {
+                            pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                            pair.errorMessage != null ->
+                                Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                            pair.content.isNullOrBlank() ->
+                                Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
+                            else -> ContentWithThinkSections(analysis = pair.content)
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = AppColors.DividerDark)
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
-                        fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    val pair = row.pair
-                    when {
-                        pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        pair.errorMessage != null ->
-                            Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
-                        pair.content.isNullOrBlank() ->
-                            Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
-                        else -> ContentWithThinkSections(analysis = pair.content)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = AppColors.DividerDark)
-                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
