@@ -262,9 +262,11 @@ fun TitleBar(
     }
 }
 
-/** Six-icon strip rendered on the right of every [TitleBar]. The four
- *  conditional slots (Reload / Info / Delete / Trace) gray out when
- *  their callback is null. Home + Help are always enabled. */
+/** Action strip rendered on the right of every [TitleBar]. Help and
+ *  Home are always shown (Home is the rightmost slot, Help just to
+ *  its left); the four conditional slots (Reload / Info / Delete /
+ *  Trace) only render when their callback is non-null — null means
+ *  the icon is omitted entirely so the strip stays tight. */
 @Composable
 private fun TitleBarActionStrip(
     onHome: () -> Unit,
@@ -274,13 +276,13 @@ private fun TitleBarActionStrip(
     onTrace: (() -> Unit)?,
     onHelp: () -> Unit
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-        TitleBarIcon(emoji = "🏠", tint = AppColors.Blue, enabled = true, onClick = onHome)
-        TitleBarIcon(emoji = "🔄", tint = AppColors.Orange, enabled = onReload != null, onClick = onReload ?: {})
-        TitleBarIcon(emoji = "ℹ️", tint = Color.Unspecified, enabled = onInfo != null, onClick = onInfo ?: {})
-        TitleBarIcon(emoji = "🗑", tint = AppColors.Red, enabled = onDelete != null, onClick = onDelete ?: {})
-        TitleBarIcon(emoji = "🐞", tint = Color.Unspecified, enabled = onTrace != null, onClick = onTrace ?: {})
-        TitleBarIcon(emoji = "❓", tint = AppColors.Blue, enabled = true, onClick = onHelp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload)
+        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo)
+        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete)
+        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace)
+        TitleBarIcon("❓", AppColors.Blue, onHelp)
+        TitleBarIcon("🏠", AppColors.Blue, onHome)
     }
 }
 
@@ -288,18 +290,15 @@ private fun TitleBarActionStrip(
 private fun TitleBarIcon(
     emoji: String,
     tint: Color,
-    enabled: Boolean,
     onClick: () -> Unit
 ) {
-    IconButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.size(32.dp)
+    Box(
+        modifier = Modifier.size(width = 28.dp, height = 32.dp).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = emoji, fontSize = 16.sp,
-            color = if (tint == Color.Unspecified) Color.White else tint,
-            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+            color = if (tint == Color.Unspecified) Color.White else tint
         )
     }
 }
