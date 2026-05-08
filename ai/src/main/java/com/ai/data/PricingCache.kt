@@ -1391,6 +1391,15 @@ object PricingCache {
                 } catch (_: Exception) {}
             }
         }
+        // Once we've finished loading every tier, mark the cache
+        // primed so the main-thread guard in ensureLoaded() stops
+        // short-circuiting future getPricing calls. Previously only
+        // ensureLoadedBlocking flipped this flag — non-main IO callers
+        // (the synthetic preload from AppViewModel.bootstrap, ad-hoc
+        // suspend callers from coroutines) finished the load but never
+        // marked it complete, so main-thread getPricing kept returning
+        // DEFAULT_PRICING long after every blob was already in memory.
+        preloadCompleted = true
     }
 
     private fun loadFromPrefs(context: Context) {
