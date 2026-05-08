@@ -211,7 +211,13 @@ private fun AnalysisRepository.streamOpenAi(
             response.body()?.let { body ->
                 parseSseStream(body, ::extractResponsesApiContent).collect { emit(it) }
             } ?: throw Exception("Empty response body")
-        } else throw Exception("API error: ${response.code()} ${response.message()}")
+        } else {
+            // Drain + close the error body so OkHttp doesn't hold a
+            // connection until the next GC. The previous code read
+            // the status / message but never touched the body.
+            val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            throw Exception("API error: ${response.code()} ${response.message()} - $errorMsg")
+        }
     } else {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
@@ -234,7 +240,10 @@ private fun AnalysisRepository.streamOpenAi(
             response.body()?.let { body ->
                 parseSseStream(body, ::extractOpenAiContent).collect { emit(it) }
             } ?: throw Exception("Empty response body")
-        } else throw Exception("API error: ${response.code()} ${response.message()}")
+        } else {
+            val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            throw Exception("API error: ${response.code()} ${response.message()} - $errorMsg")
+        }
     }
 }
 
