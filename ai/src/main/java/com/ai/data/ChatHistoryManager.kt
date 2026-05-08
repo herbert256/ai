@@ -31,9 +31,18 @@ object ChatHistoryManager {
         return lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
-                File(dir, "${session.id}.json").writeTextAtomic(gson.toJson(session))
-                cachedSessions = null
-                notifyHistoryChanged(); true
+                // writeTextAtomic returns false on disk-full / permission /
+                // other I/O failure; previously we ignored that and
+                // returned `true` regardless, so the caller had no way to
+                // detect a save that didn't actually land. Forward the
+                // boolean so the chat session UI can warn / retry instead
+                // of pretending the message persisted.
+                val ok = File(dir, "${session.id}.json").writeTextAtomic(gson.toJson(session))
+                if (ok) {
+                    cachedSessions = null
+                    notifyHistoryChanged()
+                }
+                ok
             } catch (e: Exception) {
                 android.util.Log.e("ChatHistoryManager", "Failed to save: ${e.message}"); false
             }
