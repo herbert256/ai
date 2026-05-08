@@ -781,7 +781,7 @@ fun ReportsScreen(
                 pendingSecondaryScope = chosenScope
                 pendingLanguageScope = chosenLangScope
                 secondaryScopeMetaPrompt = null
-                if (scopeMetaPrompt.category == "cross_out") {
+                if (scopeMetaPrompt.category == "fan_out") {
                     // No model picker for cross — answerers are always
                     // every successful report-model. Jump straight to
                     // the call-count confirm dialog.
@@ -915,7 +915,7 @@ fun ReportsScreen(
                     }
                 }
                 if (crossMp.text.isNotBlank()) {
-                    Text("Cross prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                     Card(
                         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                         modifier = Modifier.fillMaxWidth()
@@ -1072,10 +1072,10 @@ fun ReportsScreen(
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
-        val afterCrossList = aiSettings.internalPrompts.filter { it.category == "cross_in" }
+        val afterCrossList = aiSettings.internalPrompts.filter { it.category == "fan_in" }
         val crossPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
             aiSettings.internalPrompts.firstOrNull {
-                it.category == "cross_out" && it.name == listFilterByName
+                it.category == "fan_out" && it.name == listFilterByName
             }
         } else null
         // After-cross picker — full-screen replacement of the
@@ -1084,7 +1084,7 @@ fun ReportsScreen(
         if (showAfterCrossPromptPicker && afterCrossList.isNotEmpty()) {
             ReportSelectInternalPromptScreen(
                 titleText = "Run an after-cross prompt",
-                category = "cross_in",
+                category = "fan_in",
                 prompts = afterCrossList,
                 onSelectPrompt = {
                     showAfterCrossPromptPicker = false
@@ -1093,7 +1093,7 @@ fun ReportsScreen(
                 onBack = { showAfterCrossPromptPicker = false },
                 onEditPrompts = {
                     showAfterCrossPromptPicker = false
-                    onNavigateToInternalPromptsByCategory("cross_in")
+                    onNavigateToInternalPromptsByCategory("fan_in")
                 }
             )
             return
@@ -1143,15 +1143,15 @@ fun ReportsScreen(
 
     // Helper used by the Meta card and the Meta hub's "Add" list.
     // Every Meta-category prompt now goes through the scope screen.
-    // cross_out prompts have their own button + popup and are routed
+    // fan_out prompts have their own button + popup and are routed
     // via launchCrossPrompt below.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
         secondaryScopeMetaPrompt = mp
     }
-    // cross_out prompts always run the scope screen → confirm dialog
+    // fan_out prompts always run the scope screen → confirm dialog
     // → runCrossMetaPrompt path. The scope screen hides the language
     // picker and the post-scope routing on line 645 jumps straight to
-    // the call-count confirm dialog when category == "cross_out".
+    // the call-count confirm dialog when category == "fan_out".
     val launchCrossPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
         secondaryScopeMetaPrompt = mp
     }
@@ -1293,8 +1293,8 @@ fun ReportsScreen(
     if (showCrossPicker) {
         ReportSelectInternalPromptScreen(
             titleText = "Run a Cross prompt",
-            category = "cross_out",
-            prompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
+            category = "fan_out",
+            prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
             onSelectPrompt = {
                 showCrossPicker = false
                 launchCrossPrompt(it)
@@ -1302,7 +1302,7 @@ fun ReportsScreen(
             onBack = { showCrossPicker = false },
             onEditPrompts = {
                 showCrossPicker = false
-                onNavigateToInternalPromptsByCategory("cross_out")
+                onNavigateToInternalPromptsByCategory("fan_out")
             }
         )
         return
@@ -1516,7 +1516,7 @@ fun ReportsScreen(
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                crossPrompts = aiSettings.internalPrompts.filter { it.category == "cross_out" },
+                crossPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
             )
@@ -1779,7 +1779,7 @@ private fun ColumnScope.GenerationPhase(
             CompactButton(
                 onClick = onOpenCrossPicker,
                 color = AppColors.Orange,
-                text = "Cross",
+                text = "Fan out",
                 enabled = crossPrompts.isNotEmpty()
             )
         }
@@ -2063,7 +2063,7 @@ private fun ColumnScope.GenerationPhase(
                         run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    RowTypeCell("cross-out")
+                    RowTypeCell("fan-out")
                     val pendingSuffix = if (run.pendingCount > 0) " · ${run.pendingCount} pending" else ""
                     Column(modifier = Modifier.weight(1f)) {
                         Text(

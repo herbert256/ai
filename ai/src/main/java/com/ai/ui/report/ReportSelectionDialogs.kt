@@ -569,8 +569,8 @@ internal fun ReportSelectInternalPromptScreen(
         // is shared across the three picker entry points.
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "cross_out" -> "secondary_cross"
-            "cross_in" -> "secondary_cross"
+            "fan_out" -> "secondary_cross"
+            "fan_in" -> "secondary_cross"
             else -> "secondary_list"
         }
         TitleBar(helpTopic = helpId, title = titleText, onBackClick = onBack)
@@ -708,14 +708,14 @@ internal fun ReportOneTimePromptScreen(
     var text by remember { mutableStateOf("") }
 
     val placeholders: List<Pair<String, String>> = when (category) {
-        "cross_out" -> listOf(
+        "fan_out" -> listOf(
             "@RESPONSE@" to "the source agent's response being checked",
             "@QUESTION@" to "the report's prompt",
             "@TITLE@" to "the report's title",
             "@DATE@" to "current date",
             "@COUNT@" to "agent count"
         )
-        "cross_in" -> listOf(
+        "fan_in" -> listOf(
             "@QUESTION@" to "the report's prompt",
             "@TITLE@" to "report title",
             "@DATE@" to "current date",
@@ -735,8 +735,8 @@ internal fun ReportOneTimePromptScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val helpId = when (category) {
             "meta" -> "report_meta"
-            "cross_out" -> "secondary_cross"
-            "cross_in" -> "secondary_cross"
+            "fan_out" -> "secondary_cross"
+            "fan_in" -> "secondary_cross"
             else -> "internal_prompt_edit"
         }
         TitleBar(helpTopic = helpId, title = "One-time prompt", onBackClick = onBack)

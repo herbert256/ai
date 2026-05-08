@@ -117,7 +117,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Knowledge attach (selection)", "When you have at least one saved KB, a 📚 row shows the current attachment count and opens a multi-select. Attached KB ids ride with the report and inject relevant chunks into every dispatched call."),
             HelpCard("Params (selection)", "Opens Advanced Parameters — temperature, max tokens, system prompt, etc. The button reads Params ✓ when an override is active. Clear all wipes the override."),
             HelpCard("Generate / Update model list", "Generate fires the dispatch. When entered via Edit / Models on a finished report, the bottom button switches to Update model list — stages the new list and pops back without re-running; you re-fire from Action row → Regenerate."),
-            HelpCard("Action row (results)", "While running: STOP / Background. Once complete: View, Edit, Regenerate, Export, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Cross (disabled when no Cross prompts exist)."),
+            HelpCard("Action row (results)", "While running: STOP / Background. Once complete: View, Edit, Regenerate, Export, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Fan out (disabled when no Fan-out prompts exist)."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary. Edit popup is Prompt / Title / Models / Parameters."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect."),
             HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
@@ -157,11 +157,11 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Lists every persisted secondary of one kind (Rerank / Meta / Moderation; Translate has its own per-run screen). Same screen serves all kinds — title is the user-given Meta-prompt name (or the legacy kind label for older rows)."),
             HelpCard("Polling", "While at least one batch is in flight (isBatching), the list re-reads disk every 500 ms so newly-stamped placeholders flip from ⏳ to ✅/❌ without leaving the screen."),
             HelpCard("Language picker", "For chat-type META, when the report has TRANSLATE rows a row of language pills appears: Original plus one per distinct targetLanguage. Selecting a non-Original language overlays translated bodies onto the matching original rows."),
-            HelpCard("Cross drill-in", "Cross prompts paint 'Cross level 1/2/3' as the user steps in. L1 lists every (answerer, source) pair, L2 lists sources for one answerer with a Responder/Initiator role toggle, L3 splits a single source/factcheck side-by-side. System back steps out one level at a time."),
+            HelpCard("Fan out drill-in", "Fan-out prompts paint 'Fan out / Fan out - model / Fan out - pair' as the user steps in. L1 lists every (answerer, source) pair, L2 lists sources for one answerer with a Responder/Initiator role toggle, L3 splits a single source/factcheck side-by-side. System back steps out one level at a time."),
             HelpCard("Meta picker view", "Chat-type META renders a FlowRow of buttons (one per result, labelled by provider · model) plus the selected result inline — mirror of the Reports viewer."),
             HelpCard("Per-row 🗑", "Each row has its own confirm dialog. Title-bar 🗑 is grayed because deletion is per-row here."),
             HelpCard("Per-row tap", "Opens SecondaryResultDetailScreen. Drilling into the same row after popping back is preserved via rememberSaveable openId."),
-            HelpCard("Title bar", "Title reflects the active filter (Meta-prompt name or 'Cross level N'). Trace / Info / Reload icons aren't wired at this list level — they live on the per-row detail screen.")
+            HelpCard("Title bar", "Title reflects the active filter (Meta-prompt name or 'Fan out / Fan out - model / Fan out - pair'). Trace / Info / Reload icons aren't wired at this list level — they live on the per-row detail screen.")
         )
     ),
     "secondary_detail" to HelpContent(
@@ -179,16 +179,16 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_cross" to HelpContent(
-        title = "Cross",
+        title = "Fan out",
         cards = listOf(
-            HelpCard("Overview", "Cross runs every selected answerer × every source row's content. Each cell is one factcheck call; the title bar reads 'Cross level 1/2/3' as you drill in."),
-            HelpCard("Level 1", "List of every (answerer model, status) — derived from latestByPair across all results. Status icons: ✅ done, ❌ errored, ⏳ running, queued. Tap an answerer to drop to L2."),
-            HelpCard("Level 2", "Sources for the chosen answerer (or, if Initiator role is selected, every (answerer, source) where this model is the source). Tap a source row → L3."),
-            HelpCard("Level 3", "Single cell — source content on top, factcheck underneath. Per-row 🐞 links to its own captured trace."),
-            HelpCard("Resume stale", "On open, any cross pair with no content / no error / not in runningCrossPairs is re-enqueued via onResumeStaleCross — survives app kill mid-batch."),
+            HelpCard("Overview", "Fan out runs every selected answerer × every source row's content. Each cell is one factcheck call; the title bar reads 'Fan out / Fan out - model / Fan out - pair' as you drill in."),
+            HelpCard("Fan out (L1)", "List of every (answerer model, status) — derived from latestByPair across all results. Status icons: ✅ done, ❌ errored, ⏳ running, queued. Tap an answerer to drop to L2."),
+            HelpCard("Fan out - model (L2)", "Sources for the chosen answerer (or, if Initiator role is selected, every (answerer, source) where this model is the source). Tap a source row → L3."),
+            HelpCard("Fan out - pair (L3)", "Single cell — source content on top, factcheck underneath. Per-row 🐞 links to its own captured trace."),
+            HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningCrossPairs is re-enqueued via onResumeStaleCross — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
-            HelpCard("Combine reports / after-cross", "When at least one after_cross meta prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the cross matrix's results."),
-            HelpCard("Per-model delete", "Drops every cell where this answerer participated. Cross-list refresh tick bumps so L1 reflects the gap on pop-back."),
+            HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
+            HelpCard("Per-model delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so L1 reflects the gap on pop-back."),
             HelpCard("Pitfalls", "Cell count is N×(N-1) for an N-agent run; cost grows fast. Watch the Action row's cost summary before pressing Restart on large grids.")
         )
     ),
@@ -197,7 +197,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Inserted between a Meta-prompt button and the model picker. Picks which rows feed into the next run + (when relevant) which target languages."),
             HelpCard("All model reports", "Default. Uses every successful agent on the report (count shown in the sublabel)."),
-            HelpCard("Only top ranked reports", "Available for chat / cross_out prompts when the report has at least one rerank row. Pick the rerank source from a dropdown and an N (1..total)."),
+            HelpCard("Only top ranked reports", "Available for meta / fan-out prompts when the report has at least one rerank row. Pick the rerank source from a dropdown and an N (1..total)."),
             HelpCard("Manual select models", "Tick exactly which agent rows to include. Defaults to every successful agent ticked, so it's a starting point you can prune."),
             HelpCard("Languages section", "Only shown for chat-type prompts when the report has translation rows. All languages = original + every translated; Select languages = pick a subset alongside the original."),
             HelpCard("Continue", "Disabled until the chosen scope yields at least one input — Top-Ranked needs a rerank picked + count > 0, Manual needs at least one tick."),
@@ -293,13 +293,13 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_cross_confirm" to HelpContent(
-        title = "Cross — confirm run",
+        title = "Fan out — confirm run",
         cards = listOf(
-            HelpCard("Overview", "Confirmation screen shown after the Cross scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
+            HelpCard("Overview", "Confirmation screen shown after the Fan out scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
             HelpCard("Counts grid", "answerers × responses-per-report = total calls. Falls back to a flat 'N calls' line when scope is uneven enough that the grid math doesn't divide cleanly."),
             HelpCard("Scope", "All reports / Top-N ranked / Manual selection. Reflects the choice made on the previous screen — back to change it."),
-            HelpCard("Answerer / Source lists", "Two cards listing the model names on each side of the cross. A model appears in both when it's both an answerer and a source."),
-            HelpCard("Cross prompt", "Preview of the prompt body (≤12 lines) that will be sent for every pair, with @RESPONSE@ filled in at run time."),
+            HelpCard("Answerer / Source lists", "Two cards listing the model names on each side of the fan out. A model appears in both when it's both an answerer and a source."),
+            HelpCard("Fan-out prompt", "Preview of the prompt body (≤12 lines) that will be sent for every pair, with @RESPONSE@ filled in at run time."),
             HelpCard("Run / Cancel", "Run is disabled while the count loads or when there are zero pairs. Cancel pops back to the previous screen without firing.")
         )
     ),
@@ -827,7 +827,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Providers", "Per-provider API keys, state, default model, and the catalog editor. Count = number of registered providers (39 ship by default plus any you have added)."),
             HelpCard("Models", "Sub-hub: per-provider Models, Model Types (default API paths), and Manual model types overrides. Count = total models across active providers only."),
             HelpCard("Workers", "Sub-hub for Agents, Flocks, Swarms. Disabled until at least one provider has an API key. Count = active agents + flocks + swarms."),
-            HelpCard("Prompt management", "Sub-hub: System Prompts plus the four Internal Prompts category buckets (Meta / Cross fan-out / Cross fan-in / Other). Count = system prompts + internal prompts."),
+            HelpCard("Prompt management", "Sub-hub: System Prompts plus the four Internal Prompts category buckets (Meta / Fan-out / Fan-in / Other). Count = system prompts + internal prompts."),
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
@@ -949,7 +949,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar", "Plain back button."),
             HelpCard("Tips", "Names are unique among system prompts (case-insensitive). The body is required for save."),
             HelpCard("Pitfalls", "If a worker also has a Parameters preset that carries a non-blank systemPrompt, that wins over the bare System Prompt — the preset's value is the late-merge winner."),
-            HelpCard("Related", "Internal Prompts (Meta / Cross / Other) live in a different bucket and use placeholders like @QUESTION@ / @RESULTS@ — not interchangeable with these.")
+            HelpCard("Related", "Internal Prompts (Meta / Fan-out / Fan-in / Other) live in a different bucket and use placeholders like @QUESTION@ / @RESULTS@ — not interchangeable with these.")
         )
     ),
     "system_prompt_edit" to HelpContent(
@@ -968,36 +968,34 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Internal prompts (hub)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under Prompt Management with one card per Internal Prompt category. Each card opens the same list screen pinned to that category — counts show how many entries are in each bucket."),
-            HelpCard("Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report (one final call). category=\"meta\"."),
-            HelpCard("Cross fan-out prompts", "Run across every pair of report-models (N×(N-1) calls). Type is fixed to N/A. category=\"cross_out\"."),
-            HelpCard("Cross fan-in prompts", "Combine the report's responses + their cross fan-out responses into one final report. Run once on a single picked model. category=\"cross_in\"."),
-            HelpCard("Other internal prompts", "Templates consumed by app features — Translate, Model info lookup, Intro generation. category=\"internal\"."),
+            HelpCard("Meta prompts", "Summarize, Compare — run on the full report (one final call). category=\"meta\"."),
+            HelpCard("Fan-out prompts", "Run across every pair of report-models (N×(N-1) calls). category=\"fan_out\"."),
+            HelpCard("Fan-in prompts", "Combine the report's responses + their fan-out responses into one final report. Run once on a single picked model. category=\"fan_in\"."),
+            HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
             HelpCard("Title bar", "Plain back. No 🔄 / ℹ️ / 🗑 / 🐞."),
-            HelpCard("Tips", "Names need to be unique within a category — \"Compare\" can exist under both meta and cross_in without collision."),
+            HelpCard("Tips", "Names need to be unique within a category — \"Compare\" can exist under both meta and fan_in without collision."),
             HelpCard("Related", "Housekeeping → Internal prompts has a one-shot \"Load new prompts from assets/prompts.json\" merge that adds bundled rows you don't yet have.")
         )
     ),
     "internal_prompts" to HelpContent(
         title = "Internal prompts (list)",
         cards = listOf(
-            HelpCard("Overview", "CRUD list pinned to one category (meta / cross_out / cross_in / internal). The screen title and Add label adapt — Add meta prompt vs. Add cross fan-out prompt etc."),
-            HelpCard("Item rows", "Show name plus a chip line: type · ref · agent (omitted when N/A or *select), then \"— title or first 60 chars of body\". Tap to edit, trash to delete."),
-            HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\")."),
+            HelpCard("Overview", "CRUD list pinned to one category (meta / fan_out / fan_in / internal). The screen title and Add label adapt — Add meta prompt vs. Add fan-out prompt etc. Other internal is a fixed list — no Add / Delete."),
+            HelpCard("Item rows", "Show name plus a chip line: ref · agent (omitted when *select), then \"— title or first 60 chars of body\". Tap to edit; trash to delete (hidden for Other internal)."),
+            HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\"). Hidden for Other internal."),
             HelpCard("Title bar", "helpTopic=internal_prompts. Plain back."),
             HelpCard("Tips", "Sorted alphabetically by name. Edits stay scoped to this category — saving in the editor pushes back into the same bucket."),
-            HelpCard("Pitfalls", "Cross prompts whose type isn't N/A will be silently coerced — the loader and editor enforce N/A on cross_out / cross_in."),
-            HelpCard("Related", "The Report Result screen's Meta and Cross buttons surface meta and cross_out prompts respectively; Cross Level 1 surfaces cross_in.")
+            HelpCard("Related", "The Report Result screen's Meta and Fan out buttons surface meta and fan_out prompts respectively; Fan out (L1) surfaces fan_in.")
         )
     ),
     "internal_prompt_edit" to HelpContent(
         title = "Internal prompt edit",
         cards = listOf(
-            HelpCard("Overview", "Form for one Internal Prompt. Category is fixed by where you arrived from (cannot be changed in this screen) — for cross_out / cross_in the Type picker is hidden too because the only valid type is N/A."),
-            HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Cross Level 1; optional."),
-            HelpCard("Type chips", "chat, rerank, moderation. Helper text underneath explains where the body matters: chat = template body interpolated; rerank routes to Cohere (body unused); moderation routes to Mistral (body unused)."),
-            HelpCard("Append reference legend", "Switch — only available for chat-type. Adds a [N] = Provider / Model footer to the response. Auto-flips off when type changes away from chat."),
-            HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (cross_out only). Anything else = the named agent in Settings.agents resolved at run time."),
-            HelpCard("Template body", "8–22 visible lines. Disabled when type is rerank or moderation. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (chat); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (cross_out); @COUNT@, @CROSS_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (cross_in)."),
+            HelpCard("Overview", "Form for one Internal Prompt. Category is fixed by where you arrived from (cannot be changed in this screen)."),
+            HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Fan out; optional. For Other internal the Name is read-only."),
+            HelpCard("Append reference legend", "Switch — adds a [N] = Provider / Model footer to the response."),
+            HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (fan_out only). Anything else = the named agent in Settings.agents resolved at run time."),
+            HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @CROSS_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
             HelpCard("Title bar", "helpTopic=internal_prompt_edit. The screen title reads \"Edit/Add <category singular>\"."),
             HelpCard("Pitfalls", "If you deep-link into edit before aiSettings has bootstrapped, the screen shows a \"Loading…\" placeholder and re-keys when the prompt id resolves — saving an empty form there would silently create a duplicate, so it is blocked.")
         )
@@ -1226,11 +1224,11 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "setup_prompts" to HelpContent(
         title = "Prompt management (setup)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Two cards: System Prompts (free-form reusable text) and Internal Prompts (templated, category-scoped — Meta/Cross/Other)."),
+            HelpCard("Overview", "Sub-hub under AI Setup. Two cards: System Prompts (free-form reusable text) and Internal Prompts (templated, category-scoped — Meta/Fan-out/Fan-in/Other)."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
-            HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Cross fan-out / Cross fan-in / Other. Count = total across all four categories."),
+            HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Fan-out / Fan-in / Other. Count = total across all four categories."),
             HelpCard("Title bar", "helpTopic=setup_prompts. Plain back."),
-            HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features (Meta button on report results, Cross levels, Translate, Model info)."),
+            HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features (Meta button on report results, Fan out drill-in, Translate, Model info)."),
             HelpCard("Pitfalls", "The two are NOT interchangeable — a system prompt cannot replace a meta prompt because Internal Prompts use placeholder substitution that System Prompts do not."),
             HelpCard("Related", "Housekeeping → Internal prompts → \"Load new prompts from assets/prompts.json\" merges in any bundled rows missing from your set.")
         )

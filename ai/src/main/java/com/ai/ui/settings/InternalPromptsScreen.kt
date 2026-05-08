@@ -15,7 +15,7 @@ import com.ai.model.*
 import com.ai.ui.shared.*
 
 /** Categories whose prompts are pure templates (no agent dispatch). */
-private val CROSS_CATEGORIES = setOf("cross_out", "cross_in")
+private val CROSS_CATEGORIES = setOf("fan_out", "fan_in")
 
 /** Sentinel meaning the run-time picker should ask the user which
  *  model to fire on (the legacy behaviour). Stored verbatim in
@@ -32,8 +32,8 @@ private const val AGENT_NA = "*n/a"
  *  separate CRUD card on Prompt Management. */
 fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
-    "cross_out" -> "Cross fan-out prompts"
-    "cross_in" -> "Cross fan-in prompts"
+    "fan_out" -> "Fan-out prompts"
+    "fan_in" -> "Fan-in prompts"
     "internal" -> "Other internal prompts"
     else -> category
 }
@@ -117,9 +117,9 @@ fun InternalPromptEditScreen(
     var agent by remember {
         mutableStateOf(
             when {
-                // Both cross_out AND cross_in are CROSS_CATEGORIES — the
+                // Both fan_out AND fan_in are CROSS_CATEGORIES — the
                 // agent slot is N/A for both. Without this, an existing
-                // cross_in prompt would surface the agent dropdown.
+                // fan_in prompt would surface the agent dropdown.
                 fixedCategory in CROSS_CATEGORIES -> AGENT_NA
                 else -> internalPrompt?.agent?.ifBlank { AGENT_SELECT } ?: AGENT_SELECT
             }
@@ -156,7 +156,7 @@ fun InternalPromptEditScreen(
                 value = title, onValueChange = { title = it },
                 label = { Text("Title") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
-                supportingText = { Text("Short description shown alongside the name on Cross Level 1.",
+                supportingText = { Text("Short description shown alongside the name on Fan out.",
                     fontSize = 11.sp, color = AppColors.TextTertiary) }
             )
 
@@ -225,8 +225,8 @@ fun InternalPromptEditScreen(
             )
             Text(
                 when (fixedCategory) {
-                    "cross_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
-                    "cross_in" -> "Placeholders: @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
+                    "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
+                    "fan_in" -> "Placeholders: @COUNT@ (N reports), @CROSS_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
                     else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary

@@ -209,16 +209,16 @@ fun PromptsSetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard("🧩", "Internal Prompts", "Meta, Cross fan-out, Cross fan-in, and Other internal prompts", "${aiSettings.internalPrompts.size}",
+            ModelsSetupNavCard("🧩", "Internal Prompts", "Meta, Fan-out, Fan-in, and Other internal prompts", "${aiSettings.internalPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB) })
         }
     }
 }
 
 /** Sub-hub under Prompt Management that groups the four category-
- *  scoped Internal Prompts CRUDs (Meta / Cross fan-out / Cross fan-in
- *  / Other internal). Each card opens the same list screen pinned to
- *  one [com.ai.model.InternalPrompt.category]. */
+ *  scoped Internal Prompts CRUDs (Meta / Fan-out / Fan-in / Other
+ *  internal). Each card opens the same list screen pinned to one
+ *  [com.ai.model.InternalPrompt.category]. */
 @Composable
 fun InternalPromptsHubScreen(
     aiSettings: Settings,
@@ -240,10 +240,10 @@ fun InternalPromptsHubScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
-            ModelsSetupNavCard("🔀", "Cross fan-out prompts", "Run across every pair of report-models", "${countByCategory("cross_out")}",
-                onClick = { onOpenInternalPrompts("cross_out") })
-            ModelsSetupNavCard("🪢", "Cross fan-in prompts", "Combine all cross responses into a single report", "${countByCategory("cross_in")}",
-                onClick = { onOpenInternalPrompts("cross_in") })
+            ModelsSetupNavCard("🔀", "Fan-out prompts", "Run across every pair of report-models", "${countByCategory("fan_out")}",
+                onClick = { onOpenInternalPrompts("fan_out") })
+            ModelsSetupNavCard("🪢", "Fan-in prompts", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
+                onClick = { onOpenInternalPrompts("fan_in") })
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
         }

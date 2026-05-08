@@ -150,8 +150,8 @@ data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
 /**
  * User-managed Internal prompt — covers Meta-prompt launchers on the
- * Report Result screen ([category] == "meta"), Cross fan-out / fan-in
- * templates ([category] == "cross_out" / "cross_in"), and the fixed
+ * Report Result screen ([category] == "meta"), Fan-out / Fan-in
+ * templates ([category] == "fan_out" / "fan_in"), and the fixed
  * internal templates ([category] == "internal": intro, model_info,
  * translate, rerank, moderation). [reference]: when true, the executor
  * appends a `[N] = Provider / Model` legend to the response. [agent]
@@ -169,8 +169,8 @@ data class InternalPrompt(
     val text: String = "",
     /** Short human-readable label of what the prompt does. The
      *  user-given [name] is the identifier; [title] is a one-line
-     *  description shown alongside it on Cross Level 1 and the
-     *  prompt-edit screen. */
+     *  description shown alongside it on Fan out and the prompt-edit
+     *  screen. */
     val title: String = ""
 )
 

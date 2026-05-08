@@ -744,7 +744,7 @@ private fun ColumnScope.CrossMetaDrillInView(
         val srcTrace = srcTraceState.value
         TitleBar(
             helpTopic = "secondary_cross",
-            title = "Cross level 3",
+            title = "Fan out - pair",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
@@ -918,14 +918,14 @@ private fun ColumnScope.CrossMetaDrillInView(
                     .maxByOrNull { it.timestamp }?.filename
             }
         }
-        // Static "Cross level 2" page title in the menu bar; ℹ → Model
-        // Info, 🗑 → drop the model from this Cross, 🐞 (Initiator
+        // Static "Fan out - model" page title in the menu bar; ℹ → Model
+        // Info, 🗑 → drop the model from this Fan out, 🐞 (Initiator
         // only) → trace for this model's report-agent run. The
         // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
         TitleBar(
             helpTopic = "secondary_cross",
-            title = "Cross level 2",
+            title = "Fan out - model",
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -1127,13 +1127,13 @@ private fun ColumnScope.CrossMetaDrillInView(
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
-    // Static "Cross level 1" page title in the menu bar; the dynamic
+    // Static "Fan out" page title in the menu bar; the dynamic
     // prompt name + title surfaces as a green sub-header in the body
-    // so the user can tell which Cross prompt this run came from
+    // so the user can tell which Fan out prompt this run came from
     // without losing the screen identity.
     TitleBar(
         helpTopic = "secondary_cross",
-        title = "Cross level 1",
+        title = "Fan out",
         onBackClick = onBack
     )
     val l1SubHeader = when {
