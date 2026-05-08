@@ -163,7 +163,7 @@ object KnowledgeStore {
 
     fun deleteKnowledgeBase(context: Context, kbId: String) {
         init(context)
-        kbDirOrNull(kbId)?.deleteRecursively()
+        lock.withLock { kbDirOrNull(kbId)?.deleteRecursively() }
     }
 
     /** Wipe every knowledge base — used by the housekeeping
@@ -171,12 +171,14 @@ object KnowledgeStore {
      *  removed so the caller can surface it in the toast. */
     fun clearAll(context: Context): Int {
         init(context)
-        val dir = rootDir ?: return 0
-        var removed = 0
-        dir.listFiles()?.forEach { kb ->
-            if (kb.isDirectory && kb.deleteRecursively()) removed++
+        return lock.withLock {
+            val dir = rootDir ?: return@withLock 0
+            var removed = 0
+            dir.listFiles()?.forEach { kb ->
+                if (kb.isDirectory && kb.deleteRecursively()) removed++
+            }
+            removed
         }
-        return removed
     }
 
     /** Persist a freshly indexed source's chunks + add the source to
