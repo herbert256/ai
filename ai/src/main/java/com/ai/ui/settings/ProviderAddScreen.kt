@@ -57,7 +57,18 @@ fun ProviderAddScreen(
 
     val normalizedId = id.trim().uppercase()
     val idTaken = normalizedId.isNotBlank() && AppService.findById(normalizedId) != null
-    val canSave = normalizedId.isNotBlank() && !idTaken &&
+    // Block prefsKey collisions: a custom provider that picks the
+    // same prefsKey as an existing one silently shares storage with
+    // the existing provider, corrupting both providers' stored API
+    // key / models / endpoints. Compare against every registered
+    // provider's prefsKey (case-insensitive — Android resolves
+    // SharedPreferences names case-sensitively, but reusing a
+    // differently-cased near-twin is still a footgun).
+    val effectivePrefsKey = prefsKey.trim().ifBlank { normalizedId.lowercase() }
+    val prefsKeyTaken = effectivePrefsKey.isNotBlank() && AppService.entries.any {
+        it.id != normalizedId && it.prefsKey.equals(effectivePrefsKey, ignoreCase = true)
+    }
+    val canSave = normalizedId.isNotBlank() && !idTaken && !prefsKeyTaken &&
         displayName.isNotBlank() && baseUrl.isNotBlank() && defaultModel.isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -157,6 +168,10 @@ fun ProviderAddScreen(
             CollapsibleCard(title = "Storage", summary = prefsKey.ifBlank { "auto" }) {
                 OutlinedTextField(value = prefsKey, onValueChange = { prefsKey = it },
                     label = { Text("Prefs key (blank = id.lowercase())") }, singleLine = true,
+                    isError = prefsKeyTaken,
+                    supportingText = {
+                        if (prefsKeyTaken) Text("Already in use by another provider", color = AppColors.Red, fontSize = 11.sp)
+                    },
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
         }
