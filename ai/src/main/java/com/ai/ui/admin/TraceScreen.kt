@@ -524,7 +524,11 @@ fun TraceDetailScreen(
     var currentView by remember { mutableStateOf(TraceContentView.ALL) }
 
     var traceFiles by remember { mutableStateOf(emptyList<String>()) }
-    LaunchedEffect(Unit) {
+    // Re-fetch on every ON_RESUME so prev/next survives traces being
+    // cleared / trimmed in a sibling screen (e.g. Trim by age) while
+    // this detail view stays in the back stack.
+    val traceListRefresh = com.ai.ui.shared.resumeRefreshTick()
+    LaunchedEffect(traceListRefresh) {
         // Cheap once the list screen has primed ApiTracer's cache; cold path falls back
         // to a streaming-parse scan, so still off the UI thread to be safe.
         traceFiles = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().map { it.filename } }

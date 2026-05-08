@@ -237,7 +237,11 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
     var editOutputPrice by remember { mutableStateOf("") }
     var showAddScreen by remember { mutableStateOf(false) }
 
-    val manualPricing = remember(refreshTrigger) { PricingCache.getAllManualPricing(context) }
+    // Also re-read on ON_RESUME — manual overrides edited from a
+    // sibling cost-override screen would otherwise stay invisible until
+    // the user pokes refreshTrigger by saving locally.
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+    val manualPricing = remember(refreshTrigger, resumeTick) { PricingCache.getAllManualPricing(context) }
 
     // Full-screen overlay for adding new override
     if (showAddScreen) {

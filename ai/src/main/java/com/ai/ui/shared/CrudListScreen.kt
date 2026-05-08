@@ -87,7 +87,7 @@ fun <T> CrudListScreen(
                 Text(text = emptyMessage, color = AppColors.TextTertiary, fontSize = 16.sp)
             }
         } else {
-            val sorted = remember(items) { items.sortedBy { sortKey(it).lowercase() } }
+            val sorted = remember(items) { items.sortedBy { sortKey(it).lowercase(java.util.Locale.ROOT) } }
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)

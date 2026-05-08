@@ -46,7 +46,11 @@ fun SetupScreen(
         aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
     }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
-    val costCount = remember { PricingCache.getAllManualPricing(context).size }
+    // Re-read on every ON_RESUME so adding a manual override / installing
+    // a model in a sibling screen and coming back here shows the new
+    // badge count without an app restart.
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val costCount = remember(refreshTick) { PricingCache.getAllManualPricing(context).size }
     val externalCount = remember(huggingFaceApiKey, openRouterApiKey, aaApiKey) {
         (if (huggingFaceApiKey.isNotBlank()) 1 else 0) +
         (if (openRouterApiKey.isNotBlank()) 1 else 0) +
@@ -55,8 +59,8 @@ fun SetupScreen(
     // Counts of installed on-device runtimes — surfaced as the badge
     // on the matching SetupNavCard so the user can see at a glance
     // whether anything is installed without drilling in.
-    val liteRtCount = remember { com.ai.data.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember { com.ai.data.LocalLlm.availableLlms(context).size }
+    val liteRtCount = remember(refreshTick) { com.ai.data.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context).size }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -262,8 +266,9 @@ fun LocalModelsSetupScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val liteRtCount = remember { com.ai.data.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember { com.ai.data.LocalLlm.availableLlms(context).size }
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
+    val liteRtCount = remember(refreshTick) { com.ai.data.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context).size }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -405,13 +410,14 @@ fun ProvidersScreen(
                     fontSize = 13.sp, color = AppColors.TextTertiary
                 )
             }
-            if (!activeOnly) {
-                Button(
-                    onClick = onAddProvider,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-                ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
-            }
+            // Show Add in both filter modes — the previous gate hid the
+            // button on "Active" so a fresh install (no providers
+            // active yet) gave the user a dead-end empty state.
+            Button(
+                onClick = onAddProvider,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
 
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)

@@ -107,6 +107,19 @@ fun SettingsScreen(
                 ?: "internal"
         )
     }
+    // Once the deep-linked prompt resolves (settings load is async on
+    // cold start), pin the category to the prompt's actual bucket. The
+    // initial `remember` runs once when settings are still empty —
+    // without this LaunchedEffect a deep-link into a "meta" prompt
+    // would save back as "internal".
+    LaunchedEffect(initialEditingInternalPromptId, aiSettings) {
+        if (initialInternalPromptCategory == null && initialEditingInternalPromptId != null) {
+            val resolved = aiSettings.getInternalPromptById(initialEditingInternalPromptId)?.category
+            if (resolved != null && resolved != selectedInternalCategory) {
+                selectedInternalCategory = resolved
+            }
+        }
+    }
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }

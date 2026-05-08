@@ -130,12 +130,18 @@ fun InternalPromptEditScreen(
     var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
     var title by remember { mutableStateOf(internalPrompt?.title ?: "") }
     var type by remember { mutableStateOf(initialType) }
-    val category = fixedCategory
+    // Preserve the existing prompt's category on edit; only enforce
+    // fixedCategory for new prompts. Stops a deep-link with the wrong
+    // category from silently moving the prompt across buckets.
+    val category = internalPrompt?.category ?: fixedCategory
     var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
     var agent by remember {
         mutableStateOf(
             when {
-                fixedCategory == "cross_out" -> AGENT_NA
+                // Both cross_out AND cross_in are CROSS_CATEGORIES — the
+                // agent slot is N/A for both. Without this, an existing
+                // cross_in prompt would surface the agent dropdown.
+                fixedCategory in CROSS_CATEGORIES -> AGENT_NA
                 else -> internalPrompt?.agent?.ifBlank { AGENT_SELECT } ?: AGENT_SELECT
             }
         )
@@ -265,7 +271,12 @@ fun InternalPromptEditScreen(
 
             OutlinedTextField(
                 value = text, onValueChange = { text = it },
-                label = { Text("Template body") },
+                label = {
+                    Text(
+                        if (type == "chat" || isCrossCategory) "Template body"
+                        else "Template body (unused for $type)"
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 8, maxLines = 22,
                 enabled = type == "chat" || isCrossCategory,

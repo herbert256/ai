@@ -352,9 +352,13 @@ fun RefreshScreen(
         }
         providerStateRows.clear()
         providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
-        if (showProgressDialog) showProviderStateDialog = true
         val testable = seeds.withIndex().filter { it.value.final == null }
         val total = testable.size
+        // Avoid flashing an empty "0 / 0" dialog when every provider
+        // is inactive or unkeyed — the supervisorScope below would
+        // exit immediately and the dialog would close on its own,
+        // but the flicker is worse than just skipping it.
+        if (showProgressDialog && total > 0) showProviderStateDialog = true
         val completed = java.util.concurrent.atomic.AtomicInteger(0)
         progressText = "0 / $total"
         supervisorScope {
@@ -416,12 +420,17 @@ fun RefreshScreen(
                 }
             }
             val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
-            val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
-            updatedSettings = if (existingFlock != null) {
-                updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
-            } else {
-                val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
-                updatedSettings.copy(flocks = updatedSettings.flocks + flock)
+            // Skip flock creation when no agent passed — an empty
+            // "Default agents" flock is just clutter the user has to
+            // delete by hand.
+            if (defaultAgentIds.isNotEmpty()) {
+                val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
+                updatedSettings = if (existingFlock != null) {
+                    updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
+                } else {
+                    val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
+                    updatedSettings.copy(flocks = updatedSettings.flocks + flock)
+                }
             }
             onSave(updatedSettings)
         }

@@ -414,7 +414,11 @@ fun ProviderModelSettingsScreen(
                 val trimmed = manualInput.trim()
                 val isEditing = editingOriginal != null
                 val isDuplicate = trimmed.isNotBlank() && trimmed != editingOriginal && trimmed in models
-                val canSubmit = trimmed.isNotBlank() && !isDuplicate
+                // Whitespace inside the id breaks the URL-path / JSON-body
+                // build at dispatch time. Reject before the user gets a
+                // 404 from the provider.
+                val hasWhitespace = trimmed.any { it.isWhitespace() }
+                val canSubmit = trimmed.isNotBlank() && !isDuplicate && !hasWhitespace
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -426,7 +430,7 @@ fun ProviderModelSettingsScreen(
                         placeholder = { Text("e.g. gpt-4o-mini") },
                         modifier = Modifier.weight(1f),
                         singleLine = true, colors = AppColors.outlinedFieldColors(),
-                        isError = isDuplicate
+                        isError = isDuplicate || hasWhitespace
                     )
                     Button(
                         onClick = {
@@ -446,6 +450,8 @@ fun ProviderModelSettingsScreen(
                 }
                 if (isDuplicate) {
                     Text("Already in list", fontSize = 12.sp, color = AppColors.Red)
+                } else if (hasWhitespace) {
+                    Text("Model id can't contain whitespace", fontSize = 12.sp, color = AppColors.Red)
                 }
             }
 
@@ -737,10 +743,25 @@ fun ProviderSettingsScreen(
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("API Key", fontWeight = FontWeight.Bold, color = Color.White)
+                    var showApiKey by remember { mutableStateOf(false) }
                     OutlinedTextField(
                         value = apiKey, onValueChange = { apiKey = it; testResult = null },
                         label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
-                        singleLine = true, colors = AppColors.outlinedFieldColors()
+                        singleLine = true, colors = AppColors.outlinedFieldColors(),
+                        // Mask the key by default — shoulder-surfing protection.
+                        // The eye toggle still lets the user verify the value
+                        // when pasting / re-typing.
+                        visualTransformation = if (showApiKey)
+                            androidx.compose.ui.text.input.VisualTransformation.None
+                        else
+                            androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        trailingIcon = {
+                            if (apiKey.isNotEmpty()) {
+                                IconButton(onClick = { showApiKey = !showApiKey }) {
+                                    Text(if (showApiKey) "🙈" else "👁", fontSize = 16.sp)
+                                }
+                            }
+                        }
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (apiKey.isNotBlank()) {

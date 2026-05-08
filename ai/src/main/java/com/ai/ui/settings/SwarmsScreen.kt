@@ -133,7 +133,7 @@ fun SwarmEditScreen(
             Button(
                 onClick = {
                     val id = swarm?.id ?: java.util.UUID.randomUUID().toString()
-                    onSave(Swarm(id, name.trim(), selectedMembers, selectedParamsIds, selectedSystemPromptId))
+                    onSave(Swarm(id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId))
                 },
                 enabled = nameError == null && selectedMembers.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
