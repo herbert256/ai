@@ -1193,10 +1193,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             crossJobs[crossJobKey(reportId, metaPrompt.id)]?.let { existing ->
                 existing.cancelAndJoin()
             }
+            // Wipe every per-pair cross-out row tied to this metaPromptId
+            // so the rerun starts from a clean grid. The previous filter
+            // additionally tried to clean up after_cross rows via
+            // `afterCrossOf == metaPrompt.id`, but afterCrossOf is set
+            // to the AFTER_CROSS prompt's id (line ~1326), never the
+            // cross prompt's id, so that clause was always false — dead
+            // code disguised as cleanup. After-cross rows on the same
+            // report are left alone here; rerunning the cross doesn't
+            // know which after-cross derivatives came from this cross
+            // (no explicit link is stored), so deleting them all would
+            // be over-aggressive. Users wanting a fully clean slate
+            // can delete the after-cross rows individually.
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                 .filter {
-                    (it.metaPromptId == metaPrompt.id) &&
-                        (it.crossSourceAgentId != null || it.afterCrossOf == metaPrompt.id)
+                    it.metaPromptId == metaPrompt.id && it.crossSourceAgentId != null
                 }
                 .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
             runCrossMetaPrompt(scope, context, reportId, metaPrompt)?.join()
