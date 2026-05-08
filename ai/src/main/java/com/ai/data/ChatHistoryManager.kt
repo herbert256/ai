@@ -68,9 +68,18 @@ object ChatHistoryManager {
     fun deleteSession(sessionId: String): Boolean {
         val dir = historyDir ?: return false
         return try {
-            File(dir, "$sessionId.json").delete().also {
-                if (it) { lock.withLock { cachedSessions = null }; notifyHistoryChanged() }
+            // Hold the lock across the disk delete + cache invalidation
+            // so a concurrent getAllSessions can't observe the cached
+            // list AFTER the file is gone but BEFORE cachedSessions is
+            // null'd. Notification fires outside the lock so observers
+            // don't deadlock if their callback re-enters this object.
+            val deleted = lock.withLock {
+                val ok = File(dir, "$sessionId.json").delete()
+                if (ok) cachedSessions = null
+                ok
             }
+            if (deleted) notifyHistoryChanged()
+            deleted
         } catch (_: Exception) { false }
     }
 
