@@ -91,7 +91,15 @@ fun SwarmEditScreen(
             onNavigateToModelInfo = { _, _ -> },
             onPickModel = { provider, model ->
                 val candidate = SwarmMember(provider, model)
-                if (selectedMembers.none { it.provider.id == provider.id && it.model == model }) {
+                // Case-insensitive dedupe — picking "Gpt-4o" twice via
+                // a future picker that exposes mixed-case model ids
+                // (or two providers reporting the same model with
+                // different casing) would otherwise both land in the
+                // swarm and silently fan out to two API calls.
+                if (selectedMembers.none {
+                    it.provider.id == provider.id &&
+                        it.model.equals(model, ignoreCase = true)
+                }) {
                     selectedMembers = selectedMembers + candidate
                 }
                 showModelPicker = false
