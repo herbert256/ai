@@ -738,11 +738,17 @@ fun ChatSessionScreen(
         }
 
         attachedImage?.let { (mime, b64) ->
-            val bmp = remember(b64) {
-                try {
-                    val bytes = Base64.decode(b64, Base64.NO_WRAP)
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                } catch (_: Exception) { null }
+            // Decode off-thread: BitmapFactory.decodeByteArray on a
+            // multi-MB photo blocks the UI thread long enough to ANR
+            // on lower-end devices. produceState gives us null while
+            // decoding, then the bitmap.
+            val bmp by produceState<android.graphics.Bitmap?>(initialValue = null, b64) {
+                value = withContext(Dispatchers.IO) {
+                    try {
+                        val bytes = Base64.decode(b64, Base64.NO_WRAP)
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                    } catch (_: Exception) { null }
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
                 if (bmp != null) {
@@ -911,11 +917,13 @@ private fun ChatMessageBubble(
             }
             Spacer(modifier = Modifier.height(4.dp))
             message.imageBase64?.let { b64 ->
-                val bmp = remember(b64) {
-                    try {
-                        val bytes = Base64.decode(b64, Base64.NO_WRAP)
-                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    } catch (_: Exception) { null }
+                val bmp by produceState<android.graphics.Bitmap?>(initialValue = null, b64) {
+                    value = withContext(Dispatchers.IO) {
+                        try {
+                            val bytes = Base64.decode(b64, Base64.NO_WRAP)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        } catch (_: Exception) { null }
+                    }
                 }
                 if (bmp != null) {
                     Image(
