@@ -522,10 +522,12 @@ private fun SettingsMainScreen(
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
+    var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout) {
         val updated = generalSettings.copy(
-            userName = userName, defaultEmail = defaultEmail, tracingEnabled = tracingEnabled
+            userName = userName, defaultEmail = defaultEmail,
+            tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -573,6 +575,36 @@ private fun SettingsMainScreen(
                     checked = tracingEnabled,
                     onCheckedChange = { tracingEnabled = it }
                 )
+            }
+
+            // Model name layout — controls how combined provider+model
+            // labels render across the app. MODEL_ONLY is the dense
+            // default; PROVIDER_AND_MODEL adds the provider's display
+            // name (joined with " · ") for users running the same
+            // model on multiple providers.
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Model name layout", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "How model labels render across rows and pickers.",
+                    fontSize = 12.sp, color = AppColors.TextSecondary,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.MODEL_ONLY,
+                        onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.MODEL_ONLY }
+                    )
+                    Text("Model name only", fontSize = 14.sp, color = Color.White,
+                        modifier = Modifier.clickable { modelNameLayout = com.ai.viewmodel.ModelNameLayout.MODEL_ONLY }.padding(start = 4.dp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL,
+                        onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
+                    )
+                    Text("Provider and model name", fontSize = 14.sp, color = Color.White,
+                        modifier = Modifier.clickable { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }.padding(start = 4.dp))
+                }
             }
         }
     }

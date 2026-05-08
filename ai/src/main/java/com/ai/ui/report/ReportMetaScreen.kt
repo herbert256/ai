@@ -196,7 +196,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(kindLabel, fontSize = 11.sp, color = AppColors.Orange, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 6.dp))
-                Text("$provider · ${r.model}", fontSize = 13.sp, color = Color.White,
+                Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -222,7 +222,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this $noun?") },
-            text = { Text("$provider · ${r.model}") },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, r.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)

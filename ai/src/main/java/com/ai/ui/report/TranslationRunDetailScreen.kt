@@ -133,7 +133,7 @@ internal fun TranslationRunDetailScreen(
         // the report's trace list pre-filtered to "Translation"; rendered
         // only when at least one translation trace exists.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("$providerDisplay — $modelName",
+            Text(com.ai.ui.shared.modelLabel(providerDisplay, modelName, separator = " — "),
                 fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))

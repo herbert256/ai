@@ -97,7 +97,8 @@ fun ChatParametersScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(title = "Chat Parameters", onBackClick = onNavigateBack, onAiClick = onNavigateHome)
-        Text("${provider.displayName} / $model", fontSize = 12.sp, color = AppColors.TextTertiary)
+        Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
+            fontSize = 12.sp, color = AppColors.TextTertiary)
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -510,7 +511,8 @@ fun ChatSessionScreen(
             }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${provider.displayName} / $model", fontSize = 12.sp, color = AppColors.TextTertiary,
+            Text(com.ai.ui.shared.modelLabel(provider.displayName, model, separator = " / "),
+                fontSize = 12.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.weight(1f))
             // Knowledge attach chip — tap opens a multi-select
             // dialog over saved KBs. Shown only when at least one

@@ -57,6 +57,33 @@ fun CollapsibleCard(
     }
 }
 
+/** App-wide layout choice for combined provider+model labels.
+ *  Provided once at the top of the composition tree by AppNavHost
+ *  from GeneralSettings; consumed by [modelLabel] and any caller
+ *  that wants to honour the user's preference. */
+val LocalModelNameLayout = compositionLocalOf {
+    com.ai.viewmodel.ModelNameLayout.MODEL_ONLY
+}
+
+/** Format a "provider · model" label according to the current
+ *  [LocalModelNameLayout]. The default is MODEL_ONLY (just the model
+ *  id); PROVIDER_AND_MODEL prepends the provider's display name with
+ *  the chosen separator. The separator defaults to " · " — the most
+ *  common one across the app — but call sites can override it (e.g.,
+ *  to keep " — " or " / " when the layout shows both). */
+@Composable
+fun modelLabel(
+    providerDisplay: String,
+    model: String,
+    separator: String = " · "
+): String {
+    val layout = LocalModelNameLayout.current
+    return when (layout) {
+        com.ai.viewmodel.ModelNameLayout.MODEL_ONLY -> model
+        com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL -> "$providerDisplay$separator$model"
+    }
+}
+
 /**
  * Tiny "vision-capable" badge for model lists. Renders nothing when the
  * model isn't flagged so the row stays compact for the long tail of

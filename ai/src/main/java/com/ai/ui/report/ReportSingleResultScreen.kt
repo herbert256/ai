@@ -157,7 +157,7 @@ fun ReportSingleResultScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "${provider.displayName} — ${agent.model}",
+                com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " — "),
                 fontSize = 18.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
             )

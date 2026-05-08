@@ -149,6 +149,13 @@ fun AppNavHost(
         return
     }
 
+    // Surface the user's "Model name layout" preference so any
+    // Composable in the tree can format combined provider+model
+    // labels via [com.ai.ui.shared.modelLabel] without prop-drilling.
+    val rootUiStateForLayout by appViewModel.uiState.collectAsState()
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout
+    ) {
     NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
 
         // ===== Hub =====
@@ -829,6 +836,7 @@ fun AppNavHost(
                 onNavigateToTraceDetail = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
     }
+    } // end CompositionLocalProvider
 }
 
 // ===== Navigation Wrappers =====

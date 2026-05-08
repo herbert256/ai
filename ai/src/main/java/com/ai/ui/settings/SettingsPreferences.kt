@@ -7,6 +7,7 @@ import com.ai.data.createAppGson
 import com.ai.data.writeTextAtomic
 import com.ai.model.*
 import com.ai.viewmodel.GeneralSettings
+import com.ai.viewmodel.ModelNameLayout
 import com.ai.viewmodel.PromptHistoryEntry
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -46,6 +47,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 (gson.fromJson(it, Map::class.java) as? Map<String, String>) ?: emptyMap()
             } catch (_: Exception) { emptyMap() }
         } ?: emptyMap()
+        val layoutName = prefs.getString(KEY_MODEL_NAME_LAYOUT, null)
+        val modelNameLayout = layoutName?.let {
+            try { ModelNameLayout.valueOf(it) } catch (_: Exception) { null }
+        } ?: ModelNameLayout.MODEL_ONLY
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
@@ -53,7 +58,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             artificialAnalysisApiKey = prefs.getString(KEY_AA_API_KEY, "") ?: "",
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
-            tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true)
+            tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
+            modelNameLayout = modelNameLayout
         )
     }
 
@@ -66,6 +72,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
+            putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
         }
     }
 
@@ -439,6 +446,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
+        private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

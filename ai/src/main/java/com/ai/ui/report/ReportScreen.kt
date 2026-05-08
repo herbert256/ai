@@ -1716,16 +1716,16 @@ private fun ColumnScope.GenerationPhase(
         )
     }
 
-    data class DisplayRow(val rowId: String, val displayName: String, val isNew: Boolean)
+    data class DisplayRow(val rowId: String, val displayName: String, val providerDisplay: String, val isNew: Boolean)
     val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings) {
         if (isStagedMode) {
             staged.map { m ->
                 val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
                             else "swarm:${m.provider.id}:${m.model}"
-                // Model-only label per spec — drop the provider prefix and
-                // the agent's custom name so every row reads as a bare
-                // model id.
-                DisplayRow(rowId, m.model, !reportsAgentResults.containsKey(rowId))
+                // Carry both the model and the provider display name so
+                // the row label can honour the user's "Model name layout"
+                // setting (model-only vs provider+model).
+                DisplayRow(rowId, m.model, m.provider.displayName, !reportsAgentResults.containsKey(rowId))
             }
         } else {
             selectedAgents.sorted().map { agentId ->
@@ -1734,7 +1734,13 @@ private fun ColumnScope.GenerationPhase(
                     ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
                     ?: agentId
-                DisplayRow(agentId, name, false)
+                val providerDisplay = result?.service?.displayName
+                    ?: aiSettings.getAgentById(agentId)?.provider?.displayName
+                    ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let {
+                        AppService.findById(it)?.displayName ?: it
+                    }
+                    ?: ""
+                DisplayRow(agentId, name, providerDisplay, false)
             }
         }
     }
@@ -1820,8 +1826,9 @@ private fun ColumnScope.GenerationPhase(
                     RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
+                        val runProv = AppService.findById(run.providerId)?.displayName ?: run.providerId
                         Text(
-                            "${run.model}$langSuffix",
+                            "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix",
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -2035,7 +2042,8 @@ private fun ColumnScope.GenerationPhase(
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(displayName, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
+                        fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
                     val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))

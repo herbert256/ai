@@ -270,7 +270,8 @@ private fun ModelSelectionCard(
                 colors = ButtonDefaults.buttonColors(containerColor = color.copy(alpha = 0.3f))
             ) {
                 Text(
-                    if (providerName != null && modelName.isNotBlank()) "$providerName / $modelName"
+                    if (providerName != null && modelName.isNotBlank())
+                        com.ai.ui.shared.modelLabel(providerName, modelName, separator = " / ")
                     else "Select model...",
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
@@ -519,7 +520,7 @@ private fun DualMessageBubble(
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "${msg.providerName} / ${msg.modelName}",
+                        com.ai.ui.shared.modelLabel(msg.providerName, msg.modelName, separator = " / "),
                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
                         modifier = Modifier.weight(1f)
                     )

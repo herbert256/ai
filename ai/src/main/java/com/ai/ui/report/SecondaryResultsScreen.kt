@@ -321,7 +321,7 @@ private fun ColumnScope.MetaResultsPickerView(
                 modifier = Modifier.heightIn(min = 36.dp)
             ) {
                 Text(
-                    "$provider · ${r.model}",
+                    com.ai.ui.shared.modelLabel(provider, r.model),
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1, softWrap = false
@@ -346,7 +346,8 @@ private fun ColumnScope.MetaResultsPickerView(
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$provider — ${selected.model}", fontSize = 16.sp, color = AppColors.Blue,
+        Text(com.ai.ui.shared.modelLabel(provider, selected.model, separator = " — "),
+            fontSize = 16.sp, color = AppColors.Blue,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f))
         if (ApiTracer.isTracingEnabled && traceFilename != null) {
@@ -401,7 +402,7 @@ private fun ColumnScope.MetaResultsPickerView(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this $noun?") },
-            text = { Text("$provider · ${selected.model}") },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, selected.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete(selected.id) }) {
                     Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
@@ -707,13 +708,13 @@ private fun ColumnScope.CrossMetaDrillInView(
         val sourceLabelAgent = sourceAgent ?: agentsByIdAll[srcAgentIdL3]
         val sourceLabel = sourceLabelAgent?.let {
             val pn = AppService.findById(it.provider)?.displayName ?: it.provider
-            "$pn / ${it.model}"
+            com.ai.ui.shared.modelLabel(pn, it.model, separator = " / ")
         } ?: srcAgentIdL3
         val answererLabel = answererKeyL3.split("|").let { parts ->
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
             val pn = AppService.findById(pid)?.displayName ?: pid
-            "$pn / $mdl"
+            com.ai.ui.shared.modelLabel(pn, mdl, separator = " / ")
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text("Source: $sourceLabel", fontSize = 12.sp, color = AppColors.TextTertiary,
@@ -890,7 +891,8 @@ private fun ColumnScope.CrossMetaDrillInView(
         }
         // First line: provider / model
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("$provName / $activeMdl", fontSize = 14.sp, color = AppColors.Blue,
+            Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
+                fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
             // 🐞 only in Initiator role — opens the trace of this
@@ -979,7 +981,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("$rowProv · ${row.model}", fontSize = 14.sp, color = Color.White,
+                            Text(com.ai.ui.shared.modelLabel(rowProv, row.model), fontSize = 14.sp, color = Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             row.sourceLabel?.let { label ->
                                 Text(label, fontSize = 11.sp, color = AppColors.TextTertiary,
@@ -1221,8 +1223,8 @@ private fun ColumnScope.CrossMetaDrillInView(
                             else -> Text("✅", fontSize = 16.sp)
                         }
                     }
-                    val rowText = if (acLabel != null) "$acLabel · $acProv · ${row.model}"
-                        else "$acProv · ${row.model}"
+                    val rowText = if (acLabel != null) "$acLabel · ${com.ai.ui.shared.modelLabel(acProv, row.model)}"
+                        else com.ai.ui.shared.modelLabel(acProv, row.model)
                     Text(
                         rowText, fontSize = 14.sp, color = Color.White,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -1275,7 +1277,7 @@ private fun ColumnScope.CrossMetaDrillInView(
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("$provName · $mdl", fontSize = 14.sp, color = labelColor,
+                    Text(com.ai.ui.shared.modelLabel(provName, mdl), fontSize = 14.sp, color = labelColor,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (rowPending > 0 && rs.totalSources > 0) {
                         // Per-row progress bar replaces the legacy "X / Y" text.
@@ -1530,7 +1532,8 @@ private fun OnePageView(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            Text("$provName / $activeMdl", fontSize = 14.sp, color = AppColors.Blue,
+            Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
+                fontSize = 14.sp, color = AppColors.Blue,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
@@ -1546,7 +1549,7 @@ private fun OnePageView(
             items(items, key = { it.key }) { item ->
                 when (item) {
                     is OnePageItem.SourceHeader -> {
-                        Text("${item.provName} / ${item.model} — report response",
+                        Text("${com.ai.ui.shared.modelLabel(item.provName, item.model, separator = " / ")} — report response",
                             fontSize = 13.sp, color = AppColors.Blue,
                             fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1560,7 +1563,7 @@ private fun OnePageView(
                     }
                     is OnePageItem.Factcheck -> {
                         if (item.showAnswererHeader) {
-                            Text("${item.ansProv} / ${item.ansMdl} — factcheck",
+                            Text("${com.ai.ui.shared.modelLabel(item.ansProv, item.ansMdl, separator = " / ")} — factcheck",
                                 fontSize = 13.sp, color = AppColors.Green,
                                 fontWeight = FontWeight.SemiBold)
                         } else {
@@ -1604,7 +1607,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         }
         Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text("$provider · ${r.model}", fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         IconButton(onClick = { confirmDelete = true }) {
@@ -1618,7 +1621,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this $noun?") },
-            text = { Text("$provider · ${r.model}") },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, r.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
@@ -1797,7 +1800,7 @@ internal fun SecondaryResultDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this ${title.lowercase()}?") },
-            text = { Text("$provider · ${result.model}") },
+            text = { Text(com.ai.ui.shared.modelLabel(provider, result.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
                     Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)

@@ -20,6 +20,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // General app settings
+/** How combined provider+model labels render across UI rows.
+ *  MODEL_ONLY shows just the model id (the dense default); PROVIDER_AND_MODEL
+ *  shows both, joined by " · ", for users who run the same model on
+ *  multiple providers and want to disambiguate at a glance. */
+enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
+
 data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
@@ -38,7 +44,12 @@ data class GeneralSettings(
      *  ladybug icon disappears from the per-result screens. Mirrored
      *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
      *  sites consult a single global. */
-    val tracingEnabled: Boolean = true
+    val tracingEnabled: Boolean = true,
+    /** Controls whether combined provider+model labels (Cross drill-in
+     *  rows, secondary picker buttons, agent rows on Report Result,
+     *  chat headers, …) show only the model or both. Provided to the
+     *  composition tree via LocalModelNameLayout in the AppNavHost. */
+    val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY
 )
 
 // Prompt history entry
