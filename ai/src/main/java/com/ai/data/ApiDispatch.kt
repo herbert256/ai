@@ -869,13 +869,22 @@ private fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService, 
 }
 
 internal fun extractResponsesApiContent(body: OpenAiResponsesApiResponse?): String? {
-    return body?.output?.let { outputs ->
-        outputs.firstOrNull()?.content?.firstOrNull { it.type == "output_text" }?.text
-            ?: outputs.firstOrNull()?.content?.firstOrNull { it.type == "text" }?.text
-            ?: outputs.firstOrNull()?.content?.firstNotNullOfOrNull { it.text }
-            ?: outputs.firstOrNull { it.type == "message" }?.content?.firstNotNullOfOrNull { it.text }
-            ?: outputs.flatMap { it.content ?: emptyList() }.firstNotNullOfOrNull { it.text }
-    }
+    val outputs = body?.output ?: return null
+    // Concatenate every text-bearing block in order. Responses API can
+    // emit multiple output_text chunks per message (pre-tool-use text
+    // → tool call → post-tool text). Returning only the first chunk
+    // dropped the post-tool reply entirely. Mirrors analyzeAnthropic's
+    // joinToString of every text content item.
+    val joined = outputs.flatMap { it.content ?: emptyList() }
+        .filter { it.type == "output_text" || it.type == "text" }
+        .mapNotNull { it.text }
+        .joinToString("")
+    if (joined.isNotEmpty()) return joined
+    // Fall back to the previous lookup chain when no typed text block
+    // matched — handles older / minor-revision Responses API shapes.
+    return outputs.firstOrNull()?.content?.firstNotNullOfOrNull { it.text }
+        ?: outputs.firstOrNull { it.type == "message" }?.content?.firstNotNullOfOrNull { it.text }
+        ?: outputs.flatMap { it.content ?: emptyList() }.firstNotNullOfOrNull { it.text }
 }
 
 internal fun normalizeUrl(url: String): String = if (url.endsWith("/")) url else "$url/"
