@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
@@ -368,16 +369,36 @@ fun ReportCostTable(report: Report) {
         // reads "critique", etc. Rerank / moderation / translate keep
         // their fixed labels — those routing labels are the user's
         // mental model for those rows.
-        val type = s.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
-            ?: when (s.kind) {
+        // Cross drill-in rows always read "cross-out" (per-pair
+        // factchecks) or "cross-in" (combine-reports follow-ups),
+        // matching the prompt-category labels surfaced on the Report
+        // Result page. Other secondaries use the user-given Meta
+        // prompt name; rerank / moderation / translate keep their
+        // routing labels.
+        val type = when {
+            s.crossSourceAgentId != null -> "cross-out"
+            s.afterCrossOf != null -> "cross-in"
+            !s.metaPromptName.isNullOrBlank() -> s.metaPromptName.lowercase()
+            else -> when (s.kind) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.META -> "meta"
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
             }
+        }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     val rows = (agentRows + secondaryRows).sortedByDescending { it.inputCents + it.outputCents }
+
+    data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
+    fun groupTotals(grouper: (CostRow) -> String): List<GroupTotal> =
+        rows.groupBy(grouper).map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
+            GroupTotal(k, iT, oT, iC, oC)
+        }.sortedByDescending { it.inputCents + it.outputCents }
+    val byType = groupTotals { it.type }
+    val byModel = groupTotals { "${it.providerDisplay} · ${it.model}" }
 
     var totalIn = 0; var totalOut = 0; var totalInC = 0.0; var totalOutC = 0.0
     rows.forEach { totalIn += it.inputTokens; totalOut += it.outputTokens; totalInC += it.inputCents; totalOutC += it.outputCents }
@@ -389,8 +410,91 @@ fun ReportCostTable(report: Report) {
     val hColor = AppColors.Blue; val vColor = AppColors.TextSecondary; val tColor = AppColors.Blue
     val hSize = 11.sp; val vSize = 11.sp
 
-    Column(modifier = Modifier.fillMaxWidth()) {
+    @Composable
+    fun SummaryTable(label: String, keyHeader: String, keyWidth: Dp, groups: List<GroupTotal>) {
+        if (groups.isEmpty()) return
         Spacer(modifier = Modifier.height(8.dp))
+        Text(label, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp))
+        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.padding(horizontal = 4.dp)) {
+                val totalsWidth = keyWidth + 56.dp + 64.dp + 64.dp + 56.dp + 56.dp + 8.dp
+                Row {
+                    Text("Total ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text(keyHeader, fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(keyWidth).padding(start = 8.dp))
+                    Text("In tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text("Out tok", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text("In ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    Text("Out ¢", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                }
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(totalsWidth))
+                groups.forEach { g ->
+                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                        Text(fmtC(g.inputCents + g.outputCents), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                        Text(g.key, fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(keyWidth).padding(start = 8.dp),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            fontFamily = FontFamily.Monospace)
+                        Text(fmtT(g.inputTokens), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                        Text(fmtT(g.outputTokens), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                        Text(fmtC(g.inputCents), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                        Text(fmtC(g.outputCents), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                    }
+                }
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(totalsWidth))
+                Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                    val gIn = groups.sumOf { it.inputTokens }
+                    val gOut = groups.sumOf { it.outputTokens }
+                    val gInC = groups.sumOf { it.inputCents }
+                    val gOutC = groups.sumOf { it.outputCents }
+                    Text(fmtC(gInC + gOutC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
+                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(keyWidth).padding(start = 8.dp))
+                    Text(fmtT(gIn), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
+                    Text(fmtT(gOut), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
+                    Text(fmtC(gInC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
+                    Text(fmtC(gOutC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Summary tables — one per type, one per (provider, model) —
+        // followed by the full per-call detail. Rendering order
+        // matches what the user asked for: glance at the type and
+        // model rollups first, drill into the call list when needed.
+        SummaryTable("By type", "Type", 100.dp, byType)
+        SummaryTable("By model", "Model", 200.dp, byModel)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("All calls", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp))
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
                 Row {
