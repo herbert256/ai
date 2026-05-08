@@ -697,10 +697,12 @@
 **Symptom:** Captures all request headers including Authorization. Trace files persisted to disk contain plaintext API keys; backup zip carries them in cleartext too.
 **Reproduction:** Open any trace JSON; Authorization header is visible.
 **Proposed fix:** Redact bearer tokens / API keys before persisting traces.
+**Status:** Fixed
 
 ### Bug 108 — Severity: HIGH — Category: API key leakage in JSON parse
 **Location:** ApiDispatch.kt — testApiConnectionWithJson
 **Symptom:** `requestBuilder.addHeader("x-api-key", apiKey)` for ANTHROPIC etc. — captured by tracer same way.
+**Status:** Fixed
 
 ### Bug 109 — Severity: MEDIUM — Category: Inconsistent date format
 **Location:** AnalysisRepository.formatCurrentDate, SecondaryResult.resolveSecondaryPrompt
@@ -709,6 +711,7 @@
 ### Bug 110 — Severity: HIGH — Category: ApiTracer hostname filename
 **Location:** ApiTracer.kt line 75
 **Symptom:** `${trace.hostname}_${ts}_${seq}.json` — hostname can contain colons (host:port) on some configurations. Filesystem rejects, file write fails.
+**Status:** Fixed
 
 ### Bug 111 — Severity: MEDIUM — Category: Logging only
 **Location:** Throughout
@@ -747,6 +750,7 @@
 ### Bug 119 — Severity: HIGH — Category: ChatHistoryManager save success
 **Location:** ChatHistoryManager.saveSession lines 29-41
 **Symptom:** Returns `true` unconditionally (line 36 returns true after writeTextAtomic returned). writeTextAtomic returns Boolean — caller ignores it.
+**Status:** Fixed
 
 ### Bug 120 — Severity: MEDIUM — Category: SecondaryResult timestamp ordering
 **Location:** SecondaryResultStorage.listForReport line 178
@@ -767,11 +771,13 @@
 ### Bug 124 — Severity: HIGH — Category: AppService.findById id case mismatch
 **Location:** AppService.findById line 75
 **Symptom:** Compare `id == "LOCAL"` exactly (case-sensitive). ProviderRegistry.findById uses .id == ... (case-sensitive too). A user-typed lowercase "local" doesn't match.
+**Status:** Fixed
 
 ### Bug 125 — Severity: HIGH — Category: BackupManager addDirectoryRecursive followsSymlink
 **Location:** lines 423-444
 **Symptom:** `dir.listFiles()` follows symbolic links by default. A symbolic link inside filesDir to /sdcard/something would copy unrelated user data into the backup zip.
 **Proposed fix:** Check `Files.isSymbolicLink(child.toPath())` and skip symlinks.
+**Status:** Fixed
 
 ### Bug 126 — Severity: HIGH — Category: AnalysisRepository agent lookup
 **Location:** AnalysisRepository.analyzeWithAgent line 191
@@ -793,4 +799,5 @@
 **Location:** lines 247-260
 **Symptom:** When a chunk's embedding dim doesn't match the query, the chunk is skipped — the user gets no hit, no warning except a logcat line.
 **Proposed fix:** Surface to UI when retrieval finds zero hits due to dim mismatch.
+**Status:** Partial — logcat warning on dim-mismatch; UI surface still pending
 
