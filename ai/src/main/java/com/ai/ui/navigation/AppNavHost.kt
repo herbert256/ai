@@ -428,6 +428,8 @@ fun AppNavHost(
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
             val uiState by appViewModel.uiState.collectAsState()
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             if (provider != null) {
                 // OpenRouter key has two storage slots: External Services
                 // (generalSettings.openRouterApiKey) and the OpenRouter
@@ -449,6 +451,13 @@ fun AppNavHost(
                     onNavigateToTracesForModel = { p, m -> navController.navigate(NavRoutes.traceListForModel(p.id, m)) },
                     onNavigateToAddManualOverride = { p, m -> navController.navigate(NavRoutes.aiManualOverrideAdd(p.id, m)) },
                     onNavigateToAddCostOverride = { p, m -> navController.navigate(NavRoutes.aiManualCostOverrideAdd(p.id, m)) },
+                    onNavigateToProviderEdit = { p -> navController.navigate(NavRoutes.settingsProviderEdit(p.id)) },
+                    onOpenReport = { rid ->
+                        scope.launch {
+                            reportViewModel.restoreCompletedReport(context, rid)
+                            navController.navigate(NavRoutes.AI_REPORTS)
+                        }
+                    },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }

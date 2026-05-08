@@ -35,6 +35,73 @@ import java.util.Locale
 
 private data class ModelSearchItem(val provider: AppService, val providerName: String, val modelName: String)
 
+/** One row in the "Last usage" card on the Model Info screen.
+ *  Aggregated from chat history, reports, and per-report secondary
+ *  results so the user sees every concrete place this (provider,
+ *  model) pair has been used recently. */
+private data class ModelUsageEntry(
+    val timestamp: Long,
+    val typeLabel: String,
+    val title: String,
+    val onOpen: () -> Unit
+)
+
+/** Walk every chat session, report, and per-report secondary result;
+ *  keep the rows whose (provider, model) matches; sort newest first
+ *  and return the top 10. Caller invokes from a coroutine on
+ *  Dispatchers.IO since each store is on-disk. */
+private fun computeModelUsages(
+    context: android.content.Context,
+    provider: AppService,
+    model: String,
+    onOpenReport: (String) -> Unit
+): List<ModelUsageEntry> {
+    val out = mutableListOf<ModelUsageEntry>()
+    fun chatTitle(s: ChatSession): String =
+        s.messages.firstOrNull { it.role == "user" }?.content?.lineSequence()
+            ?.firstOrNull { it.isNotBlank() }?.trim()?.take(80)
+            ?: "Chat session"
+    ChatHistoryManager.init(context)
+    ChatHistoryManager.getAllSessions().forEach { s ->
+        if (s.provider.id == provider.id && s.model == model) {
+            out += ModelUsageEntry(
+                timestamp = s.updatedAt, typeLabel = "Chat", title = chatTitle(s),
+                onOpen = {} // chat session deep-link not supported; row is informational
+            )
+        }
+    }
+    ReportStorage.getAllReports(context).forEach { report ->
+        // One row per matching agent in the report. Most reports
+        // have at most one agent per (provider, model), but if the
+        // user added the same model twice we still surface both.
+        report.agents.forEach { agent ->
+            if (agent.provider == provider.id && agent.model == model) {
+                out += ModelUsageEntry(
+                    timestamp = report.timestamp, typeLabel = "Report",
+                    title = report.title.ifBlank { report.prompt.take(80) },
+                    onOpen = { onOpenReport(report.id) }
+                )
+            }
+        }
+        SecondaryResultStorage.listForReport(context, report.id).forEach { sec ->
+            if (sec.providerId == provider.id && sec.model == model) {
+                val typeLabel = when (sec.kind) {
+                    SecondaryKind.RERANK -> "Rerank"
+                    SecondaryKind.META -> sec.metaPromptName?.takeIf { it.isNotBlank() } ?: "Meta"
+                    SecondaryKind.MODERATION -> "Moderate"
+                    SecondaryKind.TRANSLATE -> "Translate"
+                }
+                out += ModelUsageEntry(
+                    timestamp = sec.timestamp, typeLabel = typeLabel,
+                    title = "from ${report.title.ifBlank { report.prompt.take(60) }}",
+                    onOpen = { onOpenReport(report.id) }
+                )
+            }
+        }
+    }
+    return out.sortedByDescending { it.timestamp }.take(10)
+}
+
 private data class ModelInfoData(
     val openRouterInfo: OpenRouterModelInfo? = null,
     val huggingFaceInfo: HuggingFaceModelInfo? = null,
@@ -431,6 +498,8 @@ fun ModelInfoScreen(
     onNavigateToTracesForModel: (AppService, String) -> Unit,
     onNavigateToAddManualOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToAddCostOverride: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToProviderEdit: (AppService) -> Unit = {},
+    onOpenReport: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -632,6 +701,14 @@ fun ModelInfoScreen(
             errorMessage != null -> Text("Error: $errorMessage", color = AppColors.Red)
             else -> {
                 val info = modelInfo
+                // Aggregated last-10 usages across chat, reports, and
+                // per-report secondaries (translate / meta / rerank /
+                // moderate). Empty list = card hidden.
+                val recentUsages by produceState<List<ModelUsageEntry>>(initialValue = emptyList(), provider, modelName) {
+                    value = withContext(Dispatchers.IO) {
+                        computeModelUsages(context, provider, modelName, onOpenReport)
+                    }
+                }
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // Model name header. The trailing 🐞 ladybug opens
                     // the same model-filtered trace list that the
@@ -646,13 +723,53 @@ fun ModelInfoScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text(provider.displayName, fontSize = 14.sp, color = AppColors.Blue)
+                                    Text(
+                                        provider.displayName, fontSize = 14.sp, color = AppColors.Blue,
+                                        modifier = Modifier.clickable { onNavigateToProviderEdit(provider) }
+                                    )
                                 }
                                 if (ApiTracer.isTracingEnabled && traceCount > 0) {
                                     Text("🐞", fontSize = 20.sp,
                                         modifier = Modifier
                                             .padding(start = 8.dp)
                                             .clickable { onNavigateToTracesForModel(provider, modelName) })
+                                }
+                            }
+                        }
+                    }
+
+                    // Last 10 usages of this model — chat sessions,
+                    // reports, and per-report secondaries (translate /
+                    // meta / rerank / moderate). Card is omitted
+                    // entirely when nothing matches so an unused model
+                    // doesn't show an empty placeholder.
+                    if (recentUsages.isNotEmpty()) {
+                        item {
+                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Last usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    val dateFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
+                                    recentUsages.forEach { entry ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().clickable { entry.onOpen() }.padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                entry.typeLabel, fontSize = 12.sp, color = AppColors.Orange,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                entry.title, fontSize = 13.sp, color = Color.White,
+                                                modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
+                                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                dateFormat.format(java.util.Date(entry.timestamp)),
+                                                fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
