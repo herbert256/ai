@@ -500,6 +500,11 @@ fun ChatSessionScreen(
     fun trySend(input: String) {
         val mod = moderationModel
         val img = attachedImage
+        // Reset any leftover moderation error from a previous turn —
+        // without this, a once-failed moderation call left its error
+        // banner stuck across every subsequent send until the user
+        // toggled the moderation picker off and back on.
+        moderationError = null
         if (mod == null) { actuallySend(input, img); return }
         scope.launch {
             isModerating = true

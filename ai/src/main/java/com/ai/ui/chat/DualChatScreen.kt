@@ -338,8 +338,18 @@ fun DualChatSessionScreen(
     var model1OutputTokens by remember { mutableIntStateOf(0) }
     var model2InputTokens by remember { mutableIntStateOf(0) }
     var model2OutputTokens by remember { mutableIntStateOf(0) }
-    val pricing1 = remember { PricingCache.getPricing(context, config.model1Provider, config.model1Name) }
-    val pricing2 = remember { PricingCache.getPricing(context, config.model2Provider, config.model2Name) }
+    // Recompute pricing whenever PricingCache fully primes (its
+    // preloadCompleted flag flips). Without that, an unkeyed
+    // remember{} latched DEFAULT_PRICING on first composition during
+    // the cold-load window, and dual chat showed $0.00 cost banners
+    // for the entire session even after the catalog finished loading.
+    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
+    val pricing1 = remember(config.model1Provider, config.model1Name, pricingTick) {
+        PricingCache.getPricing(context, config.model1Provider, config.model1Name)
+    }
+    val pricing2 = remember(config.model2Provider, config.model2Name, pricingTick) {
+        PricingCache.getPricing(context, config.model2Provider, config.model2Name)
+    }
     val model1Cost by remember { derivedStateOf { (model1InputTokens * pricing1.promptPrice + model1OutputTokens * pricing1.completionPrice) * 100 } }
     val model2Cost by remember { derivedStateOf { (model2InputTokens * pricing2.promptPrice + model2OutputTokens * pricing2.completionPrice) * 100 } }
     val totalCost by remember { derivedStateOf { model1Cost + model2Cost } }
