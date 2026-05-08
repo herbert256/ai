@@ -684,7 +684,7 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
 }
 
 private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, apiKey: String): FetchedModels {
-    val rawJson = ApiFactory.fetchUrlAsString("${normalizeUrl(service.baseUrl)}v1beta/models?key=$apiKey")
+    val rawJson = ApiFactory.fetchUrlAsString("${normalizeUrl(service.baseUrl)}v1beta/models?key=${android.net.Uri.encode(apiKey)}")
     return try {
         val api = ApiFactory.createGeminiApi(service.baseUrl)
         val response = api.listModels(apiKey)
@@ -775,7 +775,7 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
         val requestBuilder = okhttp3.Request.Builder().post(body).addHeader("Content-Type", "application/json")
         when (service.apiFormat) {
             ApiFormat.ANTHROPIC -> { requestBuilder.url(baseUrl); requestBuilder.addHeader("x-api-key", apiKey); requestBuilder.addHeader("anthropic-version", "2023-06-01") }
-            ApiFormat.GOOGLE -> { val url = if (baseUrl.contains("key=")) baseUrl else "$baseUrl${if (baseUrl.contains("?")) "&" else "?"}key=$apiKey"; requestBuilder.url(url) }
+            ApiFormat.GOOGLE -> { val encKey = android.net.Uri.encode(apiKey); val url = if (baseUrl.contains("key=")) baseUrl else "$baseUrl${if (baseUrl.contains("?")) "&" else "?"}key=$encKey"; requestBuilder.url(url) }
             else -> { requestBuilder.url(baseUrl); requestBuilder.addHeader("Authorization", "Bearer $apiKey") }
         }
         val request = requestBuilder.build()
