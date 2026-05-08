@@ -1737,17 +1737,24 @@ private fun ColumnScope.GenerationPhase(
                         }
                         else -> Text("\u2705", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    // Live row "type" cell: same name-driven approach
-                    // as the cost table — "Compare", "Critique", … come
-                    // straight from the Meta prompt name. Rerank /
-                    // moderate / translate keep their routing labels.
-                    val typeLabel = run.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
-                        ?: when (run.kind) {
+                    // Live row "type" cell: after_cross rows always
+                    // surface as "cross-in" (matching the prompt
+                    // category — these are combine-reports follow-ups
+                    // to a cross run). The remaining rows use the
+                    // Meta prompt name ("Compare", "Critique", …)
+                    // verbatim, falling back to the routing label
+                    // for legacy rows that pre-date the Meta-prompt
+                    // CRUD.
+                    val typeLabel = when {
+                        run.afterCrossOf != null -> "cross-in"
+                        run.metaPromptName?.isNotBlank() == true -> run.metaPromptName.lowercase()
+                        else -> when (run.kind) {
                             SecondaryKind.RERANK -> "rerank"
                             SecondaryKind.META -> "meta"
                             SecondaryKind.MODERATION -> "moderate"
                             SecondaryKind.TRANSLATE -> "translate"
                         }
+                    }
                     RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
@@ -1806,7 +1813,7 @@ private fun ColumnScope.GenerationPhase(
                         run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
-                    RowTypeCell("cross")
+                    RowTypeCell("cross-out")
                     val pendingSuffix = if (run.pendingCount > 0) " · ${run.pendingCount} pending" else ""
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
