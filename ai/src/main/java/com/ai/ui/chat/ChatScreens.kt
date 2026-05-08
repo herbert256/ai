@@ -251,8 +251,12 @@ fun ChatSessionScreen(
      *  values can be cleared from UiState. */
     onConsumeStarter: () -> Unit = {}
 ) {
-    BackHandler { onNavigateBack() }
-
+    // Outer BackHandler: only active when no overlay (moderation
+    // picker / flagged-input dialog) is up. Without the conditional
+    // guard the chat session's own back-handler took precedence over
+    // the picker's onBack and the flagged dialog's dismiss path,
+    // because Compose registers BackHandlers in declaration order
+    // and the outermost one was previously unconditional.
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -314,6 +318,15 @@ fun ChatSessionScreen(
     }
     var moderationError by remember { mutableStateOf<String?>(null) }
     var isModerating by remember { mutableStateOf(false) }
+
+    // Conditional outer BackHandler — disabled while the moderation
+    // picker overlay or the flagged-input dialog is up so back-press
+    // dismisses those instead of the whole session. Replaces the
+    // unconditional BackHandler that used to live at the top of the
+    // function.
+    BackHandler(enabled = !showModerationPicker && pendingFlagged == null) {
+        onNavigateBack()
+    }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
