@@ -196,7 +196,25 @@ object KnowledgeStore {
                 chunkCount = chunks.size,
                 charCount = chunks.sumOf { it.text.length }
             )
-            val newDim = if (current.embeddingDim == 0) embeddingDim else current.embeddingDim
+            // First write of any source — adopt its dim. Otherwise keep
+            // the existing dim, but warn loudly when this re-index
+            // produced a different one: that almost certainly means the
+            // user swapped the embedder mid-life and the new chunks
+            // won't share a vector space with the existing ones, which
+            // makes retrieval silently bogus.
+            val newDim = when {
+                current.embeddingDim == 0 -> embeddingDim
+                current.embeddingDim == embeddingDim -> current.embeddingDim
+                else -> {
+                    android.util.Log.w("Knowledge",
+                        "Embedding dim mismatch on saveSource: kb=$kbId, " +
+                            "manifest=${current.embeddingDim}, new=$embeddingDim. " +
+                            "Manifest dim retained; cosine queries against this " +
+                            "source will silent-zero against chunks from other " +
+                            "embedders. Re-create the KB to mix embedders cleanly.")
+                    current.embeddingDim
+                }
+            }
             saveManifest(kbDir, current.copy(sources = replaced, embeddingDim = newDim))
         }
     }
