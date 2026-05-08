@@ -606,17 +606,20 @@ Actually the provider DOES bill input on every call, so the cumulative is correc
 **Symptom:** `priceColor = if (pricing.source == "default") AppColors.TextDim else AppColors.Red` — but the pricing source string is `"DEFAULT"` (uppercase) in PricingCache.getPricing comments. Comparing to lowercase "default" never matches → all prices render as red.
 **Root cause:** Case mismatch between the source label produced and the comparison.
 **Proposed fix:** Normalise — `pricing.source.equals("DEFAULT", ignoreCase = true)`.
+**Status:** Fixed
 
 ### Bug 89 — Severity: LOW — Category: filteredModels recomputation
 **Location:** lines 92–96 (function SelectModelScreen)
 **Symptom:** `allModels` recomputes on every recomposition because the LOCAL branch calls `LocalLlm.availableLlms(context)` synchronously every recompose (no remember).
 **Root cause:** Direct call vs remember.
 **Proposed fix:** `remember(provider) { ... }`.
+**Status:** Fixed (this session) — remember(provider, refreshTick) so LocalLlm.availableLlms isn't called every recompose
 
 ### Bug 90 — Severity: MEDIUM — Category: search lowercase locale
 **Location:** lines 95, 227 (function SelectModelScreen / SelectProviderScreen)
 **Symptom:** `searchQuery.lowercase()` uses default locale.
 **Proposed fix:** `Locale.ROOT`.
+**Status:** Fixed (this session) — Locale.ROOT lowercase on every search compare path
 
 ### Bug 91 — Severity: LOW — Category: isRefreshing snapshot stale
 **Location:** lines 67 (function SelectModelScreen)

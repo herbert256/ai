@@ -38,8 +38,13 @@ fun ReportAdvancedParametersScreen(
             Button(
                 onClick = {
                     val params = AgentParameters(
-                        temperature = temperature.toFloatOrNull(), maxTokens = maxTokens.toIntOrNull(),
-                        topP = topP.toFloatOrNull(), topK = topK.toIntOrNull(),
+                        temperature = temperature.toFloatOrNull(),
+                        // Max tokens must be a positive count; 0 / negative
+                        // would round-trip to a 400 from the provider.
+                        // Reject those silently here so the caller's "no
+                        // value set" branch fires instead of "0 tokens".
+                        maxTokens = maxTokens.toIntOrNull()?.takeIf { it > 0 },
+                        topP = topP.toFloatOrNull(), topK = topK.toIntOrNull()?.takeIf { it > 0 },
                         frequencyPenalty = frequencyPenalty.toFloatOrNull(), presencePenalty = presencePenalty.toFloatOrNull(),
                         systemPrompt = systemPrompt.takeIf { it.isNotBlank() }, seed = seed.toIntOrNull(),
                         searchEnabled = searchEnabled, returnCitations = returnCitations,

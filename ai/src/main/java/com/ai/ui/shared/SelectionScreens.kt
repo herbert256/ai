@@ -88,11 +88,17 @@ fun SelectModelScreen(
     // For the synthetic LOCAL provider the model list lives on disk
     // in filesDir/local_llms/, not in ProviderConfig.models — query
     // LocalLlm directly so installed .task bundles show up here just
-    // like any remote provider's models.
-    val allModels = if (provider.id == "LOCAL") com.ai.data.LocalLlm.availableLlms(context) else aiSettings.getModels(provider)
+    // like any remote provider's models. Cached against (provider,
+    // refreshTick) so a recompose for an unrelated reason doesn't
+    // re-walk filesDir on every keystroke.
+    val refreshTickModels = com.ai.ui.shared.resumeRefreshTick()
+    val allModels = remember(provider.id, refreshTickModels, aiSettings) {
+        if (provider.id == "LOCAL") com.ai.data.LocalLlm.availableLlms(context)
+        else aiSettings.getModels(provider)
+    }
     val filteredModels = remember(searchQuery, allModels) {
         if (searchQuery.isBlank()) allModels
-        else { val lq = searchQuery.lowercase(); allModels.filter { it.lowercase().contains(lq) } }
+        else { val lq = searchQuery.lowercase(java.util.Locale.ROOT); allModels.filter { it.lowercase(java.util.Locale.ROOT).contains(lq) } }
     }
 
     Column(
@@ -224,7 +230,13 @@ fun SelectProviderScreen(
     }
     val filteredProviders = remember(searchQuery, allProviders) {
         if (searchQuery.isBlank()) allProviders
-        else { val lq = searchQuery.lowercase(); allProviders.filter { it.displayName.lowercase().contains(lq) } }
+        // Locale.ROOT — default-locale lowercase mangles Turkish I /
+        // German ß (the latter changes string length, breaking
+        // index-based slicing the search relies on elsewhere).
+        else {
+            val lq = searchQuery.lowercase(java.util.Locale.ROOT)
+            allProviders.filter { it.displayName.lowercase(java.util.Locale.ROOT).contains(lq) }
+        }
     }
 
     Column(
@@ -296,11 +308,11 @@ fun SelectAgentScreen(
     val filteredAgents = remember(searchQuery, allAgents) {
         if (searchQuery.isBlank()) allAgents
         else {
-            val lq = searchQuery.lowercase()
+            val lq = searchQuery.lowercase(java.util.Locale.ROOT)
             allAgents.filter { agent ->
-                agent.name.lowercase().contains(lq) ||
-                    agent.provider.displayName.lowercase().contains(lq) ||
-                    aiSettings.getEffectiveModelForAgent(agent).lowercase().contains(lq)
+                agent.name.lowercase(java.util.Locale.ROOT).contains(lq) ||
+                    agent.provider.displayName.lowercase(java.util.Locale.ROOT).contains(lq) ||
+                    aiSettings.getEffectiveModelForAgent(agent).lowercase(java.util.Locale.ROOT).contains(lq)
             }
         }
     }

@@ -244,6 +244,7 @@
 **Symptom:** `hasAny` includes `searchEnabled || !returnCitations || searchRecency.isNotBlank()` but ignores `topK`, `topP`, `frequencyPenalty`, `presencePenalty`. If the user sets ONLY frequency_penalty=0.5 and clears everything else, `hasAny` is `false` (no other field non-blank), so `onApply(null)` is called — clearing the frequency_penalty the user just set!
 **Reproduction:** Set only frequency_penalty=0.5, click Apply.
 **Proposed fix:** Add the missing fields to `hasAny`.
+**Status:** Fixed
 
 ### Bug 43 — Severity: MEDIUM — Category: Wrong logic
 **Location:** line 50 — `!returnCitations` in hasAny
@@ -252,6 +253,7 @@
 ### Bug 44 — Severity: MEDIUM — Category: Wrong logic
 **Location:** line 22 — `maxTokens.toIntOrNull()`
 **Symptom:** No range validation. User can enter "0" or "-1" as max tokens; `0` would be saved and likely cause an API 400 later.
+**Status:** Fixed (this session) — AgentParameters.maxTokens / topK reject 0 / negative
 
 ---
 
