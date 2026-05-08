@@ -44,7 +44,12 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         val params = if (reasoningEffort != null) withWeb.copy(reasoningEffort = reasoningEffort.ifBlank { null }) else withWeb
         // RAG retrieval lives inside the cold flow (on Dispatchers.IO)
         // so the embedding call doesn't run on the caller's main-scope
-        // coroutine. Pre-RAG path stays a direct passthrough.
+        // coroutine. Pre-RAG path also runs on IO so the SSE
+        // charstream-reading inside sendChatStream doesn't run on the
+        // collector thread (typically main, when the chat session
+        // collects the flow into UI state). Without flowOn(IO) the
+        // session's scrolling jittered during high-throughput streams
+        // because reader.readLine() blocked the UI dispatcher thread.
         return if (knowledgeBaseIds.isNotEmpty() && context != null) {
             flow {
                 val withRag = messagesWithRag(context, knowledgeBaseIds, messages)
@@ -59,7 +64,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
                 service = service, apiKey = apiKey, model = model,
                 messages = messages, params = params,
                 baseUrl = baseUrl
-            )
+            ).flowOn(Dispatchers.IO)
         }
     }
 
