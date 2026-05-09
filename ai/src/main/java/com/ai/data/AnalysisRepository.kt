@@ -263,9 +263,13 @@ class AnalysisRepository {
             } else first
             return response.copy(agentName = agent.name, promptUsed = finalPrompt)
         }
-        withRetry("Agent ${agent.name}", { makeApiCall() }, { it.isSuccess }) { e ->
-            AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name)
-        }
+        withRetry(
+            label = "Agent ${agent.name}",
+            makeCall = { makeApiCall() },
+            isSuccess = { it.isSuccess },
+            isPermanentFailure = { it.httpStatusCode in 400..499 },
+            errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
+        )
     }
 
     /**
@@ -284,20 +288,35 @@ class AnalysisRepository {
             val params = validateParams(agentResolvedParams)
             return analyze(agent.provider, agent.apiKey, finalPrompt, agent.model, params).copy(agentName = agent.name, promptUsed = finalPrompt)
         }
-        withRetry("Agent ${agent.name} player", { makeApiCall() }, { it.isSuccess }) { e ->
-            AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name)
-        }
+        withRetry(
+            label = "Agent ${agent.name} player",
+            makeCall = { makeApiCall() },
+            isSuccess = { it.isSuccess },
+            isPermanentFailure = { it.httpStatusCode in 400..499 },
+            errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
+        )
     }
 
     internal suspend fun <T> withRetry(
         label: String,
         makeCall: suspend () -> T,
         isSuccess: (T) -> Boolean,
+        /** Optional discriminator that lets the caller mark a failed
+         *  result as permanent (e.g. 4xx HTTP) so we skip the retry —
+         *  re-issuing a deterministic 400 wastes another call + token
+         *  budget. Default returns false (retry every non-success),
+         *  preserving the original behaviour for callers that don't
+         *  opt in. */
+        isPermanentFailure: (T) -> Boolean = { false },
         errorResult: (Exception) -> T
     ): T {
         try {
             val result = makeCall()
             if (isSuccess(result)) return result
+            if (isPermanentFailure(result)) {
+                android.util.Log.w("AiAnalysis", "$label first attempt permanent failure, skipping retry")
+                return result
+            }
             android.util.Log.w("AiAnalysis", "$label first attempt failed, retrying...")
             delay(RETRY_DELAY_MS)
             return try {
