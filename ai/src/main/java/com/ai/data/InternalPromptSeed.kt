@@ -55,8 +55,8 @@ object InternalPromptSeed {
 
     /** Append every bundled prompt whose (category, name) pair is not
      *  yet present in [existing]. Names are unique per category, not
-     *  globally — so a bundled `factcheck` under fan_in still adds
-     *  even if the user has a different `factcheck` under meta.
+     *  globally — so a bundled `myprompt` under fan_in still adds
+     *  even if the user has a different `myprompt` under meta.
      *  Existing rows are returned unchanged. */
     fun ensureAllPresent(
         existing: List<InternalPrompt>,
@@ -73,8 +73,8 @@ object InternalPromptSeed {
      *  Entry-shaped objects). Existing rows keep their UUID and only
      *  get their non-name fields overwritten; missing pairs are
      *  appended with a fresh UUID. Names collide only within a single
-     *  category — so a bundled `factcheck` under fan_in upserts
-     *  independently from a user-created `factcheck` under meta.
+     *  category — so a bundled `myprompt` under fan_in upserts
+     *  independently from a user-created `myprompt` under meta.
      *  Returns the new list and the count of (added + updated) rows,
      *  or null on parse failure. */
     fun upsertFromJson(

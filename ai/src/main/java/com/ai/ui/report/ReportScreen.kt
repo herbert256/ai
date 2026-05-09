@@ -395,7 +395,7 @@ fun ReportsScreen(
             withContext(Dispatchers.IO) {
                 val all = SecondaryResultStorage.listForReport(context, rid)
                 // Fan-out pair rows (N×(M-1) per-(answerer, source)
-                // factchecks) collapse into a single summary row per
+                // responses) collapse into a single summary row per
                 // fan out prompt, mirroring how Translation collapses N
                 // per-call rows. Fan_in combine-reports rows do
                 // NOT fold — each run is a standalone meta call so it
@@ -2054,7 +2054,7 @@ private fun ColumnScope.GenerationPhase(
         // Fan-out summary rows — one per Meta-prompt name with at
         // least one fan-out pair (or fan_in combine-reports) row on
         // disk. A single Run Fan out click produces N×(M-1) per-pair
-        // factchecks plus an optional combine-reports follow-up; we
+        // responses plus an optional combine-reports follow-up; we
         // collapse them into a single line here so the agent list
         // doesn't balloon. Tap → SecondaryResultsScreen, which already
         // detects fan out rows and renders them via FanOutDrillInView.
@@ -2282,7 +2282,7 @@ private data class TranslationRunSummary(
 )
 
 /** Single synthetic row for the agent list per fan-out Meta run. A
- *  fan out click produces N×(M-1) per-pair factchecks (kind=META,
+ *  fan out click produces N×(M-1) per-pair responses (kind=META,
  *  fanOutSourceAgentId set); collapsing them here keeps the result list
  *  at one line per user-initiated fan out run, mirroring how
  *  [TranslationRunSummary] collapses Translate's per-call rows. */

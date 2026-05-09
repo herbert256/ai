@@ -310,8 +310,8 @@ internal fun SecondaryResultsScreen(
         }
 
         // Fan-out META: every fan out row carries a fanOutSourceAgentId
-        // pointing at the source whose response was factchecked. The
-        // L1 → L2 → L3 drill-in below replaces the flat picker. The
+        // pointing at the source whose response the answerer reacted to.
+        // The L1 → L2 → L3 drill-in below replaces the flat picker. The
         // fan_in combine-reports rows live in fanInRows
         // (loaded unconditionally above so the nameFilter doesn't hide
         // them) and surface as the second list above the answerers.
@@ -451,7 +451,7 @@ private fun ColumnScope.MetaResultsPickerView(
 private data class L2Row(
     /** Stable key: source.agentId for Responder, "$pid|$mdl|$srcAgentId"
      *  for Initiator (one row per (answerer, source) pair so
-     *  multi-agent active models surface every factcheck). */
+     *  multi-agent active models surface every response). */
     val key: String,
     val provider: String,
     val model: String,
@@ -461,7 +461,7 @@ private data class L2Row(
     val pair: SecondaryResult?,
     /** In Initiator mode when the active model has more than one
      *  source agent (Swarm), this disambiguates which source the row
-     *  factchecked. Rendered as a sub-label beneath the answerer
+     *  responded to. Rendered as a sub-label beneath the answerer
      *  line. Null in Responder mode and in single-agent Initiator
      *  cases (the source is unambiguous). */
     val sourceLabel: String? = null,
@@ -474,16 +474,16 @@ private data class L2Row(
 
 /** L1 → L2 → L3 drill-in for fan-out META results.
  *  L1: list of every successful report-model that produced at least
- *      one factcheck row (the "answerer"), with progress bars + stats
+ *      one response row (the "answerer"), with progress bars + stats
  *      + a button row for restart-failed / show-prompt / edit-prompt
  *      / rerun-complete / delete-fan out.
  *  L2: for the chosen model, list rows according to the active
- *      [Role]: Responder lists every source the model factchecked,
- *      Initiator lists every answerer that factchecked the model.
+ *      [Role]: Responder lists every source the model responded to,
+ *      Initiator lists every answerer that responded to the model.
  *      A "One page view" button stitches the role-aware content into
  *      a single scrollable page.
  *  L3: split view — top half shows the source's report response,
- *      bottom half shows the answerer's factcheck content (or a
+ *      bottom half shows the answerer's response content (or a
  *      ⏳ / 🕓 / ❌ / "(no result)" placeholder if missing). Previous /
  *      Next at the bottom step through the L2 list in role-aware
  *      order.
@@ -687,7 +687,7 @@ private fun ColumnScope.FanOutDrillInView(
             // Initiator — every (answerer pid+mdl, source agentId)
             // pair where the source is one of this model's agents.
             // For multi-agent active models (Swarm) this surfaces
-            // every factcheck instead of collapsing them to one row
+            // every response instead of collapsing them to one row
             // per answerer (which would hide rows + undercount cost).
             // Order: answerer in successful order, then by source
             // agent in activeAgents order, so consecutive rows of the
@@ -756,7 +756,7 @@ private fun ColumnScope.FanOutDrillInView(
         // model. Hoisted above the TitleBar so the bar's 🐞 slot can
         // open it. The previous inline icon above the source body is
         // gone now; the TitleBar names the source and offers its
-        // trace, the answerer/factcheck pane below keeps its own 🐞
+        // trace, the answerer/response pane below keeps its own 🐞
         // for the fan-out call trace.
         val srcTraceState = produceState<String?>(initialValue = null, reportId, sourceAgent?.model) {
             value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
@@ -784,9 +784,9 @@ private fun ColumnScope.FanOutDrillInView(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
         Spacer(modifier = Modifier.height(4.dp))
-        // Source response (top) + answerer factcheck (bottom). Top
+        // Source response (top) + answerer response (bottom). Top
         // wraps to its content but is capped at half the available
-        // height so a long source body can never push the factcheck
+        // height so a long source body can never push the response
         // pane off screen. Mirrors TranslationCallDetailScreen's
         // split-pane shape.
         androidx.compose.foundation.layout.BoxWithConstraints(
@@ -807,9 +807,9 @@ private fun ColumnScope.FanOutDrillInView(
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
                     modifier = Modifier.padding(vertical = 8.dp))
-                // Bottom half — answerer's factcheck. Header is the
+                // Bottom half — answerer's response. Header is the
                 // answerer model name (replaces the literal
-                // "Factcheck" label), with the same 🐞 lookup as
+                // "Response" label), with the same 🐞 lookup as
                 // before pinned to the right.
                 Column(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
@@ -1000,8 +1000,8 @@ private fun ColumnScope.FanOutDrillInView(
         if (l2Rows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
-                    if (selectedRole == "Responder") "No factchecks for this model yet"
-                    else "No other model has factchecked this one yet",
+                    if (selectedRole == "Responder") "No responses for this model yet"
+                    else "No other model has responded to this one yet",
                     color = AppColors.TextTertiary, fontSize = 13.sp
                 )
             }
@@ -1072,7 +1072,7 @@ private fun ColumnScope.FanOutDrillInView(
                 onDismissRequest = { confirmModelDelete = false },
                 title = { Text("Delete this model from the fan out?") },
                 text = {
-                    Text("Drop every factcheck row where $provName / $activeMdl is " +
+                    Text("Drop every response row where $provName / $activeMdl is " +
                         "either the answerer or the source. Other Fan out runs on this " +
                         "report are not affected. Can't be undone.")
                 },
@@ -1109,7 +1109,7 @@ private fun ColumnScope.FanOutDrillInView(
     // Keep `successful` as the only key — the row list shape only
     // depends on which agents are alive, not on every per-pair update.
     // Orphan keys (rows whose answerer's report-agent later failed) are
-    // appended below so their factchecks remain visible.
+    // appended below so their responses remain visible.
     val orphanKeys = remember(latestByPair, successful) {
         val live = successful.map { "${it.provider}|${it.model}" }.toHashSet()
         latestByPair.values
@@ -1350,7 +1350,7 @@ private fun ColumnScope.FanOutDrillInView(
                     when {
                         // Orphan = source-of-truth report-agent has
                         // failed; the row only exists because past
-                        // factchecks survived the agent's regression.
+                        // responses survived the agent's regression.
                         isOrphan -> Text("🚫", fontSize = 16.sp)
                         rs.run > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
                         rowPending > 0 -> Text("🕓", fontSize = 16.sp)
@@ -1456,7 +1456,7 @@ private fun ColumnScope.FanOutDrillInView(
             title = { Text("Delete fan-out run?") },
             text = {
                 Text(
-                    "Drop every per-pair factcheck for this fan-out run" +
+                    "Drop every per-pair response for this fan-out run" +
                         (if (combinedRows.isNotEmpty()) " plus the combined-report follow-up" else "") +
                         " — $totalRows rows. Can't be undone."
                 )
@@ -1488,15 +1488,15 @@ private fun StatRow(label: String, value: String, valueColor: Color) {
 
 /** L2 "One page view" overlay. Lays out the role-aware content as a
  *  single scrollable page so the user can read every source response
- *  + factcheck side-by-side without drilling into L3.
+ *  + response side-by-side without drilling into L3.
  *
  *  Responder (active model is the answerer): for every source on L2,
  *  show the source's report response followed by the active model's
- *  factcheck of it.
+ *  response of it.
  *  Initiator (active model is the source): group L2 rows by source
  *  agent (multi-agent active models surface one block per agent).
  *  Each group prints the source response once, then every answerer's
- *  factcheck of that source.
+ *  response of that source.
  *
  *  The list lives in a LazyColumn — Compose's `verticalScroll`
  *  doesn't virtualise, and these blocks each render a
@@ -1509,7 +1509,7 @@ private sealed class OnePageItem {
         val model: String,
         val responseBody: String?
     ) : OnePageItem()
-    data class Factcheck(
+    data class Response(
         override val key: String,
         val ansProv: String,
         val ansMdl: String,
@@ -1540,7 +1540,7 @@ private fun OnePageView(
         if (role == "Initiator") {
             val list = mutableListOf<OnePageItem>()
             // Group rows by their source agent. Each group emits one
-            // source header + one factcheck item per answerer.
+            // source header + one response item per answerer.
             val grouped = l2Rows.groupBy { it.sourceAgentId.orEmpty() }
             // Preserve activeAgents ordering for source iteration so
             // the layout stays stable when l2Rows order shifts.
@@ -1557,7 +1557,7 @@ private fun OnePageView(
                 )
                 rows.forEach { row ->
                     val ansProv = AppService.findById(row.provider)?.displayName ?: row.provider
-                    list += OnePageItem.Factcheck(
+                    list += OnePageItem.Response(
                         key = "fc-${row.l3PairKey}",
                         ansProv = ansProv,
                         ansMdl = row.model,
@@ -1568,7 +1568,7 @@ private fun OnePageView(
             }
             list
         } else {
-            // Responder — one source response + factcheck per L2 row.
+            // Responder — one source response + response per L2 row.
             l2Rows.flatMap { row ->
                 val src = agentsById[row.key]
                 val srcProv = AppService.findById(row.provider)?.displayName ?: row.provider
@@ -1579,7 +1579,7 @@ private fun OnePageView(
                         model = row.model,
                         responseBody = src?.responseBody
                     ),
-                    OnePageItem.Factcheck(
+                    OnePageItem.Response(
                         key = "fc-${row.l3PairKey}",
                         ansProv = "", ansMdl = "",
                         showAnswererHeader = false,
@@ -1623,13 +1623,13 @@ private fun OnePageView(
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
-                    is OnePageItem.Factcheck -> {
+                    is OnePageItem.Response -> {
                         if (item.showAnswererHeader) {
-                            Text("${com.ai.ui.shared.modelLabel(item.ansProv, item.ansMdl, separator = " / ")} — factcheck",
+                            Text("${com.ai.ui.shared.modelLabel(item.ansProv, item.ansMdl, separator = " / ")} — response",
                                 fontSize = 13.sp, color = AppColors.Green,
                                 fontWeight = FontWeight.SemiBold)
                         } else {
-                            Text("Factcheck", fontSize = 13.sp, color = AppColors.Green,
+                            Text("Response", fontSize = 13.sp, color = AppColors.Green,
                                 fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))

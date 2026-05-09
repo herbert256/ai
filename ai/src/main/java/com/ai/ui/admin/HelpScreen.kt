@@ -157,7 +157,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Lists every persisted secondary of one kind (Rerank / Meta / Moderation; Translate has its own per-run screen). Same screen serves all kinds — title is the user-given Meta-prompt name (or the legacy kind label for older rows)."),
             HelpCard("Polling", "While at least one batch is in flight (isBatching), the list re-reads disk every 500 ms so newly-stamped placeholders flip from ⏳ to ✅/❌ without leaving the screen."),
             HelpCard("Language picker", "For chat-type META, when the report has TRANSLATE rows a row of language pills appears: Original plus one per distinct targetLanguage. Selecting a non-Original language overlays translated bodies onto the matching original rows."),
-            HelpCard("Fan out drill-in", "Fan-out prompts paint 'Fan out / Fan out - model / Fan out - pair' as the user steps in. L1 lists every (answerer, source) pair, L2 lists sources for one answerer with a Responder/Initiator role toggle, L3 splits a single source/factcheck side-by-side. System back steps out one level at a time."),
+            HelpCard("Fan out drill-in", "Fan-out prompts paint 'Fan out / Fan out - model / Fan out - pair' as the user steps in. L1 lists every (answerer, source) pair, L2 lists sources for one answerer with a Responder/Initiator role toggle, L3 splits a single source/fan-out response side-by-side. System back steps out one level at a time."),
             HelpCard("Meta picker view", "Chat-type META renders a FlowRow of buttons (one per result, labelled by provider · model) plus the selected result inline — mirror of the Reports viewer."),
             HelpCard("Per-row 🗑", "Each row has its own confirm dialog. Title-bar 🗑 is grayed because deletion is per-row here."),
             HelpCard("Per-row tap", "Opens SecondaryResultDetailScreen. Drilling into the same row after popping back is preserved via rememberSaveable openId."),
@@ -181,10 +181,10 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "secondary_fan_out" to HelpContent(
         title = "Fan out",
         cards = listOf(
-            HelpCard("Overview", "Fan out runs every selected answerer × every source row's content. Each cell is one factcheck call; the title bar reads 'Fan out / Fan out - model / Fan out - pair' as you drill in."),
+            HelpCard("Overview", "Fan out runs every selected answerer × every source row's content. Each cell is one fan-out response call; the title bar reads 'Fan out / Fan out - model / Fan out - pair' as you drill in."),
             HelpCard("Fan out (L1)", "List of every (answerer model, status) — derived from latestByPair across all results. Status icons: ✅ done, ❌ errored, ⏳ running, queued. Tap an answerer to drop to L2."),
             HelpCard("Fan out - model (L2)", "Sources for the chosen answerer (or, if Initiator role is selected, every (answerer, source) where this model is the source). Tap a source row → L3."),
-            HelpCard("Fan out - pair (L3)", "Single cell — source content on top, factcheck underneath. Per-row 🐞 links to its own captured trace."),
+            HelpCard("Fan out - pair (L3)", "Single cell — source content on top, fan-out response underneath. Per-row 🐞 links to its own captured trace."),
             HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningFanOutPairs is re-enqueued via onResumeStaleFanOut — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),

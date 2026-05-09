@@ -81,7 +81,7 @@ data class SecondaryResult(
     /** For fan_in-type Meta runs: id of the [com.ai.model.InternalPrompt]
      *  that produced this combined-report row. Lets the fan out detail
      *  screen distinguish the single combined output from the per-pair
-     *  factcheck rows even though both share `metaPromptName`. Null on
+     *  response rows even though both share `metaPromptName`. Null on
      *  every non-fan_in row. */
     val fanInOf: String? = null
 )
@@ -300,8 +300,8 @@ fun resolveSecondaryPrompt(
  *  Top-level placeholders (@QUESTION@, @TITLE@, @DATE@, @COUNT@,
  *  @FAN_OUT_COUNT@) are plain string replaces. The iterable block
  *  `\n\n***Report*** @REPORT@@RESPONSES@` is found once in the template
- *  and expanded N times — one per (reportBody, factchecks) entry —
- *  with @RESPONSE@ inside @RESPONSES@ replaced by each factcheck
+ *  and expanded N times — one per (reportBody, responses) entry —
+ *  with @RESPONSE@ inside @RESPONSES@ replaced by each fan-out response
  *  content. */
 fun resolveFanInPrompt(
     template: String,
@@ -320,9 +320,9 @@ fun resolveFanInPrompt(
         .replace("@FAN_OUT_COUNT@", fanOutCount.toString())
     val iterable = "\n\n***Report*** @REPORT@@RESPONSES@"
     val expansion = buildString {
-        perReport.forEach { (reportBody, factchecks) ->
+        perReport.forEach { (reportBody, responses) ->
             append("\n\n***Report*** ").append(reportBody)
-            factchecks.forEach { fc -> append("\n\n***Response*** ").append(fc) }
+            responses.forEach { fc -> append("\n\n***Response*** ").append(fc) }
         }
     }
     val expanded = if (withTopLevel.contains(iterable)) {

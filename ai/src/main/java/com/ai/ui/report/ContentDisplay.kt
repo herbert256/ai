@@ -401,7 +401,7 @@ fun ReportCostTable(report: Report) {
         // their fixed labels — those routing labels are the user's
         // mental model for those rows.
         // Fan out drill-in rows always read "fan-out" (per-pair
-        // factchecks) or "fan-in" (combine-reports follow-ups),
+        // responses) or "fan-in" (combine-reports follow-ups),
         // matching the prompt-category labels surfaced on the Report
         // Result page. Other secondaries use the user-given Meta
         // prompt name; rerank / moderation / translate keep their

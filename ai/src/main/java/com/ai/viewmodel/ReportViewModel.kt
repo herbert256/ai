@@ -1314,12 +1314,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
-    /** Combines a fan-out run's per-pair factchecks plus every
+    /** Combines a fan-out run's per-pair responses plus every
      *  successful agent's response body into a single combined report
      *  via a single chat call on [pick]. The template's iterable block
      *  `\n\n***Report*** @REPORT@@RESPONSES@` is expanded once per
      *  successful (source) agent, with its `@RESPONSES@` populated
-     *  from the latest fan-out factcheck row of every other answerer.
+     *  from the latest fan-out response row of every other answerer.
      *
      *  Persists one [SecondaryResult] with kind=META and
      *  fanInOf=metaPrompt.id, so the fan out detail screen can show
@@ -1349,7 +1349,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // to finish before reading their per-pair rows —
                     // otherwise the combine call would build its
                     // payload from an arbitrary partial subset of
-                    // factchecks while the user thinks the report is
+                    // responses while the user thinks the report is
                     // "all of them". Each fan out run is keyed by its
                     // own metaPromptId; a snapshot of the active jobs
                     // for THIS report is enough.
@@ -1364,7 +1364,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         // OLDEST row (we sort ascending), which is the
                         // failed first attempt. A successful retry
                         // landed afterwards is then ignored. Filtering
-                        // up front leaves only valid factchecks in the
+                        // up front leaves only valid responses in the
                         // bucket, so the firstOrNull picks the oldest
                         // successful one — closer to the user's
                         // expected "completed run" semantics.
@@ -1384,12 +1384,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     val consumed = HashSet<String>()
                     val perReport: List<Pair<String, List<String>>> = successful.map { source ->
-                        val factchecks = successful.mapNotNull other@{ other ->
+                        val fanOutResponses = successful.mapNotNull other@{ other ->
                             if (other.agentId == source.agentId) return@other null
                             // Pick the next un-consumed row for this
                             // (provider, model, source) bucket so two
                             // distinct other-agents sharing (provider,
-                            // model) each get their own factcheck.
+                            // model) each get their own response.
                             val bucket = byPair["${other.provider}|${other.model}|${source.agentId}"]
                                 ?: return@other null
                             val row = bucket.firstOrNull { it.id !in consumed }
@@ -1399,7 +1399,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val c = row.content
                             if (c.isNullOrBlank()) null else c.trim()
                         }
-                        (source.responseBody?.trim().orEmpty()) to factchecks
+                        (source.responseBody?.trim().orEmpty()) to fanOutResponses
                     }
                     if (perReport.all { it.second.isEmpty() }) {
                         val (provider, model) = pick
@@ -1410,7 +1410,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             metaPromptId = metaPrompt.id,
                             metaPromptName = metaPrompt.name,
                             fanInOf = metaPrompt.id,
-                            errorMessage = "No fan-out factchecks available — run the fan-out factcheck prompt first."
+                            errorMessage = "No fan-out responses available — run the fan-out prompt first."
                         )
                         SecondaryResultStorage.save(context, placeholder)
                         return@withTracerTags
