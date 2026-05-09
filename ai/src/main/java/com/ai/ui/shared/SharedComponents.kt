@@ -364,6 +364,13 @@ private fun TitleBarActionStrip(
         // Tighten to 22dp so it sits closer to its right neighbour
         // (Help) without getting cramped.
         if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = w(22.dp), scale = scale)
+        // Safety gap: when 🐞 is hidden, 🗑 lands directly next to
+        // 📝 (Memo) or 🏠 (Home). Fat-finger-prevention spacer so the
+        // destructive trash icon doesn't sit flush against a
+        // navigation icon.
+        if (onDelete != null && onTrace == null) {
+            Spacer(modifier = Modifier.width(8.dp * scale))
+        }
         // 📝 Memo — "back to the current AI Report's result page".
         // Sits to the left of Home / Help; only renders when
         // [LocalNavigateToCurrentReport] is non-null, i.e. the user
@@ -372,10 +379,10 @@ private fun TitleBarActionStrip(
         TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(28.dp), scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
-        // Tightening further to 18dp keeps it snug against its left
-        // neighbour. Help is now the rightmost slot — the global
-        // "what does this screen do?" anchor.
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(18.dp), scale = scale)
+        // Tightening further to 14dp pulls it snug against Home on
+        // the left. Help is the rightmost slot — the global "what
+        // does this screen do?" anchor.
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(14.dp), scale = scale)
     }
 }
 
