@@ -1469,13 +1469,14 @@ private fun ModelRawInfoScreen(
     val annotated = remember(body) { colorizeJson(body) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
-            helpTopic = provider?.topicId ?: "model_raw",
+            // ❓ describes THIS screen ("Raw catalog data" / Source
+            // detail layout). The convention from the home-help icon
+            // legend: ❓ = help for the current screen, ℹ = drill
+            // into a details target (here, the per-provider help).
+            helpTopic = "model_raw",
             title = if (provider != null) "Info provider" else title,
             onBackClick = onBack,
-            // ℹ alongside the auto-wired ? — both go to the
-            // per-provider help topic so the user has the same
-            // affordance whether they reach for the help-system icon
-            // or the info-about-this-thing icon.
+            // ℹ → per-provider help page (LiteLLM, OpenRouter, …).
             onInfo = if (provider != null) {
                 { onNavigateToHelpTopic(provider.topicId) }
             } else null

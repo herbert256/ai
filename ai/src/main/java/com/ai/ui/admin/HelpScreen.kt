@@ -971,14 +971,14 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_raw" to HelpContent(
-        title = "Raw catalog data",
+        title = "Info provider (source detail)",
         cards = listOf(
-            HelpCard("Overview", "Pretty-printed JSON view of one of the seven catalog sources for a single model. Reached from the Sources buttons on Model Info."),
-            HelpCard("Title", "\"Source · model-name\" — e.g. \"OpenRouter · claude-opus-4.6\". \"All sources · model\" when reached via Show all."),
-            HelpCard("Layout", "Single full-screen card containing scrollable JSON. Both vertical and horizontal scrolling — long lines aren't wrapped or truncated. Monospace font keeps the structure readable."),
+            HelpCard("Overview", "Pretty-printed JSON view of one of the seven info providers for a single model. Reached from the Sources buttons on Model Info."),
+            HelpCard("Layout", "Title bar reads \"Info provider\". Below it, in green, the provider's display name (LiteLLM / OpenRouter / …) and beneath that the actual URL the app called. Then a single full-screen card containing the JSON, scrollable in both axes — long lines aren't wrapped or truncated."),
             HelpCard("JSON colouring", "Keys blue, strings green, numbers orange, true/false purple, null grey, punctuation white. Falls back to plain white for non-JSON inputs (e.g. a \"(no data)\" placeholder)."),
-            HelpCard("Show all", "When opened from the Show all button, the body concatenates every source's raw JSON with === Source === headers between sections. Saves you tapping seven buttons in turn while comparing."),
-            HelpCard("Title-bar icons", "Help and Home only. Back returns to Model Info; the source button there stays green/red so you can tell at a glance which sources had hits."),
+            HelpCard("Title bar — ℹ", "Opens the help page for the info provider this view belongs to (e.g. tapping ℹ on the LiteLLM source detail opens the LiteLLM help topic). The same destination is also reachable by tapping the green provider name on the home Help page's Info-providers table."),
+            HelpCard("Title bar — ❓", "Opens this page (help for the source-detail screen)."),
+            HelpCard("Show all", "When opened from the Show all button on Model Info, the body concatenates every source's raw JSON with === Source === headers between sections. Title bar drops the green name + URL and shows the legacy \"All sources · model\" title; the ℹ icon is hidden because there's no single provider to point at."),
             HelpCard("Tips", "The JSON is pre-pretty-printed via createAppGson(prettyPrint = true). Field-name colouring relies on a string being followed by ':' after whitespace, which means escape sequences inside strings won't accidentally re-tokenise."),
             HelpCard("Related", "Capability and pricing rows on Model Info already distill the most useful fields out of these dumps — only dive into the raw view when something looks off or you want to file a catalog issue.")
         )
