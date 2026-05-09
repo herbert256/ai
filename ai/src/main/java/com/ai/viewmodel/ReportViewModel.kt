@@ -747,7 +747,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val agent = state.aiSettings.getAgentById(agentId)
                 val service = agent?.provider
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let { AppService.findById(it) }
-                    ?: AppService.entries.firstOrNull() ?: AppService.findById("OPENAI")!!
+                    ?: AppService.entries.firstOrNull() ?: AppService.findById("OpenAI")!!
                 agentId to AnalysisResponse(service = service, analysis = null, error = "Stopped by user")
             }
         }

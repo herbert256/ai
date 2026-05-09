@@ -82,15 +82,15 @@ enum class Parameter {
 val ALL_AGENT_PARAMETERS: Set<Parameter> = Parameter.entries.toSet()
 
 private val BUILT_IN_ENDPOINTS: Map<String, List<Endpoint>> = mapOf(
-    "OPENAI" to listOf(
+    "OpenAI" to listOf(
         Endpoint("openai-chat", "Chat Completions", "https://api.openai.com/v1/chat/completions", true),
         Endpoint("openai-responses", "Responses API", "https://api.openai.com/v1/responses", false)
     ),
-    "MISTRAL" to listOf(
+    "Mistral" to listOf(
         Endpoint("mistral-chat", "Chat Completions", "https://api.mistral.ai/v1/chat/completions", true),
         Endpoint("mistral-codestral", "Codestral", "https://codestral.mistral.ai/v1/chat/completions", false)
     ),
-    "DEEPSEEK" to listOf(
+    "DeepSeek" to listOf(
         Endpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
         Endpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
     ),
@@ -284,7 +284,7 @@ data class Settings(
         // OpenRouter aliases, etc.), so the union is gated to OpenAI.
         // Only the fetcher path (this 5-arg overload) merges; manual-
         // edit overloads stay verbatim so the user can still prune.
-        val withFallback = if (service.id == "OPENAI") {
+        val withFallback = if (service.id == "OpenAI") {
             (models + (service.hardcodedModels ?: emptyList())).distinct()
         } else {
             models.distinct()
@@ -488,12 +488,12 @@ data class Settings(
      * untouched. Re-call this after any OpenRouter or per-provider fetch.
      */
     fun applyOpenRouterTypes(): Settings {
-        val orProvider = AppService.findById("OPENROUTER") ?: return this
+        val orProvider = AppService.findById("OpenRouter") ?: return this
         val orTypes = getProvider(orProvider).modelTypes
         if (orTypes.isEmpty()) return this
         var updated = this
         for (service in AppService.entries) {
-            if (service.id == "OPENROUTER") continue
+            if (service.id == "OpenRouter") continue
             val orPrefix = service.openRouterName ?: continue
             val cfg = getProvider(service)
             if (cfg.models.isEmpty()) continue

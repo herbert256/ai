@@ -353,7 +353,7 @@ fun TraceListScreen(
  *  on the trace list's Provider filter. Extend this map when another
  *  provider adds a similar second host. */
 private val PROVIDER_AUX_HOSTS: Map<String, Set<String>> = mapOf(
-    "COHERE" to setOf("api.cohere.com")
+    "Cohere" to setOf("api.cohere.com")
 )
 
 /** Resolve a trace's hostname back to a known [AppService.displayName],

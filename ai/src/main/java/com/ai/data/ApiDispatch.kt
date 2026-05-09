@@ -448,13 +448,13 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // String call here for the snapshot. The bandwidth cost is small
     // (model lists are tens of KB at most).
     val modelsUrlForRaw = run {
-        val pathPart = if (service.id == "OPENROUTER") "v1/models" else (service.modelsPath ?: "v1/models")
+        val pathPart = if (service.id == "OpenRouter") "v1/models" else (service.modelsPath ?: "v1/models")
         normalizeUrl(service.baseUrl) + pathPart
     }
     val rawJson = ApiFactory.fetchUrlAsString(modelsUrlForRaw, mapOf("Authorization" to "Bearer $apiKey"))
 
     // OpenRouter exposes architecture.modality on its detailed list — use that for types.
-    if (service.id == "OPENROUTER") {
+    if (service.id == "OpenRouter") {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
         val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (e: Exception) {
             android.util.Log.w("ApiDispatch", "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}")
@@ -529,7 +529,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // api.cohere.com/v1/models to recover per-model types AND capability info
     // (context_length, supports_vision); fall back to heuristic on failure.
     data class CohereCap(val type: String?, val cap: ModelCapabilities)
-    val cohereByName: Map<String, CohereCap> = if (service.id == "COHERE") {
+    val cohereByName: Map<String, CohereCap> = if (service.id == "Cohere") {
         try {
             val cohere = ApiFactory.createCohereNativeApi()
             val resp = cohere.listModels("Bearer $apiKey")
@@ -626,7 +626,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // so the AppViewModel fetcher (which has Context) can persist it
     // into the PricingCache TOGETHER tier. Values arrive as USD per 1M
     // tokens; divide for the per-token rate ModelPricing expects.
-    val nativePricing = if (service.id == "TOGETHER") {
+    val nativePricing = if (service.id == "Together") {
         activeOnly.mapNotNull { m ->
             val id = m.id ?: return@mapNotNull null
             val p = m.pricing ?: return@mapNotNull null

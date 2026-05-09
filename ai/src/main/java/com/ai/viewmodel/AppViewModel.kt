@@ -738,7 +738,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (flipToApiOnSuccess && fetched.ids.isNotEmpty() && cfgSelf.modelSource == ModelSource.API) {
                     settingsPrefs.saveSettings(final)
                 }
-                if (service.id == "OPENROUTER") {
+                if (service.id == "OpenRouter") {
                     // Persist the freshly fan out-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->
                         val cfg = final.getProvider(other)

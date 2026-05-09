@@ -64,7 +64,7 @@ object ProviderRegistry {
         // which 404s. The actual endpoint is /v1/models (verified by
         // 401 vs 404 probe). Patch any persisted entry that still has
         // the bad value.
-        val pp = providers.indexOfFirst { it.id == "PERPLEXITY" }
+        val pp = providers.indexOfFirst { it.id == "Perplexity" }
         if (pp >= 0 && providers[pp].modelsPath == "models") {
             val def = ProviderDefinition.fromAppService(providers[pp]).copy(modelsPath = "v1/models")
             providers[pp] = def.toAppService()

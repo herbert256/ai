@@ -225,12 +225,12 @@ object ModelType {
                 id.startsWith("gemini-2.5") || ("gemini" in id && "-2.5" in id)
             }
             ApiFormat.OPENAI_COMPATIBLE -> when (provider.id) {
-                "OPENAI" -> {
+                "OpenAI" -> {
                     // gpt-5 family + o-series reasoning models.
                     id.startsWith("gpt-5") ||
                         id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
                 }
-                "XAI" -> {
+                "xAI" -> {
                     // Most current xAI models perform reasoning. The
                     // explicit "-non-reasoning" variants are filtered by
                     // the early hard-negative gate, so anything in the
@@ -244,9 +244,9 @@ object ModelType {
                     id.startsWith("grok-3") || id.startsWith("grok-4") ||
                         id.startsWith("grok-code")
                 }
-                "MOONSHOT" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
-                "DEEPSEEK" -> "r1" in id || "reasoner" in id
-                "MISTRAL" -> "magistral" in id
+                "Moonshot" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
+                "DeepSeek" -> "r1" in id || "reasoner" in id
+                "Mistral" -> "magistral" in id
                 else -> false
             }
         }
@@ -260,7 +260,7 @@ object ModelType {
      *  🧠 badge for these (per [inferReasoning]) but the dispatcher
      *  must skip the parameter (per [inferAcceptsReasoningEffortParam]). */
     fun externalReasoningSignalUntrusted(provider: AppService): Boolean =
-        provider.id == "XAI"
+        provider.id == "xAI"
 
     /** Narrow companion to [inferReasoning]: returns true only when the
      *  model exposes a controllable reasoning parameter we can attach
@@ -273,7 +273,7 @@ object ModelType {
     fun inferAcceptsReasoningEffortParam(provider: AppService, modelId: String): Boolean {
         val id = modelId.lowercase()
         if ("non-reasoning" in id || "non_reasoning" in id || "no-reasoning" in id) return false
-        if (provider.id == "XAI") {
+        if (provider.id == "xAI") {
             // Controllable: grok-3* (incl. mini), grok-4 / grok-4-0709,
             // any *-reasoning suffix (e.g. grok-4-fast-reasoning,
             // grok-4.20-0309-reasoning). Excludes grok-4.3, grok-4.20

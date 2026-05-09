@@ -600,7 +600,7 @@ suspend fun callModerationApi(
 ): Pair<List<ModerationInputResult>?, ModerationApiResult> {
     val start = System.currentTimeMillis()
     return when (provider.id) {
-        "MISTRAL" -> callMistralModeration(apiKey, model, inputs, start)
+        "Mistral" -> callMistralModeration(apiKey, model, inputs, start)
         else -> {
             val err = ModerationApiResult(
                 content = null,

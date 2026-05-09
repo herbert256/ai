@@ -438,7 +438,7 @@ fun AppNavHost(
             val uiState by appViewModel.uiState.collectAsState()
             UsageScreen(
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
-                    AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                    AppService.findById("OpenRouter")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
@@ -477,7 +477,7 @@ fun AppNavHost(
                 // catalog-lookup key — and fall back to the provider key
                 // for users who only ever used OpenRouter as a chat host.
                 val orKey = uiState.generalSettings.openRouterApiKey.ifBlank {
-                    AppService.findById("OPENROUTER")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                    AppService.findById("OpenRouter")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 }
                 ModelInfoScreen(provider = provider, modelName = model,
                     openRouterApiKey = orKey,
