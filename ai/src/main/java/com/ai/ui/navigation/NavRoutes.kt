@@ -43,8 +43,6 @@ object NavRoutes {
     const val AI_IMPORT_EXPORT = "ai_import_export"
     const val AI_TRIM_BY_AGE = "ai_trim_by_age"
     const val AI_USAGE_STATISTICS = "ai_usage_statistics"
-    const val AI_MANUAL_COST_OVERRIDES = "ai_manual_cost_overrides"
-    const val AI_INTERNAL_PROMPTS_ADMIN = "ai_internal_prompts_admin"
     const val AI_RESET = "ai_reset"
     const val AI_REFRESH = "ai_refresh"
     const val AI_PROVIDER_ADMIN = "ai_provider_admin"

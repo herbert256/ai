@@ -771,8 +771,6 @@ fun AppNavHost(
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
                 onNavigateToUsageStatistics = { navController.navigate(NavRoutes.AI_USAGE_STATISTICS) },
-                onNavigateToManualCostOverrides = { navController.navigate(NavRoutes.AI_MANUAL_COST_OVERRIDES) },
-                onNavigateToInternalPrompts = { navController.navigate(NavRoutes.AI_INTERNAL_PROMPTS_ADMIN) },
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) }
             )
         }
@@ -791,23 +789,6 @@ fun AppNavHost(
         composable(NavRoutes.AI_USAGE_STATISTICS) {
             com.ai.ui.admin.UsageStatisticsScreen(
                 onClearUsageStatistics = { appViewModel.clearUsageStatistics() },
-                onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
-            )
-        }
-        composable(NavRoutes.AI_MANUAL_COST_OVERRIDES) {
-            val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.admin.ManualCostOverridesScreen(
-                aiSettings = uiState.aiSettings,
-                onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
-            )
-        }
-        composable(NavRoutes.AI_INTERNAL_PROMPTS_ADMIN) {
-            com.ai.ui.admin.PromptsAdminScreen(
-                onLoadBundledPrompts = { appViewModel.loadBundledInternalPrompts() },
-                onResetBundledPrompts = { appViewModel.resetInternalPromptsFromAssets() },
-                onLoadBundledExamples = { appViewModel.loadBundledExamplePrompts() },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -1010,6 +991,9 @@ fun SettingsScreenNav(
         onSaveArtificialAnalysisApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(artificialAnalysisApiKey = it)) },
         onNavigateToCostConfig = onNavigateToCostConfig,
         onNavigateToProviderAdmin = onNavigateToProviderAdmin,
+        onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
+        onResetBundledPrompts = { viewModel.resetInternalPromptsFromAssets() },
+        onLoadBundledExamples = { viewModel.loadBundledExamplePrompts() },
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,

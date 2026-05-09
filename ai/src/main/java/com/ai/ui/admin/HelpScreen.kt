@@ -1200,13 +1200,14 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "setup_prompts" to HelpContent(
         title = "Prompt management (setup)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Three cards: System Prompts (free-form reusable text), Internal Prompts (templated, category-scoped — Meta/Fan-out/Fan-in/Other), and Example prompts (curated title/text starters with no app-feature semantics)."),
+            HelpCard("Overview", "Three NavCards (System Prompts, Internal Prompts, Example prompts) plus two maintenance cards lifted from the former Housekeeping → Prompts screen."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Fan-out / Fan-in / Other. Count = total across all four categories."),
             HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
+            HelpCard("Internal prompts maintenance", "Load merges any (category, name) pair missing from assets/prompts.json — existing rows keep your edits. Reset wipes every Internal prompt and reloads the bundled set fresh; confirmation dialog gates it."),
+            HelpCard("Example prompts maintenance", "Adds any prompt in assets/examples.json whose title (case-insensitive) is missing. Existing prompts are NEVER overwritten — there is no Reset for examples."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
-            HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not."),
-            HelpCard("Related", "Housekeeping → Prompts → \"Load new prompts from assets/prompts.json\" / \"Add new prompts from assets/examples.json\" merge bundled rows missing from your set.")
+            HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not. Internal-prompt Reset is destructive; Backup & Restore is the only undo.")
         )
     ),
     "setup_local_models" to HelpContent(
@@ -1224,7 +1225,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Housekeeping",
         cards = listOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ for the per-screen detail."),
-            HelpCard("The eight rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Manual cost overrides · Prompts · Reset. Order is roughly safe → destructive."),
+            HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear all runtime data, and Clear all configuration are not undoable."),
             HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
         )
@@ -1257,30 +1258,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
             HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
             HelpCard("Related", "AI Usage screen (cost / tokens dashboard) reads exactly the data this button wipes.")
-        )
-    ),
-    "manual_cost_overrides" to HelpContent(
-        title = "Manual cost overrides",
-        cards = listOf(
-            HelpCard("Overview", "Two cards. Cleanup prunes redundant manual overrides; Layered costs is the bulk-edit CSV path that lets you set new overrides en masse."),
-            HelpCard("Cleanup", "Drops every override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
-            HelpCard("Layered costs · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default)."),
-            HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
-            HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored — the toast counts only rows the user intended to write."),
-            HelpCard("Tips", "Manual override sits AFTER LiteLLM / models.dev / curated tiers in the lookup precedence — if a tier already has a price, your override may not actually win. Use Cleanup to drop those redundant entries."),
-            HelpCard("Pitfalls", "The CSV importer skips malformed rows silently (toast just says \"Imported N, skipped M\"). Provider matching is case-sensitive on the provider id."),
-            HelpCard("Related", "Cost Config (Settings → Costs) is the single-row form. Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
-        )
-    ),
-    "prompts_admin" to HelpContent(
-        title = "Prompts (admin)",
-        cards = listOf(
-            HelpCard("Overview", "Bundled-asset maintenance for the two prompt families. Internal prompts (assets/prompts.json) drive app features — Meta, Fan-out, Fan-in, Other internal templates with placeholders. Example prompts (assets/examples.json) are user-curated (title, text) starters with no app-feature semantics."),
-            HelpCard("Internal prompts", "Two indigo / red buttons. Load merges any prompt in assets/prompts.json whose (category, name) pair is missing — existing rows keep your edits. Reset wipes every Internal prompt and reloads the bundled set fresh; confirmation dialog gates it."),
-            HelpCard("Example prompts", "One indigo button. Adds any prompt in assets/examples.json whose title (case-insensitive) is missing. Existing prompts (including ones you authored) are NEVER overwritten — there is no Reset for examples."),
-            HelpCard("Tips", "Internal Prompts are name-and-category referenced by app features (Meta button, Fan-out drill-in, Translate, Model info) — Reset is safe because lookups by name resolve against the freshly loaded set. Example prompts have no such references."),
-            HelpCard("Pitfalls", "Internal prompts Reset is destructive — there's no undo. Backup & Restore is the only path back if you've lost edits."),
-            HelpCard("Related", "Settings → Prompts → Internal Prompts is the per-row Internal CRUD; Settings → Prompts → Example prompts is the per-row Example CRUD.")
         )
     ),
     "example_prompt_edit" to HelpContent(
@@ -1320,12 +1297,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "cost_config" to HelpContent(
         title = "Cost Config",
         cards = listOf(
-            HelpCard("Overview", "Manual price-override list. Top button \"Add Manual Override\" opens AddManualOverrideScreen as a full-screen overlay. Empty state shows the lookup precedence (LiteLLM > OpenRouter > Default) — manual overrides slot into that chain after curated tiers."),
+            HelpCard("Overview", "Per-row Add Manual Override at the top, then a Cleanup card and a Layered costs card lifted from the former Housekeeping → Manual cost overrides screen, then the list of every manual override currently configured."),
+            HelpCard("Add Manual Override", "Green button — opens AddManualOverrideScreen as a full-screen overlay. The single-row form."),
+            HelpCard("Cleanup", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
+            HelpCard("Layered costs · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order."),
+            HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
+            HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
-            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter fan out-provider fallback → Helicone → DEFAULT."),
+            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
-            HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Use Housekeeping → Manual cost overrides cleanup to drop redundant entries."),
-            HelpCard("Related", "Export/Import → Layered costs CSV is the bulk-edit path; Add Manual Override is the single-row form.")
+            HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Cleanup drops those redundant entries."),
+            HelpCard("Related", "Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
         )
     ),
     "cost_override" to HelpContent(

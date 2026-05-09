@@ -22,8 +22,6 @@ fun HousekeepingScreen(
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
     onNavigateToUsageStatistics: () -> Unit = {},
-    onNavigateToManualCostOverrides: () -> Unit = {},
-    onNavigateToInternalPrompts: () -> Unit = {},
     onNavigateToReset: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
@@ -37,8 +35,6 @@ fun HousekeepingScreen(
             NavCard("Refresh", onClick = onNavigateToRefresh)
             NavCard("Trim by age", onClick = onNavigateToTrimByAge)
             NavCard("Usage statistics", onClick = onNavigateToUsageStatistics)
-            NavCard("Manual cost overrides", onClick = onNavigateToManualCostOverrides)
-            NavCard("Prompts", onClick = onNavigateToInternalPrompts)
             NavCard("Reset", onClick = onNavigateToReset)
         }
     }

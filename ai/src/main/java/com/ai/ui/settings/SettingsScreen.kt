@@ -69,6 +69,9 @@ fun SettingsScreen(
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onLoadBundledPrompts: () -> Int = { 0 },
+    onResetBundledPrompts: () -> Int = { 0 },
+    onLoadBundledExamples: () -> Int = { 0 },
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -306,7 +309,10 @@ fun SettingsScreen(
             PromptsSetupScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it }
+                onNavigate = { currentSubScreen = it },
+                onLoadBundledPrompts = onLoadBundledPrompts,
+                onResetBundledPrompts = onResetBundledPrompts,
+                onLoadBundledExamples = onLoadBundledExamples
             )
         }
         SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> {

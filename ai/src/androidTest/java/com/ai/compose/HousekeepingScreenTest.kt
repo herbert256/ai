@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 class HousekeepingScreenTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test fun renders_title_and_all_eight_navcards() {
+    @Test fun renders_title_and_all_six_navcards() {
         rule.setContent { MaterialTheme { HousekeepingScreen(onBackToHome = {}) } }
 
         rule.onNodeWithText("Housekeeping").assertIsDisplayed()
@@ -30,8 +30,6 @@ class HousekeepingScreenTest {
         rule.onNodeWithText("Refresh").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Trim by age").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Usage statistics").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Manual cost overrides").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Prompts").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Reset").performScrollTo().assertIsDisplayed()
     }
 }
