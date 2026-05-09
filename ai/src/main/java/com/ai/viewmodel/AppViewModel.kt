@@ -62,7 +62,16 @@ data class GeneralSettings(
      *  run, Agent result, …) folds the dynamic subject into the
      *  title bar and drops the green line. Default false preserves
      *  the legacy two-row layout. Provided via LocalSubjectToTitleBar. */
-    val subjectToTitleBar: Boolean = false
+    val subjectToTitleBar: Boolean = false,
+    /** Whether the AI Knowledge card appears on the home Hub. Default
+     *  false — Knowledge / RAG is an advanced flow that most users
+     *  don't need; hiding it on a fresh install keeps the Hub
+     *  approachable. Surfaces a toggle under Settings → "Show AI
+     *  Knowledge card on home page" once a user wants it. The
+     *  Knowledge subsystem itself stays fully functional whether or
+     *  not the card is visible — KBs attached to a chat / report
+     *  still work, share-target Knowledge ingest still works. */
+    val showKnowledgeCard: Boolean = false
 )
 
 // Prompt history entry

@@ -113,8 +113,10 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub, enabled = hasAnyAgent)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
-            Spacer(modifier = Modifier.height(12.dp))
+            if (uiState.generalSettings.showKnowledgeCard) {
+                HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch, enabled = hasAnyAgent)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage, enabled = hasStatisticsData)

@@ -590,12 +590,14 @@ private fun SettingsMainScreen(
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
     var subjectToTitleBar by remember { mutableStateOf(generalSettings.subjectToTitleBar) }
+    var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar, showKnowledgeCard) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-            showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar
+            showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+            showKnowledgeCard = showKnowledgeCard
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -616,7 +618,8 @@ private fun SettingsMainScreen(
             val updated = generalSettings.copy(
                 userName = userName, defaultEmail = defaultEmail,
                 tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-                showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar
+                showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+                showKnowledgeCard = showKnowledgeCard
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -698,6 +701,19 @@ private fun SettingsMainScreen(
                 description = "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
                 checked = showBackButton,
                 onCheckedChange = { showBackButton = it }
+            )
+
+            // The Knowledge / RAG flow is hidden by default — most
+            // users don't need it on a fresh install. Turning the
+            // toggle on surfaces the AI Knowledge card on the home
+            // Hub. The subsystem itself stays functional whether or
+            // not the card shows (KBs still attach to chats /
+            // reports; share-target Knowledge still works).
+            ToggleSettingCard(
+                title = "Show AI Knowledge card on home page",
+                description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
+                checked = showKnowledgeCard,
+                onCheckedChange = { showKnowledgeCard = it }
             )
         }
     }
