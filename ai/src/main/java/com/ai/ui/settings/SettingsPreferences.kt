@@ -170,8 +170,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 modelPricing = modelPricing,
                 modelCapabilities = modelCapabilities,
                 modelListRawJson = modelListRawJson,
-                adminUrl = prefs.getString("${key}_admin_url", service.adminUrl) ?: service.adminUrl,
-                modelListUrl = prefs.getString("${key}_model_list_url", "") ?: "",
                 parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
             )
         }
@@ -216,8 +214,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 // Raw /models response — kept verbatim so a later parser
                 // revision can pull out new fields without forcing a refetch.
                 putString("${key}_models_response_raw", config.modelListRawJson)
-                putString("${key}_admin_url", config.adminUrl)
-                putString("${key}_model_list_url", config.modelListUrl)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
             }
             putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
@@ -230,6 +226,52 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
         }
+    }
+
+    /** One-shot migration of legacy per-provider override prefs into
+     *  the catalog ([com.ai.data.ProviderRegistry]). Pre-refactor builds
+     *  stored a user-edited Admin URL under "${prefsKey}_admin_url" in
+     *  this prefs file and a custom Model-list URL under
+     *  "${prefsKey}_model_list_url". Both layered on top of the
+     *  bundled-asset values at read time. The refactor moved Admin URL
+     *  edits into the catalog (`AppService.adminUrl` via
+     *  `ProviderRegistry.update`) and dropped Model-list URL entirely
+     *  (it had no consumer in dispatch).
+     *
+     *  Returns the count of migrations performed (0 when nothing legacy
+     *  is present — the typical path on a fresh install or any restart
+     *  past the first). Callers: [com.ai.data.BackupManager.restore]
+     *  invokes after the prefs commit, and [com.ai.viewmodel.AppViewModel]
+     *  invokes once at startup to cover in-place upgrades.
+     *
+     *  Idempotent: removes the legacy keys after migration so subsequent
+     *  invocations are no-ops. */
+    fun migrateLegacyProviderOverrides(): Int {
+        var migrated = 0
+        prefs.edit {
+            for (service in AppService.entries) {
+                val key = service.prefsKey
+                val legacyAdmin = prefs.getString("${key}_admin_url", null)
+                if (!legacyAdmin.isNullOrBlank() && legacyAdmin != service.adminUrl) {
+                    val updated = com.ai.data.ProviderDefinition.fromAppService(service)
+                        .copy(adminUrl = legacyAdmin)
+                        .toAppService()
+                    com.ai.data.ProviderRegistry.update(updated)
+                    android.util.Log.i("SettingsPreferences",
+                        "Migrated legacy adminUrl override for ${service.id}: $legacyAdmin")
+                    migrated++
+                }
+                if (legacyAdmin != null) remove("${key}_admin_url")
+                val legacyModelList = prefs.getString("${key}_model_list_url", null)
+                if (!legacyModelList.isNullOrBlank()) {
+                    android.util.Log.w("SettingsPreferences",
+                        "Dropping legacy modelListUrl override for ${service.id}: $legacyModelList " +
+                            "(no equivalent in unified schema; edit modelsPath in the provider catalog if a custom endpoint is needed)")
+                }
+                if (legacyModelList != null) remove("${key}_model_list_url")
+            }
+        }
+        return migrated
     }
 
     fun saveModelsForProvider(

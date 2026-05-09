@@ -272,6 +272,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ProviderRegistry.init(application)
         PromptCache.init(application)
 
+        // One-shot migration of legacy per-provider Admin URL overrides
+        // ("${prefsKey}_admin_url" + "${prefsKey}_model_list_url" in
+        // the main prefs) into the catalog (ProviderRegistry). Pre-
+        // refactor builds stored these as a separate override layer
+        // that shadowed the catalog at read time. The migrate helper
+        // is idempotent: subsequent runs find no legacy keys and
+        // return 0. Runs before loadSettingsWithMigration so the
+        // resulting Settings object never sees the legacy fields.
+        val migrated = settingsPrefs.migrateLegacyProviderOverrides()
+        if (migrated > 0) {
+            android.util.Log.i("AppViewModel",
+                "Startup migrated $migrated legacy adminUrl override(s) into ProviderRegistry")
+        }
+
         var gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettingsWithMigration()
 

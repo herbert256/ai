@@ -11,7 +11,16 @@ data class ProviderConfigExport(
     val models: List<String>,
     val apiKey: String = "",
     val defaultModel: String? = null,
+    /** Legacy override layer (pre-v24). The runtime ProviderConfig
+     *  used to carry an Admin URL override that shadowed the catalog
+     *  value; v24+ moves all Admin URL editing into the catalog. The
+     *  field stays here as a nullable input so old export bundles
+     *  still parse — the importer migrates a non-null value into the
+     *  catalog via [com.ai.data.ProviderRegistry.update]. */
     val adminUrl: String? = null,
+    /** Legacy override layer (pre-v24). modelListUrl had no consumer
+     *  in dispatch and is dropped from the data model in v24. The
+     *  importer logs and discards a non-null value. */
     val modelListUrl: String? = null,
     val parametersIds: List<String>? = null,
     val modelTypes: Map<String, String>? = null,
@@ -19,6 +28,10 @@ data class ProviderConfigExport(
     val webSearchModels: List<String>? = null,
     val displayName: String? = null,
     val baseUrl: String? = null,
+    /** Catalog Admin URL — v24+ exports carry the unified value here.
+     *  Pre-v24 exports populate [adminUrl] (the override field) but
+     *  not this one; the importer falls back accordingly. */
+    val catalogAdminUrl: String? = null,
     val apiFormat: String? = null,
     val chatPath: String? = null,
     val typePaths: Map<String, String>? = null,

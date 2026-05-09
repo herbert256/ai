@@ -206,6 +206,22 @@ object BackupManager {
             // committing prefs and would leave an inconsistent
             // half-restored state pointing at nothing.
             val prefsRestored = applyPrefsOnly(context, staged)
+            // Pre-refactor backups carry per-provider Admin URL overrides
+            // under "${prefsKey}_admin_url" in the main prefs (and a now-
+            // useless modelListUrl override under "${prefsKey}_model_list_url").
+            // Migrate the override values into the catalog
+            // (ProviderRegistry) so the user lands on the same effective
+            // configuration they had at backup time, then drop the keys.
+            // No-op on backups already in the unified shape.
+            run {
+                val mainPrefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
+                val migrated = SettingsPreferences(mainPrefs, context.filesDir)
+                    .migrateLegacyProviderOverrides()
+                if (migrated > 0) {
+                    android.util.Log.i("BackupManager",
+                        "Restore migrated $migrated legacy adminUrl override(s) into ProviderRegistry")
+                }
+            }
             clearFilesDirForRestore(context.filesDir)
             // Wipe cacheDir too, but preserve the temp zip we're
             // currently restoring from — deleting it mid-restore would

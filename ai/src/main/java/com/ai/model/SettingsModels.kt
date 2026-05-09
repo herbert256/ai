@@ -60,8 +60,6 @@ data class ProviderConfig(
      *  recomposition. Populated by [Settings.recomputeCapabilities] and
      *  refreshed alongside the capability sets after a catalog refresh. */
     val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = emptyMap(),
-    val adminUrl: String = "",
-    val modelListUrl: String = "",
     val parametersIds: List<String> = emptyList()
 )
 
@@ -70,7 +68,7 @@ fun defaultProviderConfig(service: AppService): ProviderConfig {
     val defaultModelSource = service.defaultModelSource?.let {
         try { ModelSource.valueOf(it) } catch (_: IllegalArgumentException) { null }
     } ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
-    return ProviderConfig(model = service.defaultModel, modelSource = defaultModelSource, models = defaultModels, adminUrl = service.adminUrl)
+    return ProviderConfig(model = service.defaultModel, modelSource = defaultModelSource, models = defaultModels)
 }
 
 fun defaultProvidersMap(): Map<AppService, ProviderConfig> = AppService.entries.associateWith { defaultProviderConfig(it) }
@@ -631,16 +629,6 @@ data class Settings(
             if (it.agent == agentId) it.copy(agent = "*select") else it
         }
     )
-
-    fun getModelListUrl(service: AppService) = getProvider(service).modelListUrl
-    fun getDefaultModelListUrl(service: AppService): String {
-        val base = if (service.baseUrl.endsWith("/")) service.baseUrl else "${service.baseUrl}/"
-        return base + service.modelsPath
-    }
-    fun getEffectiveModelListUrl(service: AppService): String {
-        val custom = getModelListUrl(service)
-        return if (custom.isNotBlank()) custom else getDefaultModelListUrl(service)
-    }
 
     fun getParametersIds(service: AppService) = getProvider(service).parametersIds
     fun withParametersIds(service: AppService, paramsIds: List<String>) = withProvider(service, getProvider(service).copy(parametersIds = paramsIds))

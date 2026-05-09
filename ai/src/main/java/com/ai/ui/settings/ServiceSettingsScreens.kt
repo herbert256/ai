@@ -542,8 +542,6 @@ fun ProviderSettingsScreen(
     val config = aiSettings.getProvider(service)
     var apiKey by remember { mutableStateOf(config.apiKey) }
     var defaultModel by remember { mutableStateOf(config.model) }
-    var adminUrl by remember { mutableStateOf(config.adminUrl) }
-    var modelListUrl by remember { mutableStateOf(config.modelListUrl) }
     var selectedParametersIds by remember { mutableStateOf(config.parametersIds) }
     var isInactive by remember { mutableStateOf(aiSettings.getProviderState(service) == "inactive") }
     var isTesting by remember { mutableStateOf(false) }
@@ -654,11 +652,11 @@ fun ProviderSettingsScreen(
     // Models sub-screen and preserved via copy() of the current config. The default agent
     // named after the provider is now managed by the explicit activate / deactivate /
     // change-default-model flows, not from this auto-save.
-    LaunchedEffect(apiKey, defaultModel, adminUrl, modelListUrl, selectedParametersIds) {
+    LaunchedEffect(apiKey, defaultModel, selectedParametersIds) {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
-            apiKey = apiKey, model = defaultModel, adminUrl = adminUrl,
-            modelListUrl = modelListUrl, parametersIds = selectedParametersIds
+            apiKey = apiKey, model = defaultModel,
+            parametersIds = selectedParametersIds
         )
         if (updated == current) return@LaunchedEffect
         onSave(aiSettings.withProvider(service, updated))
@@ -888,20 +886,6 @@ fun ProviderSettingsScreen(
                     }
                     Text(">", fontSize = 16.sp, color = AppColors.Blue)
                 }
-            }
-
-            // Per-config overrides — these stay in the user's runtime ProviderConfig.
-            CollapsibleCard(title = "Advanced (per-config overrides)", summary = null) {
-                OutlinedTextField(
-                    value = modelListUrl, onValueChange = { modelListUrl = it },
-                    label = { Text("Custom model list URL") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-                OutlinedTextField(
-                    value = adminUrl, onValueChange = { adminUrl = it },
-                    label = { Text("Admin URL (override)") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
             }
 
             // ===== Provider definition (catalog) =====

@@ -19,7 +19,7 @@ private val gson = createAppGson()
 // ===== Import Functions =====
 
 /**
- * Import AI configuration from a file URI. Accepts versions 11-23.
+ * Import AI configuration from a file URI. Accepts versions 11-24.
  */
 fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings): ConfigImportResult? {
     return try {
@@ -29,8 +29,8 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings
         val json = BufferedReader(InputStreamReader(inputStream)).use { it.readText() }
         if (json.isBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return null }
         val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..23) {
-            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-23.", Toast.LENGTH_LONG).show(); return null
+        if (export.version !in 11..24) {
+            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-24.", Toast.LENGTH_LONG).show(); return null
         }
         processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
@@ -41,14 +41,14 @@ fun importAiConfigFromFile(context: Context, uri: Uri, currentSettings: Settings
 }
 
 /**
- * Import AI configuration from clipboard JSON text. Accepts versions 11-23.
+ * Import AI configuration from clipboard JSON text. Accepts versions 11-24.
  */
 fun importAiConfigFromClipboard(context: Context, json: String, currentSettings: Settings): ConfigImportResult? {
     return try {
         if (json.isBlank()) { Toast.makeText(context, "Clipboard is empty", Toast.LENGTH_SHORT).show(); return null }
         val export = gson.fromJson(json, ConfigExport::class.java)
-        if (export.version !in 11..23) {
-            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-23.", Toast.LENGTH_LONG).show(); return null
+        if (export.version !in 11..24) {
+            Toast.makeText(context, "Unsupported version: ${export.version}. Expected 11-24.", Toast.LENGTH_LONG).show(); return null
         }
         processImportedConfig(context, export, currentSettings)
     } catch (e: JsonSyntaxException) {
@@ -71,20 +71,26 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
         val config = settings.getProvider(service)
         providerExports[service.id] = ProviderConfigExport(
             modelSource = config.modelSource.name, models = config.models,
-            apiKey = "", defaultModel = config.model, adminUrl = config.adminUrl,
-            modelListUrl = config.modelListUrl, parametersIds = config.parametersIds.ifEmpty { null },
+            apiKey = "", defaultModel = config.model,
+            // adminUrl now flows out via the catalog section below
+            // (`displayName, baseUrl, adminUrl, …`). modelListUrl is
+            // dropped from the schema entirely — it had no consumer in
+            // dispatch and is now removed from the data model.
+            adminUrl = null, modelListUrl = null,
+            parametersIds = config.parametersIds.ifEmpty { null },
             modelTypes = config.modelTypes.takeIf { it.isNotEmpty() },
             visionModels = config.visionModels.toList().ifEmpty { null },
             webSearchModels = config.webSearchModels.toList().ifEmpty { null },
             displayName = service.displayName, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name,
             typePaths = service.typePaths.takeIf { it.isNotEmpty() },
-            modelsPath = service.modelsPath, openRouterName = service.openRouterName
+            modelsPath = service.modelsPath, openRouterName = service.openRouterName,
+            catalogAdminUrl = service.adminUrl
         )
     }
 
     val export = ConfigExport(
-        version = 23, providers = providerExports,
+        version = 24, providers = providerExports,
         agents = settings.agents.map { AgentExport(it.id, it.name, it.provider.id, it.model, "", it.paramsIds.ifEmpty { null }, it.endpointId, it.systemPromptId) },
         flocks = settings.flocks.ifEmpty { null }?.map { FlockExport(it.id, it.name, it.agentIds, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
         swarms = settings.swarms.ifEmpty { null }?.map { SwarmExport(it.id, it.name, it.members.map { m -> SwarmMemberExport(m.provider.id, m.model) }, it.paramsIds.ifEmpty { null }, it.systemPromptId) },
@@ -193,10 +199,29 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
             modelTypes = p.modelTypes ?: cur.modelTypes,
             visionModels = p.visionModels?.toSet() ?: cur.visionModels,
             webSearchModels = p.webSearchModels?.toSet() ?: cur.webSearchModels,
-            adminUrl = p.adminUrl ?: cur.adminUrl, modelListUrl = p.modelListUrl ?: "",
             parametersIds = p.parametersIds ?: cur.parametersIds
         )
         settings = settings.withProvider(service, importedConfig)
+        // Migrate legacy override fields into the catalog. Pre-v24
+        // exports stored the user's per-config Admin URL override on
+        // ProviderConfig.adminUrl; that field is gone from the data
+        // model. Apply the value to the catalog (ProviderRegistry)
+        // instead, but only if it actually differs from what we already
+        // ship — same semantic the runtime read-path used to honour.
+        // v24+ exports carry the catalog admin URL in catalogAdminUrl;
+        // honour that if present.
+        val catalogAdmin = p.catalogAdminUrl ?: p.adminUrl
+        if (!catalogAdmin.isNullOrBlank() && catalogAdmin != service.adminUrl) {
+            val updated = com.ai.data.ProviderDefinition.fromAppService(service)
+                .copy(adminUrl = catalogAdmin)
+                .toAppService()
+            com.ai.data.ProviderRegistry.update(updated)
+        }
+        if (!p.modelListUrl.isNullOrBlank()) {
+            android.util.Log.w("SettingsExport",
+                "Dropping legacy modelListUrl import for ${service.id}: ${p.modelListUrl} " +
+                    "(no equivalent in unified schema; edit modelsPath in the provider catalog if a custom endpoint is needed)")
+        }
     }
 
     export.manualPricing?.let { pricingList ->

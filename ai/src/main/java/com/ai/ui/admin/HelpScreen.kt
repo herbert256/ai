@@ -1376,8 +1376,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tap behavior", "Fires Intent.ACTION_VIEW with the URL. Toast on missing URL or browser-launch exception."),
             HelpCard("Title bar", "helpTopic=provider_admin. Plain back."),
             HelpCard("Tips", "Reached from AI Setup → Providers → Provider administration."),
-            HelpCard("Pitfalls", "Admin URL is part of the catalog — if it's wrong / missing for a custom provider, edit it under Provider edit → Definition · Basics."),
-            HelpCard("Related", "Provider edit's per-config Admin URL override field shadows the catalog Admin URL — that's the value used on the per-provider screens, but this admin screen reads provider.adminUrl directly from the catalog.")
+            HelpCard("Pitfalls", "Admin URL is part of the catalog — if it's wrong / missing for a custom provider, edit it under Provider edit → Definition · Basics. Edits to that field flow into the catalog directly; there is no longer a separate per-config override layer.")
         )
     )
 
