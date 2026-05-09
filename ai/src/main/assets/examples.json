@@ -1,22 +1,18 @@
 [
   {
-    "title": "Explain a concept simply",
-    "text": "Explain @TOPIC@ as if you were teaching a curious 12-year-old. Use one short analogy, then list the three things people most often get wrong about it."
+    "title": "Who are you",
+    "text": "Please tell me who you are. In one paragraph, max 3 sentences."
   },
   {
-    "title": "Pros and cons table",
-    "text": "Give me a markdown table comparing the pros and cons of @OPTION_A@ versus @OPTION_B@. Five rows. End with a one-sentence recommendation noting which trade-off matters most."
+    "title": "Free day in Ruurlo",
+    "text": "Please suggest what I can do tomorrow, I'm free from work and have a whole day to spend. It will be a sunny day! I live in the east of The Netherlands, my town is Ruurlo. I can cycle 50 km (round trip). I like good food and beer. I'm not very sporty. I do not like talking to strangers. Make a complete plan with concrete times. Provide a cost indication for each activity."
   },
   {
-    "title": "Code review",
-    "text": "Review the following code for correctness, security, and clarity. Quote each issue with a line range, explain why it matters, and suggest the smallest change that fixes it. End with a one-paragraph overall verdict.\n\n```\n@CODE@\n```"
+    "title": "Car wash",
+    "text": "I want to wash my car and the car wash is 50 meters away. Should I walk or drive?"
   },
   {
-    "title": "Summarise long text",
-    "text": "Summarise the text below in three layers: a one-sentence headline, a 100-word abstract, and a five-bullet executive summary. Preserve any numbers and proper nouns verbatim.\n\n@TEXT@"
-  },
-  {
-    "title": "Brainstorm alternatives",
-    "text": "I'm currently planning to @PLAN@. Brainstorm five alternative approaches I haven't considered. For each: a one-line description, the strongest argument for, and the strongest argument against."
+    "title": "Chess questions",
+    "text": "For a game, please give 10 facts about chess in a numbered list. No intro text or answers, just the 10 facts.\n\n2 facts must be clearly right.\n2 facts must be clearly wrong.\n1 fact must be right but look wrong on first sight.\n1 fact must be wrong but look right on first sight.\n2 facts must be right but be difficult.\n2 facts must be wrong but be difficult.\n\nThe 10 facts must appear in random order in the list.\n\nNumber the 10 facts from 1 to 10."
   }
 ]
