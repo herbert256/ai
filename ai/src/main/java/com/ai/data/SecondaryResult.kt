@@ -553,7 +553,7 @@ suspend fun callRerankApi(
 ): RerankApiResult {
     val start = System.currentTimeMillis()
     return when (provider.id) {
-        "COHERE" -> callCohereRerank(apiKey, model, query, documents, start)
+        "Cohere" -> callCohereRerank(apiKey, model, query, documents, start)
         else -> RerankApiResult(
             content = null,
             errorMessage = "Rerank API not wired for provider ${provider.id}. Pick a chat model instead, or open an issue to add ${provider.id} rerank support.",
