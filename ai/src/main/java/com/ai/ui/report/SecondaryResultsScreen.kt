@@ -61,6 +61,10 @@ internal fun SecondaryResultsScreen(
      *  sub-buttons inside the "Create a model fan in report"
      *  expandable on L2. */
     onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
+    /** Promote the L2 active model's fan-out conversation into a
+     *  fresh AI Report. Wired by the "Create Report" button next to
+     *  "Switch role" on the L2 header. */
+    onCreateReportFromFanOut: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant — fires off all deletes at once on Dispatchers.IO
      *  rather than calling onDelete() in a tight main-thread loop.
@@ -342,6 +346,7 @@ internal fun SecondaryResultsScreen(
                 runningFanOutPairs = runningFanOutPairs,
                 onRunFanIn = onRunFanIn,
                 onRunModelFanInForCategory = onRunModelFanInForCategory,
+                onCreateReportFromFanOut = onCreateReportFromFanOut,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
                 onOpen = { id -> openId = id },
@@ -523,6 +528,9 @@ private fun ColumnScope.FanOutDrillInView(
     runningFanOutPairs: Set<String> = emptySet(),
     onRunFanIn: (() -> Unit)? = null,
     onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
+    /** Promote the L2 active model's fan-out conversation into a
+     *  fresh AI Report. */
+    onCreateReportFromFanOut: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant for the per-fan out delete sweep. */
     onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
@@ -1011,6 +1019,21 @@ private fun ColumnScope.FanOutDrillInView(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            // Promote the L2 conversation into a fresh AI Report.
+            // Disabled when active model has no fan-out rows where it
+            // is the source — those rows become the new report's
+            // agents, so without them there's nothing to copy.
+            val hasInitiatorRows = remember(latestByPair, activeAgentIds) {
+                latestByPair.values.any { it.fanOutSourceAgentId in activeAgentIds }
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Button(
+                onClick = { onCreateReportFromFanOut?.invoke(activePid, activeMdl) },
+                enabled = onCreateReportFromFanOut != null && hasInitiatorRows,
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 32.dp)
+            ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
         // Per-model total cost across the per-pair rows. Memoised so

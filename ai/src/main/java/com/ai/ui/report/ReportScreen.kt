@@ -115,6 +115,16 @@ fun ReportsScreenNav(
         onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, cat ->
             reportViewModel.runModelFanInPrompt(scope, context, reportId, metaPrompt, pick, activePid, activeMdl, cat)
         },
+        onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
+            scope.launch {
+                val newId = reportViewModel.createReportFromFanOut(context, sourceRid, activePid, activeMdl)
+                    ?: return@launch
+                // Already on AI_REPORTS; restoreCompletedReport flips
+                // UiState (showGenericReportsDialog + currentReportId)
+                // so the result screen recomposes with the new report.
+                reportViewModel.restoreCompletedReport(context, newId)
+            }
+        },
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(scope, context, reportId, modelName)
         },
@@ -298,6 +308,11 @@ fun ReportsScreen(
      *  model, active provider id (the L2 page's), active model name,
      *  category (initiator / requester / model). */
     onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
+    /** Promote the L2 active model's fan-out conversation into a
+     *  fresh AI Report. Args: source reportId, active provider id,
+     *  active model. The new report's id is built inside the
+     *  ReportViewModel; this lambda navigates after the save. */
+    onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
@@ -1280,6 +1295,14 @@ fun ReportsScreen(
                 // category (skips the picker step, mirroring the
                 // legacy fan_in single-prompt behaviour).
                 if (list.size == 1) modelFanInPickerPrompt = list.first()
+            },
+            onCreateReportFromFanOut = { activePid, activeMdl ->
+                // Drop the L1/L2 overlay state before the parent flips
+                // currentReportId — otherwise the new report would
+                // briefly render its (empty) META L2 view instead of
+                // the result page.
+                listKind = null; listFilterByName = null
+                onCreateReportFromFanOut(rid, activePid, activeMdl)
             },
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
             onBulkDelete = { ids ->

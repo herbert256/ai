@@ -1627,6 +1627,83 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Build a fresh AI Report from the L2 active model's fan-out
+     *  conversation. Promotes "active model said X, the others
+     *  responded" into a standalone report:
+     *
+     *  - prompt = active model's report response on the source
+     *    report (verbatim)
+     *  - title  = "From: <orig title> · <provider> / <model>"
+     *  - agents = one synthesised [ReportAgent] per fan-out row
+     *    where active is the source (i.e. fanOutSourceAgentId in
+     *    activeAgentIds). Carries the answerer's body, error,
+     *    tokens, cost, and durationMs straight through so the
+     *    new result page reads like a normal completed report.
+     *
+     *  Buckets per (other-provider, other-model, source-agent),
+     *  keeping the latest row — same dedup the L2 page uses for
+     *  its on-screen list, so retries don't pile up.
+     *
+     *  Returns the new report id on success, null when there's
+     *  nothing to copy (active agent missing / no fan-out rows /
+     *  active's responseBody blank). */
+    suspend fun createReportFromFanOut(
+        context: Context,
+        sourceReportId: String,
+        activeProviderId: String,
+        activeModel: String
+    ): String? = withContext(Dispatchers.IO) {
+        val source = ReportStorage.getReport(context, sourceReportId) ?: return@withContext null
+        val activeAgents = source.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS
+                && it.provider == activeProviderId && it.model == activeModel
+                && !it.responseBody.isNullOrBlank()
+        }
+        val active = activeAgents.firstOrNull() ?: return@withContext null
+        val activeAgentIds = activeAgents.map { it.agentId }.toHashSet()
+
+        val raw = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.META)
+            .filter { it.fanOutSourceAgentId in activeAgentIds && it.fanInOf == null }
+        val bucketed = LinkedHashMap<String, SecondaryResult>()
+        raw.sortedBy { it.timestamp }.forEach { r ->
+            bucketed["${r.providerId}|${r.model}|${r.fanOutSourceAgentId}"] = r
+        }
+        val rows = bucketed.values.toList()
+        if (rows.isEmpty()) return@withContext null
+
+        val newAgents = rows.map { row ->
+            ReportAgent(
+                agentId = java.util.UUID.randomUUID().toString(),
+                agentName = "${row.providerId} / ${row.model}",
+                provider = row.providerId,
+                model = row.model,
+                reportStatus = if (row.errorMessage != null) ReportStatus.ERROR else ReportStatus.SUCCESS,
+                responseBody = row.content,
+                errorMessage = row.errorMessage,
+                tokenUsage = row.tokenUsage,
+                cost = ((row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)).takeIf { it > 0.0 },
+                durationMs = row.durationMs
+            )
+        }
+
+        val now = System.currentTimeMillis()
+        val srcTitle = source.title.ifBlank { "AI Report" }
+        val newTitle = "From: $srcTitle · $activeProviderId / $activeModel"
+        val newReport = Report(
+            id = java.util.UUID.randomUUID().toString(),
+            timestamp = now,
+            title = newTitle,
+            prompt = active.responseBody.orEmpty(),
+            agents = newAgents.toMutableList(),
+            completedAt = now,
+            sourceReportId = sourceReportId,
+            totalCost = newAgents.mapNotNull { it.cost }.sum()
+        )
+        ReportStorage.persistReport(context, newReport)
+        newReport.id
+    }
+
     fun runMetaPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,

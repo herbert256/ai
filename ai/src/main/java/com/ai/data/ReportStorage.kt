@@ -422,6 +422,17 @@ object ReportStorage {
      *  them would double-count metas / translations on history /
      *  totals. Returns the new id, or null when [reportId] can't be
      *  loaded. */
+    /** Persist a fully-formed [Report] verbatim. Used by the
+     *  "Create Report from fan-out" flow which constructs a complete
+     *  report off-screen (prompt + ready-made agent rows) and just
+     *  needs it on disk. Caller is responsible for setting
+     *  completedAt / totalCost / sourceReportId. Mirrors the same
+     *  init + lock + saveReport pattern as [createReport]. */
+    fun persistReport(context: Context, report: Report) {
+        init(context)
+        lock.withLock { saveReport(report) }
+    }
+
     fun copyReport(context: Context, reportId: String): String? {
         init(context)
         return lock.withLock {
