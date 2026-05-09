@@ -823,6 +823,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 toRefresh.map { service ->
                     async {
                         onProgress?.invoke(service.displayName)
+                        // Clear any previous error for this provider — the
+                        // try below either succeeds (no error needed) or
+                        // catches and re-stamps a fresh one.
+                        _uiState.update { it.copy(fetchModelsErrors = it.fetchModelsErrors - service.id) }
                         try {
                             val fetched = repository.fetchModelsWithKinds(service, settings.getApiKey(service))
                             // Disk-cache the raw response for later
@@ -834,7 +838,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             val cfg = _uiState.value.aiSettings.getProvider(service)
                             settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson)
                             service to fetched.ids.size
-                        } catch (_: Exception) { service to -1 }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            // Surface the failure on UiState.fetchModelsErrors
+                            // so the model picker can show "fetch failed"
+                            // instead of presenting a stale catalog as if
+                            // it were fresh. The per-provider models on
+                            // disk are preserved (we never called
+                            // saveModelsForProvider for this provider).
+                            val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                            _uiState.update {
+                                it.copy(fetchModelsErrors = it.fetchModelsErrors + (service.id to FetchModelsError(msg, null)))
+                            }
+                            service to -1
+                        }
                     }
                 }.awaitAll()
             }

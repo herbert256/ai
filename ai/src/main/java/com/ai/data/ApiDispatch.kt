@@ -64,6 +64,21 @@ suspend fun AnalysisRepository.sendChat(
     }
 }
 
+/** Thrown by the model-list dispatchers ([fetchModelsOpenAi],
+ *  [fetchModelsAnthropic], [fetchModelsGemini]) on HTTP error or
+ *  network/parse failure. Subclasses [java.io.IOException] so existing
+ *  callers that already discriminate on IOException (the
+ *  exception-side path in AnalysisRepository.withRetry, the catch in
+ *  AppViewModel.fetchModelsAwait) treat it as a transient network
+ *  failure rather than a programming bug.
+ *
+ *  The dispatchers used to silently return FetchedModels(emptyList())
+ *  on any failure, which then flowed through fetchModelsAwait's
+ *  success path and overwrote the cached catalog with an empty list.
+ *  Throwing routes the failure to the catch + fetchModelsErrors map
+ *  so the UI can surface "fetch failed" instead of "no models". */
+class FetchModelsException(message: String, cause: Throwable? = null) : java.io.IOException(message, cause)
+
 /**
  * Fetch available models from a provider — ids only (back-compat shim).
  */
@@ -488,10 +503,18 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // to the FetchedModels.capabilities map.
     val rawModels: List<OpenAiModel> = if (service.modelListFormat == "array") {
         val response = api.listModelsArray(modelsUrl, "Bearer $apiKey")
-        if (response.isSuccessful) response.body().orEmpty() else emptyList()
+        if (response.isSuccessful) response.body().orEmpty()
+        else throw FetchModelsException(
+            "${service.displayName} listModels HTTP ${response.code()}: " +
+                (runCatching { response.errorBody()?.string()?.take(300) }.getOrNull() ?: "(no body)")
+        )
     } else {
         val response = api.listModels(modelsUrl, "Bearer $apiKey")
-        if (response.isSuccessful) response.body()?.data.orEmpty() else emptyList()
+        if (response.isSuccessful) response.body()?.data.orEmpty()
+        else throw FetchModelsException(
+            "${service.displayName} listModels HTTP ${response.code()}: " +
+                (runCatching { response.errorBody()?.string()?.take(300) }.getOrNull() ?: "(no body)")
+        )
     }
     // Drop entries the provider has explicitly marked inactive. Groq
     // ships `active=false` for models its fleet has temporarily
@@ -618,19 +641,19 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
 private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService, apiKey: String): FetchedModels {
     val response = try {
         ApiFactory.createClaudeApi(service.baseUrl).listModels(apiKey)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
     } catch (e: Exception) {
-        // Network / parse failure — log so the user / Trace screen can
-        // see why Anthropic fell through to its hardcodedModels fallback
-        // instead of silently returning an empty list. Without this the
-        // model picker shows only the setup.json predefines and the
-        // user has no clue an API call even happened.
+        // Network / parse failure — surface as FetchModelsException so
+        // AppViewModel.fetchModelsAwait routes it through fetchModelsErrors
+        // instead of silently overwriting the cached catalog with empty.
         android.util.Log.w("ApiDispatch", "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}")
-        return FetchedModels(emptyList(), emptyMap())
+        throw FetchModelsException("Anthropic listModels failed: ${e.javaClass.simpleName}: ${e.message}", e)
     }
     if (!response.isSuccessful) {
         val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
         android.util.Log.w("ApiDispatch", "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
-        return FetchedModels(emptyList(), emptyMap())
+        throw FetchModelsException("Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
     }
     val entries = response.body()?.data?.filter { it.id?.startsWith("claude") == true }.orEmpty()
     if (entries.isEmpty()) {
@@ -716,11 +739,15 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
         } else {
             val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
             android.util.Log.w("ApiDispatch", "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
-            FetchedModels(emptyList(), emptyMap())
+            throw FetchModelsException("Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
         }
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: FetchModelsException) {
+        throw e
     } catch (e: Exception) {
         android.util.Log.w("ApiDispatch", "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}")
-        FetchedModels(emptyList(), emptyMap())
+        throw FetchModelsException("Gemini listModels failed: ${e.javaClass.simpleName}: ${e.message}", e)
     }
 }
 
