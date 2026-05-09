@@ -589,38 +589,35 @@ private fun SettingsMainScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_main", title = "Settings", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            OutlinedTextField(
-                value = userName, onValueChange = { userName = it },
-                label = { Text("User name") }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, colors = AppColors.outlinedFieldColors()
-            )
-            OutlinedTextField(
-                value = defaultEmail, onValueChange = { defaultEmail = it },
-                label = { Text("Default email address") }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, colors = AppColors.outlinedFieldColors()
-            )
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("User name", "Used as the human side of the conversation in agent prompts and report metadata.") {
+                OutlinedTextField(
+                    value = userName, onValueChange = { userName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+
+            SettingCard("Default email address", "Pre-fills the email export sheet so you don't retype it on every send.") {
+                OutlinedTextField(
+                    value = defaultEmail, onValueChange = { defaultEmail = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
 
             // Master switch for API tracing. Off → no new trace files,
             // the Hub "AI API Traces" card and every 🐞 ladybug icon in
             // the result screens disappear.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("API tracing", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
-                        fontSize = 12.sp, color = AppColors.TextSecondary
+            SettingCard("API tracing", "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.") {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Switch(
+                        checked = tracingEnabled,
+                        onCheckedChange = { tracingEnabled = it }
                     )
                 }
-                Switch(
-                    checked = tracingEnabled,
-                    onCheckedChange = { tracingEnabled = it }
-                )
             }
 
             // Model name layout — controls how combined provider+model
@@ -628,13 +625,7 @@ private fun SettingsMainScreen(
             // default; PROVIDER_AND_MODEL adds the provider's display
             // name (joined with " · ") for users running the same
             // model on multiple providers.
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Model name layout", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "How model labels render across rows and pickers.",
-                    fontSize = 12.sp, color = AppColors.TextSecondary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
+            SettingCard("Model name layout", "How model labels render across rows and pickers.") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.MODEL_ONLY,
@@ -657,22 +648,34 @@ private fun SettingsMainScreen(
             // every TitleBar and the screen title left-aligns.
             // System / gesture back still works (TitleBar's
             // BackHandler is registered independently).
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Show < Back", fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
-                        fontSize = 12.sp, color = AppColors.TextSecondary
+            SettingCard("Show < Back", "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.") {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Switch(
+                        checked = showBackButton,
+                        onCheckedChange = { showBackButton = it }
                     )
                 }
-                Switch(
-                    checked = showBackButton,
-                    onCheckedChange = { showBackButton = it }
-                )
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingCard(
+    title: String,
+    description: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, color = Color.White)
+            if (description != null) {
+                Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+            content()
         }
     }
 }
