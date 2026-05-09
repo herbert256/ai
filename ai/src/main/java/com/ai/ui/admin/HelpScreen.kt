@@ -1135,8 +1135,8 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Export · API Keys", "Just the keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) as a flat JSON object. Toast reports the populated key count."),
             HelpCard("Export · Costs", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million)."),
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
-            HelpCard("Import", "Five buttons matching the five export shapes plus Costs and Layered Costs (re-imported via Costs — only the first four columns are read). Config import picks up apiSettings + general settings + 3 external keys atomically."),
-            HelpCard("Layered costs", "One row per (provider, model). Two empty new_input/new_output columns up front for a manual override; rest show every tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). All exports every model; Filtered drops rows already covered by LiteLLM/models.dev/Helicone/llm-prices/AA/OpenRouter."),
+            HelpCard("Import", "Five buttons matching the five export shapes (Config, API Keys, Costs, providers.json, prompts.json). Layered-costs files are re-imported from their own card via Import manual changed costs. Config import picks up apiSettings + general settings + 3 external keys atomically."),
+            HelpCard("Layered costs", "One row per (provider, model). Two empty new_input/new_output columns up front for a manual override; rest show every tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows already covered by LiteLLM/models.dev/Helicone/llm-prices/AA/OpenRouter. Import manual changed costs reads the same CSV back: only rows where the user filled in the two override columns are applied; blank rows are silently ignored."),
             HelpCard("Title bar", "helpTopic=import_export. Plain back."),
             HelpCard("Pitfalls", "Importing API Keys with a full Config payload throws ConfigBundleMistakenForKeysException — the toast points you back to the Config import button. Costs CSV importer skips malformed rows silently."),
             HelpCard("Related", "Backup & Restore (Housekeeping) is the all-in-one zip alternative; this screen is for selective shape-typed transfer.")
@@ -1297,7 +1297,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar", "helpTopic=cost_override. Title \"Add Override\". Plain back."),
             HelpCard("Tips", "When opened from Model Info on an existing override, both price fields pre-populate from the saved values."),
             HelpCard("Pitfalls", "Negative prices and non-numeric input fail the Save gate without an explicit error message — the button just stays disabled."),
-            HelpCard("Related", "Layered costs CSV → Costs import is the bulk equivalent.")
+            HelpCard("Related", "Layered costs CSV → Import manual changed costs is the bulk equivalent.")
         )
     ),
     "trace_list" to HelpContent(

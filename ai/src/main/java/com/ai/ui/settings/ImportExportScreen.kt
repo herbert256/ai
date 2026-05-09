@@ -257,6 +257,32 @@ fun ImportExportScreen(
                 }
                 Toast.makeText(context, "Imported $imported costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
             }
+            "costs_layered" -> {
+                // Layered re-import: same file produced by "Export all" /
+                // "Export filtered". Most rows are intentionally blank in
+                // columns 3 and 4 (no override added) — ignore them silently
+                // instead of counting as skipped. Only rows where the user
+                // filled in new_input_per_million + new_output_per_million
+                // become manual overrides.
+                val csv = readFromUri(uri)
+                if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                var imported = 0; var skipped = 0
+                csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
+                    val parts = line.split(",")
+                    if (parts.size < 4) return@forEach
+                    val rawIn = parts[2].trim()
+                    val rawOut = parts[3].trim()
+                    if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
+                    val provider = AppService.findById(parts[0].trim())
+                    val model = parts[1].trim()
+                    val inp = rawIn.toDoubleOrNull()?.div(1_000_000)
+                    val outp = rawOut.toDoubleOrNull()?.div(1_000_000)
+                    if (provider != null && model.isNotBlank() && inp != null && outp != null) {
+                        PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                    } else skipped++
+                }
+                Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
+            }
             "providers" -> {
                 // Catalog-only update. Per-provider API keys live in
                 // Settings (different prefs file) and are not touched.
@@ -350,19 +376,26 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). All exports every model; Filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Re-import via the Costs button — only the first four columns are read.",
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Fill in the two override columns and re-import via Import manual changed costs — only rows with values are applied.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
                             exportLayeredCostsLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                            Text("Export all", fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
                         OutlinedButton(onClick = {
                             exportLayeredCostsFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                            Text("Export filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "costs_layered"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Import manual changed costs", fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 }
