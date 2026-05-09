@@ -215,6 +215,8 @@ fun PromptsSetupScreen(
     var internalStatus by remember { mutableStateOf<String?>(null) }
     var exampleStatus by remember { mutableStateOf<String?>(null) }
     var showResetConfirm by remember { mutableStateOf(false) }
+    var internalMaintExpanded by rememberSaveable { mutableStateOf(false) }
+    var exampleMaintExpanded by rememberSaveable { mutableStateOf(false) }
 
     if (showResetConfirm) {
         AlertDialog(
@@ -254,59 +256,66 @@ fun PromptsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
 
             // Maintenance, lifted from the former Housekeeping → Prompts
-            // screen so prompt management lives in one place.
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Internal prompts maintenance", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Load merges any prompt in assets/prompts.json that's missing — matched by (category, name); existing rows with the same pair keep your edits. Reset wipes every Internal prompt (including ones you authored) and reloads the bundled set fresh.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = {
-                            val added = onLoadBundledPrompts()
-                            internalStatus = when {
-                                added == 0 -> "No new prompts in assets/prompts.json"
-                                added == 1 -> "Added 1 new prompt"
-                                else -> "Added $added new prompts"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                    ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = { showResetConfirm = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                    ) { Text("Reset Internal Prompts to assets/prompts.json", maxLines = 1, softWrap = false) }
-                    internalStatus?.let {
-                        Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-                    }
+            // screen so prompt management lives in one place. Styled to
+            // match the NavCards above; tap to expand the body.
+            CollapsibleMaintenanceCard(
+                icon = "🛠️",
+                title = "Internal prompts maintenance",
+                description = "Load missing or reset to bundled defaults",
+                expanded = internalMaintExpanded,
+                onToggle = { internalMaintExpanded = !internalMaintExpanded }
+            ) {
+                Text(
+                    "Load merges any prompt in assets/prompts.json that's missing — matched by (category, name); existing rows with the same pair keep your edits. Reset wipes every Internal prompt (including ones you authored) and reloads the bundled set fresh.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = {
+                        val added = onLoadBundledPrompts()
+                        internalStatus = when {
+                            added == 0 -> "No new prompts in assets/prompts.json"
+                            added == 1 -> "Added 1 new prompt"
+                            else -> "Added $added new prompts"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { showResetConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Reset Internal Prompts to assets/prompts.json", maxLines = 1, softWrap = false) }
+                internalStatus?.let {
+                    Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Example prompts maintenance", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Adds any prompt in assets/examples.json that's missing — matched by case-insensitive title. Existing prompts (including ones you authored) are left strictly alone, never overwritten or wiped.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = {
-                            val added = onLoadBundledExamples()
-                            exampleStatus = when {
-                                added == 0 -> "No new prompts in assets/examples.json"
-                                added == 1 -> "Added 1 new example prompt"
-                                else -> "Added $added new example prompts"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                    ) { Text("Add new prompts from assets/examples.json", maxLines = 1, softWrap = false) }
-                    exampleStatus?.let {
-                        Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-                    }
+            CollapsibleMaintenanceCard(
+                icon = "🛠️",
+                title = "Example prompts maintenance",
+                description = "Add bundled example prompts",
+                expanded = exampleMaintExpanded,
+                onToggle = { exampleMaintExpanded = !exampleMaintExpanded }
+            ) {
+                Text(
+                    "Adds any prompt in assets/examples.json that's missing — matched by case-insensitive title. Existing prompts (including ones you authored) are left strictly alone, never overwritten or wiped.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = {
+                        val added = onLoadBundledExamples()
+                        exampleStatus = when {
+                            added == 0 -> "No new prompts in assets/examples.json"
+                            added == 1 -> "Added 1 new example prompt"
+                            else -> "Added $added new example prompts"
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Add new prompts from assets/examples.json", maxLines = 1, softWrap = false) }
+                exampleStatus?.let {
+                    Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
                 }
             }
         }
@@ -402,6 +411,47 @@ private fun ModelsSetupNavCard(icon: String, title: String, description: String,
                 Text(count, fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
             }
             if (enabled) Text(">", fontSize = 16.sp, color = AppColors.Blue)
+        }
+    }
+}
+
+/** Same visual shape as [ModelsSetupNavCard] but the chevron toggles
+ *  an inline body rather than navigating away. Used for in-screen
+ *  maintenance actions where the buttons are infrequently tapped and
+ *  shouldn't dominate the screen. */
+@Composable
+private fun CollapsibleMaintenanceCard(
+    icon: String,
+    title: String,
+    description: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(icon, fontSize = 22.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
+                }
+                Text(if (expanded) "▴" else "▾", fontSize = 16.sp, color = AppColors.Blue)
+            }
+            if (expanded) {
+                Column(
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) { content() }
+            }
         }
     }
 }
