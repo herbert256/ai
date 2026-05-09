@@ -1425,14 +1425,24 @@ fun ReportsScreen(
     }
 
     // Main UI
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        // Static page title in the menu bar; the dynamic prompt title
-        // surfaces as a green sub-header inside the body so the user
-        // can tell which screen they're on without losing the report's
-        // own title.
+        // Static page title in the menu bar by default; the dynamic
+        // prompt title surfaces as a green sub-header inside the body.
+        // When subject-to-title-bar is on AND we're in the results
+        // phase AND a prompt title exists, the prompt title takes the
+        // bar slot and the green line drops out below.
+        val barTitle = run {
+            val promptTitle = uiState.genericPromptTitle
+            when {
+                !isGenerating -> "AI Report — Models"
+                foldSubject && promptTitle.isNotBlank() -> promptTitle
+                else -> "AI Report"
+            }
+        }
         TitleBar(
             helpTopic = "report_result_generation",
-            title = if (isGenerating) "AI Report" else "AI Report — Models",
+            title = barTitle,
             onBackClick = onDismiss,
             onReload = if (isGenerating && currentReportId != null && isComplete) {
                 { showRegenerateConfirm = true }
@@ -1471,7 +1481,9 @@ fun ReportsScreen(
         // Dynamic per-report sub-header — renders below the static
         // page title for the result phase so the user can see this
         // particular report's title without it eating the menu bar.
-        if (isGenerating) {
+        // Subject-to-title-bar mode hoists this title into the bar
+        // above instead (see the TitleBar `title =` block).
+        if (isGenerating && !foldSubject) {
             val reportTitle = uiState.genericPromptTitle
             if (reportTitle.isNotBlank()) {
                 Text(
