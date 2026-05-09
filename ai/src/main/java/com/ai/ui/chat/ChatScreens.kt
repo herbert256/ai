@@ -355,7 +355,14 @@ fun ChatSessionScreen(
         }
     }
 
-    val pricing = remember(provider, model) { PricingCache.getPricing(context, provider, model) }
+    // Recompute pricing whenever PricingCache fully primes (its
+    // preloadCompleted flag flips). Without that, an unkeyed
+    // remember(provider, model) latched DEFAULT_PRICING on first
+    // composition during the cold-load window, and chat cost banners
+    // stayed at $0.00 for the entire session even after the catalog
+    // finished loading. Same pattern as DualChatScreen.
+    val pricingTick = com.ai.ui.shared.resumeRefreshTick()
+    val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
 
     // Read the persisted pinned flag once on entry so subsequent saves
     // preserve it. Toggled below by the 📌 pill next to the model line.
