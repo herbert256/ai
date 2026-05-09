@@ -196,6 +196,14 @@ object ApiFactory {
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
         .addInterceptor(TracingInterceptor())
+        // Propagate ApiTracer.currentTags from the calling coroutine
+        // onto the dispatcher worker thread so concurrent flows don't
+        // race a process-wide tag pair.
+        .dispatcher(okhttp3.Dispatcher(TagPropagatingExecutor(
+            java.util.concurrent.Executors.newCachedThreadPool { r ->
+                Thread(r, "OkHttp Dispatcher").apply { isDaemon = false }
+            }
+        )))
         .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .readTimeout(com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)

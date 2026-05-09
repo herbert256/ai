@@ -44,15 +44,23 @@ object ApiTracer {
     private val lock = ReentrantLock()
     private val fileSequence = AtomicLong(0)
     @Volatile var isTracingEnabled: Boolean = false
-    @Volatile var currentReportId: String? = null
-    /** Free-form label describing what kind of call is in flight (e.g.
-     *  "Report meta: Compare", "Chat validate input"). Read at trace-
-     *  write time by [TracingInterceptor] and persisted on the trace
-     *  JSON so the Trace screen can offer a category filter. Same
-     *  volatile + global pattern as [currentReportId] — overlapping
-     *  flows on different threads will share whichever value was set
-     *  last; precision is per-flow, not per-call. */
-    @Volatile var currentCategory: String? = null
+
+    /** Per-thread tag pair carried across the OkHttp dispatcher
+     *  boundary by [TagPropagatingExecutor]. Each top-level flow
+     *  (chat send, report meta call, agent test, …) brackets its
+     *  outbound calls with [withTracerTags] which sets this for the
+     *  duration of the block. Concurrent flows on different threads
+     *  no longer race a process-wide @Volatile var — each gets its
+     *  own ThreadLocal value, copied onto the dispatcher worker
+     *  thread when the OkHttp Call's Runnable is submitted. */
+    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?)
+    @PublishedApi internal val currentTags: ThreadLocal<TraceTags> = ThreadLocal.withInitial { TraceTags(null, null) }
+
+    /** Public accessors — kept for binding-compatibility with read
+     *  sites; setters are intentionally absent so callers go through
+     *  [withTracerTags]. */
+    val currentReportId: String? get() = currentTags.get()?.reportId
+    val currentCategory: String? get() = currentTags.get()?.category
 
     /** In-memory mirror of the trace dir's [TraceFileInfo] list, sorted
      *  newest-first. `null` means "not yet built" — the next
@@ -365,39 +373,74 @@ class RateLimitRetryInterceptor(
     }
 }
 
-/** Set [ApiTracer.currentCategory] for the duration of [block], restoring
+/** Set the trace category for the duration of [block], restoring
  *  whatever was there before. Use to bracket a top-level flow's API
  *  calls — works fine inside suspend lambdas because the function is
  *  inlined at the call site. */
 inline fun <R> withTraceCategory(category: String, block: () -> R): R {
-    val previous = ApiTracer.currentCategory
-    ApiTracer.currentCategory = category
-    return try { block() } finally { ApiTracer.currentCategory = previous }
+    val tl = ApiTracer.currentTags
+    val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
+    tl.set(previous.copy(category = category))
+    return try { block() } finally { tl.set(previous) }
 }
 
-/** Push (reportId, category) onto [ApiTracer]'s tag pair for the
+/** Push (reportId, category) onto the per-thread tag pair for the
  *  duration of [block], restoring both on exit. A null argument leaves
  *  that side untouched (useful for flows that only set one of the two).
  *
- *  This is the safe replacement for the historical pattern of writing
- *  `ApiTracer.currentReportId = X; try { ... } finally { ... = null }`
- *  scattered across viewmodels and screens — the bare-null restore
- *  clobbered any enclosing flow's tag instead of restoring it. By
- *  always saving the previous values and restoring them on exit, this
- *  helper makes the volatile tag pair safe to nest. */
+ *  Backed by a ThreadLocal that [TagPropagatingExecutor] copies onto
+ *  OkHttp's dispatcher worker threads, so concurrent flows on
+ *  different coroutines no longer race a process-wide volatile pair.
+ *  The historical bare-`= null` reset pattern is also replaced — both
+ *  sides are saved and restored on block exit, making nested calls
+ *  safe (an inner withTracerTags doesn't clobber an enclosing one). */
 inline fun <R> withTracerTags(
     reportId: String? = null,
     category: String? = null,
     block: () -> R
 ): R {
-    val previousReportId = ApiTracer.currentReportId
-    val previousCategory = ApiTracer.currentCategory
-    if (reportId != null) ApiTracer.currentReportId = reportId
-    if (category != null) ApiTracer.currentCategory = category
+    val tl = ApiTracer.currentTags
+    val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
+    tl.set(ApiTracer.TraceTags(
+        reportId = reportId ?: previous.reportId,
+        category = category ?: previous.category
+    ))
     return try {
         block()
     } finally {
-        ApiTracer.currentReportId = previousReportId
-        ApiTracer.currentCategory = previousCategory
+        tl.set(previous)
     }
+}
+
+/** Executor wrapper that captures [ApiTracer.currentTags] at submission
+ *  time on the calling thread and restores it on the worker thread
+ *  for the duration of each Runnable. Plug into OkHttp's Dispatcher
+ *  so application interceptors (TracingInterceptor in particular)
+ *  read the tags of the call's originating flow rather than whatever
+ *  another concurrent flow happened to set last on the global pair.
+ *
+ *  Edge case: a queued OkHttp call promoted later (when a per-host
+ *  slot frees up) is submitted to this executor from the worker
+ *  thread completing the previous call, not the original caller.
+ *  Tags for that call attribute to the previous worker's flow rather
+ *  than the original caller — acceptable for the rare per-host-cap
+ *  scenario; a fully race-free fix would require per-Call.tag
+ *  attachment at OkHttp Call construction time. */
+class TagPropagatingExecutor(
+    private val delegate: java.util.concurrent.ExecutorService
+) : java.util.concurrent.AbstractExecutorService() {
+    override fun execute(command: Runnable) {
+        val captured = ApiTracer.currentTags.get()
+        delegate.execute {
+            val previous = ApiTracer.currentTags.get()
+            ApiTracer.currentTags.set(captured)
+            try { command.run() } finally { ApiTracer.currentTags.set(previous) }
+        }
+    }
+    override fun shutdown() = delegate.shutdown()
+    override fun shutdownNow(): MutableList<Runnable> = delegate.shutdownNow()
+    override fun isShutdown(): Boolean = delegate.isShutdown
+    override fun isTerminated(): Boolean = delegate.isTerminated
+    override fun awaitTermination(timeout: Long, unit: java.util.concurrent.TimeUnit): Boolean =
+        delegate.awaitTermination(timeout, unit)
 }

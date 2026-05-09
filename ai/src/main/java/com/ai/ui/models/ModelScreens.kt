@@ -713,18 +713,17 @@ fun ModelInfoScreen(
         )
         scope.launch {
             isAiLoading = true
-            val previousCategory = com.ai.data.ApiTracer.currentCategory
-            com.ai.data.ApiTracer.currentCategory = "Model self-intro"
             try {
-                val response = withContext(Dispatchers.IO) {
-                    repository.analyzePlayerWithAgent(selfAgent, introResolvedPrompt, AgentParameters())
-                }
-                if (response.isSuccess) {
-                    aiDescription = response.analysis
-                    response.analysis?.let { PromptCache.put(introCacheKey, it) }
+                com.ai.data.withTraceCategory("Model self-intro") {
+                    val response = withContext(Dispatchers.IO) {
+                        repository.analyzePlayerWithAgent(selfAgent, introResolvedPrompt, AgentParameters())
+                    }
+                    if (response.isSuccess) {
+                        aiDescription = response.analysis
+                        response.analysis?.let { PromptCache.put(introCacheKey, it) }
+                    }
                 }
             } catch (_: Exception) {} finally {
-                com.ai.data.ApiTracer.currentCategory = previousCategory
                 isAiLoading = false
             }
         }

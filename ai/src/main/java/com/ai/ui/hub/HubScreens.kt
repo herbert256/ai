@@ -530,29 +530,28 @@ fun NewReportScreen(
                     if (mod == null) { proceed(); return@next }
                     coroutineScope.launch {
                         isModerating = true
-                        val previousCategory = ApiTracer.currentCategory
-                        ApiTracer.currentCategory = "Hub validate input"
                         try {
-                            val (modProvider, modModelId) = mod
-                            val apiKey = uiState.aiSettings.getApiKey(modProvider)
-                            val callStart = System.currentTimeMillis()
-                            val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(fullPrompt))
-                            val r = results?.firstOrNull()
-                            if (apiResult.errorMessage != null || r == null) {
-                                moderationError = apiResult.errorMessage ?: "No moderation result"
-                                proceed()
-                            } else if (r.flagged) {
-                                val traceFn = withContext(Dispatchers.IO) {
-                                    ApiTracer.getTraceFiles()
-                                        .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
-                                        .minByOrNull { it.timestamp }?.filename
+                            com.ai.data.withTraceCategory("Hub validate input") {
+                                val (modProvider, modModelId) = mod
+                                val apiKey = uiState.aiSettings.getApiKey(modProvider)
+                                val callStart = System.currentTimeMillis()
+                                val (results, apiResult) = com.ai.data.callModerationApi(modProvider, apiKey, modModelId, listOf(fullPrompt))
+                                val r = results?.firstOrNull()
+                                if (apiResult.errorMessage != null || r == null) {
+                                    moderationError = apiResult.errorMessage ?: "No moderation result"
+                                    proceed()
+                                } else if (r.flagged) {
+                                    val traceFn = withContext(Dispatchers.IO) {
+                                        ApiTracer.getTraceFiles()
+                                            .filter { it.reportId == null && it.model == modModelId && it.timestamp >= callStart }
+                                            .minByOrNull { it.timestamp }?.filename
+                                    }
+                                    pendingFlagged = Triple(fullPrompt, r, traceFn)
+                                } else {
+                                    proceed()
                                 }
-                                pendingFlagged = Triple(fullPrompt, r, traceFn)
-                            } else {
-                                proceed()
                             }
                         } finally {
-                            ApiTracer.currentCategory = previousCategory
                             isModerating = false
                         }
                     }
