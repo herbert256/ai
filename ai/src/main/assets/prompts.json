@@ -86,5 +86,53 @@
     "category": "fan_in",
     "agent": "*select",
     "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
+  },
+  {
+    "name": "i (a)",
+    "title": "fan_in_i (a)",
+    "reference": false,
+    "category": "fan_in_i",
+    "agent": "*select",
+    "text": "fan_in_i (a)"
+  },
+  {
+    "name": "r (a)",
+    "title": "fan_in_r (a)",
+    "reference": false,
+    "category": "fan_in_r",
+    "agent": "*select",
+    "text": "fan_in_r (a)"
+  },
+  {
+    "name": "m (a)",
+    "title": "fan_in_m (a)",
+    "reference": false,
+    "category": "fan_in_m",
+    "agent": "*select",
+    "text": "fan_in_m (a)"
+  },
+  {
+    "name": "i (b)",
+    "title": "fan_in_i (b)",
+    "reference": false,
+    "category": "fan_in_i",
+    "agent": "*select",
+    "text": "fan_in_i (b)"
+  },
+  {
+    "name": "r (b)",
+    "title": "fan_in_r (b)",
+    "reference": false,
+    "category": "fan_in_r",
+    "agent": "*select",
+    "text": "fan_in_r (b)"
+  },
+  {
+    "name": "m (n)",
+    "title": "fan_in_m (b)",
+    "reference": false,
+    "category": "fan_in_m",
+    "agent": "*select",
+    "text": "fan_in_m (b)"
   }
 ]
