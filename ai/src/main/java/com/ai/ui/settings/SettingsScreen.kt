@@ -429,7 +429,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_SWARM_EDIT -> {
             val swarm = editingSwarmId?.let { aiSettings.getSwarmById(it) }
             SwarmEditScreen(
-                swarm = swarm, aiSettings = aiSettings, loadingModelsFor = loadingModelsFor,
+                swarm = swarm, aiSettings = aiSettings,
                 existingNames = aiSettings.swarms.filter { it.id != (swarm?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
                 onSave = { saved ->
                     val updated = if (swarm != null) aiSettings.copy(swarms = aiSettings.swarms.map { if (it.id == swarm.id) saved else it })

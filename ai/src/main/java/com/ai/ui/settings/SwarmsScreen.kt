@@ -61,7 +61,6 @@ fun SwarmsScreen(
 fun SwarmEditScreen(
     swarm: Swarm?,
     aiSettings: Settings,
-    loadingModelsFor: Set<AppService>,
     existingNames: Set<String>,
     onSave: (Swarm) -> Unit,
     onBack: () -> Unit,
@@ -85,17 +84,24 @@ fun SwarmEditScreen(
     }
 
     if (showModelPicker) {
-        com.ai.ui.models.ModelSearchScreen(
-            aiSettings = aiSettings, loadingModelsFor = loadingModelsFor,
-            onBackToAiSetup = { showModelPicker = false }, onBackToHome = onNavigateHome,
-            onNavigateToModelInfo = { _, _ -> },
-            onPickModel = { provider, model ->
+        // Same picker the New Report's "+Model" button uses — full-
+        // screen, search + provider filter, with already-selected
+        // members dimmed via [alreadyAdded] so the user can't double-
+        // add. Single-pick: returns one (provider, model) per
+        // open; the user re-opens the picker for each member.
+        val already = remember(selectedMembers) {
+            selectedMembers.map { it.provider to it.model }.toSet()
+        }
+        com.ai.ui.report.ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            alreadyAdded = already,
+            titleText = "Pick model for swarm",
+            onConfirm = { (provider, model) ->
                 val candidate = SwarmMember(provider, model)
-                // Case-insensitive dedupe — picking "Gpt-4o" twice via
-                // a future picker that exposes mixed-case model ids
-                // (or two providers reporting the same model with
-                // different casing) would otherwise both land in the
-                // swarm and silently fan out to two API calls.
+                // Case-insensitive dedupe as a defence-in-depth
+                // belt over [alreadyAdded] — covers the rare case
+                // where two providers report the same model id in
+                // different casing.
                 if (selectedMembers.none {
                     it.provider.id == provider.id &&
                         it.model.equals(model, ignoreCase = true)
@@ -103,7 +109,9 @@ fun SwarmEditScreen(
                     selectedMembers = selectedMembers + candidate
                 }
                 showModelPicker = false
-            }
+            },
+            onBack = { showModelPicker = false },
+            onNavigateHome = onNavigateHome
         )
         return
     }
