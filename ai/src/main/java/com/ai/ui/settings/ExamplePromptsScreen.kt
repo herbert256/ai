@@ -54,12 +54,17 @@ fun ExamplePromptEditScreen(
 
     val titleError = if (title.isBlank()) "Title is required" else null
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "example_prompt_edit",
-            title = if (isEditing) "Edit example prompt" else "Add example prompt",
+            title = when {
+                !isEditing -> "Add example prompt"
+                foldSubject && title.isNotBlank() -> title
+                else -> "Edit example prompt"
+            },
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))

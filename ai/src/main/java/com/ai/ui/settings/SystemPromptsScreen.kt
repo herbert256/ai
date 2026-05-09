@@ -60,10 +60,19 @@ fun SystemPromptEditScreen(
         else -> null
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "system_prompt_edit", title = if (isEditing) "Edit System Prompt" else "Add System Prompt", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "system_prompt_edit",
+            title = when {
+                !isEditing -> "Add System Prompt"
+                foldSubject && name.isNotBlank() -> name
+                else -> "Edit System Prompt"
+            },
+            onBackClick = onBack
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
