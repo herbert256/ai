@@ -109,20 +109,31 @@ fun HubScreen(
                 modifier = Modifier.size(logoSize).offset(y = (-32).dp)
                     .then(if (hasAnyReport) Modifier.clickable { onOpenLatestReport() } else Modifier)
             )
-            HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub, enabled = hasAnyAgent)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub, enabled = hasAnyAgent)
-            Spacer(modifier = Modifier.height(12.dp))
+            // Inactive cards are hidden entirely (rather than rendered
+            // grayed-out + non-clickable as in earlier builds). Each
+            // visibility-gated card carries its own trailing Spacer
+            // inside the `if`, so the gap goes with it and the layout
+            // stays compact.
+            if (hasAnyAgent) {
+                HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             if (uiState.generalSettings.showKnowledgeCard) {
                 HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch, enabled = hasAnyAgent)
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage, enabled = hasStatisticsData)
-            Spacer(modifier = Modifier.height(12.dp))
-            if (tracingEnabled) {
-                HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces, enabled = hasTraces)
+            if (hasAnyAgent) {
+                HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (hasStatisticsData) {
+                HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (tracingEnabled && hasTraces) {
+                HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
@@ -137,18 +148,18 @@ fun HubScreen(
 }
 
 @Composable
-private fun HubCard(icon: String, title: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun HubCard(icon: String, title: String, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = icon, fontSize = 26.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+            Text(text = icon, fontSize = 26.sp)
             Spacer(modifier = Modifier.width(12.dp))
-            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
+            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
         }
     }
 }
@@ -231,8 +242,10 @@ fun ReportsHubScreen(
             onExamplePrompt = onNavigateToExamplePrompts,
             onStartWithPhoto = launchCamera
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory, enabled = hasPreviousReports)
+        if (hasPreviousReports) {
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory)
+        }
         if (pinnedReports.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
             ReportListCard(title = "Pinned", icon = "\uD83D\uDCCC", reports = pinnedReports, onOpen = onOpenReport)
@@ -249,8 +262,10 @@ fun ReportsHubScreen(
             onRemoteSemantic = onNavigateToSearch,
             onLocalSemantic = onNavigateToLocalSemanticSearch
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        HubCard(icon = "🧹", title = "Manage", onClick = onNavigateToManage, enabled = hasPreviousReports)
+        if (hasPreviousReports) {
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "🧹", title = "Manage", onClick = onNavigateToManage)
+        }
     }
 }
 
