@@ -98,6 +98,16 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** Set on every screen that's "deeper" than the AI Report Result
+ *  page (overlay screens inside the result page — Edit Prompt /
+ *  Title / Models / Parameters / Export / Translation Compare /
+ *  Secondary Results / Translation Run / Call / Language picker /
+ *  Scope picker / Meta picker / etc., plus the per-report Trace
+ *  list / detail routes). Defaults to null; the title-bar 📝
+ *  Memo icon renders only when this is non-null. The callback
+ *  takes the user back to the active report's result page. */
+val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
+
 /** Make a model-name Text clickable so tapping it opens the Model
  *  Info screen for [providerService] / [model]. No-op when the
  *  provider can't be resolved or the model is blank. Stack on top
@@ -210,7 +220,16 @@ fun TitleBar(
     onDelete: (() -> Unit)? = null,
     onInfo: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
-    onChat: (() -> Unit)? = null
+    onChat: (() -> Unit)? = null,
+    /** Applied to the bar's outer Row. Default no-op preserves the
+     *  existing convention (most screens wrap the bar in a parent
+     *  Column with `.padding(16.dp)` and pay zero pad here).
+     *  Screens that DON'T outer-pad — e.g. those whose body content
+     *  needs to flow edge-to-edge under the bar — pass
+     *  `Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)`
+     *  here so the bar still gets the same top breathing room as
+     *  the standard pattern. */
+    modifier: Modifier = Modifier
 ) {
     val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
     if (onBackClick != null) {
@@ -227,6 +246,7 @@ fun TitleBar(
     }
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
+    val navigateToCurrentReport = LocalNavigateToCurrentReport.current
     if (centered) {
         Box(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -258,7 +278,7 @@ fun TitleBar(
         val iconScale = if (showBackButton || foldSubject) 1f else 1.25f
         val titleStyle = MaterialTheme.typography.titleLarge
         Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -288,6 +308,7 @@ fun TitleBar(
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
+                onMemo = navigateToCurrentReport,
                 scale = iconScale
             )
         }
@@ -308,6 +329,7 @@ private fun TitleBarActionStrip(
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
     onHelp: () -> Unit,
+    onMemo: (() -> Unit)?,
     scale: Float = 1f
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -324,6 +346,12 @@ private fun TitleBarActionStrip(
         // Tightening further to 18dp keeps it snug against both
         // neighbours (the previous 22dp still left air on either side).
         TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, scale = scale)
+        // 📝 Memo — "back to the current AI Report's result page".
+        // Sits between Help and Home so the rightmost slot still
+        // belongs to Home (the global anchor); only renders when
+        // [LocalNavigateToCurrentReport] is non-null, i.e. the user
+        // is on a screen that's deeper than the result page itself.
+        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, scale = scale)
         TitleBarIcon("🏠", AppColors.Blue, onHome, scale = scale)
     }
 }

@@ -27,7 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
+import androidx.compose.runtime.CompositionLocalProvider
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
@@ -666,24 +668,28 @@ fun ReportsScreen(
 
     // Full-screen overlays
     if (showViewer && currentReportId != null) {
-        ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
+            ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
+        }
         return
     }
     val singleAgentId = singleResultAgentId
     if (singleAgentId != null && currentReportId != null) {
-        ReportSingleResultScreen(
-            reportId = currentReportId,
-            agentId = singleAgentId,
-            onBack = { singleResultAgentId = null },
-            onNavigateHome = onNavigateHome,
-            onNavigateToModelInfo = onNavigateToModelInfo,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onRemoveAgent = onRemoveAgent,
-            onRegenerateAgent = onRegenerateAgent,
-            onContinueWithCurrent = onContinueWithCurrent,
-            onContinueWithAgentPicker = onContinueWithAgentPicker,
-            onContinueWithOnTheFly = onContinueWithOnTheFly
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { singleResultAgentId = null }) {
+            ReportSingleResultScreen(
+                reportId = currentReportId,
+                agentId = singleAgentId,
+                onBack = { singleResultAgentId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onRemoveAgent = onRemoveAgent,
+                onRegenerateAgent = onRegenerateAgent,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly
+            )
+        }
         return
     }
     if (showAdvancedParameters) {
@@ -1007,44 +1013,50 @@ fun ReportsScreen(
     // made; the progress screen sticks around until the run finishes
     // and the user taps "To translated report" (or Cancel).
     if (showTranslateLanguagePicker) {
-        LanguageSelectionScreen(
-            onConfirm = { lang ->
-                showTranslateLanguagePicker = false
-                showTranslateModelPicker = lang
-            },
-            onBack = { showTranslateLanguagePicker = false },
-            onNavigateHome = onNavigateHome
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showTranslateLanguagePicker = false }) {
+            LanguageSelectionScreen(
+                onConfirm = { lang ->
+                    showTranslateLanguagePicker = false
+                    showTranslateModelPicker = lang
+                },
+                onBack = { showTranslateLanguagePicker = false },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
     val pickingTranslateModelFor = showTranslateModelPicker
     if (pickingTranslateModelFor != null && currentReportId != null) {
-        ReportSelectModelsScreen(
-            aiSettings = aiSettings,
-            titleText = "Pick translation model",
-            onConfirm = { (prov, m) ->
-                onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
-                showTranslateModelPicker = null
-            },
-            onBack = { showTranslateModelPicker = null },
-            onNavigateHome = onNavigateHome
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
+            ReportSelectModelsScreen(
+                aiSettings = aiSettings,
+                titleText = "Pick translation model",
+                onConfirm = { (prov, m) ->
+                    onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
+                    showTranslateModelPicker = null
+                },
+                onBack = { showTranslateModelPicker = null },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
 
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        ReportSelectModelsScreen(
-            aiSettings = aiSettings,
-            titleText = "Pick rerank model",
-            onConfirm = { pick ->
-                showRerankPicker = false
-                onRunRerank(rid, pick)
-            },
-            onBack = { showRerankPicker = false },
-            onNavigateHome = onNavigateHome,
-            modelTypeFilter = com.ai.data.ModelType.RERANK
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showRerankPicker = false }) {
+            ReportSelectModelsScreen(
+                aiSettings = aiSettings,
+                titleText = "Pick rerank model",
+                onConfirm = { pick ->
+                    showRerankPicker = false
+                    onRunRerank(rid, pick)
+                },
+                onBack = { showRerankPicker = false },
+                onNavigateHome = onNavigateHome,
+                modelTypeFilter = com.ai.data.ModelType.RERANK
+            )
+        }
         return
     }
 
@@ -1054,41 +1066,45 @@ fun ReportsScreen(
     val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
     if (openMetaResult != null && currentReportId != null) {
         val rid = currentReportId
-        SecondaryResultDetailScreen(
-            result = openMetaResult,
-            onDelete = {
-                onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
-                openMetaResultId = null
-            },
-            onBack = { openMetaResultId = null },
-            onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { openMetaResultId = null }) {
+            SecondaryResultDetailScreen(
+                result = openMetaResult,
+                onDelete = {
+                    onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
+                    openMetaResultId = null
+                },
+                onBack = { openMetaResultId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
+        }
         return
     }
 
     val openRunId = openTranslationRunId
     if (openRunId != null && currentReportId != null) {
         val rid = currentReportId
-        TranslationRunDetailScreen(
-            reportId = rid,
-            runId = openRunId,
-            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
-            onBack = { openTranslationRunId = null },
-            onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
-            onNavigateToModelInfo = onNavigateToModelInfo,
-            onRestartFailed = { srcRid, runId ->
-                onRestartFailedTranslations(srcRid, runId)
-                secondaryRefreshTick++
-            },
-            onStartMissing = { srcRid, runId ->
-                onStartMissingTranslations(srcRid, runId)
-                secondaryRefreshTick++
-            }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
+            TranslationRunDetailScreen(
+                reportId = rid,
+                runId = openRunId,
+                onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
+                onBack = { openTranslationRunId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onRestartFailed = { srcRid, runId ->
+                    onRestartFailedTranslations(srcRid, runId)
+                    secondaryRefreshTick++
+                },
+                onStartMissing = { srcRid, runId ->
+                    onStartMissingTranslations(srcRid, runId)
+                    secondaryRefreshTick++
+                }
+            )
+        }
         return
     }
 
@@ -1105,22 +1121,25 @@ fun ReportsScreen(
         // previous AlertDialog. Rendered as an overlay on top of the
         // secondary list via the early-return pattern.
         if (showFanInPromptPicker && fanInList.isNotEmpty()) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Run an fan-in prompt",
-                category = "fan_in",
-                prompts = fanInList,
-                onSelectPrompt = {
-                    showFanInPromptPicker = false
-                    fanInPickerPrompt = it
-                },
-                onBack = { showFanInPromptPicker = false },
-                onEditPrompts = {
-                    showFanInPromptPicker = false
-                    onNavigateToInternalPromptsByCategory("fan_in")
-                }
-            )
+            CompositionLocalProvider(LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
+                ReportSelectInternalPromptScreen(
+                    titleText = "Run an fan-in prompt",
+                    category = "fan_in",
+                    prompts = fanInList,
+                    onSelectPrompt = {
+                        showFanInPromptPicker = false
+                        fanInPickerPrompt = it
+                    },
+                    onBack = { showFanInPromptPicker = false },
+                    onEditPrompts = {
+                        showFanInPromptPicker = false
+                        onNavigateToInternalPromptsByCategory("fan_in")
+                    }
+                )
+            }
             return
         }
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
@@ -1161,6 +1180,7 @@ fun ReportsScreen(
                 secondaryRefreshTick++
             }
         )
+        }
         return
     }
 
@@ -1181,17 +1201,19 @@ fun ReportsScreen(
 
     if (showMetaScreen && currentReportId != null) {
         val rid = currentReportId
-        ReportMetaScreen(
-            reportId = rid,
-            isRunning = uiState.activeSecondaryBatches > 0,
-            metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-            onLaunchMetaPrompt = launchMetaPrompt,
-            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
-            onBack = { showMetaScreen = false },
-            onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showMetaScreen = false }) {
+            ReportMetaScreen(
+                reportId = rid,
+                isRunning = uiState.activeSecondaryBatches > 0,
+                metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
+                onLaunchMetaPrompt = launchMetaPrompt,
+                onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
+                onBack = { showMetaScreen = false },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
+        }
         return
     }
 
@@ -1243,52 +1265,60 @@ fun ReportsScreen(
 
     if (showExport && currentReportId != null) {
         val rid = currentReportId
-        ReportExportScreen(
-            onBack = { showExport = false },
-            onNavigateHome = onNavigateHome,
-            onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
-            onExportAll = { onProgress -> onExportAll(rid, onProgress) }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showExport = false }) {
+            ReportExportScreen(
+                onBack = { showExport = false },
+                onNavigateHome = onNavigateHome,
+                onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
+                onExportAll = { onProgress -> onExportAll(rid, onProgress) }
+            )
+        }
         return
     }
 
     if (showEditParameters) {
-        ReportAdvancedParametersScreen(
-            currentParameters = uiState.reportAdvancedParameters,
-            onApply = {
-                onAdvancedParametersChange(it)
-                onMarkParametersChanged()
-                showEditParameters = false
-            },
-            onBack = { showEditParameters = false }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showEditParameters = false }) {
+            ReportAdvancedParametersScreen(
+                currentParameters = uiState.reportAdvancedParameters,
+                onApply = {
+                    onAdvancedParametersChange(it)
+                    onMarkParametersChanged()
+                    showEditParameters = false
+                },
+                onBack = { showEditParameters = false }
+            )
+        }
         return
     }
 
     if (showEditPrompt && currentReportId != null) {
         val rid = currentReportId
-        ReportEditPromptScreen(
-            initialPrompt = uiState.genericPromptText,
-            onBack = { showEditPrompt = false },
-            onNavigateHome = onNavigateHome,
-            onUpdate = { newPrompt ->
-                showEditPrompt = false
-                onUpdatePrompt(rid, newPrompt)
-            }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showEditPrompt = false }) {
+            ReportEditPromptScreen(
+                initialPrompt = uiState.genericPromptText,
+                onBack = { showEditPrompt = false },
+                onNavigateHome = onNavigateHome,
+                onUpdate = { newPrompt ->
+                    showEditPrompt = false
+                    onUpdatePrompt(rid, newPrompt)
+                }
+            )
+        }
         return
     }
     if (showEditTitle && currentReportId != null) {
         val rid = currentReportId
-        ReportEditTitleScreen(
-            initialTitle = uiState.genericPromptTitle,
-            onBack = { showEditTitle = false },
-            onNavigateHome = onNavigateHome,
-            onUpdate = { newTitle ->
-                showEditTitle = false
-                onUpdateTitle(rid, newTitle)
-            }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showEditTitle = false }) {
+            ReportEditTitleScreen(
+                initialTitle = uiState.genericPromptTitle,
+                onBack = { showEditTitle = false },
+                onNavigateHome = onNavigateHome,
+                onUpdate = { newTitle ->
+                    showEditTitle = false
+                    onUpdateTitle(rid, newTitle)
+                }
+            )
+        }
         return
     }
 
@@ -1297,37 +1327,41 @@ fun ReportsScreen(
     // so the parent TitleBar and the action row don't paint above
     // them when the user opens a picker.
     if (showMetaPicker) {
-        ReportSelectInternalPromptScreen(
-            titleText = "Run a Meta prompt",
-            category = "meta",
-            prompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-            onSelectPrompt = {
-                showMetaPicker = false
-                launchMetaPrompt(it)
-            },
-            onBack = { showMetaPicker = false },
-            onEditPrompts = {
-                showMetaPicker = false
-                onNavigateToInternalPromptsByCategory("meta")
-            }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showMetaPicker = false }) {
+            ReportSelectInternalPromptScreen(
+                titleText = "Run a Meta prompt",
+                category = "meta",
+                prompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
+                onSelectPrompt = {
+                    showMetaPicker = false
+                    launchMetaPrompt(it)
+                },
+                onBack = { showMetaPicker = false },
+                onEditPrompts = {
+                    showMetaPicker = false
+                    onNavigateToInternalPromptsByCategory("meta")
+                }
+            )
+        }
         return
     }
     if (showFanOutPicker) {
-        ReportSelectInternalPromptScreen(
-            titleText = "Run a Fan out prompt",
-            category = "fan_out",
-            prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
-            onSelectPrompt = {
-                showFanOutPicker = false
-                launchFanOutPrompt(it)
-            },
-            onBack = { showFanOutPicker = false },
-            onEditPrompts = {
-                showFanOutPicker = false
-                onNavigateToInternalPromptsByCategory("fan_out")
-            }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
+            ReportSelectInternalPromptScreen(
+                titleText = "Run a Fan out prompt",
+                category = "fan_out",
+                prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
+                onSelectPrompt = {
+                    showFanOutPicker = false
+                    launchFanOutPrompt(it)
+                },
+                onBack = { showFanOutPicker = false },
+                onEditPrompts = {
+                    showFanOutPicker = false
+                    onNavigateToInternalPromptsByCategory("fan_out")
+                }
+            )
+        }
         return
     }
     if (showViewPicker) {
@@ -1378,12 +1412,14 @@ fun ReportsScreen(
                 ))
             }
         }
-        ReportActionPickerScreen(
-            titleText = "View",
-            helpTopic = "report_view_picker",
-            options = options,
-            onBack = { showViewPicker = false }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showViewPicker = false }) {
+            ReportActionPickerScreen(
+                titleText = "View",
+                helpTopic = "report_view_picker",
+                options = options,
+                onBack = { showViewPicker = false }
+            )
+        }
         return
     }
     if (showEditPicker && currentReportId != null) {
@@ -1415,12 +1451,14 @@ fun ReportsScreen(
                 onClick = { showEditPicker = false; showEditParameters = true }
             )
         )
-        ReportActionPickerScreen(
-            titleText = "Edit",
-            helpTopic = "report_edit_picker",
-            options = options,
-            onBack = { showEditPicker = false }
-        )
+        CompositionLocalProvider(LocalNavigateToCurrentReport provides { showEditPicker = false }) {
+            ReportActionPickerScreen(
+                titleText = "Edit",
+                helpTopic = "report_edit_picker",
+                options = options,
+                onBack = { showEditPicker = false }
+            )
+        }
         return
     }
 

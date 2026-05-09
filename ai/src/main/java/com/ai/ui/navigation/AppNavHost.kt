@@ -877,19 +877,39 @@ fun AppNavHost(
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""
-            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
-                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
+            // 📝 Memo on the TitleBar pops back to the AI Reports
+            // result page — same anchor every "deeper than result"
+            // overlay points at. Falls back to plain navigate when
+            // AI_REPORTS isn't on the back stack (e.g. a deep link).
+            val backToReport: () -> Unit = {
+                if (!navController.popBackStack(NavRoutes.AI_REPORTS, false))
+                    navController.navigate(NavRoutes.AI_REPORTS)
+            }
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport
+            ) {
+                TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                    onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                    onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
+            }
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""
             val category = try {
                 java.net.URLDecoder.decode(entry.arguments?.getString("category") ?: "", "UTF-8")
             } catch (_: Exception) { "" }
-            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
-                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onClearTraces = { appViewModel.clearTraces() },
-                reportId = reportId, initialCategory = category)
+            val backToReport: () -> Unit = {
+                if (!navController.popBackStack(NavRoutes.AI_REPORTS, false))
+                    navController.navigate(NavRoutes.AI_REPORTS)
+            }
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport
+            ) {
+                TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                    onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                    onClearTraces = { appViewModel.clearTraces() },
+                    reportId = reportId, initialCategory = category)
+            }
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
