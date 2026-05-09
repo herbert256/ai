@@ -272,44 +272,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ProviderRegistry.init(application)
         PromptCache.init(application)
 
-        var gs = settingsPrefs.loadGeneralSettings()
-        var ai = settingsPrefs.loadSettingsWithMigration()
+        val gs = settingsPrefs.loadGeneralSettings()
+        var ai = settingsPrefs.loadSettings()
 
-        // One-shot migration for installs that predate the precomputed
-        // vision / web-search / pricing sets. Gated on a version flag so it
-        // doesn't re-run on every cold start (the previous heuristic check
-        // could fire repeatedly for providers whose models legitimately
-        // have no vision/web-search-capable entries, dragging startup down
-        // by reparsing 1.2 MB of LiteLLM JSON every time).
-        // Bump CAPS_PRECOMPUTED_VERSION when the precompute logic changes
-        // and the migration needs to re-run on existing installs.
-        val storedVersion = prefs.getInt(KEY_CAPS_PRECOMPUTED_VERSION, 0)
-        if (storedVersion < CAPS_PRECOMPUTED_VERSION) {
-            // Heuristic / capability layer changed — recompute every
-            // provider with models so the precomputed reasoning /
-            // vision / web-search snapshots reflect the new logic.
-            // Cheap relative to fetching, but skipped on subsequent
-            // boots via the version key.
-            val needsRecompute = ai.providers.entries
-                .filter { (_, cfg) -> cfg.models.isNotEmpty() }
-                .map { it.key }
-            if (needsRecompute.isNotEmpty()) {
-                PricingCache.ensureLoadedBlocking(application)
-                var s: Settings = ai
-                for (svc in needsRecompute) s = s.recomputeCapabilities(svc)
-                ai = s
-                settingsPrefs.saveSettings(ai)
-            }
-            prefs.edit().putInt(KEY_CAPS_PRECOMPUTED_VERSION, CAPS_PRECOMPUTED_VERSION).apply()
-        }
-
-        // First-run seeding from bundled assets. The flag prevents
-        // re-importing on subsequent boots and on app updates (the
-        // pref persists across version installs but is wiped on data
-        // clear / reinstall, which is exactly when we want to seed
-        // again). Existing installs that pre-date this flag get the
-        // flag set without an import, so we don't surprise users by
-        // reviving prompts/providers they previously deleted.
+        // First-run seeding from bundled assets. Flag wiped on data
+        // clear / reinstall (which is exactly when we want to seed
+        // again); persists across APK upgrades.
         if (!prefs.getBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, false)) {
             val isEmptyInstall = ProviderRegistry.getAll().isEmpty() && ai.internalPrompts.isEmpty()
             if (isEmptyInstall) {
@@ -327,57 +295,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
         }
-
-        // Legacy migration: pre-v23 builds (and any backup made then)
-        // stored the Intro / Model info / Translate templates as plain
-        // String fields on GeneralSettings — keys "intro_prompt",
-        // "model_info_prompt", "translate_prompt" in eval_prefs. The
-        // fields themselves are gone now, but the keys may still be on
-        // disk (orphaned by the upgrade or written by a restore from an
-        // old backup). Carry their content into matching InternalPrompt
-        // entries so the user keeps their customised text. Only applied
-        // when no entry by that name already exists; the orphan keys
-        // are cleared once consumed.
-        val legacyKeyToName = listOf(
-            "intro_prompt" to "Intro",
-            "model_info_prompt" to "Model info",
-            "translate_prompt" to "Translate"
-        )
-        val migratedFromLegacy = mutableListOf<com.ai.model.InternalPrompt>()
-        val keysToClear = mutableListOf<String>()
-        for ((key, name) in legacyKeyToName) {
-            if (!prefs.contains(key)) continue
-            val text = prefs.getString(key, null)
-            if (!text.isNullOrBlank() &&
-                ai.internalPrompts.none { it.name.equals(name, ignoreCase = true) }) {
-                migratedFromLegacy += com.ai.model.InternalPrompt(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = name, reference = false,
-                    category = "internal", agent = "*select", text = text
-                )
-            }
-            // Clear the orphan key whether it had content or not — the
-            // field is gone from GeneralSettings, no other code reads
-            // it, and leaving it lets the same migration run pointlessly
-            // on every launch.
-            keysToClear += key
-        }
-        if (migratedFromLegacy.isNotEmpty()) {
-            ai = ai.copy(internalPrompts = ai.internalPrompts + migratedFromLegacy)
-        }
-        if (keysToClear.isNotEmpty()) {
-            prefs.edit().also { e -> keysToClear.forEach { e.remove(it) } }.apply()
-        }
-
-        // Save unconditionally so the migration applied at load
-        // (null category/agent → "meta"/"*select" for pre-rename rows,
-        // plus the legacy intro/translate/model-info → InternalPrompt
-        // promotion above) persists on the very first boot of this
-        // build. assets/prompts.json is no longer consulted here —
-        // the Internal Prompts list screen exposes a button that runs
-        // [loadBundledInternalPrompts] on demand, so users don't get
-        // entries reappearing after they delete them.
-        settingsPrefs.saveSettings(ai)
 
         return gs to ai
     }
@@ -984,33 +901,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)
-
-        // Bootstrap migration for the per-provider precomputed sets
-        // (visionCapableComputed / webSearchCapableComputed / modelPricing).
-        // The flag stops the migration from re-firing on every cold start —
-        // bump the version when the precompute logic changes and the
-        // existing data on disk is no longer good enough.
-        internal const val KEY_CAPS_PRECOMPUTED_VERSION = "caps_precomputed_version"
-        // v2 — added supportsReasoning + tightened the xAI grok
-        // reasoning heuristic; existing installs need to reset
-        // reasoningCapableComputed so falsely-positive grok-4.x rows
-        // (e.g. grok-4.3) drop their 🧠 badge and stop sending
-        // reasoning_effort.
-        // v3 — distrust LiteLLM/models.dev reasoning flags for xAI
-        // (models.dev marks grok-4.3 reasoning=true, but xAI's API
-        // rejects the reasoning_effort parameter for it). Heuristic is
-        // now authoritative-when-negative for xAI; recompute drops the
-        // remaining false positives from the precomputed snapshot.
-        // v4 — split capability (badge) from parameter-acceptance
-        // (request gate): isReasoningCapable returns true for the
-        // always-on xAI variants again so they keep their 🧠 badge,
-        // while acceptsReasoningEffortParam keeps the request gate.
-        // Recompute restores grok-4.3 et al. into reasoningCapableComputed.
-        // v5 — broadened the xAI inferReasoning heuristic to include
-        // grok-4.x and grok-code-fast-… (the always-on reasoning
-        // variants). Required so installs that don't have models.dev
-        // meta in cache still badge these correctly.
-        internal const val CAPS_PRECOMPUTED_VERSION = 5
 
         // First-run marker. Absent on a fresh install and after a data
         // clear / reinstall, present after the very first successful

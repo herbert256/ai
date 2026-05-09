@@ -80,64 +80,39 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     // ===== AI Settings =====
 
-    fun loadSettingsWithMigration(): Settings {
-        val base = loadSettings()
-        return base.copy(
-            agents = loadList(KEY_AI_AGENTS, TypeTokens.listAgentType) { (it as? List<Agent>)?.filter { a -> AppService.findById(a.provider.id) != null } ?: emptyList() },
+    fun loadSettings(): Settings {
+        return loadProviderSettings().copy(
+            agents = loadList(KEY_AI_AGENTS, TypeTokens.listAgentType),
             flocks = loadList(KEY_AI_FLOCKS, TypeTokens.listFlockType),
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
-            // Gson reflection bypasses Kotlin defaults for fields that
-            // didn't exist when the JSON was written, so rows persisted
-            // by the previous build (without category / agent) come back
-            // with those properties as runtime null. Patch them up.
-            internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { ip ->
-                @Suppress("USELESS_CAST")
-                val cat = (ip.category as String?) ?: "meta"
-                @Suppress("USELESS_CAST")
-                val ag = (ip.agent as String?) ?: "*select"
-                @Suppress("USELESS_CAST")
-                val ttl = (ip.title as String?) ?: ""
-                if (cat == ip.category && ag == ip.agent && ttl == ip.title) ip
-                else ip.copy(category = cat, agent = ag, title = ttl)
-            },
+            internalPrompts = loadList(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType),
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
         )
     }
 
-    private fun loadSettings(): Settings {
+    private fun loadProviderSettings(): Settings {
         val providers = AppService.entries.associateWith { service ->
             val key = service.id
             val defaults = defaultProviderConfig(service)
             val modelSource = prefs.getString("${key}_model_source", null)?.let {
                 try { ModelSource.valueOf(it) } catch (_: Exception) { null }
             } ?: defaults.modelSource
-            // Migration shim: dedupe on read so any prefs written before
-            // Settings.withModels learned to .distinct() come up clean
-            // without a manual refresh. Cheap (small lists).
-            val models = (
-                if (defaults.models.isNotEmpty())
-                    loadJsonList("${key}_manual_models") ?: defaults.models
-                else
-                    loadJsonList("${key}_manual_models") ?: emptyList()
-            ).distinct()
+            val models = if (defaults.models.isNotEmpty())
+                loadJsonList("${key}_manual_models") ?: defaults.models
+            else
+                loadJsonList("${key}_manual_models") ?: emptyList()
             val storedTypes: Map<String, String> = prefs.getString("${key}_model_types", null)?.let {
                 try {
                     @Suppress("UNCHECKED_CAST")
                     gson.fromJson(it, Map::class.java) as? Map<String, String>
                 } catch (_: Exception) { null }
             } ?: emptyMap()
-            // Backfill heuristic types for any models loaded from old prefs that pre-date
-            // the types column, so the UI / dispatcher always has *some* classification.
             val types = models.associateWith { id -> storedTypes[id] ?: com.ai.data.ModelType.infer(id) }
 
-            // visionModels (user override + auto-flagged on fetch) and
-            // webSearchModels are JSON-encoded string lists. Falsy/missing
-            // values fall through to empty sets — older prefs files migrate
-            // transparently.
             val visionModels = loadJsonStringSet("${key}_vision_models")
             val webSearchModels = loadJsonStringSet("${key}_web_search_models")
             val reasoningModels = loadJsonStringSet("${key}_reasoning_models")
