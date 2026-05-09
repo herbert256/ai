@@ -219,6 +219,26 @@ private val FlaggedStateSaver = androidx.compose.runtime.saveable.Saver<FlaggedS
     }
 )
 
+/** Saver for the (mime, base64) attached-image pair so a rotation
+ *  or process-recreation between the user picking an image and
+ *  tapping Send doesn't drop the attachment. The base64 string can
+ *  be sizeable (a few MB) but is bounded by the picker's downscale —
+ *  Bundle has a ~1 MB practical limit, larger images may not survive
+ *  process death; this still covers rotation and the common case. */
+private val AttachedImageSaver = androidx.compose.runtime.saveable.Saver<Pair<String, String>?, java.util.ArrayList<String>>(
+    save = { pair ->
+        if (pair == null) java.util.ArrayList()
+        else java.util.ArrayList<String>().apply {
+            add(pair.first)
+            add(pair.second)
+        }
+    },
+    restore = { list ->
+        if (list.size < 2) null
+        else list[0] to list[1]
+    }
+)
+
 // ===== Chat Session =====
 
 @Composable
@@ -274,13 +294,21 @@ fun ChatSessionScreen(
         if (mime != null && b64 != null) mime to b64 else null
     }
     LaunchedEffect(Unit) { onConsumeStarter() }
-    var userInput by remember { mutableStateOf(starter ?: "") }
+    // rememberSaveable so a rotation / process-recreation between
+    // staging the prompt (or an attached image) and tapping Send
+    // doesn't drop the user's typed text and image. The starter is
+    // already consumed at this point so the saved state takes over.
+    var userInput by rememberSaveable { mutableStateOf(starter ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
     var totalCost by remember { mutableDoubleStateOf(0.0) }
     // (mime, base64) of an image attached to the next user message.
-    var attachedImage by remember { mutableStateOf<Pair<String, String>?>(starterImage) }
+    // rememberSaveable via a Saver so a rotation / process-recreation
+    // between picking the image and tapping Send doesn't drop it.
+    var attachedImage by rememberSaveable(stateSaver = AttachedImageSaver) {
+        mutableStateOf(starterImage)
+    }
     var useWebSearch by remember { mutableStateOf(parameters.webSearchTool) }
     // Per-turn reasoning-effort hint. "" = no hint; "low"/"medium"/"high"
     // map to the same OpenAI Responses-API / Gemini thinking field
