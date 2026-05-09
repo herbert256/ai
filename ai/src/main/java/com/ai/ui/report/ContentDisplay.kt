@@ -52,13 +52,15 @@ fun ReportsViewerScreen(
     when (val s = reportState.value) {
         ReportLoadState.Loading -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss)
+                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss,
+                    modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             }
             return
         }
         ReportLoadState.NotFound -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss)
+                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss,
+                    modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)
                 }
@@ -190,7 +192,8 @@ private fun ReportsViewerScreenLoaded(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
-            TitleBar(helpTopic = sectionHelpTopic, title = title, onBackClick = onDismiss)
+            TitleBar(helpTopic = sectionHelpTopic, title = title, onBackClick = onDismiss,
+                modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
@@ -259,7 +262,8 @@ private fun ReportsViewerScreenLoaded(
             } else null,
             onInfo = if (selectedReportAgent != null && selectedProviderService != null) {
                 { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
-            } else null
+            } else null,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })

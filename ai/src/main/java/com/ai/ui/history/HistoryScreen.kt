@@ -73,7 +73,7 @@ fun HistoryScreenNav(
         val pageItems = filteredReports.subList(startIndex.coerceAtMost(filteredReports.size), (startIndex + pageSize).coerceAtMost(filteredReports.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
                 helpTopic = "history",
                 title = "History", onBackClick = onNavigateBack,

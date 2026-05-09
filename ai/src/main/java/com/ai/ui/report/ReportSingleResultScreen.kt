@@ -95,13 +95,15 @@ fun ReportSingleResultScreen(
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack)
+            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack,
+                modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         }
         return
     }
     if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack)
+            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack,
+                modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Result not found", color = AppColors.TextSecondary, fontSize = 16.sp)
             }
@@ -162,7 +164,8 @@ fun ReportSingleResultScreen(
             onDelete = { confirmRemove = true },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
-            onChat = if (canContinueInChat) { { showContinuePicker = true } } else null
+            onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
         if (!foldSubject) {
@@ -297,7 +300,8 @@ private fun ContinueInChatPickerScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", onBackClick = onBack)
+        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", onBackClick = onBack,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(
                 "Pick how you want to continue in chat:",

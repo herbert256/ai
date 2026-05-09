@@ -57,7 +57,7 @@ fun PromptHistoryScreen(
         val startIndex = currentPage * pageSize
         val pageItems = filteredEntries.subList(startIndex.coerceAtMost(filteredEntries.size), (startIndex + pageSize).coerceAtMost(filteredEntries.size))
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(helpTopic = "prompt_history", title = "Prompt History", onBackClick = onNavigateBack)
 
             OutlinedTextField(value = searchText, onValueChange = { searchText = it },

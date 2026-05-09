@@ -45,7 +45,8 @@ internal fun TranslationCompareScreen(
         TitleBar(
             helpTopic = "translation_compare",
             title = if (foldSubject) title else "Translation compare",
-            onBackClick = onBack
+            onBackClick = onBack,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         if (!foldSubject) {
             Text(
