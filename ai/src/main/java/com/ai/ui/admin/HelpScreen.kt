@@ -139,6 +139,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Action row (results)", "While running: STOP / Background. Once complete: View, Edit, Regenerate, Export, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Fan out (disabled when no Fan-out prompts exist)."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary. Edit popup is Prompt / Title / Models / Parameters."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect."),
+            HelpCard("Title bar — 💬", "Results phase only, and only when the prompt is non-blank. Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn."),
             HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )

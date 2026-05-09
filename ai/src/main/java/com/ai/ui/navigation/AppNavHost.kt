@@ -390,6 +390,16 @@ fun AppNavHost(
                         }
                         navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
                     }
+                },
+                onChatWithReportPrompt = { prompt ->
+                    appViewModel.updateUiState {
+                        it.copy(
+                            chatStarterText = prompt,
+                            chatStarterImageBase64 = null,
+                            chatStarterImageMime = null
+                        )
+                    }
+                    navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
                 })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {

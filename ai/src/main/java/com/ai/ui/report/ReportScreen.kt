@@ -54,6 +54,10 @@ fun ReportsScreenNav(
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    /** Start a fresh chat seeded with the report's prompt. Called from
+     *  the result-screen title bar's 💬 icon. AppNavHost stashes the
+     *  text into chatStarterText and routes to the agent picker. */
+    onChatWithReportPrompt: (String) -> Unit = {},
     onNavigateToAgentsEdit: () -> Unit = {},
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
@@ -179,6 +183,7 @@ fun ReportsScreenNav(
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
         onContinueWithOnTheFly = onContinueWithOnTheFly,
+        onChatWithReportPrompt = onChatWithReportPrompt,
         onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
         onNavigateToAgentsEdit = onNavigateToAgentsEdit,
         onNavigateToFlocksEdit = onNavigateToFlocksEdit,
@@ -308,6 +313,7 @@ fun ReportsScreen(
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    onChatWithReportPrompt: (String) -> Unit = {},
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onResumeStaleFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRestartFailedFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
@@ -1439,6 +1445,12 @@ fun ReportsScreen(
             } else null,
             onInfo = if (isGenerating && models.isNotEmpty()) {
                 { showInfoPicker = true }
+            } else null,
+            // 💬: start a fresh chat seeded with the report's prompt.
+            // Wired only on the results page (isGenerating == true) and
+            // only when the prompt text is non-blank.
+            onChat = if (isGenerating && uiState.genericPromptText.isNotBlank()) {
+                { onChatWithReportPrompt(uiState.genericPromptText) }
             } else null
         )
         if (showRegenerateConfirm && currentReportId != null) {
