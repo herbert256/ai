@@ -145,7 +145,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     seed = advanced.seed ?: mergedParams.seed,
                     responseFormatJson = advanced.responseFormatJson || mergedParams.responseFormatJson,
                     searchEnabled = advanced.searchEnabled || mergedParams.searchEnabled,
-                    returnCitations = advanced.returnCitations,
+                    // returnCitations defaults to true and combines with
+                    // AND so an explicit opt-out anywhere in the chain is
+                    // honoured — same semantic as Settings.mergeParameters.
+                    // Previously the overlay clobbered to advanced's value
+                    // (true on a fresh dialog open), silently re-enabling
+                    // citations on every preset-disabled run.
+                    returnCitations = advanced.returnCitations && mergedParams.returnCitations,
                     searchRecency = advanced.searchRecency ?: mergedParams.searchRecency,
                     webSearchTool = advanced.webSearchTool || mergedParams.webSearchTool,
                     reasoningEffort = advanced.reasoningEffort ?: mergedParams.reasoningEffort
