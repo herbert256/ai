@@ -32,6 +32,40 @@ import java.util.Locale
 private fun exportTimestamp(): String =
     SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
 
+// RFC-4180 minimal CSV row parser. Pairs with the `csvField` writer:
+// a field is unquoted unless it starts with `"`, in which case the
+// closing `"` ends it and `""` decodes to a single `"`. The naive
+// String.split(",") it replaces silently mangled any row containing
+// a quoted-and-comma'd id, which was the exact case csvField was
+// added to handle. Multiline values are not supported — the caller
+// already splits the file on \n, and no real-world provider/model
+// id contains a newline.
+private fun parseCsvRow(line: String): List<String> {
+    val out = mutableListOf<String>()
+    val sb = StringBuilder()
+    var inQuotes = false
+    var i = 0
+    while (i < line.length) {
+        val c = line[i]
+        if (inQuotes) {
+            when {
+                c == '"' && i + 1 < line.length && line[i + 1] == '"' -> { sb.append('"'); i++ }
+                c == '"' -> inQuotes = false
+                else -> sb.append(c)
+            }
+        } else {
+            when {
+                c == ',' -> { out.add(sb.toString()); sb.clear() }
+                c == '"' && sb.isEmpty() -> inQuotes = true
+                else -> sb.append(c)
+            }
+        }
+        i++
+    }
+    out.add(sb.toString())
+    return out
+}
+
 @Composable
 fun ImportExportScreen(
     aiSettings: Settings,
@@ -188,7 +222,7 @@ fun ImportExportScreen(
         if (uri == null) return@rememberLauncherForActivityResult
         val (csv, kept) = buildLayeredCsv(filterCovered = true)
         writeToUri(uri, csv)
-        Toast.makeText(context, "$kept rows without LiteLLM/OpenRouter prices exported", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "$kept rows not covered by any catalog tier exported", Toast.LENGTH_SHORT).show()
     }
 
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -224,7 +258,7 @@ fun ImportExportScreen(
                 if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
                 var imported = 0; var skipped = 0
                 csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-                    val parts = line.split(",")
+                    val parts = parseCsvRow(line)
                     if (parts.size >= 4) {
                         val provider = AppService.findById(parts[0].trim())
                         val model = parts[1].trim()
@@ -248,7 +282,7 @@ fun ImportExportScreen(
                 if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
                 var imported = 0; var skipped = 0
                 csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-                    val parts = line.split(",")
+                    val parts = parseCsvRow(line)
                     if (parts.size < 4) return@forEach
                     val rawIn = parts[2].trim()
                     val rawOut = parts[3].trim()
@@ -350,7 +384,7 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows that already have a LiteLLM, models.dev, or OpenRouter price. Fill in the two override columns and re-import via Import manual changed costs — only rows with values are applied.",
+                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows already covered by any catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter). Fill in the two override columns and re-import via Import manual changed costs — only rows with values are applied.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

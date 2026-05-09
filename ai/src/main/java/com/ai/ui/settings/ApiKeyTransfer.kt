@@ -83,18 +83,10 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
             "EXT_HUGGINGFACE" -> { hf = key; imported++ }
             "EXT_OPENROUTER" -> { or = key; imported++ }
             "EXT_ARTIFICIALANALYSIS" -> { aa = key; imported++ }
-            // Legacy aliases kept for backward-compatible imports of
-            // pre-prefix keys.json files.
-            "HUGGINGFACE" -> { hf = key; imported++ }
-            "OPENROUTER_KEY" -> { or = key; imported++ }
             else -> {
-                // Resolve provider by displayName first (the current
-                // export shape), case-insensitive. Fall back to
-                // findById so older keys.json files written before
-                // the displayName switch still import cleanly.
                 val service = AppService.entries.firstOrNull {
                     it.id.equals(id, ignoreCase = true)
-                } ?: AppService.findById(id)
+                }
                 if (service != null) { updated = updated.withApiKey(service, key); imported++ } else skipped++
             }
         }
