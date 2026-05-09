@@ -21,7 +21,7 @@ import com.ai.ui.shared.*
  *  [Settings.agents]. */
 private val FAN_CATEGORIES = setOf(
     "fan_out", "fan_in",
-    "fan-initiator", "fan-responder", "fan-model"
+    "fan-in-i", "fan-in-r", "fan-in-m"
 )
 
 /** Sentinel meaning the run-time picker should ask the user which
@@ -41,9 +41,9 @@ fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
-    "fan-initiator" -> "Fan in, model, Initiator prompts"
-    "fan-responder" -> "Fan in, model, Responder prompts"
-    "fan-model" -> "Fan in, model, Initiator & Responder prompts"
+    "fan-in-i" -> "Fan in, model, Initiator prompts"
+    "fan-in-r" -> "Fan in, model, Responder prompts"
+    "fan-in-m" -> "Fan in, model, Initiator & Responder prompts"
     "internal" -> "Other internal prompts"
     else -> category
 }

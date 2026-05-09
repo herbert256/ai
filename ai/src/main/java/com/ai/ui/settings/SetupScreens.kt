@@ -326,8 +326,8 @@ fun PromptsSetupScreen(
  *  Internal Prompts CRUDs. Three top-level buckets:
  *    - Meta prompts (single CRUD)
  *    - Fan out/in prompts (forwards to its own sub-hub holding the
- *      five fan-* category CRUDs — fan_out / fan_in / fan-initiator /
- *      fan-responder / fan-model)
+ *      five fan-* category CRUDs — fan_out / fan_in / fan-in-i /
+ *      fan-in-r / fan-in-m)
  *    - Other internal prompts (single fixed-list CRUD) */
 @Composable
 fun InternalPromptsHubScreen(
@@ -352,8 +352,8 @@ fun InternalPromptsHubScreen(
         // count badge shows so the user can see at a glance how many
         // templates total live in the sub-hub.
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
-            countByCategory("fan-initiator") + countByCategory("fan-responder") +
-            countByCategory("fan-model")
+            countByCategory("fan-in-i") + countByCategory("fan-in-r") +
+            countByCategory("fan-in-m")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
@@ -372,9 +372,9 @@ fun InternalPromptsHubScreen(
  *    - fan_out                  — per-pair source-response template
  *    - fan_in                   — combined-report template (one run
  *      per source agent)
- *    - fan-initiator            — per-model initiator template
- *    - fan-responder            — per-model responder template
- *    - fan-model                — combined initiator + responder
+ *    - fan-in-i            — per-model initiator template
+ *    - fan-in-r            — per-model responder template
+ *    - fan-in-m                — combined initiator + responder
  *      template */
 @Composable
 fun FanInOutPromptsHubScreen(
@@ -397,12 +397,12 @@ fun FanInOutPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("fan_out") })
             ModelsSetupNavCard("🪢", "Manage Fan in, total, prompts", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
                 onClick = { onOpenInternalPrompts("fan_in") })
-            ModelsSetupNavCard("🎬", "Manage Fan in, model, Initiator prompts", "Per-model initiator template (category fan-initiator)", "${countByCategory("fan-initiator")}",
-                onClick = { onOpenInternalPrompts("fan-initiator") })
-            ModelsSetupNavCard("💬", "Manage Fan in, model, Responder prompts", "Per-model responder template (category fan-responder)", "${countByCategory("fan-responder")}",
-                onClick = { onOpenInternalPrompts("fan-responder") })
-            ModelsSetupNavCard("🧬", "Manage Fan in, model, Initiator & Responder prompts", "Combined initiator + responder template (category fan-model)", "${countByCategory("fan-model")}",
-                onClick = { onOpenInternalPrompts("fan-model") })
+            ModelsSetupNavCard("🎬", "Manage Fan in, model, Initiator prompts", "Per-model initiator template (category fan-in-i)", "${countByCategory("fan-in-i")}",
+                onClick = { onOpenInternalPrompts("fan-in-i") })
+            ModelsSetupNavCard("💬", "Manage Fan in, model, Responder prompts", "Per-model responder template (category fan-in-r)", "${countByCategory("fan-in-r")}",
+                onClick = { onOpenInternalPrompts("fan-in-r") })
+            ModelsSetupNavCard("🧬", "Manage Fan in, model, Initiator & Responder prompts", "Combined initiator + responder template (category fan-in-m)", "${countByCategory("fan-in-m")}",
+                onClick = { onOpenInternalPrompts("fan-in-m") })
         }
     }
 }
