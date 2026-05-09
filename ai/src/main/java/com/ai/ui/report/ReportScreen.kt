@@ -2313,7 +2313,13 @@ private fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List<
         .groupBy { it.metaPromptName?.takeIf { n -> n.isNotBlank() } ?: (it.metaPromptId ?: "") }
         .filterKeys { it.isNotBlank() }
         .map { (name, items) ->
-            val pending = items.count { it.content.isNullOrBlank() && it.errorMessage == null }
+            // durationMs is stamped on every successful + errored save;
+            // a row with durationMs set but blank content is a successful
+            // empty-body completion, not pending. Mirrors the L1 stats
+            // classifier in SecondaryResultsScreen.
+            val pending = items.count {
+                it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+            }
             FanOutRunSummary(
                 metaPromptName = name,
                 kind = SecondaryKind.META,

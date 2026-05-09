@@ -74,11 +74,35 @@ internal fun SecondaryResultsScreen(
     // rememberSaveable so the user can drill into a row, jump out to a
     // trace, and return to the same row instead of the list root.
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    // 500 ms polling while a batch is in flight, plus one final
+    // refresh after the batch ends so the last 0–500 ms of pair
+    // completions (which landed on disk after the last in-loop tick
+    // but before isBatching flipped) are reread instead of leaving
+    // the screen stuck with a few "queued" / "running" rows.
+    var sawBatching by remember { mutableStateOf(false) }
     LaunchedEffect(isBatching) {
-        while (isBatching) {
-            delay(500)
+        if (isBatching) {
+            sawBatching = true
+            while (true) {
+                delay(500)
+                refreshTick++
+            }
+        } else if (sawBatching) {
             refreshTick++
+            sawBatching = false
         }
+    }
+    // When a pair leaves runningFanOutPairs (its semaphore-permitted
+    // coroutine finished and dropped its id) the on-disk row already
+    // has content/durationMs, but the next polling tick is up to
+    // 500 ms away. Force an immediate disk reread so the stats
+    // classifier doesn't briefly read the row as "queued" (it isn't
+    // running and the stale results snapshot still shows it as blank).
+    var prevRunning by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(runningFanOutPairs) {
+        val finished = prevRunning - runningFanOutPairs
+        prevRunning = runningFanOutPairs
+        if (finished.isNotEmpty()) refreshTick++
     }
     // Single disk pass per refreshTick. Previously three separate
     // produceStates each called SecondaryResultStorage.listForReport,
@@ -1192,55 +1216,28 @@ private fun ColumnScope.FanOutDrillInView(
         val ok: Int, val err: Int, val run: Int,
         val totalSources: Int, val cost: Double
     )
-    val rowStatsByKey = remember(modelKeys, latestByPair, successful, runningFanOutPairs, orphanKeys) {
-        val orphanSet = orphanKeys.toHashSet()
+    val rowStatsByKey = remember(modelKeys, results, runningFanOutPairs) {
+        // Group placeholders by answerer key once so the per-row
+        // totals derive from the actual on-disk pair count instead of
+        // re-deriving from `successful`. This naturally honours
+        // Manual / TopRanked scope (fewer placeholders than
+        // successful×successful) and the Swarm-with-duplicate-(prov,
+        // model)-members case (each answerer agent owns its own
+        // placeholder, all of them counted toward the row).
+        val pairRows = results.filter { it.fanOutSourceAgentId != null && it.fanInOf == null }
+        val byAk = pairRows.groupBy { "${it.providerId}|${it.model}" }
         modelKeys.associateWith { ak ->
-            val parts = ak.split("|")
-            val pid = parts.getOrNull(0).orEmpty()
-            val mdl = parts.getOrNull(1).orEmpty()
-            if (ak in orphanSet) {
-                // Orphan answerers — the report-agent failed after
-                // factchecks landed on disk. Iterate the rows that
-                // already exist in latestByPair (all are this model's
-                // answerer rows).
-                var ok = 0; var err = 0; var run = 0; var cost = 0.0; var total = 0
-                latestByPair.values.forEach { res ->
-                    if (res.providerId != pid || res.model != mdl) return@forEach
-                    total++
-                    cost += (res.inputCost ?: 0.0) + (res.outputCost ?: 0.0)
-                    when {
-                        res.errorMessage != null -> err++
-                        !res.content.isNullOrBlank() || res.durationMs != null -> ok++
-                        res.id in runningFanOutPairs -> run++
-                    }
+            var ok = 0; var err = 0; var run = 0; var cost = 0.0; var total = 0
+            byAk[ak]?.forEach { res ->
+                total++
+                cost += (res.inputCost ?: 0.0) + (res.outputCost ?: 0.0)
+                when {
+                    res.errorMessage != null -> err++
+                    !res.content.isNullOrBlank() || res.durationMs != null -> ok++
+                    res.id in runningFanOutPairs -> run++
                 }
-                L1RowStats(ok, err, run, total, cost)
-            } else {
-                var ok = 0; var err = 0; var run = 0; var cost = 0.0
-                var total = 0
-                // Skip by agentId — when a Swarm has two members with
-                // the same (provider, model) pair the previous skip-
-                // by-(pid, mdl) collapsed both into the answerer-key
-                // bucket and dropped them from totalSources, undercounting
-                // the row's "X / Y" count and cost.
-                val selfAgentIds = successful
-                    .filter { it.provider == pid && it.model == mdl }
-                    .mapTo(HashSet()) { it.agentId }
-                successful.forEach { src ->
-                    if (src.agentId in selfAgentIds) return@forEach
-                    total++
-                    val res = latestByPair["$ak|${src.agentId}"]
-                    if (res != null) {
-                        cost += (res.inputCost ?: 0.0) + (res.outputCost ?: 0.0)
-                        when {
-                            res.errorMessage != null -> err++
-                            !res.content.isNullOrBlank() || res.durationMs != null -> ok++
-                            res.id in runningFanOutPairs -> run++
-                        }
-                    }
-                }
-                L1RowStats(ok, err, run, total, cost)
             }
+            L1RowStats(ok, err, run, total, cost)
         }
     }
 
