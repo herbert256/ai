@@ -131,7 +131,7 @@ fun ManualCostOverridesScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = "Manual cost overrides", onBackClick = onBack)
+        TitleBar(helpTopic = "manual_cost_overrides", title = "Manual cost overrides", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

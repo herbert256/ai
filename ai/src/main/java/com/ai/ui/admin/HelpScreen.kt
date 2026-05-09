@@ -1130,15 +1130,15 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "import_export" to HelpContent(
         title = "Export / Import",
         cards = listOf(
-            HelpCard("Overview", "Three card groups: Export, Import, Layered costs. All exports use Android's Storage Access Framework (CreateDocument) — the picker decides where the file lands; the app never sees the location."),
+            HelpCard("Overview", "Two card groups (Export, Import) plus a full-width All button on each. All exports use Android's Storage Access Framework (CreateDocument) — the picker decides where the file lands; the app never sees the location."),
             HelpCard("Export · API Keys", "Just the keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) as a flat JSON object. Toast reports the populated key count."),
-            HelpCard("Export · Costs Overrides", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million). Only rows the user explicitly added through Add Manual Override or via re-import."),
+            HelpCard("Export · Costs Overrides", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million). Only rows the user explicitly added through Add Manual Override or via Manual cost overrides → Import manual changed costs."),
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
-            HelpCard("Import", "Four buttons matching the four export shapes (API Keys, Costs Overrides, providers.json, prompts.json). Layered-costs files are re-imported from their own card via Import manual changed costs."),
-            HelpCard("Layered costs", "One row per (provider, model). Two empty new_input/new_output columns up front for a manual override; rest show every tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows already covered by LiteLLM/models.dev/Helicone/llm-prices/AA/OpenRouter. Import manual changed costs reads the same CSV back: only rows where the user filled in the two override columns are applied; blank rows are silently ignored."),
+            HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts } that bundles the four exports above. Round-trips through Import · All."),
+            HelpCard("Import", "Four buttons matching the four export shapes (API Keys, Costs Overrides, providers.json, prompts.json) plus a full-width All that reads the bundled JSON."),
             HelpCard("Title bar", "helpTopic=import_export. Plain back."),
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently."),
-            HelpCard("Related", "Backup & Restore (Housekeeping) is the all-in-one zip alternative; this screen is for selective shape-typed transfer.")
+            HelpCard("Related", "Layered-costs CSV (Housekeeping → Manual cost overrides) is the bulk-edit path for overrides across every model. Backup & Restore is the all-in-one zip alternative.")
         )
     ),
     "local_runtime" to HelpContent(
@@ -1247,16 +1247,82 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "housekeeping" to HelpContent(
         title = "Housekeeping",
         cards = listOf(
-            HelpCard("Overview", "Maintenance hub. Backup/restore, Export/Import, Refresh, Trim by age, Usage statistics, Manual cost overrides cleanup, Internal prompts merge, and three destructive Reset variants."),
-            HelpCard("Backup & Restore", "Single .zip via Android's SAF — destination picker shows Google Drive, Dropbox, etc. Backup includes everything except local_llms/ and local_models/ (FILES_DIR_BACKUP_EXCLUDES). Restore validates first then writes; auto-restarts the app on success."),
-            HelpCard("Export & Import / Refresh", "NavCards — tap anywhere on the row to deep-link into the matching screen."),
-            HelpCard("Trim by age", "\"Days to keep\" numeric field → \"Clear Reports/Chats/Traces\" button (disabled until N>0). Deletes reports older than the cutoff, then chats, then trace files; reports a per-kind count toast."),
-            HelpCard("Usage statistics", "One purple button. Wipes the per-(provider,model) call counts/tokens/cost. Confirmed via toast, no extra dialog."),
-            HelpCard("Manual cost overrides", "Drops every dormant or redundant override (covered by LiteLLM, OpenRouter, equal to default, equal to lookup-without-it). Toast tells you how many were removed."),
-            HelpCard("Internal prompts", "Indigo button: merges any prompt in assets/prompts.json that's missing by name. Existing rows with the same name are overwritten. Result text under the button (\"Added N new prompts\")."),
-            HelpCard("Reset block", "Three escalating buttons. Clear all runtime data (red): wipes reports, chats, traces, prompt history, KBs, pricing cache, model-list cache, semantic-search cache. Clear all configuration (dark red): wipes provider keys/models/endpoints, agents/flocks/swarms/parameters/prompts, External Services keys, user name + email, ALL Local LLMs and LiteRT models. Reset application (dark red, type-RESET-to-confirm): preserves API keys only, reloads providers + internal prompts from assets, then runs Refresh-all chain."),
+            HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ for the per-screen detail."),
+            HelpCard("The eight rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Manual cost overrides · Internal prompts · Reset. Order is roughly safe → destructive."),
             HelpCard("Title bar", "helpTopic=housekeeping. Plain back."),
-            HelpCard("Pitfalls", "Reset's confirmation is case-sensitive — must literally type RESET, trimmed. Restore overwrites everything in place; a failed restore leaves the device in an inconsistent state.")
+            HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear all runtime data, and Clear all configuration are not undoable."),
+            HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
+        )
+    ),
+    "backup_restore" to HelpContent(
+        title = "Backup & Restore",
+        cards = listOf(
+            HelpCard("Overview", "Single-zip whole-app backup and restore. Uses Android's Storage Access Framework so the destination/source picker shows Google Drive, Dropbox, OneDrive, local files — whichever cloud apps you have installed. The app never sees the underlying location."),
+            HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache, knowledge bases, embeddings. Excluded: `local_llms/` and `local_models/` (FILES_DIR_BACKUP_EXCLUDES) — they're large and re-downloadable."),
+            HelpCard("Restore", "Blue button. Picker is restricted to .zip plus application/octet-stream (some providers report .zip with the latter mime). Confirmation dialog appears first. The restore is validate-then-write: the zip is parsed before any current file is touched."),
+            HelpCard("Auto-restart", "On successful restore the app shows a toast, waits ~800ms, then relaunches itself with FLAG_ACTIVITY_NEW_TASK + CLEAR_TASK and kills the current process. The next launch reads the restored data fresh."),
+            HelpCard("Title bar", "helpTopic=backup_restore. Plain back."),
+            HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it). Local LLM and LiteRT model files have to be re-installed by hand on a new device — they're never in the zip."),
+            HelpCard("Related", "Export/Import does selective shape-typed transfer (keys, costs, providers.json, prompts.json) without bundling reports/chats/traces.")
+        )
+    ),
+    "trim_by_age" to HelpContent(
+        title = "Trim by age",
+        cards = listOf(
+            HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, knowledge bases, prompt history, usage statistics — all kept."),
+            HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
+            HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
+            HelpCard("Title bar", "helpTopic=trim_by_age. Plain back."),
+            HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
+            HelpCard("Related", "Reset → Clear all runtime data wipes ALL reports/chats/traces regardless of age, plus the caches and prompt history.")
+        )
+    ),
+    "usage_statistics" to HelpContent(
+        title = "Usage statistics",
+        cards = listOf(
+            HelpCard("Overview", "One purple button that empties the per-(provider, model) call counts, token totals, and accumulated cost. The AI Usage screen empties out; reports, chats, traces, configuration, and pricing tiers stay intact."),
+            HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
+            HelpCard("Title bar", "helpTopic=usage_statistics. Plain back."),
+            HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
+            HelpCard("Related", "AI Usage screen (cost / tokens dashboard) reads exactly the data this button wipes.")
+        )
+    ),
+    "manual_cost_overrides" to HelpContent(
+        title = "Manual cost overrides",
+        cards = listOf(
+            HelpCard("Overview", "Two cards. Cleanup prunes redundant manual overrides; Layered costs is the bulk-edit CSV path that lets you set new overrides en masse."),
+            HelpCard("Cleanup", "Drops every override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
+            HelpCard("Layered costs · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default)."),
+            HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
+            HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored — the toast counts only rows the user intended to write."),
+            HelpCard("Title bar", "helpTopic=manual_cost_overrides. Plain back."),
+            HelpCard("Tips", "Manual override sits AFTER LiteLLM / models.dev / curated tiers in the lookup precedence — if a tier already has a price, your override may not actually win. Use Cleanup to drop those redundant entries."),
+            HelpCard("Pitfalls", "The CSV importer skips malformed rows silently (toast just says \"Imported N, skipped M\"). Provider matching is case-sensitive on the provider id."),
+            HelpCard("Related", "Cost Config (Settings → Costs) is the single-row form. Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
+        )
+    ),
+    "internal_prompts_admin" to HelpContent(
+        title = "Internal prompts (admin)",
+        cards = listOf(
+            HelpCard("Overview", "Two-card maintenance screen for the bundled Internal prompts (assets/prompts.json). Load merges new bundled rows; Reset wipes everything and reloads from scratch."),
+            HelpCard("Load new prompts", "Indigo button. Adds any prompt in assets/prompts.json whose (category, name) pair is missing from your set. Existing rows with the same pair are NOT overwritten — your edits are preserved. Status text under the button reports the count."),
+            HelpCard("Reset", "Red button + confirmation dialog. Drops every Internal prompt (including ones you authored) and reloads the bundled set fresh. Use when your edits diverged badly enough that starting over is cleaner than reconciling."),
+            HelpCard("Title bar", "helpTopic=internal_prompts_admin. Plain back."),
+            HelpCard("Tips", "Internal Prompts are name-and-category referenced by app features (Meta button on report results, Fan-out drill-in, Translate, Model info). Reset will not break anything that's keyed by name — they'll resolve to the freshly loaded versions."),
+            HelpCard("Pitfalls", "Reset is destructive — there's no undo. Backup & Restore is the only path back if you've lost edits."),
+            HelpCard("Related", "Settings → Prompts → Internal Prompts is the per-row CRUD list.")
+        )
+    ),
+    "reset" to HelpContent(
+        title = "Reset",
+        cards = listOf(
+            HelpCard("Overview", "Three escalating destructive operations. Each has its own confirmation dialog with the exact list of what's wiped vs. kept."),
+            HelpCard("Clear all runtime data (red)", "Wipes reports, chats, API traces, prompt history, knowledge bases, pricing cache (manual overrides plus cached tier blobs), per-provider model-list cache, local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept."),
+            HelpCard("Clear all configuration (dark red)", "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT (.tflite). Reports, chats, traces, and usage statistics are kept."),
+            HelpCard("Reset application (dark red, type-RESET)", "Factory-style reset. API keys (per-provider + 3 external) are preserved; everything else is wiped, providers and internal prompts are reloaded from assets, then the Refresh-all chain runs (catalogs → provider tests → model lists → default agents). Type-to-confirm gate."),
+            HelpCard("Title bar", "helpTopic=reset. Plain back."),
+            HelpCard("Pitfalls", "Reset application's confirmation is CASE-sensitive — must literally type RESET, trimmed. Both Clear-all variants are immediate; only Reset application has a busy-spinner dialog because it also runs the Refresh chain."),
+            HelpCard("Related", "Backup & Restore is the only undo path — take a backup first if there's any chance you'll regret a wipe.")
         )
     ),
     "statistics" to HelpContent(

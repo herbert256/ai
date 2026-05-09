@@ -752,18 +752,59 @@ fun AppNavHost(
 
         // ===== Admin =====
         composable(NavRoutes.AI_HOUSEKEEPING) {
-            HousekeepingScreenNav(
-                viewModel = appViewModel,
-                onNavigateHome = navigateHome,
+            com.ai.ui.admin.HousekeepingScreen(
+                onBackToHome = navigateHome,
+                onNavigateToBackupRestore = { navController.navigate(NavRoutes.AI_BACKUP_RESTORE) },
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
-                onNavigateToManualCostOverrides = { navController.navigate(NavRoutes.AI_MANUAL_COST_OVERRIDES) }
+                onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
+                onNavigateToUsageStatistics = { navController.navigate(NavRoutes.AI_USAGE_STATISTICS) },
+                onNavigateToManualCostOverrides = { navController.navigate(NavRoutes.AI_MANUAL_COST_OVERRIDES) },
+                onNavigateToInternalPrompts = { navController.navigate(NavRoutes.AI_INTERNAL_PROMPTS_ADMIN) },
+                onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) }
+            )
+        }
+        composable(NavRoutes.AI_BACKUP_RESTORE) {
+            com.ai.ui.admin.BackupRestoreScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_TRIM_BY_AGE) {
+            com.ai.ui.admin.TrimByAgeScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_USAGE_STATISTICS) {
+            com.ai.ui.admin.UsageStatisticsScreen(
+                onClearUsageStatistics = { appViewModel.clearUsageStatistics() },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_MANUAL_COST_OVERRIDES) {
             val uiState by appViewModel.uiState.collectAsState()
             com.ai.ui.admin.ManualCostOverridesScreen(
                 aiSettings = uiState.aiSettings,
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_INTERNAL_PROMPTS_ADMIN) {
+            com.ai.ui.admin.InternalPromptsAdminScreen(
+                onLoadBundledPrompts = { appViewModel.loadBundledInternalPrompts() },
+                onResetBundledPrompts = { appViewModel.resetInternalPromptsFromAssets() },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_RESET) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetScreen(
+                onClearRuntimeData = { appViewModel.clearAllRuntimeData(ctx) },
+                onClearConfiguration = { appViewModel.clearAllConfiguration(ctx) },
+                onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
@@ -972,29 +1013,6 @@ fun SetupScreenNav(
         onNavigateToModelInfo = onNavigateToModelInfo,
         onNavigateToProviderAdmin = onNavigateToProviderAdmin,
         initialSubScreen = SettingsSubScreen.AI_SETUP)
-}
-
-@Composable
-fun HousekeepingScreenNav(
-    viewModel: AppViewModel,
-    onNavigateHome: () -> Unit,
-    onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {},
-    onNavigateToManualCostOverrides: () -> Unit = {}
-) {
-    val context = LocalContext.current
-    HousekeepingScreen(
-        onBackToHome = onNavigateHome,
-        onClearUsageStatistics = { viewModel.clearUsageStatistics() },
-        onClearRuntimeData = { viewModel.clearAllRuntimeData(context) },
-        onClearConfiguration = { viewModel.clearAllConfiguration(context) },
-        onResetApplication = { onComplete -> viewModel.resetApplication(context, onComplete) },
-        onNavigateToImportExport = onNavigateToImportExport,
-        onNavigateToRefresh = onNavigateToRefresh,
-        onNavigateToManualCostOverrides = onNavigateToManualCostOverrides,
-        onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
-        onResetBundledPrompts = { viewModel.resetInternalPromptsFromAssets() }
-    )
 }
 
 /** Route a SharedContent payload onto the New Report flow. Text /
