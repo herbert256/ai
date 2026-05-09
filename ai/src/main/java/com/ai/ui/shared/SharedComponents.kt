@@ -264,18 +264,22 @@ fun TitleBar(
         val hasLeftSlot = leftContent != null || backVisible
         // When the user has hidden the "< Back" button the title row
         // has more horizontal room and a less crowded look. Scale up
-        // the title text and the action-strip icons by 25 % so the
-        // bar takes advantage of that space and reads larger at a
-        // glance. Standard back-button mode keeps the original 1×
-        // sizing so the layout still fits next to "< Back".
+        // the title text by 25 % so the bar takes advantage of that
+        // space and reads larger at a glance. Standard back-button
+        // mode keeps the original 1× sizing so the layout still fits
+        // next to "< Back".
         //
-        // Subject-to-title-bar mode is the exception: it folds the
-        // page subject (often a long model id or KB name) into the
-        // title slot, so that slot is the bottleneck and the icons
-        // shouldn't steal width from it. Keep the icons at 1× even
-        // when "< Back" is hidden whenever foldSubject is on.
+        // Icons get a bigger 1.5× bump in the same "no Back, no
+        // folded subject" mode — the action strip on result-phase
+        // screens (Reports / Chat / Trace detail) carries the most
+        // tap targets and benefits from the larger glyph more than
+        // the title text does. Subject-to-title-bar mode is the
+        // exception: it folds the page subject (often a long model
+        // id or KB name) into the title slot, so that slot is the
+        // bottleneck and the icons shouldn't steal width from it —
+        // keep the icons at 1× whenever foldSubject is on.
         val scale = if (showBackButton) 1f else 1.25f
-        val iconScale = if (showBackButton || foldSubject) 1f else 1.25f
+        val iconScale = if (showBackButton || foldSubject) 1f else 1.5f
         val titleStyle = MaterialTheme.typography.titleLarge
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
