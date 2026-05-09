@@ -22,9 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiFormat
 import com.ai.data.AppService
+import com.ai.data.Endpoint
+import com.ai.data.MaxTokensRule
+import com.ai.data.ModelPattern
 import com.ai.data.ProviderRegistry
+import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.google.gson.reflect.TypeToken
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.ReasoningBadge
@@ -32,6 +37,50 @@ import com.ai.ui.shared.VisionBadge
 import com.ai.ui.shared.WebSearchBadge
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
+
+// ===== JSON helpers for the structured ProviderDefinition fields =====
+//
+// List<ModelPattern> / List<MaxTokensRule> / List<Endpoint> are
+// edited as pretty-printed JSON in multi-line text fields. Empty
+// list → empty string (no JSON brackets) so a fresh provider with
+// no patterns reads as a plain blank field instead of "[]". Parsers
+// return null on syntax failure so the auto-save can fall back to
+// the persisted value instead of clobbering it mid-edit.
+private fun patternsToJson(list: List<ModelPattern>): String =
+    if (list.isEmpty()) "" else createAppGson(prettyPrint = true).toJson(list)
+
+private fun patternsToJsonNullable(list: List<ModelPattern>?): String =
+    list?.let { createAppGson(prettyPrint = true).toJson(it) } ?: ""
+
+private fun maxTokensRulesToJson(list: List<MaxTokensRule>): String =
+    if (list.isEmpty()) "" else createAppGson(prettyPrint = true).toJson(list)
+
+private fun endpointsToJson(list: List<Endpoint>): String =
+    if (list.isEmpty()) "" else createAppGson(prettyPrint = true).toJson(list)
+
+private fun parsePatterns(text: String): List<ModelPattern>? {
+    if (text.isBlank()) return emptyList()
+    return runCatching {
+        val type = object : TypeToken<List<ModelPattern>>() {}.type
+        createAppGson().fromJson<List<ModelPattern>>(text, type)
+    }.getOrNull()
+}
+
+private fun parseMaxTokensRules(text: String): List<MaxTokensRule>? {
+    if (text.isBlank()) return emptyList()
+    return runCatching {
+        val type = object : TypeToken<List<MaxTokensRule>>() {}.type
+        createAppGson().fromJson<List<MaxTokensRule>>(text, type)
+    }.getOrNull()
+}
+
+private fun parseEndpoints(text: String): List<Endpoint>? {
+    if (text.isBlank()) return emptyList()
+    return runCatching {
+        val type = object : TypeToken<List<Endpoint>>() {}.type
+        createAppGson().fromJson<List<Endpoint>>(text, type)
+    }.getOrNull()
+}
 
 /** Tiny pill showing the inferred model kind ("chat", "embedding", "rerank", ...) so
  *  users can tell at a glance which entries in a long list are non-chat. Color-coded
@@ -591,12 +640,38 @@ fun ProviderSettingsScreen(
     var defHardcodedModelsText by remember(service.id) {
         mutableStateOf(service.hardcodedModels?.joinToString(", ") ?: "")
     }
+    // ---- New flag fields ----
+    var defAuxHostsText by remember(service.id) { mutableStateOf(service.auxHosts.joinToString(", ")) }
+    var defNativeRerankUrl by remember(service.id) { mutableStateOf(service.nativeRerankUrl ?: "") }
+    var defNativeModerationUrl by remember(service.id) { mutableStateOf(service.nativeModerationUrl ?: "") }
+    var defNativeCapabilityUrl by remember(service.id) { mutableStateOf(service.nativeCapabilityUrl ?: "") }
+    var defPricingFromModelList by remember(service.id) { mutableStateOf(service.pricingFromModelList) }
+    var defCrossProviderModelList by remember(service.id) { mutableStateOf(service.crossProviderModelList) }
+    var defMergeHardcodedModels by remember(service.id) { mutableStateOf(service.mergeHardcodedModels) }
+    var defExternalReasoningUntrusted by remember(service.id) { mutableStateOf(service.externalReasoningSignalUntrusted) }
+    // List<ModelPattern> / List<MaxTokensRule> / List<Endpoint> are
+    // edited as JSON text — verbose for simple cases, but the only
+    // sane way to express the structured shape directly. Parsed back
+    // on auto-save; un-parseable JSON falls back to the persisted
+    // value so the user keeps typing without losing prior state.
+    var defResponsesApiPatternsJson by remember(service.id) { mutableStateOf(patternsToJson(service.responsesApiPatterns)) }
+    var defReasoningModelPatternsJson by remember(service.id) { mutableStateOf(patternsToJson(service.reasoningModelPatterns)) }
+    var defReasoningEffortAcceptPatternsJson by remember(service.id) { mutableStateOf(patternsToJsonNullable(service.reasoningEffortAcceptPatterns)) }
+    var defWebSearchModelPatternsJson by remember(service.id) { mutableStateOf(patternsToJson(service.webSearchModelPatterns)) }
+    var defAdaptiveThinkingPatternsJson by remember(service.id) { mutableStateOf(patternsToJson(service.adaptiveThinkingPatterns)) }
+    var defMaxTokensDefaultsJson by remember(service.id) { mutableStateOf(maxTokensRulesToJson(service.maxTokensDefaults)) }
+    var defBuiltInEndpointsJson by remember(service.id) { mutableStateOf(endpointsToJson(service.builtInEndpoints)) }
 
     LaunchedEffect(
         defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
         defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
-        defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText
+        defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText,
+        defAuxHostsText, defNativeRerankUrl, defNativeModerationUrl, defNativeCapabilityUrl,
+        defPricingFromModelList, defCrossProviderModelList, defMergeHardcodedModels,
+        defExternalReasoningUntrusted, defResponsesApiPatternsJson, defReasoningModelPatternsJson,
+        defReasoningEffortAcceptPatternsJson, defWebSearchModelPatternsJson,
+        defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -616,10 +691,38 @@ fun ProviderSettingsScreen(
             defExtractApiCost == service.extractApiCost &&
             defSupportsCitations == service.supportsCitations &&
             defSupportsSearchRecency == service.supportsSearchRecency &&
-            defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "")
+            defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "") &&
+            defAuxHostsText == service.auxHosts.joinToString(", ") &&
+            defNativeRerankUrl == (service.nativeRerankUrl ?: "") &&
+            defNativeModerationUrl == (service.nativeModerationUrl ?: "") &&
+            defNativeCapabilityUrl == (service.nativeCapabilityUrl ?: "") &&
+            defPricingFromModelList == service.pricingFromModelList &&
+            defCrossProviderModelList == service.crossProviderModelList &&
+            defMergeHardcodedModels == service.mergeHardcodedModels &&
+            defExternalReasoningUntrusted == service.externalReasoningSignalUntrusted &&
+            defResponsesApiPatternsJson == patternsToJson(service.responsesApiPatterns) &&
+            defReasoningModelPatternsJson == patternsToJson(service.reasoningModelPatterns) &&
+            defReasoningEffortAcceptPatternsJson == patternsToJsonNullable(service.reasoningEffortAcceptPatterns) &&
+            defWebSearchModelPatternsJson == patternsToJson(service.webSearchModelPatterns) &&
+            defAdaptiveThinkingPatternsJson == patternsToJson(service.adaptiveThinkingPatterns) &&
+            defMaxTokensDefaultsJson == maxTokensRulesToJson(service.maxTokensDefaults) &&
+            defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints)
         if (same) return@LaunchedEffect
         if (defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        val auxHosts = defAuxHostsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
+        // For the JSON-shaped fields, fall back to the existing service value
+        // when the user's edit doesn't parse — preserves the persisted shape
+        // mid-edit instead of silently dropping it on every keystroke.
+        val responsesApiPatterns = parsePatterns(defResponsesApiPatternsJson) ?: service.responsesApiPatterns
+        val reasoningModelPatterns = parsePatterns(defReasoningModelPatternsJson) ?: service.reasoningModelPatterns
+        val reasoningEffortAcceptPatterns =
+            if (defReasoningEffortAcceptPatternsJson.isBlank()) null
+            else parsePatterns(defReasoningEffortAcceptPatternsJson) ?: service.reasoningEffortAcceptPatterns
+        val webSearchModelPatterns = parsePatterns(defWebSearchModelPatternsJson) ?: service.webSearchModelPatterns
+        val adaptiveThinkingPatterns = parsePatterns(defAdaptiveThinkingPatternsJson) ?: service.adaptiveThinkingPatterns
+        val maxTokensDefaults = parseMaxTokensRules(defMaxTokensDefaultsJson) ?: service.maxTokensDefaults
+        val builtInEndpoints = parseEndpoints(defBuiltInEndpointsJson) ?: service.builtInEndpoints
         ProviderRegistry.update(AppService(
             id = service.id,
             baseUrl = defBaseUrl.trim(),
@@ -648,7 +751,22 @@ fun ProviderSettingsScreen(
                 },
             litellmPrefix = defLitellmPrefix.trim().ifBlank { null },
             hardcodedModels = hardcoded.ifEmpty { null },
-            defaultModelSource = defDefaultModelSource
+            defaultModelSource = defDefaultModelSource,
+            auxHosts = auxHosts,
+            nativeRerankUrl = defNativeRerankUrl.trim().ifBlank { null },
+            nativeModerationUrl = defNativeModerationUrl.trim().ifBlank { null },
+            nativeCapabilityUrl = defNativeCapabilityUrl.trim().ifBlank { null },
+            pricingFromModelList = defPricingFromModelList,
+            crossProviderModelList = defCrossProviderModelList,
+            mergeHardcodedModels = defMergeHardcodedModels,
+            externalReasoningSignalUntrusted = defExternalReasoningUntrusted,
+            responsesApiPatterns = responsesApiPatterns,
+            reasoningModelPatterns = reasoningModelPatterns,
+            reasoningEffortAcceptPatterns = reasoningEffortAcceptPatterns,
+            webSearchModelPatterns = webSearchModelPatterns,
+            adaptiveThinkingPatterns = adaptiveThinkingPatterns,
+            maxTokensDefaults = maxTokensDefaults,
+            builtInEndpoints = builtInEndpoints
         ))
     }
 
@@ -1011,6 +1129,194 @@ fun ProviderSettingsScreen(
                     Text("Supports search recency", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = defSupportsSearchRecency, onCheckedChange = { defSupportsSearchRecency = it })
                 }
+            }
+
+            // ===== New flag fields — explained inline =====
+
+            CollapsibleCard(title = "Definition · Native APIs", summary = null) {
+                Text(
+                    "Optional dedicated endpoints exposed by some providers alongside the OpenAI-compat shim. " +
+                        "Leave blank when the provider has no such endpoint — the dispatcher will return an explanatory error to the user instead of routing the call.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Text("Aux hosts (comma-separated)", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Alternate hostnames the provider's traffic lands on besides the baseUrl host (e.g. api.cohere.com for Cohere). Used by the trace list's Provider filter so calls hitting these hosts are still attributed to this provider. Example: api.cohere.com",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defAuxHostsText, onValueChange = { defAuxHostsText = it },
+                    label = { Text("auxHosts") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Native rerank URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Full URL of a Cohere v2/rerank-shaped endpoint. Set when the provider has a dedicated rerank API. Example: https://api.cohere.com/v2/rerank",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defNativeRerankUrl, onValueChange = { defNativeRerankUrl = it },
+                    label = { Text("nativeRerankUrl") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Native moderation URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Full URL of a Mistral v1/moderations-shaped endpoint. Set when the provider has a dedicated moderation API. Example: https://api.mistral.ai/v1/moderations",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defNativeModerationUrl, onValueChange = { defNativeModerationUrl = it },
+                    label = { Text("nativeModerationUrl") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Native capability URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Full URL of a Cohere-shaped /v1/models capability listing (with `endpoints` / `supports_vision` / `context_length`). Set when the provider's compat shim strips that data but a separate native host returns it. Example: https://api.cohere.com/v1/models",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defNativeCapabilityUrl, onValueChange = { defNativeCapabilityUrl = it },
+                    label = { Text("nativeCapabilityUrl") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+            }
+
+            CollapsibleCard(title = "Definition · Capability flags", summary = null) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Pricing from /models", color = Color.White)
+                        Text(
+                            "When ON, the provider's /v1/models response carries authoritative pricing (input/output per million tokens) and the fetcher harvests it as a self-report tier. Only Together AI ships this today.",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                    Switch(checked = defPricingFromModelList, onCheckedChange = { defPricingFromModelList = it })
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Cross-provider model list", color = Color.White)
+                        Text(
+                            "When ON, this provider's /v1/models response drives pricing + type fan-out into every other provider via the openRouterName prefix. Only OpenRouter does this. Exactly one provider should have this flag set.",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                    Switch(checked = defCrossProviderModelList, onCheckedChange = { defCrossProviderModelList = it })
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Merge hardcoded models", color = Color.White)
+                        Text(
+                            "When ON, the model fetcher unions the persisted Hardcoded Models with the API list. Useful when /v1/models omits valid endpoints (e.g. OpenAI's TTS / image / moderation models aren't in /v1/models).",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                    Switch(checked = defMergeHardcodedModels, onCheckedChange = { defMergeHardcodedModels = it })
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("External reasoning signal untrusted", color = Color.White)
+                        Text(
+                            "When ON, the model fetcher's `reasoning: true` signal from /models metadata is ignored — reasoning capability is decided exclusively by the patterns below. xAI uses this because some always-on reasoning variants reject the reasoning_effort parameter.",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                    Switch(checked = defExternalReasoningUntrusted, onCheckedChange = { defExternalReasoningUntrusted = it })
+                }
+            }
+
+            CollapsibleCard(title = "Definition · Model patterns", summary = null) {
+                Text(
+                    "Each pattern matches against modelId.lowercase(). Set any combination of `exact`, `prefix`, `contains`, `suffix` — match succeeds when EVERY non-null part matches. Empty list = feature off for this provider; the field stays blank in the asset bundle.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+
+                Text("Responses API patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Models routed to OpenAI-style /v1/responses instead of /v1/chat/completions. Example: [{\"prefix\":\"gpt-5\"},{\"prefix\":\"o3\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defResponsesApiPatternsJson, onValueChange = { defResponsesApiPatternsJson = it },
+                    label = { Text("responsesApiPatterns (JSON)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Reasoning model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Models that gate the 🧠 reasoning badge + thinking dispatch path. Example: [{\"contains\":\"opus-4\"},{\"contains\":\"sonnet-4\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defReasoningModelPatternsJson, onValueChange = { defReasoningModelPatternsJson = it },
+                    label = { Text("reasoningModelPatterns (JSON)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Reasoning effort accept patterns (optional)", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Models that accept the reasoning_effort request parameter. Leave BLANK to fall back to reasoningModelPatterns. Set to a narrower list when always-on reasoning variants reject the param. Example: [{\"prefix\":\"grok-3\"},{\"exact\":\"grok-4\"},{\"suffix\":\"-reasoning\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defReasoningEffortAcceptPatternsJson, onValueChange = { defReasoningEffortAcceptPatternsJson = it },
+                    label = { Text("reasoningEffortAcceptPatterns (JSON, optional)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Web-search model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Models that gate the 🌐 web-search tool descriptor in the request body. Example: [{\"contains\":\"claude-3-5\"},{\"contains\":\"opus-4\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defWebSearchModelPatternsJson, onValueChange = { defWebSearchModelPatternsJson = it },
+                    label = { Text("webSearchModelPatterns (JSON)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Adaptive thinking patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Anthropic-only — Claude builds requiring the newer `thinking.type:adaptive` + `output_config.effort` request shape (Claude Opus 4.7+). Older 3.7 / 4.x models still use the budget_tokens shape and should not appear here. Example: [{\"contains\":\"claude-opus-4-7\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defAdaptiveThinkingPatternsJson, onValueChange = { defAdaptiveThinkingPatternsJson = it },
+                    label = { Text("adaptiveThinkingPatterns (JSON)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+
+                Text("Max-tokens defaults", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Per-family default max_tokens used when the agent didn't set one. Anthropic-only — Anthropic requires max_tokens on every request and the cap differs by family. First matching rule wins (top-down). Example: [{\"pattern\":{\"contains\":\"opus-4\"},\"maxTokens\":32000},{\"pattern\":{\"contains\":\"sonnet-4\"},\"maxTokens\":8192}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defMaxTokensDefaultsJson, onValueChange = { defMaxTokensDefaultsJson = it },
+                    label = { Text("maxTokensDefaults (JSON)") },
+                    minLines = 2, maxLines = 8,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+            }
+
+            CollapsibleCard(title = "Definition · Built-in endpoints", summary = null) {
+                Text(
+                    "Endpoints the user can pick between for this provider (e.g. OpenAI's Chat Completions vs Responses API). Empty list → a single synthesised default is used. Each entry is `{id, name, url, isDefault}` — the first `isDefault: true` shows up first in the picker. Example: [{\"id\":\"openai-chat\",\"name\":\"Chat Completions\",\"url\":\"https://api.openai.com/v1/chat/completions\",\"isDefault\":true},{\"id\":\"openai-responses\",\"name\":\"Responses API\",\"url\":\"https://api.openai.com/v1/responses\"}]",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defBuiltInEndpointsJson, onValueChange = { defBuiltInEndpointsJson = it },
+                    label = { Text("builtInEndpoints (JSON)") },
+                    minLines = 3, maxLines = 12,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
             }
 
             CollapsibleCard(title = "Definition · Storage", summary = "id=${service.id}") {
