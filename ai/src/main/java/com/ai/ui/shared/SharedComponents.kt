@@ -349,9 +349,12 @@ private fun TitleBarActionStrip(
 ) {
     fun w(slot: Dp): Dp = if (compactSpacing) (slot - 6.dp).coerceAtLeast(16.dp) else slot
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = w(28.dp), scale = scale)
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
+        // 🔄 sits immediately to the left of 🗑 — the reload-vs-
+        // discard pair lives together so a user reaching for one
+        // doesn't accidentally hit the other from across the strip.
+        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = w(28.dp), scale = scale)
         // 🗑 reads narrow on the leading edge, so a 28dp slot leaves
         // a visible gap before it; tighten to 22dp to bring it
         // closer to the neighbour on its left.
