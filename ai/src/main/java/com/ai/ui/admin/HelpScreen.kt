@@ -80,7 +80,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("AI API Traces", "Hidden entirely when tracing is off in Settings. When tracing is on but no traces exist yet, the row is shown but disabled."),
             HelpCard("AI Setup / AI Housekeeping / Settings / Help", "Setup edits providers, workers, prompts, local models. Housekeeping is the maintenance hub. Settings is the small per-user toggles. Help opens this page."),
             HelpCard("Tips", "The logo image itself is clickable when there's at least one saved report — it jumps you straight to the latest. Card heights and logo sizing adapt to the screen so all 9 (or 10) cards fit without scrolling."),
-            HelpCard("Title bar", "❓ opens topic-specific help. 🏠 returns here from anywhere in the app.")
+            HelpCard("Title bar icons", "Every screen's top bar shares the same vocabulary. ◀ Back: previous screen. 🏠 Home: returns here from anywhere. ❓ Help: opens topic-specific help for the current screen. ℹ Info: drills into model info or another details target. 🗑 Trash: destructive scope-specific delete (clear stats, drop trace list, delete report) — only shown when the destructive scope is non-empty. 🐞 Trace: opens API Traces filtered to the current scope (report / model / session) — only shown when tracing is on AND traces exist for the scope. 🔄 Reload: re-runs the screen's fetch. 💬 Chat: opens a chat against the current context. Icons that aren't relevant to a screen are simply absent — there's nothing to disable.")
         )
     ),
     "reports_hub" to HelpContent(
@@ -121,7 +121,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary. Edit popup is Prompt / Title / Models / Parameters."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect."),
             HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
-            HelpCard("Title bar", "Selection phase: only the back arrow is wired. Results phase: ℹ️ opens a model picker that jumps to any agent's Model Info; 🗑 deletes the entire report after confirm; 🐞 opens the trace list filtered to this reportId; 🔄 is grayed because regeneration is multi-call (use the Action row)."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )
     ),
@@ -147,7 +146,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("🤖 with this response only and select an agent", "Stashes the agent's response as the next chat's input-box starter and routes to the agent picker. The picked agent's system prompt and parameters then drive the session."),
             HelpCard("🛠️ with this response only and configure on the fly", "Stashes the response and walks you through provider → model → parameters before opening the chat — handy when none of your saved agents fit."),
             HelpCard("Tips", "All three rows are always enabled here; the upstream button on the single-result screen is the one that disables on empty / errored responses."),
-            HelpCard("Title bar", "Only the back arrow is wired."),
             HelpCard("Related", "Single agent result → 💬 Continue in chat opens this. Picking a row navigates to a Chat session.")
         )
     ),
@@ -161,7 +159,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Meta picker view", "Chat-type META renders a FlowRow of buttons (one per result, labelled by provider · model) plus the selected result inline — mirror of the Reports viewer."),
             HelpCard("Per-row 🗑", "Each row has its own confirm dialog. Title-bar 🗑 is grayed because deletion is per-row here."),
             HelpCard("Per-row tap", "Opens SecondaryResultDetailScreen. Drilling into the same row after popping back is preserved via rememberSaveable openId."),
-            HelpCard("Title bar", "Title reflects the active filter (Meta-prompt name or 'Fan out / Fan out - model / Fan out - pair'). Trace / Info / Reload icons aren't wired at this list level — they live on the per-row detail screen.")
         )
     ),
     "secondary_detail" to HelpContent(
@@ -202,7 +199,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Languages section", "Only shown for chat-type prompts when the report has translation rows. All languages = original + every translated; Select languages = pick a subset alongside the original."),
             HelpCard("Continue", "Disabled until the chosen scope yields at least one input — Top-Ranked needs a rerank picked + count > 0, Manual needs at least one tick."),
             HelpCard("Pitfalls", "Rerank / moderation runs always operate on the full agent set — those kinds skip this screen entirely."),
-            HelpCard("Title bar", "Only the back arrow is wired.")
         )
     ),
     "report_meta" to HelpContent(
@@ -215,7 +211,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Per-row 🗑", "Each row has its own confirm. Picks the noun from the row's metaPromptName (or legacy kind label)."),
             HelpCard("Add card", "FlowRow of orange buttons sorted by name, one per metaPrompts entry. Empty case shows a hint pointing at AI Setup → Prompt management → Report Meta Prompts."),
             HelpCard("Tap a row", "Opens SecondaryResultDetailScreen for that result — full content + ℹ️ Model Info + 🐞 trace + 🗑."),
-            HelpCard("Title bar", "Only the back arrow is wired here. Per-row delete is the model — title-bar 🗑 would be ambiguous on a list of mixed kinds.")
         )
     ),
     "report_edit_prompt" to HelpContent(
@@ -225,7 +220,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Prompt field", "Multi-line, fills the screen. Update prompt is disabled when the body trims to blank."),
             HelpCard("Title field (Edit title variant)", "Single-line, no pending-changes flag — title is metadata only and doesn't affect any outbound API call."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on initialPrompt / initialTitle so re-opening the overlay with a fresh seed value doesn't restore a stale draft from the SaveableStateRegistry."),
-            HelpCard("Title bar", "Only the back arrow is wired here. The screen is reached from Action row → Edit → Prompt or Title."),
             HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate. Edit title is in-place: no banner, no regenerate prompt."),
             HelpCard("Related", "Action row → Edit → Models routes to the selection phase in 'Update model list' mode for stripping/adding agents.")
         )
@@ -240,7 +234,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Apply", "Builds an AgentParameters from non-blank values. If everything is blank/default, calls onApply(null) — i.e. clears the override."),
             HelpCard("Clear all", "Wipes every field and calls onApply(null). Useful when starting over."),
             HelpCard("Pitfalls", "Provider-specific fields (e.g. Anthropic ignores frequency/presence penalty) are silently dropped server-side — check the trace if behaviour surprises you."),
-            HelpCard("Title bar", "Only the back arrow is wired.")
         )
     ),
     "report_export" to HelpContent(
@@ -254,7 +247,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("View in browser", "Builds the file and opens it as a separate Android intent. Stays on this screen so you can come back and try a different format without rebuilding the picker state."),
             HelpCard("Export all (zip)", "Bundles all 8 documents (Short + Complete × HTML / PDF / DOCX / ODT) plus the JSON traces zip into one master zip and shares it. Pops the screen on success."),
             HelpCard("Progress dialog", "While building, a non-dismissable dialog shows a linear progress bar driven by (done, total) updates from the export. Failures show a Toast with the exception class + message; the dialog clears."),
-            HelpCard("Title bar", "Only the back arrow is wired.")
         )
     ),
     "report_manage" to HelpContent(
@@ -266,7 +258,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Working state", "While the zip / delete is in flight, both buttons are disabled and the export label switches to 'Working…'."),
             HelpCard("Status line", "Final operation result lives as a small grey line at the bottom — 'Deleted N reports.', 'Bundled N reports.', or 'Nothing to export.'."),
             HelpCard("Pitfalls", "Delete is irreversible — once the cutoff fires, those reports' secondaries and trace files go too. Take an Export all first if you might want them back."),
-            HelpCard("Title bar", "Only the back arrow is wired."),
             HelpCard("Related", "Use Housekeeping → Backup & Restore for the full-app backup; this screen is reports-only.")
         )
     ),
@@ -278,7 +269,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Prompt", "Opens the report's full prompt as scrollable text. Detail line previews the first non-blank line (≤80 chars)."),
             HelpCard("Costs", "Tokens + cost breakdown across all agents and secondaries. Detail line shows the secondary spend so far in USD when there is any."),
             HelpCard("Per-Meta-prompt rows", "One row per Meta-prompt name with at least one persisted secondary on this report. Detail = run count; secondary line = the kind label (Rerank / Summarize / Compare / Moderate)."),
-            HelpCard("Title bar", "Static 'View' title; only the back arrow is wired here. Help points at this card.")
         )
     ),
     "report_edit_picker" to HelpContent(
@@ -289,7 +279,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title", "Single-line title editor. No pending-changes flag — title is metadata only."),
             HelpCard("Models", "Routes back to the selection phase with the report's existing model list staged for in-place editing. The detail line says how many models are currently on the report."),
             HelpCard("Parameters", "Opens the per-report parameter override (temperature, max tokens, top P, stop sequences, etc). Detail line is a generic field hint."),
-            HelpCard("Title bar", "Static 'Edit' title; only the back arrow is wired here. Help points at this card.")
         )
     ),
     "report_fan_out_confirm" to HelpContent(
@@ -310,7 +299,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Search field", "Filters by model id (case-insensitive). The ✕ trailing icon clears the field. Counter line shows '<filtered> of <total> models'."),
             HelpCard("Loading state", "If the model list hasn't been fetched yet, a spinner appears in the body. Tap Fetch from the API Test page first when the list reads empty."),
             HelpCard("Pricing column", "Per-row prompt / completion price (×10⁶ tokens). Real pricing renders in green; rows that fell through to DEFAULT_PRICING render dim with 'no pricing'."),
-            HelpCard("Title bar", "Static 'Select Model' title; the green sub-header below shows the active provider's name. Only the back arrow is wired here.")
         )
     ),
     "developer_select_endpoint" to HelpContent(
@@ -319,7 +307,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Full-screen picker over the active provider's endpoints. The first row is the provider's default base URL; saved custom endpoints follow."),
             HelpCard("Default row", "Drops the provider.baseUrl into the API Test request. Always present even when there are no custom endpoints saved."),
             HelpCard("Custom rows", "One row per Endpoint defined under AI Setup → Providers → Endpoints for this provider. Label + URL on two lines (URL is monospace)."),
-            HelpCard("Title bar", "Static 'Select Endpoint' title; the green sub-header shows the active provider's name. Only the back arrow is wired here.")
         )
     ),
     "refresh_result" to HelpContent(
@@ -408,7 +395,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Think sections", "Both panes render via ContentWithThinkSections — <think> blocks collapse so the user-readable content stays prominent."),
             HelpCard("Empty content", "A pane with blank content shows '(no content)' in tertiary text."),
             HelpCard("Title", "Caller-supplied — typically reads 'Translation info — <provider> / <model>' or includes the Meta-prompt name."),
-            HelpCard("Title bar", "Only the back arrow is wired."),
             HelpCard("Related", "TranslationCallDetailScreen has the same split layout but caps the original at half-screen — that one is per-call; this one is for whole-document overlays.")
         )
     ),
@@ -422,7 +408,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Translate runs against many languages multiply call cost linearly with language count — pick deliberately."),
             HelpCard("Curation", "Not exhaustive. The translation prompt itself can be edited in AI Setup → Prompts → Internal to use a more specific dialect."),
             HelpCard("Tips", "Search for native script directly works — typing '中文' jumps to Mandarin without remembering the English name."),
-            HelpCard("Title bar", "Only the back arrow is wired.")
         )
     ),
     "content_view" to HelpContent(
@@ -435,7 +420,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Active model header", "Provider — model in blue under the buttons, with a 🐞 next to it when tracing is on and a matching trace exists for (reportId, agent.model, max-by-timestamp)."),
             HelpCard("Body rendering", "ContentWithThinkSections handles <think> collapsibles, citations, related-questions blocks, and search results — so models that emit any of those render structured rather than raw."),
             HelpCard("Cost summary mode", "Shows ReportCostTable when at least one agent or secondary has tokenUsage. Empty state shows '(no usage recorded)'. Costs aggregate translation calls too — language picker is hidden in this mode."),
-            HelpCard("Title bar", "Only the back arrow is wired. The screen is reached from the result page's View → Reports / Prompt / Costs popup.")
         )
     ),
     "cost_view" to HelpContent(
@@ -446,7 +430,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Group totals", "Tables aggregate by provider and by model so you can see which provider absorbed most of the spend; both groupings render below the per-row list."),
             HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they appear as 'translate' kind rows. The language picker is hidden in cost mode since costs aggregate every call."),
             HelpCard("Empty state", "When neither the agents nor any secondary carries a tokenUsage record, the body reads '(no usage recorded)'. This usually means the run was cancelled before the first response landed."),
-            HelpCard("Title bar", "Title reads 'Cost summary'. Only the back arrow is wired here."),
             HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),
             HelpCard("Related", "View → Reports for per-agent bodies; View → Prompt for the prompt itself; AI Usage (Settings → Statistics) for cumulative spend across all reports.")
         )
@@ -459,7 +442,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Embedder picker", "Pick one provider/model for embeddings. Local embedder (LiteRT MediaPipe) is also offered when a TextEmbedder model is installed. The chosen embedder's output dimension becomes a hard invariant for every chunk in this KB."),
             HelpCard("Chunk strategy", "How source documents get split before embedding. Defaults pick token / character thresholds tuned to the chosen model's input limit; advanced fields let you override."),
             HelpCard("Create", "Creates the manifest under <filesDir>/knowledge/<id>/manifest.json. No sources yet — drill into the new KB and add documents from there."),
-            HelpCard("Title bar", "Only the back arrow is wired."),
             HelpCard("Pitfalls", "Picking an embedder you don't actively use here means the cosine retrieval at chat-attach time has to load the embedder runtime — which can be slow and memory-heavy. Prefer your default embedder unless you have a reason."),
             HelpCard("Related", "Once created, the KB Detail screen handles ingest (Add file / paste text / share-target import) and indexing.")
         )
@@ -471,7 +453,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Search field", "Filters by anything: session title, message content, model, provider name, system prompt. The match is substring + case-insensitive."),
             HelpCard("Result rows", "One row per matching session with a content excerpt around the first match. Tap to resume the session at the matched message."),
             HelpCard("Empty state", "Empty query shows the most recent N sessions; non-matching query shows 'No chats matching <query>'."),
-            HelpCard("Title bar", "Only the back arrow is wired here. Help points at this card. The list view's help topic is 'Chat history'."),
             HelpCard("Pitfalls", "Search reads + parses every chat session JSON on every keystroke — a debounce keeps it acceptable on slow storage but heavy histories may still feel jittery. Prefer the list's date / pinned filters when you can."),
             HelpCard("Related", "Chat History (the list) for date-ordered browsing; Manage chats for bulk delete / export.")
         )
@@ -484,7 +465,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("API mode list", "Shows what the last Fetch returned — the same list every model picker uses. Models known to be stale (LiteLLM has fresher metadata) get a tiny badge."),
             HelpCard("Manual mode editor", "Add lines from the multi-line input + Add button; tap a row to drop it back into the editor for tweaking."),
             HelpCard("Auto-save", "Edits land via the Settings save lambda as you go — no separate Save button. The screen drops local mirror state when switching modes so half-typed values don't stick."),
-            HelpCard("Title bar", "Static 'Models' title; the green sub-header below names the active provider. Only the back arrow is wired here.")
         )
     ),
     "prompt_view" to HelpContent(
@@ -495,7 +475,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Empty state", "When report.prompt is blank, the screen shows '(no prompt recorded)' in tertiary grey."),
             HelpCard("Layout", "Single column with verticalScroll — long prompts scroll naturally."),
             HelpCard("Use it for", "Verifying what the model actually saw when results look surprising — variables and any user-tag block from <user>...</user> append are visible."),
-            HelpCard("Title bar", "Title reads 'Prompt'. Only the back arrow is wired here."),
             HelpCard("Pitfalls", "The screen renders the saved prompt — if you Edit prompt and don't Regenerate, the new prompt shows here but agents weren't re-run with it. The result page's pending-changes banner reminds you."),
             HelpCard("Related", "View → Reports for the per-agent body picker; View → Costs for the cost table.")
         )
@@ -523,7 +502,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Clear History", "Bottom red button — wipes the persisted prompt history and resets the list. Disabled when the list is already empty."),
             HelpCard("Deduplication", "Re-running the exact same (title, prompt) pair just bumps the timestamp; the list never grows past 100 entries."),
             HelpCard("Pitfalls", "Prompt history is independent from Report History — clearing it leaves your saved reports untouched and vice versa."),
-            HelpCard("Title bar", "Only the back arrow is wired.")
         )
     )
 ,
@@ -815,7 +793,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("API tracing", "Master switch. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across result screens disappears. On → every API request and response is captured to disk."),
             HelpCard("Model name layout", "Two radio options. Model name only is the dense default. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model on multiple providers."),
             HelpCard("Show < Back", "When off the visible back chevron disappears from every TitleBar and the title left-aligns. System / gesture back keeps working — TitleBar's BackHandler is registered independently."),
-            HelpCard("Title bar", "Plain back button only. No 🔄 / ℹ️ / 🗑 / 🐞 icons here."),
             HelpCard("Tips", "Settings has no Save button on purpose — every keystroke restarts the 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk."),
             HelpCard("Related", "Tap the AI Setup row (when present elsewhere) for the rest of the configuration; Housekeeping → Reset application reverts everything here to factory defaults.")
         )
@@ -832,7 +809,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
             HelpCard("Local Models", "Sub-hub for on-device .task LLMs and .tflite LiteRT embedders. Count = installed total across both runtimes."),
-            HelpCard("Title bar", "Plain back button. Refresh / Trash / Bug / Info icons live on the deeper screens.")
         )
     ),
     "agents" to HelpContent(
@@ -842,7 +818,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Visible entries", "Only agents whose provider is currently active (state == \"ok\") show up — agents bound to inactive or keyless providers are hidden, not deleted."),
             HelpCard("Item rows", "Show name in white, then \"Provider · effective model\" beneath. Tap a row to edit; tap the row's trash to delete (after a confirmation dialog scoped to entity type \"Agent\")."),
             HelpCard("Add Agent", "Top button opens the Edit screen with empty fields and the first active provider preselected as the default."),
-            HelpCard("Title bar", "Standard CrudListScreen bar — back button only. No 🔄 / ℹ️ / 🗑 / 🐞."),
             HelpCard("Tips", "Sort is alphabetical by name (case-insensitive)."),
             HelpCard("Pitfalls", "If your provider list is fresh and nothing is active, this list will appear empty even though you have agent rows saved — set up a provider key first."),
             HelpCard("Related", "Flocks bundle agents into groups; Swarms group provider/model pairs (no agent indirection); Refresh → Default agents seeds one agent per active provider automatically.")
@@ -858,7 +833,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "Dropdown surfaces only when the provider has more than the Default endpoint or when LiteLLM lists extra paths for the picked model. Picking a LiteLLM-derived path materialises a real Endpoint entry on the provider via onAddEndpoint."),
             HelpCard("System Prompt / Parameters", "Two side-by-side buttons opening selector dialogs. Selected presets show in purple-tinted state. A red ⚠ banner appears beneath when LiteLLM reports the chosen model does not accept system messages."),
             HelpCard("Test Agent", "Visible only when an API key (override or provider) exists. Runs a real API call; on success shows green \"Success\", on failure red error text. The 🐞 next to the result deep-links to the captured trace."),
-            HelpCard("Title bar", "helpTopic=agent_edit. Back-only. The 🐞 sits inline on the Test row, not in the bar."),
             HelpCard("Pitfalls", "If you flip provider after picking a model, the model resets — by design, since model ids rarely match across providers."),
             HelpCard("Related", "Tap Provider on a Trace Detail screen to jump back to the matching agent; the Edit Provider screen auto-creates a default agent when you change its default model.")
         )
@@ -870,7 +844,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Item rows", "Show name in white plus a count and comma-separated list of contained agents (active providers only). Tap a row to edit, trash to delete with confirmation."),
             HelpCard("Add Flock", "Opens the editor blank. The Save / Create button stays disabled until the flock has both a unique name and at least one selected agent."),
             HelpCard("Default agents flock", "Refresh → Default agents creates / maintains a flock named exactly DEFAULT_AGENTS_FLOCK_NAME — do not rename it manually unless you know what you are doing."),
-            HelpCard("Title bar", "Plain back button. No 🔄 / ℹ️ / 🗑 / 🐞."),
             HelpCard("Tips", "Flocks are sorted alphabetically; the subtitle truncates long member lists, so the Edit screen is the canonical view."),
             HelpCard("Pitfalls", "Deleting a flock does not delete the agents it referenced — agents are owned at a higher level."),
             HelpCard("Related", "Refresh → Default agents auto-builds a default flock; Reports → New report → + Flock pulls from this list.")
@@ -884,7 +857,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Search agents", "Filter input matches agent name OR the agent's provider display name. Selected agents pin to the top of the list (compareByDescending) so a long roster stays manageable."),
             HelpCard("Selection counter", "\"N selected of M\" shows above the list, where M counts only agents whose provider is currently active."),
             HelpCard("Agent rows", "Each row shows name plus the effective model label (provider · model in the chosen layout). Tap the whole row OR the checkbox to toggle membership."),
-            HelpCard("Title bar", "helpTopic=flock_edit. Back-only."),
             HelpCard("Tips", "Empty selection is the only blocker for Save besides name validation — a flock with one agent is legal but pointless."),
             HelpCard("Pitfalls", "An agent bound to an inactive provider is hidden here and effectively disabled — fix the provider's state to use it again.")
         )
@@ -895,7 +867,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "CRUD list of Swarms — groups of (provider, model) pairs WITHOUT going through Agents. Use a swarm when you want to fire the same prompt at, say, GPT-5 / Claude / Gemini in parallel without creating individual agent rows."),
             HelpCard("Item rows", "Show name plus \"N members: provider/model, provider/model, …\" filtered to active providers. Tap to edit; trash to delete with confirmation."),
             HelpCard("Add Swarm", "Opens the editor blank. Create / Save stays disabled until the name is valid AND at least one member is selected."),
-            HelpCard("Title bar", "Plain back button."),
             HelpCard("Tips", "Members of inactive providers stay in the swarm but won't run — fix the provider state and they re-light without re-editing."),
             HelpCard("Difference from Flocks", "Flocks reference agents (and inherit each agent's API key / endpoint / prompts). Swarms hold raw provider+model tuples and use the provider's saved key / endpoint, plus optional swarm-level system prompt and parameters."),
             HelpCard("Pitfalls", "There is no per-member API key override — for that, build agents and a flock instead."),
@@ -910,7 +881,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Member counter", "\"N members\" sits at the left of the action row; the blue \"+ Add model\" button on the right opens the full ModelSearchScreen overlay (search across all known provider+model pairs)."),
             HelpCard("Member cards", "One card per (provider, model) tuple. Provider name in blue, model id in white, plus capability badges (👁 vision / 🌐 web / 🧠 reasoning). The trailing red ✕ removes the member."),
             HelpCard("Adding from the picker", "If you pick a pair already in the swarm, the duplicate is silently dropped — a member is keyed on (provider.id, model)."),
-            HelpCard("Title bar", "helpTopic=swarm_edit. Back-only."),
             HelpCard("Pitfalls", "The picker shows ALL known models, not just active ones — picking a model whose provider has no key won't fail until you actually run the swarm."),
             HelpCard("Related", "ModelSearchScreen (the picker) is also reachable from Search → Model search.")
         )
@@ -921,7 +891,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "CRUD list of parameter presets. A preset bundles temperature / max tokens / top-p / top-k / penalties / seed / system prompt / web-search and reasoning flags into one named row that you can attach to agents, flocks, swarms or one-off report runs."),
             HelpCard("Subtitle", "\"N parameters configured\" — counts how many fields in the preset are non-null, plus a +1 for each web-search flag that's on."),
             HelpCard("Add Parameter Preset", "Top button opens the edit screen blank."),
-            HelpCard("Title bar", "Plain back button."),
             HelpCard("Tips", "When multiple presets are attached to a worker (agents accept a list), later non-null values win — a sensible \"merge\" semantics."),
             HelpCard("Pitfalls", "Setting maxTokens here is a soft suggestion for OpenAI but mandatory for Anthropic; leaving it blank in an Anthropic-bound preset falls back to 4096."),
             HelpCard("Related", "Workers → Agents / Flocks / Swarms reference these by id; Provider edit also accepts a list of params ids that apply to every call to that provider.")
@@ -936,7 +905,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Options", "Response format JSON, Enable web search (search:true flag — Perplexity-style), Web search tool (Anthropic / Gemini / OpenAI Responses-style tool block), Return citations."),
             HelpCard("Search Recency", "Filter chips: None / day / week / month / year. Honored only by providers that report supportsSearchRecency=true."),
             HelpCard("Reasoning Effort", "Filter chips: None / low / medium / high. Sent only to reasoning-capable models (gpt-5/o-series, Gemini thinking, Claude with extended thinking) — ignored by everything else."),
-            HelpCard("Title bar", "helpTopic=parameters_edit. Back-only."),
             HelpCard("Tips", "Numeric fields tolerate empty input — a blank stays null in the saved preset.")
         )
     ),
@@ -946,7 +914,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "CRUD list of reusable system-prompt blocks. A row stores a name and a single multi-line text body — assignable to Agents, Flocks, Swarms, Providers, and one-off Report runs."),
             HelpCard("Item rows", "Show the name in white, the first 80 characters of the prompt in dim text below. Tap to edit, trash to delete with confirmation."),
             HelpCard("Add System Prompt", "Top button opens an empty editor."),
-            HelpCard("Title bar", "Plain back button."),
             HelpCard("Tips", "Names are unique among system prompts (case-insensitive). The body is required for save."),
             HelpCard("Pitfalls", "If a worker also has a Parameters preset that carries a non-blank systemPrompt, that wins over the bare System Prompt — the preset's value is the late-merge winner."),
             HelpCard("Related", "Internal Prompts (Meta / Fan-out / Fan-in / Other) live in a different bucket and use placeholders like @QUESTION@ / @RESULTS@ — not interchangeable with these.")
@@ -958,7 +925,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Form for one system prompt. Two fields: Name (single line, required, unique) and System prompt text (6–15 visible lines)."),
             HelpCard("Save", "Disabled while the name is invalid OR the prompt body is blank — the body is required, unlike Parameters' optional systemPrompt field."),
             HelpCard("Live counter", "\"N characters\" beneath the body, updated on every keystroke."),
-            HelpCard("Title bar", "helpTopic=system_prompt_edit. Back-only."),
             HelpCard("Tips", "Markdown is fine — most chat APIs forward it raw and many models treat it as styled hints."),
             HelpCard("Pitfalls", "There is no token-count check; oversized system prompts will count against context length at run time without a warning here."),
             HelpCard("Related", "Use placeholders like @QUESTION@ here at your peril — substitution only happens for Internal Prompts, not System Prompts.")
@@ -972,7 +938,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Fan-out prompts", "Run across every pair of report-models (N×(N-1) calls). category=\"fan_out\"."),
             HelpCard("Fan-in prompts", "Combine the report's responses + their fan-out responses into one final report. Run once on a single picked model. category=\"fan_in\"."),
             HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
-            HelpCard("Title bar", "Plain back. No 🔄 / ℹ️ / 🗑 / 🐞."),
             HelpCard("Tips", "Names need to be unique within a category — \"Compare\" can exist under both meta and fan_in without collision."),
             HelpCard("Related", "Housekeeping → Internal prompts has a one-shot \"Load new prompts from assets/prompts.json\" merge that adds bundled rows you don't yet have.")
         )
@@ -983,7 +948,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "CRUD list pinned to one category (meta / fan_out / fan_in / internal). The screen title and Add label adapt — Add meta prompt vs. Add fan-out prompt etc. Other internal is a fixed list — no Add / Delete."),
             HelpCard("Item rows", "Show name plus a chip line: ref · agent (omitted when *select), then \"— title or first 60 chars of body\". Tap to edit; trash to delete (hidden for Other internal)."),
             HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\"). Hidden for Other internal."),
-            HelpCard("Title bar", "helpTopic=internal_prompts. Plain back."),
             HelpCard("Tips", "Sorted alphabetically by name. Edits stay scoped to this category — saving in the editor pushes back into the same bucket."),
             HelpCard("Related", "The Report Result screen's Meta and Fan out buttons surface meta and fan_out prompts respectively; Fan out (L1) surfaces fan_in.")
         )
@@ -996,7 +960,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Append reference legend", "Switch — adds a [N] = Provider / Model footer to the response."),
             HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (fan_out only). Anything else = the named agent in Settings.agents resolved at run time."),
             HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @FAN_OUT_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
-            HelpCard("Title bar", "helpTopic=internal_prompt_edit. The screen title reads \"Edit/Add <category singular>\"."),
             HelpCard("Pitfalls", "If you deep-link into edit before aiSettings has bootstrapped, the screen shows a \"Loading…\" placeholder and re-keys when the prompt id resolves — saving an empty form there would silently create a duplicate, so it is blocked.")
         )
     ),
@@ -1008,7 +971,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Active filter", "Default view. Empty state hint suggests switching to All to set a key."),
             HelpCard("All filter", "Shows every provider plus a green \"+ Add provider\" button at the top — opens ProviderAddScreen."),
             HelpCard("Item rows", "Provider display name in white plus the configured default model in dim text (only shown when state == ok). Tap a row to edit."),
-            HelpCard("Title bar", "helpTopic=providers. Plain back."),
             HelpCard("Tips", "The active/all toggle is hoisted into the parent SettingsScreen so navigating to a detail and back preserves it."),
             HelpCard("Pitfalls", "Active count drops to 0 if every provider's key is invalid — you'll need to switch to All to fix one."),
             HelpCard("Related", "Provider configuration card on AI Setup → Providers also leads here. ProviderAddScreen creates new ones; ProviderAdminScreen is the deep-link to each provider's web console.")
@@ -1025,7 +987,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models card", "Tap to drill into the per-provider Models screen — same one you reach from AI Setup → Models → this provider. Back from there returns here."),
             HelpCard("Advanced (per-config overrides)", "Custom model list URL + Admin URL override — these stay attached to your runtime ProviderConfig, not the catalog."),
             HelpCard("Definition cards", "Basics / API / Models / Pricing & cost / Features / Storage. Edits push through ProviderRegistry.update — same store loaded from assets/setup.json on first launch. ID and prefs key are read-only (changing them would orphan stored keys, models, statistics)."),
-            HelpCard("Title bar", "helpTopic=provider_edit. Plain back."),
             HelpCard("Pitfalls", "If you change apiFormat, the captured `service` may go stale — Test re-resolves through AppService.findById to use the fresh registry entry. Don't rely on the old reference if you tweak apiFormat then test in the same session.")
         )
     ),
@@ -1039,7 +1000,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pricing & cost", "OpenRouter name (for fan out-provider price lookup), LiteLLM prefix, Cost ticks divisor, Extract API cost switch."),
             HelpCard("Features", "Supports citations, Supports search recency. Honored only when sending requests."),
             HelpCard("Storage (collapsible)", "Prefs key — leave blank to use id.lowercase(). Once saved you cannot rename it."),
-            HelpCard("Title bar", "helpTopic=provider_add. Plain back."),
             HelpCard("Save", "Add provider button at bottom. Disabled until ID + Display name + Base URL + Default model are populated and the ID is unique. Saves via ProviderRegistry.add and pops to the new provider's Edit screen."),
             HelpCard("Pitfalls", "ID format is enforced — A-Z / 0-9 / _ only; lowercase typing is uppercased on input.")
         )
@@ -1054,7 +1014,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Test all models", "Visible after fetch when there are models. Spawns up to 5 concurrent tests via a Semaphore, gating in flight per row to ⏳ / ✅ / ❌. A failed ❌ links to its trace."),
             HelpCard("Remove failed", "Surfaces only after a Test all run completed with at least one ❌. Tap removes the failed list from the persisted models — the auto-save effect picks it up. Trace icons for those rows clear with them."),
             HelpCard("Per-row badges", "👁 vision / 🌐 web search / 🧠 reasoning + a colored type chip (chat/embedding/rerank/image/tts/stt/moderation/classify). The chip respects manual overrides instantly."),
-            HelpCard("Title bar", "helpTopic=models. Plain back."),
             HelpCard("Pitfalls", "Manual lists are user-curated — Fetch Models is hidden in Manual mode. If you switch to Manual mid-edit, partial form state is wiped to avoid surprises on return."),
             HelpCard("Related", "Click a model row to open its Model Info screen.")
         )
@@ -1068,7 +1027,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Manual add / update form", "Single \"Model ID\" field plus Add or Update button. Duplicate detection in red. Editing an existing model shows a Cancel button alongside."),
             HelpCard("Per-row test status", "After Test all models: ⏳ rotating, ✅ green, ❌ red. ❌ rows with a captured trace are tappable and jump to the trace."),
             HelpCard("Type chips & badges", "Per row — color-coded type pill (Blue=chat, Purple=embedding, Indigo=rerank, Orange=image, Green=tts/stt, Red=moderation/classify) and capability emoji."),
-            HelpCard("Title bar", "Title reads \"<Provider> models\". Back returns to the Provider Edit screen if you arrived via the Models card; otherwise to the Models list."),
             HelpCard("Tips", "manual mode shows an ✕ delete button on each row; API mode does not — there refresh is the source of truth."),
             HelpCard("Pitfalls", "If the API key is blank in API mode, the action row replaces itself with a hint pointing back to Providers.")
         )
@@ -1079,7 +1037,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Sets the default API path per ModelType (chat / embedding / rerank / image / tts / stt / moderation / classify). Resolution at dispatch time: per-provider override → these defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
             HelpCard("Auto-save", "Editing a field pushes the trimmed map back through onSave — no Save button. Blank means \"use the hardcoded default\" for that type."),
             HelpCard("Field placeholder", "Each input shows the hardcoded fallback as a dim placeholder so you know what will run if you leave the field empty."),
-            HelpCard("Title bar", "helpTopic=model_types. Plain back."),
             HelpCard("Tips", "Per-provider Type paths under Provider edit → Definition · API win over these — so use this screen for global defaults, the provider screen for exceptions."),
             HelpCard("Pitfalls", "If you blank a default that the hardcoded fallback also doesn't have, dispatch will throw at runtime — easiest case is if you typo a path and the underlying provider doesn't expose that type."),
             HelpCard("Related", "Provider edit's Definition · API → Type paths overrides are the per-provider equivalent.")
@@ -1093,7 +1050,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Add override", "Top button switches to the editor with the form blank."),
             HelpCard("Edit form", "Provider dropdown over all providers; Model dropdown over the provider's known models (placeholder \"No models — fetch this provider first\" when empty); Type filter chips (3 cols × 3 rows over the 9 ModelType.ALL); Capabilities checkboxes for vision / web search / reasoning."),
             HelpCard("Capability flags", "Wired into Settings.isVisionCapable / isWebSearchCapable / isReasoningCapable so a tick here surfaces the badge anywhere this model appears, even when the provider's auto-derived sets miss it."),
-            HelpCard("Title bar", "helpTopic=manual_model_types. Plain back."),
             HelpCard("Tips", "Reachable from Model Info → \"Add manual override\" too — it pre-fills the form with the current model's heuristic flags so you only confirm or change them."),
             HelpCard("Pitfalls", "Switching the provider in the editor wipes the model id (model lists are provider-scoped)."),
             HelpCard("Related", "ManualModelOverrideEntryScreen is the same form pre-populated for direct entry from Model Info.")
@@ -1106,7 +1062,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("HuggingFace", "Used by the Model Info lookup to pull model cards / context-length / license fields. Get a free token at huggingface.co/settings/tokens."),
             HelpCard("OpenRouter", "Used for pricing data and model specifications (capability flags, supported parameters). Same key flows into Refresh → OpenRouter."),
             HelpCard("Artificial Analysis", "Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api. Used by Refresh → Artificial Analysis."),
-            HelpCard("Title bar", "helpTopic=external_services. Plain back."),
             HelpCard("Tips", "Filling these unlocks the matching Refresh actions on the Refresh screen — without an OpenRouter key the OpenRouter button is disabled, same for Artificial Analysis."),
             HelpCard("Pitfalls", "These are NOT LLM provider keys — adding an OpenAI / Anthropic key here will not register the provider. Use Settings → AI Setup → Providers for that."),
             HelpCard("Related", "Refresh → OpenRouter / Artificial Analysis. Backup includes these keys; Clear all configuration removes them.")
@@ -1122,7 +1077,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Calls every active provider's model-list endpoint (forceRefresh=true). Replaces the cached lists used by every model picker. Result dialog shows per-provider counts."),
             HelpCard("Default agents", "Per active provider: ensure an agent named after the provider exists (using its current default model), then ensure the \"default agents\" flock contains exactly the successfully-tested agents. Live progress with per-provider rows."),
             HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision/web-search precomputed sets pick up the new state. Helicone is pricing-only — no recompute."),
-            HelpCard("Title bar", "helpTopic=refresh. Plain back."),
             HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons disable themselves until you set their keys under External Services."),
             HelpCard("Related", "Reachable both from AI Setup → Refresh and from Housekeeping → Refresh.")
         )
@@ -1136,7 +1090,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
             HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts } that bundles the four exports above. Round-trips through Import · All."),
             HelpCard("Import", "Four buttons matching the four export shapes (API Keys, Costs Overrides, providers.json, prompts.json) plus a full-width All that reads the bundled JSON."),
-            HelpCard("Title bar", "helpTopic=import_export. Plain back."),
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently."),
             HelpCard("Related", "Layered-costs CSV (Housekeeping → Manual cost overrides) is the bulk-edit path for overrides across every model. Backup & Restore is the all-in-one zip alternative.")
         )
@@ -1147,7 +1100,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Sub-hub for the two on-device runtimes. Each card shows installed count and drills into a dedicated screen."),
             HelpCard("Local LLMs", "On-device .task chat models (MediaPipe Tasks GenAI). Drives the synthetic Local provider that surfaces in every chat / report flow alongside cloud providers."),
             HelpCard("Local LiteRT models", "On-device .tflite text embedders (MediaPipe Tasks). Drives Local Semantic Search and Knowledge bases whose embedderProviderId == \"LOCAL\"."),
-            HelpCard("Title bar", "helpTopic=setup_local_models. Plain back."),
             HelpCard("Tips", "Counts are read once on screen entry — switch back to AI Setup and forward again if you just installed something via the deeper screens."),
             HelpCard("Pitfalls", "Backup explicitly excludes local_llms/ and local_models/ (FILES_DIR_BACKUP_EXCLUDES) — these are big, easily re-downloadable, and personal. Same set is preserved through clearFilesDirForRestore."),
             HelpCard("Related", "Both runtimes are wiped by Housekeeping → Clear all configuration but kept by Clear all runtime data and by Reset application's default chain.")
@@ -1161,7 +1113,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Download progress", "Live status text below the buttons updates with byte percentage as the download streams (\"Downloading <name>… NN%\")."),
             HelpCard("Add model from file", "Blue button opens an SAF picker (application/octet-stream + */*) — for users who've stamped MediaPipe Tasks metadata onto their own .tflite via Model Maker. Imported under a sanitized filename in local_models/."),
             HelpCard("Installed list", "Below the buttons. One row per installed model with a red \"Remove\" — releases the embedder and deletes <name>.tflite from disk."),
-            HelpCard("Title bar", "helpTopic=local_litert_models. Plain back."),
             HelpCard("Tips", "MediaPipe Tasks metadata is mandatory; arbitrary .tflite files won't load even though the picker accepts them."),
             HelpCard("Pitfalls", "Backup excludes this directory — restoring a backup leaves your installed embedders untouched, but a fresh device starts empty."),
             HelpCard("Related", "Knowledge → embedderProviderId=\"LOCAL\" KBs use these. Local Semantic Search (Search → Local Semantic) does too.")
@@ -1174,7 +1125,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Download links", "One indigo button per LocalLlm.recommendedLinks entry. Each opens the model's web page in the system browser — they don't download into the app, they just hand off."),
             HelpCard("Add LLM from file", "Blue button opens an SAF picker. Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry in an archive is extracted automatically (Apache Commons Compress for tar; built-in for zip)."),
             HelpCard("Installed list", "One row per installed model with a red Remove — releases the runtime and deletes <name>.task from <filesDir>/local_llms/."),
-            HelpCard("Title bar", "helpTopic=local_llms. Plain back."),
             HelpCard("Tips", "AppService.LOCAL is synthetic — not in ProviderRegistry, only reachable via findById(\"LOCAL\"). Once you have at least one .task installed, Local appears as a normal provider in every picker."),
             HelpCard("Pitfalls", "Empty / corrupt extractions are detected (target.length() == 0L) and the partial file is deleted; the toast says \"Could not import model\". Backup excludes local_llms/."),
             HelpCard("Related", "Local LLM dispatch routes to LocalLlm.generate instead of Retrofit — no network, no cost, but token speed is bound by your device.")
@@ -1188,7 +1138,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Provider administration", "Opens ProviderAdminScreen — one row per provider with state emoji and a deep-link to its admin / signup web URL."),
             HelpCard("Import new providers from assets/providers.json", "Tapping calls ProviderRegistry.importFromAsset(context). Adds providers in the bundle that aren't yet registered. Status text underneath reports how many were added (or that no new ones were found)."),
             HelpCard("Refresh tick", "providerCount is keyed on a refreshTick that increments after a successful import — so the count badge above updates immediately."),
-            HelpCard("Title bar", "helpTopic=setup_providers. Plain back."),
             HelpCard("Tips", "If you've forked or extended the bundle, this is the cheap way to add new entries without touching settings.json."),
             HelpCard("Pitfalls", "Existing providers with the same id are NOT overwritten by this card — use Export / Import → providers.json with upsertFromJson for that."),
             HelpCard("Related", "Provider edit's Definition cards modify already-registered entries in place.")
@@ -1201,7 +1150,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
             HelpCard("Model Types", "List of the 9 model kinds from ModelType.ALL with their default API paths. Count = number of types."),
             HelpCard("Manual model types overrides", "CRUD for (provider, model, type, capabilities) overrides that win over autodetection. Count = number of overrides currently saved."),
-            HelpCard("Title bar", "helpTopic=setup_models. Plain back."),
             HelpCard("Tips", "Resolution order at dispatch: per-provider Type paths (Provider edit → Definition · API) → Model Types defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
             HelpCard("Pitfalls", "If no provider is active the Models card stays grey-blue and unclickable."),
             HelpCard("Related", "Provider edit → Definition · API → Type paths exposes the per-provider override layer.")
@@ -1214,7 +1162,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Agents", "Named (provider, model, key, params, prompt, endpoint) tuples. Count = active agents (whose provider is currently active)."),
             HelpCard("Flocks", "Groups of agents with optional shared parameters/system prompt. Count = number of flocks."),
             HelpCard("Swarms", "Groups of (provider, model) pairs without going through agents. Count = number of swarms."),
-            HelpCard("Title bar", "helpTopic=setup_workers. Plain back."),
             HelpCard("Tips", "When you import a config bundle these counts jump in lockstep with the imported data."),
             HelpCard("Pitfalls", "If your only API key was just removed, all three cards lock — the hub uses aiSettings.hasAnyApiKey() as its enable gate."),
             HelpCard("Related", "Refresh → Default agents auto-creates one agent per active provider plus a \"default agents\" flock that ties them together.")
@@ -1226,7 +1173,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Two cards: System Prompts (free-form reusable text) and Internal Prompts (templated, category-scoped — Meta/Fan-out/Fan-in/Other)."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Fan-out / Fan-in / Other. Count = total across all four categories."),
-            HelpCard("Title bar", "helpTopic=setup_prompts. Plain back."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features (Meta button on report results, Fan out drill-in, Translate, Model info)."),
             HelpCard("Pitfalls", "The two are NOT interchangeable — a system prompt cannot replace a meta prompt because Internal Prompts use placeholder substitution that System Prompts do not."),
             HelpCard("Related", "Housekeeping → Internal prompts → \"Load new prompts from assets/prompts.json\" merges in any bundled rows missing from your set.")
@@ -1238,7 +1184,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Two cards: Local LLMs (.task chat / completion bundles driving the Local provider) and Local LiteRT models (.tflite text embedders driving Local Semantic Search and Local-embedder Knowledge)."),
             HelpCard("Local LLMs", "Counts installed .task files in <filesDir>/local_llms/."),
             HelpCard("Local LiteRT models", "Counts installed .tflite files in <filesDir>/local_models/."),
-            HelpCard("Title bar", "helpTopic=setup_local_models. Plain back."),
             HelpCard("Tips", "Both card counts are read with remember{} on entry — they don't auto-refresh on changes inside the deeper screens."),
             HelpCard("Pitfalls", "Backup excludes both directories. Clear all configuration removes both; Clear all runtime data and Reset application leave them alone."),
             HelpCard("Related", "AppService.LOCAL is synthetic and only registered when a .task is present.")
@@ -1249,7 +1194,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ for the per-screen detail."),
             HelpCard("The eight rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Manual cost overrides · Internal prompts · Reset. Order is roughly safe → destructive."),
-            HelpCard("Title bar", "helpTopic=housekeeping. Plain back."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear all runtime data, and Clear all configuration are not undoable."),
             HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
         )
@@ -1261,7 +1205,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache, knowledge bases, embeddings. Excluded: `local_llms/` and `local_models/` (FILES_DIR_BACKUP_EXCLUDES) — they're large and re-downloadable."),
             HelpCard("Restore", "Blue button. Picker is restricted to .zip plus application/octet-stream (some providers report .zip with the latter mime). Confirmation dialog appears first. The restore is validate-then-write: the zip is parsed before any current file is touched."),
             HelpCard("Auto-restart", "On successful restore the app shows a toast, waits ~800ms, then relaunches itself with FLAG_ACTIVITY_NEW_TASK + CLEAR_TASK and kills the current process. The next launch reads the restored data fresh."),
-            HelpCard("Title bar", "helpTopic=backup_restore. Plain back."),
             HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it). Local LLM and LiteRT model files have to be re-installed by hand on a new device — they're never in the zip."),
             HelpCard("Related", "Export/Import does selective shape-typed transfer (keys, costs, providers.json, prompts.json) without bundling reports/chats/traces.")
         )
@@ -1272,7 +1215,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, knowledge bases, prompt history, usage statistics — all kept."),
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
             HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
-            HelpCard("Title bar", "helpTopic=trim_by_age. Plain back."),
             HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
             HelpCard("Related", "Reset → Clear all runtime data wipes ALL reports/chats/traces regardless of age, plus the caches and prompt history.")
         )
@@ -1282,7 +1224,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "One purple button that empties the per-(provider, model) call counts, token totals, and accumulated cost. The AI Usage screen empties out; reports, chats, traces, configuration, and pricing tiers stay intact."),
             HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
-            HelpCard("Title bar", "helpTopic=usage_statistics. Plain back."),
             HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
             HelpCard("Related", "AI Usage screen (cost / tokens dashboard) reads exactly the data this button wipes.")
         )
@@ -1295,7 +1236,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Layered costs · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default)."),
             HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
             HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored — the toast counts only rows the user intended to write."),
-            HelpCard("Title bar", "helpTopic=manual_cost_overrides. Plain back."),
             HelpCard("Tips", "Manual override sits AFTER LiteLLM / models.dev / curated tiers in the lookup precedence — if a tier already has a price, your override may not actually win. Use Cleanup to drop those redundant entries."),
             HelpCard("Pitfalls", "The CSV importer skips malformed rows silently (toast just says \"Imported N, skipped M\"). Provider matching is case-sensitive on the provider id."),
             HelpCard("Related", "Cost Config (Settings → Costs) is the single-row form. Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
@@ -1307,7 +1247,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Two-card maintenance screen for the bundled Internal prompts (assets/prompts.json). Load merges new bundled rows; Reset wipes everything and reloads from scratch."),
             HelpCard("Load new prompts", "Indigo button. Adds any prompt in assets/prompts.json whose (category, name) pair is missing from your set. Existing rows with the same pair are NOT overwritten — your edits are preserved. Status text under the button reports the count."),
             HelpCard("Reset", "Red button + confirmation dialog. Drops every Internal prompt (including ones you authored) and reloads the bundled set fresh. Use when your edits diverged badly enough that starting over is cleaner than reconciling."),
-            HelpCard("Title bar", "helpTopic=internal_prompts_admin. Plain back."),
             HelpCard("Tips", "Internal Prompts are name-and-category referenced by app features (Meta button on report results, Fan-out drill-in, Translate, Model info). Reset will not break anything that's keyed by name — they'll resolve to the freshly loaded versions."),
             HelpCard("Pitfalls", "Reset is destructive — there's no undo. Backup & Restore is the only path back if you've lost edits."),
             HelpCard("Related", "Settings → Prompts → Internal Prompts is the per-row CRUD list.")
@@ -1320,7 +1259,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Clear all runtime data (red)", "Wipes reports, chats, API traces, prompt history, knowledge bases, pricing cache (manual overrides plus cached tier blobs), per-provider model-list cache, local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept."),
             HelpCard("Clear all configuration (dark red)", "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT (.tflite). Reports, chats, traces, and usage statistics are kept."),
             HelpCard("Reset application (dark red, type-RESET)", "Factory-style reset. API keys (per-provider + 3 external) are preserved; everything else is wiped, providers and internal prompts are reloaded from assets, then the Refresh-all chain runs (catalogs → provider tests → model lists → default agents). Type-to-confirm gate."),
-            HelpCard("Title bar", "helpTopic=reset. Plain back."),
             HelpCard("Pitfalls", "Reset application's confirmation is CASE-sensitive — must literally type RESET, trimmed. Both Clear-all variants are immediate; only Reset application has a busy-spinner dialog because it also runs the Refresh chain."),
             HelpCard("Related", "Backup & Restore is the only undo path — take a backup first if there's any chance you'll regret a wipe.")
         )
@@ -1333,7 +1271,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Provider rows", "Show display name + total calls + total cost + ▾/▸ chevron. Tap toggles expansion. Expanded provider state is rememberSaveable across navigation to Model Info and back."),
             HelpCard("Per-model rows", "model id (white) + optional kind pill (rerank/summarize/compare/moderation/translate; report kind is hidden as the implicit default), call count + tokens or search-units, total cost, pricing-source tag color-coded (OVERRIDE=Orange, OPENROUTER=Blue, LITELLM=Purple, others=dim)."),
             HelpCard("Rerank rows", "Bill per search-unit, not per token. Token columns stay zero by design; per-query cost lands in the input column."),
-            HelpCard("Title bar", "helpTopic=statistics. 🗑 trashcan visible only when stats are non-empty — opens \"Clear all statistics?\" confirmation."),
             HelpCard("Tips", "Tap a model row to drill into Model Info for that (provider, model)."),
             HelpCard("Pitfalls", "Legacy rows written before the kind field exist deserialize without one — SettingsPreferences.loadUsageStats backfills, but the row defends with `(swc.stat.kind as String?) ?: \"report\"` to keep the renderer safe."),
             HelpCard("Related", "Cost Config (Settings → Costs) edits the OVERRIDE tier; Refresh → OpenRouter / LiteLLM rebuild the curated tiers consulted here.")
@@ -1345,7 +1282,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Manual price-override list. Top button \"Add Manual Override\" opens AddManualOverrideScreen as a full-screen overlay. Empty state shows the lookup precedence (LiteLLM > OpenRouter > Default) — manual overrides slot into that chain after curated tiers."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
             HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter fan out-provider fallback → Helicone → DEFAULT."),
-            HelpCard("Title bar", "helpTopic=cost_config. Plain back."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
             HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Use Housekeeping → Manual cost overrides cleanup to drop redundant entries."),
             HelpCard("Related", "Export/Import → Layered costs CSV is the bulk-edit path; Add Manual Override is the single-row form.")
@@ -1359,7 +1295,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Model row", "Free-text \"Model\" field plus a Select button that opens SelectModelScreen for the chosen provider. Either typing or picking works."),
             HelpCard("Reference price", "When provider+model are populated, a small dim line shows the current price the lookup would return WITHOUT the override (PricingCache.getPricingWithoutOverride) plus the source tier."),
             HelpCard("Save", "Disabled until provider + non-blank model + parseable input + parseable output. Numbers are $/1M tokens; saved divided by 1,000,000."),
-            HelpCard("Title bar", "helpTopic=cost_override. Title \"Add Override\". Plain back."),
             HelpCard("Tips", "When opened from Model Info on an existing override, both price fields pre-populate from the saved values."),
             HelpCard("Pitfalls", "Negative prices and non-numeric input fail the Save gate without an explicit error message — the button just stays disabled."),
             HelpCard("Related", "Layered costs CSV → Import manual changed costs is the bulk equivalent.")
@@ -1374,7 +1309,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Auto-collapse", "When a deep-link arrives with preset filters and the resulting list has exactly one entry, the screen jumps straight into that trace's detail. Flag is rememberSaveable so popping back lands on the (single-entry) list, not the detail again."),
             HelpCard("Pagination", "Computed from BoxWithConstraints maxHeight (52dp per row, 130dp overhead). Prev/Next + position indicator only when total > 1 page."),
             HelpCard("Per-row", "Hostname (left), date/time (center, MM/dd HH:mm:ss), status code (right; green 2xx / orange 4xx / red 5xx / dim others)."),
-            HelpCard("Title bar", "helpTopic=trace_list. 🗑 trashcan visible only when neither reportId nor modelFilter scope is active AND there is at least one trace — opens a \"Clear all traces?\" dialog."),
             HelpCard("Tips", "Picking a model uses a full-screen overlay (TraceModelPickerOverlay) since the option list can be too long for a popup menu."),
             HelpCard("Pitfalls", "PROVIDER_AUX_HOSTS maps Cohere's api.cohere.com onto the Cohere baseUrl host — without that the rerank API traces would land in \"(unknown)\". Extend the map for any provider with a similar second host."),
             HelpCard("Related", "Most 🐞 ladybug icons across the app deep-link here with category/model filters preset.")
@@ -1388,7 +1322,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("View selector", "5 outlined buttons: All / Req Hdr / Rsp Hdr / Req / Rsp. Active button highlights blue. Switching view resets when navigating prev/next."),
             HelpCard("Bottom action row", "< (prev trace, fixed 36dp width) — Copy — Edit — Share — > (next). Copy and Share use a redacted variant (URL query params, sensitive headers, sensitive JSON keys → [REDACTED]) so secrets don't leave the device. The on-screen tree always shows raw bytes."),
             HelpCard("Edit", "Persists the trace's request body + url + model into eval_prefs, then opens EditApiRequestScreen with that JSON loaded — fast \"replay this request\" path."),
-            HelpCard("Title bar", "helpTopic=trace_detail. ℹ️ visible when host resolves to a provider AND a model id is captured — opens Model Info for (provider, model)."),
             HelpCard("Tips", "Translation extraction looks for \"TEXT TO TRANSLATE:\" in the user prompt and walks OpenAI / Anthropic / Gemini response shapes to find the assistant text. Best-effort only — null hides the button."),
             HelpCard("Pitfalls", "Share writes a temp file under cacheDir/shared_traces/<filename> and grants FileProvider read access; long traces survive only as long as the cache survives.")
         )
@@ -1399,7 +1332,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Full-screen overlay used by the trace list to pick one (provider, model) pair to filter on. Top card is \"(All models)\" — clears the filter when tapped."),
             HelpCard("Item rows", "Provider name in blue (small) plus model id in white (or blue when selected) below. Trailing ✓ marks the current selection."),
             HelpCard("Sourcing", "Options come from pickableModels in the parent — distinct (provider, model) pairs from traces in the currently scoped Category + Provider + Hostname subset. Picking an unpopulated combination is impossible."),
-            HelpCard("Title bar", "helpTopic=trace_pick_model. Plain back returns to the trace list with no change."),
             HelpCard("Tips", "Sorted (provider, model) by lowercased name; ties broken by model id."),
             HelpCard("Pitfalls", "If you change the upstream Category / Provider / Hostname filters AFTER picking a model, your model selection may no longer match anything — the list will go empty until you clear it."),
             HelpCard("Related", "Reachable only from the trace list's Model launcher button.")
@@ -1414,7 +1346,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Model picker", "\"...\" button calls AnalysisRepository().fetchModels in a loading dialog, then shows a scrolling list of model ids — tap to pick."),
             HelpCard("API Parameters card", "Collapsible — System Prompt (multi-line), Temperature, Max Tokens. Optional fields."),
             HelpCard("Build Request", "Green button at bottom. Clears any previous raw_json so EditApiRequestScreen builds fresh JSON from the form. Always remembers everything else for next session."),
-            HelpCard("Title bar", "helpTopic=developer_test. Plain back."),
             HelpCard("Tips", "Reachable from Hub → Developer (long-press / hidden flag depending on build); not part of the regular Settings tree."),
             HelpCard("Pitfalls", "If the endpoint URL doesn't match an actual chat completion path on the chosen provider's host, the call will get a 404 — the form does not validate the URL.")
         )
@@ -1426,7 +1357,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Info card", "Top non-editable card with \"<provider> / <model>\" and the endpoint URL — sanity check before submitting."),
             HelpCard("Editor", "OutlinedTextField with monospace font occupies the rest of the screen. Edits are local until Submit."),
             HelpCard("Submit", "Turns tracing on for this single call regardless of the global setting (and restores it after), runs AnalysisRepository.testApiConnectionWithJson, then jumps to TraceDetail for the new trace if one was captured. If nothing new came in, just toasts \"Request sent. Check traces.\""),
-            HelpCard("Title bar", "helpTopic=developer_edit. Plain back."),
             HelpCard("Tips", "This bypasses the Retrofit serialization layer entirely — perfect for testing edge-case body shapes a provider's docs claim to support."),
             HelpCard("Pitfalls", "API key for the call comes from eval_prefs and is also sent in plain text via the standard provider Authorization scheme; if you mis-typed it on the test screen the failure looks like a 401 in the trace, not a UI error here."),
             HelpCard("Related", "Trace Detail → Edit jumps here pre-populated with the trace's request — fast \"replay with tweaks\" loop.")
@@ -1439,7 +1369,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Sort order", "ok first, then error, then not-used, then inactive. Within each bucket alphabetical by display name. Counts every registered provider, not just active ones."),
             HelpCard("Per-row card", "Display name in white + state emoji on the right (🔑 ok / ❌ error / 💤 inactive / ⭕ not-used / unknown for anything else). Admin URL line beneath in blue underlined monospace, or \"(no admin URL configured)\" when blank."),
             HelpCard("Tap behavior", "Fires Intent.ACTION_VIEW with the URL. Toast on missing URL or browser-launch exception."),
-            HelpCard("Title bar", "helpTopic=provider_admin. Plain back."),
             HelpCard("Tips", "Reached from AI Setup → Providers → Provider administration."),
             HelpCard("Pitfalls", "Admin URL is part of the catalog — if it's wrong / missing for a custom provider, edit it under Provider edit → Definition · Basics. Edits to that field flow into the catalog directly; there is no longer a separate per-config override layer.")
         )
