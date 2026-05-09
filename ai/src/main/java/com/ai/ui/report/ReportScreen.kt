@@ -2237,9 +2237,31 @@ private fun ColumnScope.GenerationPhase(
                     RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
-                        val runProv = AppService.findById(run.providerId)?.id ?: run.providerId
+                        // Fan-in rows label by the PROMPT used (its
+                        // description / title) rather than the model
+                        // \u2014 the user picks the prompt to characterise
+                        // the run, the model is incidental. Falls
+                        // back to the prompt name when no title is
+                        // set, then the model label for legacy rows
+                        // whose prompt id no longer resolves.
+                        val text = if (run.fanInOf != null) {
+                            val prompt = aiSettings.internalPrompts.firstOrNull {
+                                it.id == run.fanInOf || it.id == run.metaPromptId
+                            }
+                            val label = prompt?.title?.takeIf { it.isNotBlank() }
+                                ?: prompt?.name?.takeIf { it.isNotBlank() }
+                                ?: run.metaPromptName?.takeIf { it.isNotBlank() }
+                                ?: run.let {
+                                    val runProv = AppService.findById(it.providerId)?.id ?: it.providerId
+                                    com.ai.ui.shared.modelLabel(runProv, it.model)
+                                }
+                            "$label$langSuffix"
+                        } else {
+                            val runProv = AppService.findById(run.providerId)?.id ?: run.providerId
+                            "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix"
+                        }
                         Text(
-                            "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix",
+                            text,
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
