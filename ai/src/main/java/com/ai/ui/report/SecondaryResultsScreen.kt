@@ -944,7 +944,11 @@ private fun ColumnScope.FanOutDrillInView(
             activeAgents = activeAgents,
             l2Rows = l2Rows,
             agentsById = agentsById,
-            onClose = { showOnePageView = false },
+            onBack = { showOnePageView = false },
+            onSwitchRole = {
+                selectedRole = if (selectedRole == "Responder") "Initiator" else "Responder"
+            },
+            onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToTraceFile = onNavigateToTraceFile
         )
         return
@@ -1720,11 +1724,15 @@ private fun OnePageView(
     activeAgents: List<com.ai.data.ReportAgent>,
     l2Rows: List<L2Row>,
     agentsById: Map<String, com.ai.data.ReportAgent>,
-    onClose: () -> Unit,
+    onBack: () -> Unit,
+    onSwitchRole: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToTraceFile: (String) -> Unit
 ) {
-    BackHandler { onClose() }
+    BackHandler { onBack() }
     val provName = AppService.findById(activePid)?.id ?: activePid
+    val activeProviderService = AppService.findById(activePid)
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
 
     // Flatten into a stable item list driven by role. Source bodies
     // appear once per source agent so the multi-agent Initiator view
@@ -1783,24 +1791,48 @@ private fun OnePageView(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Row(verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            Text(com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
-                fontSize = 14.sp, color = AppColors.Blue,
-                fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-                    .modelInfoClickable(AppService.findById(activePid), activeMdl))
-            Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
-                modifier = Modifier.padding(end = 8.dp))
-            Button(
-                onClick = onClose,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-            ) { Text("Close", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+    val modelLabel = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / ")
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        // Full-screen TitleBar replacing the previous inline header.
+        // Back arrow / system back closes the page (no separate
+        // "Close" button needed). ℹ → Model Info for the active
+        // model, mirroring the L2 page's TitleBar slot.
+        TitleBar(
+            helpTopic = "secondary_fan_out",
+            title = if (foldSubject) modelLabel else "One page view",
+            onBackClick = onBack,
+            onInfo = if (activeProviderService != null) {
+                { onNavigateToModelInfo(activeProviderService, activeMdl) }
+            } else null
+        )
+        if (!foldSubject) {
+            Text(
+                text = modelLabel,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .modelInfoClickable(activeProviderService, activeMdl)
+            )
         }
+        // Role label + Switch role button — same shape as the L2
+        // list page, hoisted up so the user can toggle without
+        // backing out to the list view.
+        Row(verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 4.dp)) {
+            Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.weight(1f))
+            Button(
+                onClick = onSwitchRole,
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 32.dp)
+            ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(color = AppColors.DividerDark)
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth().padding(8.dp)) {
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
             items(items, key = { it.key }) { item ->
                 when (item) {
                     is OnePageItem.SourceHeader -> {
