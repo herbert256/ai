@@ -26,6 +26,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
+import com.ai.ui.shared.shareExportText
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
 import com.google.gson.JsonArray
@@ -270,30 +271,28 @@ fun ImportExportScreen(
 
     var importType by remember { mutableStateOf("keys") }
 
-    fun writeToUri(uri: Uri, content: String) {
-        // Force UTF-8 — toByteArray() and bufferedReader() default to
-        // the platform charset; on a non-UTF-8 device that mangles
-        // any non-ASCII content (Chinese / Cyrillic / emoji in agent
-        // or provider names) when JSON crosses the SAF boundary.
-        context.contentResolver.openOutputStream(uri)?.use { it.write(content.toByteArray(Charsets.UTF_8)) }
-    }
-
     fun readFromUri(uri: Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
     }
 
-    val exportKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    // Each export builds its content here and hands it to
+    // `shareExportText`, which stages a temp file under
+    // `cacheDir/exports/` and fires `Intent.ACTION_SEND` so the user
+    // picks any installed destination — Email, Drive, Files, Slack,
+    // the system file picker, etc. Replaces the older SAF
+    // `CreateDocument` launcher pattern, which could only write to a
+    // SAF-picked filesystem location.
+
+    fun exportKeys() {
         val json = buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey)
         // Count is just the populated key count — re-derive from the
         // payload to keep the toast in step with the helper's logic.
         val count = JsonParser.parseString(json).asJsonObject.size()
-        writeToUri(uri, json)
-        Toast.makeText(context, "$count API keys exported", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "ai_keys-${exportTimestamp()}.json", "application/json", "Share API keys", json)
+        Toast.makeText(context, "$count API keys ready to share", Toast.LENGTH_SHORT).show()
     }
 
-    val exportProvidersJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportProvidersJson() {
         // Dump the current registry as `{ "providers": [<ProviderDefinition>] }`
         // — same shape the on-demand "Import new providers from
         // assets/providers.json" button consumes. ProviderDefinition
@@ -302,72 +301,73 @@ fun ImportExportScreen(
         // different prefs file and are not touched here.
         val defs = ProviderRegistry.getCustomProviders()
         val payload = mapOf("providers" to defs)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
-        Toast.makeText(context, "Providers exported (${defs.size} entries)", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "providers.json", "application/json", "Share providers",
+            createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Providers ready to share (${defs.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
-    val exportPromptsJsonLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportPromptsJson() {
         // Drop-in shape for assets/prompts.json — top-level array of
         // {name, title, reference, category, agent, text} objects, no
         // ids (the seed loader assigns fresh UUIDs on read).
         val payload = aiSettings.internalPrompts.map { promptEntry(it) }
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
-        Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "prompts.json", "application/json", "Share prompts",
+            createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Internal prompts ready to share (${payload.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
-    val exportExamplePromptsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportExamplePrompts() {
         // Drop-in shape for assets/examples.json — top-level array of
         // {title, text} objects, no ids (the seed loader assigns fresh
         // UUIDs on read).
         val payload = aiSettings.examplePrompts.map { linkedMapOf("title" to it.title, "text" to it.text) }
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
-        Toast.makeText(context, "Example prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "examples.json", "application/json", "Share examples",
+            createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Example prompts ready to share (${payload.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
-    val exportWorkersLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportWorkers() {
         // { agents: [...], flocks: [...], swarms: [...] } — same shape
         // the All bundle inlines and the Workers import reads back.
         val tree = buildWorkersTree(aiSettings)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        shareExportText(context, "ai_workers-${exportTimestamp()}.json", "application/json", "Share workers",
+            createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(
             context,
-            "Workers exported (${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
+            "Workers ready to share (${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
             Toast.LENGTH_SHORT
         ).show()
     }
 
-    val exportSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportSettings() {
         // GeneralSettings minus the three info-provider API keys (those
         // already round-trip through the API Keys export).
         val tree = buildGeneralSettingsTree(generalSettings)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
-        Toast.makeText(context, "Settings exported", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "ai_settings-${exportTimestamp()}.json", "application/json", "Share settings",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Settings ready to share", Toast.LENGTH_SHORT).show()
     }
 
-    val exportModelListsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportModelLists() {
         val tree = buildModelListsTree(aiSettings)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        shareExportText(context, "ai_model_lists-${exportTimestamp()}.json", "application/json", "Share model lists",
+            createAppGson(prettyPrint = true).toJson(tree))
         val nonEmpty = aiSettings.providers.values.count { it.models.isNotEmpty() }
-        Toast.makeText(context, "Model lists exported ($nonEmpty providers)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Model lists ready to share ($nonEmpty providers)", Toast.LENGTH_SHORT).show()
     }
 
-    val exportParametersLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportParameters() {
         val tree = buildParametersTree(aiSettings)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
-        Toast.makeText(context, "Parameters exported (${aiSettings.parameters.size} entries)", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "ai_parameters-${exportTimestamp()}.json", "application/json", "Share parameters",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Parameters ready to share (${aiSettings.parameters.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
-    val exportSystemPromptsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportSystemPrompts() {
         val tree = buildSystemPromptsTree(aiSettings)
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
-        Toast.makeText(context, "System prompts exported (${aiSettings.systemPrompts.size} entries)", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "ai_system_prompts-${exportTimestamp()}.json", "application/json", "Share system prompts",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "System prompts ready to share (${aiSettings.systemPrompts.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
     // "All" bundle: single JSON file carrying every section the
@@ -384,13 +384,17 @@ fun ImportExportScreen(
     // identical except the latter omits the apiKeys section. The
     // Import-card All button reads either shape since every section is
     // optional on the way in.
-    fun launchAllExport(uri: Uri, includeApiKeys: Boolean) {
+    fun exportAll(includeApiKeys: Boolean) {
         val bundle = buildAllBundle(
             aiSettings, generalSettings,
             huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey,
             context, includeApiKeys
         )
-        writeToUri(uri, createAppGson(prettyPrint = true).toJson(bundle))
+        val fileName =
+            if (includeApiKeys) "ai_bundle-${exportTimestamp()}.json"
+            else "ai_bundle_no_keys-${exportTimestamp()}.json"
+        shareExportText(context, fileName, "application/json", "Share bundle",
+            createAppGson(prettyPrint = true).toJson(bundle))
         val keysPart = bundle.getAsJsonObject("apiKeys")?.size()?.let { "$it keys, " } ?: ""
         val costs = bundle.getAsJsonArray("costs")?.size() ?: 0
         val providers = bundle.getAsJsonArray("providers")?.size() ?: 0
@@ -401,7 +405,7 @@ fun ImportExportScreen(
         val modelLists = bundle.getAsJsonObject("modelLists")?.size() ?: 0
         Toast.makeText(
             context,
-            "Bundle exported (${keysPart}$costs costs, $providers providers, " +
+            "Bundle ready to share (${keysPart}$costs costs, $providers providers, " +
                 "$prompts prompts, $examples examples, " +
                 "${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms, " +
                 "$modelLists model lists, $params parameters, $sysPrompts system prompts)",
@@ -409,18 +413,7 @@ fun ImportExportScreen(
         ).show()
     }
 
-    val exportAllWithKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        launchAllExport(uri, includeApiKeys = true)
-    }
-
-    val exportAllWithoutKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        launchAllExport(uri, includeApiKeys = false)
-    }
-
-    val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun exportCosts() {
         val manual = PricingCache.getAllManualPricing(context)
         val lines = mutableListOf("provider,model,input_per_million,output_per_million")
         manual.forEach { (key, pricing) ->
@@ -432,8 +425,9 @@ fun ImportExportScreen(
                 "${pricing.completionPrice * 1_000_000}"
             ).joinToString(","))
         }
-        writeToUri(uri, lines.joinToString("\n"))
-        Toast.makeText(context, "${manual.size} cost entries exported", Toast.LENGTH_SHORT).show()
+        shareExportText(context, "ai_costs-${exportTimestamp()}.csv", "text/csv", "Share costs",
+            lines.joinToString("\n"))
+        Toast.makeText(context, "${manual.size} cost entries ready to share", Toast.LENGTH_SHORT).show()
     }
 
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -732,12 +726,10 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportKeysLauncher.launch("ai_keys-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportKeys() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportCosts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // Bundle-shape exports: provider catalog and internal
                     // prompts. Drop-in shape for assets/providers.json
@@ -745,53 +737,43 @@ fun ImportExportScreen(
                     // user's tuned catalog as the new bundled defaults.
                     // Neither carries an API key.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportProvidersJsonLauncher.launch("providers.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            exportPromptsJsonLauncher.launch("prompts.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportProvidersJson() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportPromptsJson() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // Agents + Flocks + Swarms in one file, plus the
                     // user-curated Example prompts (title + text only).
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportWorkersLauncher.launch("ai_workers-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            exportExamplePromptsLauncher.launch("examples.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportWorkers() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportExamplePrompts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // GeneralSettings (sans the three info-provider keys)
                     // and per-provider model lists keyed by AppService.id.
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportSettingsLauncher.launch("ai_settings-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            exportModelListsLauncher.launch("ai_model_lists-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportSettings() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportModelLists() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportParametersLauncher.launch("ai_parameters-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            exportSystemPromptsLauncher.launch("ai_system_prompts-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportParameters() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportSystemPrompts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // "All": single JSON file bundling every section
                     // above. Round-trips through the matching All import.
                     // Two variants — with and without the apiKeys
                     // section — for safer sharing.
-                    OutlinedButton(onClick = {
-                        exportAllWithKeysLauncher.launch("ai_bundle-${exportTimestamp()}.json")
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                    OutlinedButton(onClick = { exportAll(includeApiKeys = true) },
+                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                         Text("All including API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
-                    OutlinedButton(onClick = {
-                        exportAllWithoutKeysLauncher.launch("ai_bundle_no_keys-${exportTimestamp()}.json")
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                    OutlinedButton(onClick = { exportAll(includeApiKeys = false) },
+                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                         Text("All excluding API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
                 }

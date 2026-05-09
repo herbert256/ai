@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.BackupManager
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.shareExport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,20 +33,22 @@ fun BackupRestoreScreen(
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
 
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+    fun runBackup() {
         busyLabel = "Backing up…"
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    context.contentResolver.openOutputStream(uri)?.use { out ->
-                        BackupManager.backup(context, out)
-                    } ?: error("Could not open output stream")
+                    shareExport(
+                        context = context,
+                        fileName = BackupManager.defaultFileName(),
+                        mimeType = "application/zip",
+                        chooserTitle = "Share backup"
+                    ) { out -> BackupManager.backup(context, out) }
                 }
             }
             busyLabel = null
             val msg = result.fold(
-                onSuccess = { "Backup written to selected location" },
+                onSuccess = { "Backup ready — pick a destination from the share sheet" },
                 onFailure = { "Backup failed: ${it.javaClass.simpleName}: ${it.message}" }
             )
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
@@ -131,12 +134,12 @@ fun BackupRestoreScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Backup & Restore", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. The Android picker lets you pick Google Drive (or any cloud-storage app you have installed) as the destination. Local LLM .task files and LiteRT .tflite embedders are excluded — they're large and re-downloadable.",
+                        "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. Tap Backup, then pick a destination from the system share sheet — Email, Drive, Files, Slack, anything installed. Local LLM .task files and LiteRT .tflite embedders are excluded — they're large and re-downloadable.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { backupLauncher.launch(BackupManager.defaultFileName()) },
+                            onClick = { runBackup() },
                             enabled = busyLabel == null,
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
