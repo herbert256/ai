@@ -636,19 +636,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateProviderState(service: AppService, state: String) {
-        var updated = _uiState.value.aiSettings.withProviderState(service, state)
-        // When a provider goes inactive, drop its default agent (the one named after the
-        // provider's displayName) so flocks/swarms don't keep referencing a disabled path.
-        if (state == "inactive") {
-            val pruned = updated.agents.filterNot { it.provider.id == service.id && it.name == service.displayName }
-            if (pruned.size != updated.agents.size) {
-                val droppedIds = updated.agents.filter { it !in pruned }.map { it.id }.toSet()
-                val flocks = updated.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
-                updated = updated.copy(agents = pruned, flocks = flocks)
+        // Compute the delta inside the StateFlow.update CAS lambda so
+        // concurrent calls (e.g. the parallel provider-test sweep
+        // inside Refresh All) each apply their change to the latest
+        // snapshot — capturing _uiState.value once at function entry
+        // and then writing back the closed-over local clobbered every
+        // peer's update, leaving the surface bug "Refresh All reported
+        // 2 failures but only 1 red cross in AI Setup".
+        _uiState.update { current ->
+            var updated = current.aiSettings.withProviderState(service, state)
+            // When a provider goes inactive, drop its default agent (the one named after the
+            // provider's displayName) so flocks/swarms don't keep referencing a disabled path.
+            if (state == "inactive") {
+                val pruned = updated.agents.filterNot { it.provider.id == service.id && it.name == service.displayName }
+                if (pruned.size != updated.agents.size) {
+                    val droppedIds = updated.agents.filter { it !in pruned }.map { it.id }.toSet()
+                    val flocks = updated.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
+                    updated = updated.copy(agents = pruned, flocks = flocks)
+                }
             }
+            current.copy(aiSettings = updated)
         }
-        _uiState.update { it.copy(aiSettings = updated) }
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+        // Save the latest post-update snapshot — picks up any peer
+        // updates that landed in the same window. Last writer wins on
+        // the persistence layer too, but every concurrent caller's
+        // change is in the snapshot we save.
+        val final = _uiState.value.aiSettings
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
     }
 
     /** Called by the per-provider Test button when the test passes:
@@ -670,25 +684,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  pointing at [defaultModel] and adds it back to the
      *  "default agents" flock. */
     fun replaceDefaultAgent(service: AppService, defaultModel: String) {
-        val current = _uiState.value.aiSettings
-        val droppedIds = current.agents
-            .filter { it.provider.id == service.id && it.name == service.displayName }
-            .map { it.id }.toSet()
-        val pruned = current.copy(
-            agents = current.agents.filterNot { it.id in droppedIds },
-            flocks = current.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
-        )
-        val updated = pruned.ensureDefaultAgentInFlock(service, defaultModel)
-        _uiState.update { it.copy(aiSettings = updated) }
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+        // CAS-style update so a concurrent updateProviderState /
+        // markProviderTestedOk call doesn't get clobbered by the
+        // closed-over local-snapshot pattern.
+        _uiState.update { current ->
+            val droppedIds = current.aiSettings.agents
+                .filter { it.provider.id == service.id && it.name == service.displayName }
+                .map { it.id }.toSet()
+            val pruned = current.aiSettings.copy(
+                agents = current.aiSettings.agents.filterNot { it.id in droppedIds },
+                flocks = current.aiSettings.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
+            )
+            current.copy(aiSettings = pruned.ensureDefaultAgentInFlock(service, defaultModel))
+        }
+        val final = _uiState.value.aiSettings
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
     }
 
     fun markProviderTestedOk(service: AppService, defaultModel: String, fetchAfter: Boolean = true) {
-        val updated = _uiState.value.aiSettings
-            .withProviderState(service, "ok")
-            .ensureDefaultAgentInFlock(service, defaultModel)
-        _uiState.update { it.copy(aiSettings = updated) }
-        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+        // CAS-style update — see updateProviderState for the same
+        // race that the closed-over snapshot pattern caused.
+        _uiState.update { current ->
+            val updated = current.aiSettings
+                .withProviderState(service, "ok")
+                .ensureDefaultAgentInFlock(service, defaultModel)
+            current.copy(aiSettings = updated)
+        }
+        val final = _uiState.value.aiSettings
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(final) }
         // Background model-list fetch with API-source flip on success.
         // The activation flow pre-fetches synchronously and passes
         // [fetchAfter] = false to avoid a duplicate request.
