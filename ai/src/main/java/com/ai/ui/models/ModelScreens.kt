@@ -590,6 +590,7 @@ fun ModelInfoScreen(
         ModelRawInfoScreen(
             title = rv.title, body = rv.body,
             provider = rv.provider, calledUrl = rv.calledUrl,
+            onNavigateToHelpTopic = onNavigateToHelpTopic,
             onBack = { rawView = null }, onNavigateHome = onNavigateHome
         )
         return
@@ -1460,6 +1461,7 @@ private fun ModelRawInfoScreen(
      *  legacy title-only shape. */
     provider: com.ai.ui.admin.InfoProviderRef? = null,
     calledUrl: String? = null,
+    onNavigateToHelpTopic: (String) -> Unit = {},
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -1469,7 +1471,14 @@ private fun ModelRawInfoScreen(
         TitleBar(
             helpTopic = provider?.topicId ?: "model_raw",
             title = if (provider != null) "Info provider" else title,
-            onBackClick = onBack
+            onBackClick = onBack,
+            // ℹ alongside the auto-wired ? — both go to the
+            // per-provider help topic so the user has the same
+            // affordance whether they reach for the help-system icon
+            // or the info-about-this-thing icon.
+            onInfo = if (provider != null) {
+                { onNavigateToHelpTopic(provider.topicId) }
+            } else null
         )
         if (provider != null) {
             Spacer(modifier = Modifier.height(4.dp))
