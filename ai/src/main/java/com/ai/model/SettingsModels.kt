@@ -81,26 +81,11 @@ enum class Parameter {
 
 val ALL_AGENT_PARAMETERS: Set<Parameter> = Parameter.entries.toSet()
 
-private val BUILT_IN_ENDPOINTS: Map<String, List<Endpoint>> = mapOf(
-    "OpenAI" to listOf(
-        Endpoint("openai-chat", "Chat Completions", "https://api.openai.com/v1/chat/completions", true),
-        Endpoint("openai-responses", "Responses API", "https://api.openai.com/v1/responses", false)
-    ),
-    "Mistral" to listOf(
-        Endpoint("mistral-chat", "Chat Completions", "https://api.mistral.ai/v1/chat/completions", true),
-        Endpoint("mistral-codestral", "Codestral", "https://codestral.mistral.ai/v1/chat/completions", false)
-    ),
-    "DeepSeek" to listOf(
-        Endpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
-        Endpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
-    ),
-    "Z.AI" to listOf(
-        Endpoint("zai-chat", "Chat Completions", "https://api.z.ai/api/paas/v4/chat/completions", true),
-        Endpoint("zai-coding", "Coding", "https://api.z.ai/api/coding/paas/v4/chat/completions", false)
-    )
-)
-
-data class Endpoint(val id: String, val name: String, val url: String, val isDefault: Boolean = false)
+// Per-provider built-in endpoints moved to AppService.builtInEndpoints,
+// which is populated from assets/providers.json. Endpoint itself lives
+// in com.ai.data — re-exposed via a typealias so existing callers in
+// the model + ui layers compile unchanged.
+typealias Endpoint = com.ai.data.Endpoint
 
 data class Agent(
     val id: String, val name: String, val provider: AppService, val model: String,
@@ -284,7 +269,7 @@ data class Settings(
         // OpenRouter aliases, etc.), so the union is gated to OpenAI.
         // Only the fetcher path (this 5-arg overload) merges; manual-
         // edit overloads stay verbatim so the user can still prune.
-        val withFallback = if (service.id == "OpenAI") {
+        val withFallback = if (service.mergeHardcodedModels) {
             (models + (service.hardcodedModels ?: emptyList())).distinct()
         } else {
             models.distinct()
@@ -488,12 +473,12 @@ data class Settings(
      * untouched. Re-call this after any OpenRouter or per-provider fetch.
      */
     fun applyOpenRouterTypes(): Settings {
-        val orProvider = AppService.findById("OpenRouter") ?: return this
+        val orProvider = AppService.entries.firstOrNull { it.crossProviderModelList } ?: return this
         val orTypes = getProvider(orProvider).modelTypes
         if (orTypes.isEmpty()) return this
         var updated = this
         for (service in AppService.entries) {
-            if (service.id == "OpenRouter") continue
+            if (service.crossProviderModelList) continue
             val orPrefix = service.openRouterName ?: continue
             val cfg = getProvider(service)
             if (cfg.models.isEmpty()) continue
@@ -534,8 +519,8 @@ data class Settings(
     fun getEndpointsForProvider(provider: AppService): List<Endpoint> =
         endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)
 
-    private fun getBuiltInEndpoints(provider: AppService) =
-        BUILT_IN_ENDPOINTS[provider.id] ?: defaultEndpointForProvider(provider)
+    private fun getBuiltInEndpoints(provider: AppService): List<Endpoint> =
+        provider.builtInEndpoints.takeIf { it.isNotEmpty() } ?: defaultEndpointForProvider(provider)
 
     private fun defaultEndpointForProvider(provider: AppService): List<Endpoint> {
         val base = if (provider.baseUrl.endsWith("/")) provider.baseUrl else "${provider.baseUrl}/"

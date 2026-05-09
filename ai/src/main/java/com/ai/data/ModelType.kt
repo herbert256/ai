@@ -156,31 +156,8 @@ object ModelType {
      *     gpt-4.1) get a web_search_preview tool — Chat Completions skips.
      *
      *  Conservative — false on miss; the user can pin via Model Info. */
-    fun inferWebSearch(provider: AppService, modelId: String): Boolean {
-        val id = modelId.lowercase()
-        return when (provider.apiFormat) {
-            ApiFormat.ANTHROPIC -> {
-                "claude-3-5" in id || "claude-3.5" in id ||
-                    "claude-3-7" in id || "claude-3.7" in id ||
-                    "sonnet-4" in id || "opus-4" in id || "haiku-4" in id ||
-                    Regex("""claude-(opus|sonnet|haiku)-4""").containsMatchIn(id)
-            }
-            ApiFormat.GOOGLE -> {
-                "gemini-1.5" in id || "gemini-2" in id || "gemini-pro" in id
-            }
-            ApiFormat.OPENAI_COMPATIBLE -> {
-                // Responses API path — must match infer() above. Previously
-                // included o1 and gpt-4.1, but those families have a
-                // working chat-completions endpoint so infer() doesn't
-                // route them through /v1/responses; enabling
-                // web_search_preview here would attach a tool the
-                // chat-completions path can't deliver. Drop them so the
-                // two functions agree on which models actually get the
-                // Responses-API treatment.
-                id.startsWith("gpt-5") || id.startsWith("o3") || id.startsWith("o4")
-            }
-        }
-    }
+    fun inferWebSearch(provider: AppService, modelId: String): Boolean =
+        provider.webSearchModelPatterns.anyMatches(modelId)
 
     /** Heuristic for "does this (provider, model) accept a thinking /
      *  reasoning-effort parameter?". Conservative fallback used only
@@ -211,45 +188,11 @@ object ModelType {
         if ("gpt-oss" in id) return true
         if ("phi-4-reasoning" in id) return true
         if ("reasoning" in id || "thinking" in id) return true
-        return when (provider.apiFormat) {
-            ApiFormat.ANTHROPIC -> {
-                // Claude 3.7 (initial extended thinking) + every 4.x family.
-                "claude-3-7" in id || "claude-3.7" in id ||
-                    "opus-4" in id || "sonnet-4" in id || "haiku-4" in id ||
-                    Regex("""claude-(opus|sonnet|haiku)-4""").containsMatchIn(id)
-            }
-            ApiFormat.GOOGLE -> {
-                // Gemini 2.5 family (Pro, Flash) ships with thinking; the
-                // top-level `thinking` field on the /models response is
-                // the authoritative signal — this catches name-only fits.
-                id.startsWith("gemini-2.5") || ("gemini" in id && "-2.5" in id)
-            }
-            ApiFormat.OPENAI_COMPATIBLE -> when (provider.id) {
-                "OpenAI" -> {
-                    // gpt-5 family + o-series reasoning models.
-                    id.startsWith("gpt-5") ||
-                        id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4")
-                }
-                "xAI" -> {
-                    // Most current xAI models perform reasoning. The
-                    // explicit "-non-reasoning" variants are filtered by
-                    // the early hard-negative gate, so anything in the
-                    // grok-3 / grok-4.x families counts here. The
-                    // "always-on, no parameter" subset (grok-4.3,
-                    // grok-4.20-multi-agent, grok-code-fast-…) still
-                    // gets a 🧠 badge — they reason, they just don't
-                    // expose `reasoning_effort`. Whether the request
-                    // sends the parameter is decided separately by
-                    // [inferAcceptsReasoningEffortParam].
-                    id.startsWith("grok-3") || id.startsWith("grok-4") ||
-                        id.startsWith("grok-code")
-                }
-                "Moonshot" -> id.startsWith("kimi-k1.5") || id.startsWith("kimi-k2") || "thinking" in id
-                "DeepSeek" -> "r1" in id || "reasoner" in id
-                "Mistral" -> "magistral" in id
-                else -> false
-            }
-        }
+        // Provider-specific opt-ins live on the provider config now —
+        // see ProviderDefinition.reasoningModelPatterns. Empty list →
+        // no provider-specific reasoning models declared, falls back
+        // to the generic family markers above.
+        return provider.reasoningModelPatterns.anyMatches(modelId)
     }
 
     /** Providers whose "is reasoning model" signal from external
@@ -260,27 +203,19 @@ object ModelType {
      *  🧠 badge for these (per [inferReasoning]) but the dispatcher
      *  must skip the parameter (per [inferAcceptsReasoningEffortParam]). */
     fun externalReasoningSignalUntrusted(provider: AppService): Boolean =
-        provider.id == "xAI"
+        provider.externalReasoningSignalUntrusted
 
     /** Narrow companion to [inferReasoning]: returns true only when the
      *  model exposes a controllable reasoning parameter we can attach
      *  (`reasoning_effort` for OpenAI-compat, the `thinking` block for
      *  Anthropic, `thinkingConfig` for Gemini). For most providers this
-     *  matches [inferReasoning]; xAI is the exception — its always-on
-     *  variants reason but reject the parameter, so we narrow the xAI
-     *  branch to the controllable subset (grok-3 family, grok-4 /
-     *  grok-4-0… dated builds, anything ending in "-reasoning"). */
+     *  matches [inferReasoning]; some providers (notably xAI) declare a
+     *  narrower [AppService.reasoningEffortAcceptPatterns] subset
+     *  because their always-on reasoning variants reject the parameter. */
     fun inferAcceptsReasoningEffortParam(provider: AppService, modelId: String): Boolean {
         val id = modelId.lowercase()
         if ("non-reasoning" in id || "non_reasoning" in id || "no-reasoning" in id) return false
-        if (provider.id == "xAI") {
-            // Controllable: grok-3* (incl. mini), grok-4 / grok-4-0709,
-            // any *-reasoning suffix (e.g. grok-4-fast-reasoning,
-            // grok-4.20-0309-reasoning). Excludes grok-4.3, grok-4.20
-            // multi-agent, grok-code-fast-… — those are always-on.
-            return id.startsWith("grok-3") || id == "grok-4" ||
-                id.startsWith("grok-4-0") || id.endsWith("-reasoning")
-        }
+        provider.reasoningEffortAcceptPatterns?.let { return it.anyMatches(modelId) }
         return inferReasoning(provider, modelId)
     }
 }

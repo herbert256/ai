@@ -147,28 +147,31 @@ interface OpenRouterModelsApi {
  *  /compatibility endpoint strips. Always points at api.cohere.com regardless
  *  of which Cohere base URL the user has configured. */
 interface CohereNativeApi {
-    @GET("v1/models")
+    @GET
     suspend fun listModels(
+        @Url url: String,
         @Header("Authorization") authorization: String,
         @retrofit2.http.Query("page_size") pageSize: Int = 1000
     ): Response<CohereModelsResponse>
 }
 
-/** Cohere v2 rerank API. Lives on api.cohere.com (not the compatibility
- *  shim, which doesn't forward /rerank). */
+/** Native rerank API (Cohere v2 shape). URL comes from
+ *  ProviderDefinition.nativeRerankUrl so the dispatch is config-driven. */
 interface CohereRerankApi {
-    @POST("v2/rerank")
+    @POST
     suspend fun rerank(
+        @Url url: String,
         @Header("Authorization") authorization: String,
         @Body request: CohereRerankRequest
     ): Response<CohereRerankResponse>
 }
 
-/** Mistral moderation API. Returns per-input category booleans + scores
- *  against ~9 harmful-content categories. Plain HTTP — no streaming. */
+/** Native moderation API (Mistral v1/moderations shape). URL comes from
+ *  ProviderDefinition.nativeModerationUrl so the dispatch is config-driven. */
 interface MistralModerationApi {
-    @POST("v1/moderations")
+    @POST
     suspend fun moderate(
+        @Url url: String,
         @Header("Authorization") authorization: String,
         @Body request: MistralModerationRequest
     ): Response<MistralModerationResponse>

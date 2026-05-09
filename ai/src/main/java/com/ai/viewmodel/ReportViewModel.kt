@@ -747,7 +747,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val agent = state.aiSettings.getAgentById(agentId)
                 val service = agent?.provider
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let { AppService.findById(it) }
-                    ?: AppService.entries.firstOrNull() ?: AppService.findById("OpenAI")!!
+                    ?: AppService.entries.firstOrNull() ?: AppService.LOCAL
                 agentId to AnalysisResponse(service = service, analysis = null, error = "Stopped by user")
             }
         }
@@ -892,7 +892,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         pick: Pair<AppService, String>
     ): Job? {
         val (provider, model) = pick
-        if (provider.id == "LOCAL") {
+        if (provider.id == AppService.LOCAL.id) {
             return runLocalRerank(scope, context, reportId, model)
         }
         val aiSettings = appViewModel.uiState.value.aiSettings

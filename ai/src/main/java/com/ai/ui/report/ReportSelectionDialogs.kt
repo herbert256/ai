@@ -241,8 +241,8 @@ internal fun ReportSelectModelsScreen(
     //   - else   → MediaPipe LLM Inference .task files (LocalLlm)
     // Moderation has no on-device equivalent yet so the local list
     // is empty there. The (provider, model) tuple ends up at the
-    // caller's onConfirm — they branch on provider.id == "LOCAL"
-    // when needed.
+    // caller's onConfirm — they branch on provider.id ==
+    // AppService.LOCAL.id when needed.
     val localModelsForFilter = remember(modelTypeFilter, context) {
         when (modelTypeFilter) {
             com.ai.data.ModelType.RERANK -> com.ai.data.LocalEmbedder.availableModels(context)
@@ -266,7 +266,7 @@ internal fun ReportSelectModelsScreen(
             // modelTypeFilter, so any (LOCAL, model) pair already matches
             // by construction. Pass it through unconditionally to keep
             // the local rerank / LLM rows visible with the type filter on.
-            prov.id == "LOCAL" || aiSettings.getModelType(prov, model) == modelTypeFilter
+            prov.id == AppService.LOCAL.id || aiSettings.getModelType(prov, model) == modelTypeFilter
         }
     } else providerFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
@@ -295,7 +295,7 @@ internal fun ReportSelectModelsScreen(
                 DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
                     onClick = { providerFilter = null; providerDropdownExpanded = false })
                 remember(effectiveServices) { effectiveServices.sortedBy { it.id.lowercase() } }.forEach { provider ->
-                    val mc = if (provider.id == "LOCAL") localModelsForFilter.size else aiSettings.getModels(provider).size
+                    val mc = if (provider.id == AppService.LOCAL.id) localModelsForFilter.size else aiSettings.getModels(provider).size
                     DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
                         onClick = { providerFilter = provider; providerDropdownExpanded = false })
                 }

@@ -41,7 +41,38 @@ class AppService(
     val modelFilter: String? = null,
     val litellmPrefix: String? = null,
     val hardcodedModels: List<String>? = null,
-    val defaultModelSource: String? = null
+    val defaultModelSource: String? = null,
+    /** Alternate hostnames the provider's API uses besides its
+     *  baseUrl host. Empty list = no aux hosts. */
+    val auxHosts: List<String> = emptyList(),
+    /** Full URL the rerank dispatcher POSTs to. Null → no native rerank API. */
+    val nativeRerankUrl: String? = null,
+    /** Full URL the moderation dispatcher POSTs to. Null → no native moderation API. */
+    val nativeModerationUrl: String? = null,
+    /** Full URL of a Cohere-shaped `/v1/models` capability listing. */
+    val nativeCapabilityUrl: String? = null,
+    /** Provider's `/v1/models` response carries authoritative pricing — harvest into PricingCache. */
+    val pricingFromModelList: Boolean = false,
+    /** Provider's `/v1/models` response drives pricing + type fan-out across other providers. */
+    val crossProviderModelList: Boolean = false,
+    /** Union persisted hardcodedModels with API list when fetcher refreshes. */
+    val mergeHardcodedModels: Boolean = false,
+    /** Ignore the provider's `reasoning: true` signal from /models. */
+    val externalReasoningSignalUntrusted: Boolean = false,
+    /** Patterns routing a model to the OpenAI Responses API. */
+    val responsesApiPatterns: List<ModelPattern> = emptyList(),
+    /** Patterns gating the 🧠 reasoning badge + thinking dispatch. */
+    val reasoningModelPatterns: List<ModelPattern> = emptyList(),
+    /** Patterns gating the `reasoning_effort` request param. Null = use [reasoningModelPatterns]. */
+    val reasoningEffortAcceptPatterns: List<ModelPattern>? = null,
+    /** Patterns gating the 🌐 web-search tool descriptor. */
+    val webSearchModelPatterns: List<ModelPattern> = emptyList(),
+    /** Patterns opting in to Anthropic's adaptive-thinking shape. */
+    val adaptiveThinkingPatterns: List<ModelPattern> = emptyList(),
+    /** Per-family default max_tokens (Anthropic). First match wins. */
+    val maxTokensDefaults: List<MaxTokensRule> = emptyList(),
+    /** Built-in endpoints the user can pick between. */
+    val builtInEndpoints: List<Endpoint> = emptyList()
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 

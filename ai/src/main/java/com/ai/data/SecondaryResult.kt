@@ -543,18 +543,21 @@ data class RerankApiResult(
  *  uses — so the rest of the system (HTML export, Top-Ranked scope)
  *  doesn't need a second code path.
  *
- *  Currently routes only Cohere; other providers fall through with an
- *  explanatory error. Documents are passed in success-ordered position,
- *  so each Cohere `index` (0-based) maps directly to the bracketed
- *  [N] id (1-based) the rest of the app expects. */
+ *  Routes any provider that declares [AppService.nativeRerankUrl];
+ *  others fall through with an explanatory error. Documents are
+ *  passed in success-ordered position, so the provider's `index`
+ *  (0-based) maps directly to the bracketed [N] id (1-based) the
+ *  rest of the app expects. */
 suspend fun callRerankApi(
     provider: AppService, apiKey: String, model: String,
     query: String, documents: List<String>
 ): RerankApiResult {
     val start = System.currentTimeMillis()
-    return when (provider.id) {
-        "Cohere" -> callCohereRerank(apiKey, model, query, documents, start)
-        else -> RerankApiResult(
+    val url = provider.nativeRerankUrl
+    return if (url != null) {
+        callNativeRerank(url, apiKey, model, query, documents, start)
+    } else {
+        RerankApiResult(
             content = null,
             errorMessage = "Rerank API not wired for provider ${provider.id}. Pick a chat model instead, or open an issue to add ${provider.id} rerank support.",
             durationMs = System.currentTimeMillis() - start
@@ -591,33 +594,34 @@ data class ModerationInputResult(
 }
 
 /** Call the provider's moderation endpoint on each entry in [inputs].
- *  Currently routes Mistral only; other providers fall through with an
- *  explanatory error so the user learns to pick a Mistral moderation
- *  model. The result list is index-aligned with [inputs]. */
+ *  Routes any provider that declares [AppService.nativeModerationUrl];
+ *  others fall through with an explanatory error so the user learns
+ *  to pick a moderation-capable model. The result list is
+ *  index-aligned with [inputs]. */
 suspend fun callModerationApi(
     provider: AppService, apiKey: String, model: String,
     inputs: List<String>
 ): Pair<List<ModerationInputResult>?, ModerationApiResult> {
     val start = System.currentTimeMillis()
-    return when (provider.id) {
-        "Mistral" -> callMistralModeration(apiKey, model, inputs, start)
-        else -> {
-            val err = ModerationApiResult(
-                content = null,
-                errorMessage = "Moderation API not wired for provider ${provider.id}. Pick a Mistral moderation model instead, or open an issue to add ${provider.id} moderation support.",
-                durationMs = System.currentTimeMillis() - start
-            )
-            null to err
-        }
+    val url = provider.nativeModerationUrl
+    return if (url != null) {
+        callNativeModeration(url, apiKey, model, inputs, start)
+    } else {
+        val err = ModerationApiResult(
+            content = null,
+            errorMessage = "Moderation API not wired for provider ${provider.id}. Pick a Mistral moderation model instead, or open an issue to add ${provider.id} moderation support.",
+            durationMs = System.currentTimeMillis() - start
+        )
+        null to err
     }
 }
 
-private suspend fun callMistralModeration(
-    apiKey: String, model: String, inputs: List<String>, start: Long
+private suspend fun callNativeModeration(
+    url: String, apiKey: String, model: String, inputs: List<String>, start: Long
 ): Pair<List<ModerationInputResult>?, ModerationApiResult> {
     return try {
         val api = ApiFactory.createMistralModerationApi()
-        val response = api.moderate("Bearer $apiKey", MistralModerationRequest(model, inputs))
+        val response = api.moderate(url, "Bearer $apiKey", MistralModerationRequest(model, inputs))
         val duration = System.currentTimeMillis() - start
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -696,13 +700,13 @@ private fun moderationResultsToJson(results: List<ModerationInputResult>): Strin
     return createAppGson(prettyPrint = true).toJson(arr)
 }
 
-private suspend fun callCohereRerank(
-    apiKey: String, model: String, query: String, documents: List<String>, start: Long
+private suspend fun callNativeRerank(
+    url: String, apiKey: String, model: String, query: String, documents: List<String>, start: Long
 ): RerankApiResult {
     return try {
         val api = ApiFactory.createCohereRerankApi()
         val request = CohereRerankRequest(model, query, documents, top_n = documents.size)
-        val response = api.rerank("Bearer $apiKey", request)
+        val response = api.rerank(url, "Bearer $apiKey", request)
         val duration = System.currentTimeMillis() - start
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }

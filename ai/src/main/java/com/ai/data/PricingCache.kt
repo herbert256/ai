@@ -171,7 +171,7 @@ object PricingCache {
     }
 
     private fun findTogetherPricing(provider: AppService, model: String): ModelPricing? {
-        if (provider.id != "Together") return null
+        if (!provider.pricingFromModelList) return null
         return togetherPricing?.get(model)
     }
 
@@ -348,8 +348,8 @@ object PricingCache {
     fun getPricing(context: Context, provider: AppService, model: String): ModelPricing {
         if (!preloadCompleted && isMainThread()) return DEFAULT_PRICING
         ensureLoaded(context)
-        val isOpenRouter = provider.id == "OpenRouter"
-        val isTogether = provider.id == "Together"
+        val isOpenRouter = provider.crossProviderModelList
+        val isTogether = provider.pricingFromModelList
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         // Together's native pricing tier — same provider-self-report
         // logic as OpenRouter: when the caller's provider is Together,
@@ -388,8 +388,8 @@ object PricingCache {
         // the previous implementation consulted OpenRouter ahead of
         // LiteLLM unconditionally, so cleanup deleted overrides that
         // getPricing would never have lost to OpenRouter.
-        val isOpenRouter = provider.id == "OpenRouter"
-        val isTogether = provider.id == "Together"
+        val isOpenRouter = provider.crossProviderModelList
+        val isTogether = provider.pricingFromModelList
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         if (isTogether) findTogetherPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
@@ -408,8 +408,8 @@ object PricingCache {
      *  never touches SharedPreferences or the bundled asset and never
      *  blocks. Returns DEFAULT_PRICING when catalogs aren't loaded. */
     fun lookupPricing(provider: AppService, model: String): ModelPricing {
-        val isOpenRouter = provider.id == "OpenRouter"
-        val isTogether = provider.id == "Together"
+        val isOpenRouter = provider.crossProviderModelList
+        val isTogether = provider.pricingFromModelList
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         if (isTogether) findTogetherPricing(provider, model)?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }

@@ -44,33 +44,8 @@ object ProviderRegistry {
                     }
                 }
             }
-            // Field-level fix-ups for known shipped-bad values from the
-            // legacy setup.json bundle. Idempotent — the condition
-            // fails on subsequent boots once the fix has been applied,
-            // and on a fresh install it never matches.
-            applyFieldBugfixMigrations()
             initialized = true
         }
-    }
-
-    /** Patch persisted ProviderDefinition fields for known shipped-bad
-     *  values that the user can't fix via the UI. Each migration runs
-     *  every startup but only writes when the condition matches, so
-     *  re-applying is harmless once a user has corrected the field
-     *  manually (the condition won't match anymore). */
-    private fun applyFieldBugfixMigrations() {
-        var changed = false
-        // Perplexity: the original bundle shipped modelsPath="models",
-        // which 404s. The actual endpoint is /v1/models (verified by
-        // 401 vs 404 probe). Patch any persisted entry that still has
-        // the bad value.
-        val pp = providers.indexOfFirst { it.id == "Perplexity" }
-        if (pp >= 0 && providers[pp].modelsPath == "models") {
-            val def = ProviderDefinition.fromAppService(providers[pp]).copy(modelsPath = "v1/models")
-            providers[pp] = def.toAppService()
-            changed = true
-        }
-        if (changed) save()
     }
 
     /** On-demand import of `assets/providers.json` (or any asset with
@@ -220,6 +195,51 @@ object ProviderRegistry {
     }
 }
 
+/** Structured model-name matcher used by the per-provider pattern
+ *  fields on [ProviderDefinition] / [AppService]. At least one of
+ *  `exact` / `prefix` / `contains` / `suffix` must be non-null; an
+ *  all-null spec never matches. Match runs against
+ *  `modelId.lowercase()` so JSON values can stay in canonical
+ *  lowercase. When multiple parts are set they must ALL match
+ *  (intersection — e.g. `prefix:"grok-4-" + contains:"reasoning"`
+ *  matches only the grok-4 reasoning variants). */
+data class ModelPattern(
+    val exact: String? = null,
+    val prefix: String? = null,
+    val contains: String? = null,
+    val suffix: String? = null
+) {
+    fun matches(modelId: String): Boolean {
+        if (exact == null && prefix == null && contains == null && suffix == null) return false
+        val id = modelId.lowercase()
+        if (exact != null && id != exact) return false
+        if (prefix != null && !id.startsWith(prefix)) return false
+        if (contains != null && contains !in id) return false
+        if (suffix != null && !id.endsWith(suffix)) return false
+        return true
+    }
+}
+
+/** True when any pattern in this list matches [modelId]. Null/empty
+ *  list returns false — "no patterns declared" means "feature off
+ *  for this provider". */
+fun List<ModelPattern>?.anyMatches(modelId: String): Boolean =
+    !this.isNullOrEmpty() && this.any { it.matches(modelId) }
+
+/** Per-family default max_tokens entry used by Anthropic dispatch. */
+data class MaxTokensRule(val pattern: ModelPattern, val maxTokens: Int)
+
+/** A single built-in endpoint a provider exposes (e.g. OpenAI's
+ *  Chat Completions vs Responses API). The user's effective endpoint
+ *  list comes from the provider config; this is the wire / persisted
+ *  form. */
+data class Endpoint(val id: String, val name: String, val url: String, val isDefault: Boolean = false)
+
+/** Resolve the highest-priority [MaxTokensRule.maxTokens] for [modelId],
+ *  or null when no rule matches — caller falls back to its own default. */
+fun List<MaxTokensRule>?.resolveMaxTokens(modelId: String): Int? =
+    this?.firstOrNull { it.pattern.matches(modelId) }?.maxTokens
+
 /**
  * JSON-serializable representation of an AppService provider definition.
  */
@@ -253,6 +273,65 @@ data class ProviderDefinition(
     val litellmPrefix: String? = null,
     val hardcodedModels: List<String>? = null,
     val defaultModelSource: String? = null,
+    /** Alternate hostnames the provider's API uses besides its
+     *  baseUrl host (e.g. Cohere's `api.cohere.com` for the native
+     *  rerank + capability endpoints). Used by trace categorisation. */
+    val auxHosts: List<String>? = null,
+    /** Full URL the rerank dispatcher POSTs to. Null → provider has
+     *  no native rerank API; the user is told to pick a chat model. */
+    val nativeRerankUrl: String? = null,
+    /** Full URL the moderation dispatcher POSTs to. Null → provider
+     *  has no native moderation API; user told to pick a Mistral
+     *  moderation model. */
+    val nativeModerationUrl: String? = null,
+    /** Full URL of a Cohere-shaped `/v1/models` capability listing
+     *  (with `endpoints` / `supports_vision` / `context_length`).
+     *  Set on providers whose OpenAI-compat shim strips that data
+     *  but a separate native host returns it. */
+    val nativeCapabilityUrl: String? = null,
+    /** When true the provider's `/v1/models` response carries
+     *  authoritative pricing (input/output per 1M tokens) and the
+     *  fetcher harvests it into PricingCache as a self-report tier. */
+    val pricingFromModelList: Boolean? = null,
+    /** When true the provider's `/v1/models` response carries enough
+     *  metadata (architecture / modality / pricing) to drive pricing
+     *  + type fan-out into every other provider via the
+     *  openRouterName prefix. OpenRouter is the canonical example. */
+    val crossProviderModelList: Boolean? = null,
+    /** When true `withModels` unions the persisted hardcodedModels
+     *  with the API list so the picker still shows ids the provider's
+     *  /models endpoint omits (OpenAI's TTS / image / moderation
+     *  endpoints aren't in /v1/models). */
+    val mergeHardcodedModels: Boolean? = null,
+    /** When true the model fetcher's `reasoning: true` signal from
+     *  the provider's metadata is ignored — the model's reasoning
+     *  capability is decided exclusively by [reasoningModelPatterns]
+     *  + [reasoningEffortAcceptPatterns]. xAI uses this because some
+     *  of its always-on reasoning models reject `reasoning_effort`. */
+    val externalReasoningSignalUntrusted: Boolean? = null,
+    /** Patterns that route a model to the OpenAI-style Responses API
+     *  instead of Chat Completions. */
+    val responsesApiPatterns: List<ModelPattern>? = null,
+    /** Patterns that gate the 🧠 reasoning badge + the thinking
+     *  dispatch path. */
+    val reasoningModelPatterns: List<ModelPattern>? = null,
+    /** Patterns that gate sending `reasoning_effort` in the request
+     *  body. When null, falls back to [reasoningModelPatterns]. xAI
+     *  narrows it to controllable variants only. */
+    val reasoningEffortAcceptPatterns: List<ModelPattern>? = null,
+    /** Patterns that gate the 🌐 web-search tool descriptor. */
+    val webSearchModelPatterns: List<ModelPattern>? = null,
+    /** Patterns that opt in to Anthropic's adaptive-thinking request
+     *  shape (claude-opus-4-7 family). */
+    val adaptiveThinkingPatterns: List<ModelPattern>? = null,
+    /** Per-family default max_tokens, evaluated top-down. First
+     *  matching rule wins. Fallback (no match) is provider-specific
+     *  and lives in code. */
+    val maxTokensDefaults: List<MaxTokensRule>? = null,
+    /** Built-in endpoints the user can pick between (e.g. OpenAI's
+     *  Chat vs Responses). Replaces the legacy
+     *  `Settings.BUILT_IN_ENDPOINTS` map. */
+    val builtInEndpoints: List<Endpoint>? = null,
     /** Deprecated — kept on the deserialization shape so old prefs / setup.json
      *  files with the field still parse, but ignored at dispatch time
      *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
@@ -278,7 +357,22 @@ data class ProviderDefinition(
             extractApiCost = extractApiCost ?: false, costTicksDivisor = costTicksDivisor,
             modelListFormat = modelListFormat ?: "object", modelFilter = modelFilter,
             litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
-            defaultModelSource = defaultModelSource
+            defaultModelSource = defaultModelSource,
+            auxHosts = auxHosts ?: emptyList(),
+            nativeRerankUrl = nativeRerankUrl,
+            nativeModerationUrl = nativeModerationUrl,
+            nativeCapabilityUrl = nativeCapabilityUrl,
+            pricingFromModelList = pricingFromModelList ?: false,
+            crossProviderModelList = crossProviderModelList ?: false,
+            mergeHardcodedModels = mergeHardcodedModels ?: false,
+            externalReasoningSignalUntrusted = externalReasoningSignalUntrusted ?: false,
+            responsesApiPatterns = responsesApiPatterns ?: emptyList(),
+            reasoningModelPatterns = reasoningModelPatterns ?: emptyList(),
+            reasoningEffortAcceptPatterns = reasoningEffortAcceptPatterns,
+            webSearchModelPatterns = webSearchModelPatterns ?: emptyList(),
+            adaptiveThinkingPatterns = adaptiveThinkingPatterns ?: emptyList(),
+            maxTokensDefaults = maxTokensDefaults ?: emptyList(),
+            builtInEndpoints = builtInEndpoints ?: emptyList()
         )
     }
 
@@ -296,7 +390,22 @@ data class ProviderDefinition(
             extractApiCost = s.extractApiCost, costTicksDivisor = s.costTicksDivisor,
             modelListFormat = s.modelListFormat, modelFilter = s.modelFilter,
             litellmPrefix = s.litellmPrefix, hardcodedModels = s.hardcodedModels,
-            defaultModelSource = s.defaultModelSource
+            defaultModelSource = s.defaultModelSource,
+            auxHosts = s.auxHosts.takeIf { it.isNotEmpty() },
+            nativeRerankUrl = s.nativeRerankUrl,
+            nativeModerationUrl = s.nativeModerationUrl,
+            nativeCapabilityUrl = s.nativeCapabilityUrl,
+            pricingFromModelList = s.pricingFromModelList.takeIf { it },
+            crossProviderModelList = s.crossProviderModelList.takeIf { it },
+            mergeHardcodedModels = s.mergeHardcodedModels.takeIf { it },
+            externalReasoningSignalUntrusted = s.externalReasoningSignalUntrusted.takeIf { it },
+            responsesApiPatterns = s.responsesApiPatterns.takeIf { it.isNotEmpty() },
+            reasoningModelPatterns = s.reasoningModelPatterns.takeIf { it.isNotEmpty() },
+            reasoningEffortAcceptPatterns = s.reasoningEffortAcceptPatterns,
+            webSearchModelPatterns = s.webSearchModelPatterns.takeIf { it.isNotEmpty() },
+            adaptiveThinkingPatterns = s.adaptiveThinkingPatterns.takeIf { it.isNotEmpty() },
+            maxTokensDefaults = s.maxTokensDefaults.takeIf { it.isNotEmpty() },
+            builtInEndpoints = s.builtInEndpoints.takeIf { it.isNotEmpty() }
         )
     }
 }

@@ -438,7 +438,7 @@ fun AppNavHost(
             val uiState by appViewModel.uiState.collectAsState()
             UsageScreen(
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
-                    AppService.findById("OpenRouter")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                    AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
@@ -477,7 +477,7 @@ fun AppNavHost(
                 // catalog-lookup key — and fall back to the provider key
                 // for users who only ever used OpenRouter as a chat host.
                 val orKey = uiState.generalSettings.openRouterApiKey.ifBlank {
-                    AppService.findById("OpenRouter")?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                    AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 }
                 ModelInfoScreen(provider = provider, modelName = model,
                     openRouterApiKey = orKey,
@@ -683,7 +683,7 @@ fun AppNavHost(
             val uiState by appViewModel.uiState.collectAsState()
             if (provider != null) {
                 val apiKey = uiState.aiSettings.getApiKey(provider)
-                val isLocal = provider.id == "LOCAL"
+                val isLocal = provider.id == AppService.LOCAL.id
                 ChatSessionScreen(
                     provider = provider, model = model, parameters = uiState.chatParameters,
                     userName = uiState.generalSettings.userName, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -740,7 +740,7 @@ fun AppNavHost(
             if (session != null) {
                 val apiKey = uiState.aiSettings.getApiKey(session.provider)
                 val sessionContext = LocalContext.current
-                val isLocalSession = session.provider.id == "LOCAL"
+                val isLocalSession = session.provider.id == AppService.LOCAL.id
                 ChatSessionScreen(
                     provider = session.provider, model = session.model, parameters = session.parameters,
                     userName = uiState.generalSettings.userName, initialMessages = session.messages, sessionId = session.id,

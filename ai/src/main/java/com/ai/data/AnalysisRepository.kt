@@ -188,7 +188,7 @@ class AnalysisRepository {
             }.getOrDefault("")
         } else ""
 
-        if (agent.provider.id == "LOCAL") {
+        if (agent.provider.id == AppService.LOCAL.id) {
             if (context == null) {
                 return@withContext AnalysisResponse(agent.provider, null, "Local LLM call requires a Context", agentName = agent.name)
             }

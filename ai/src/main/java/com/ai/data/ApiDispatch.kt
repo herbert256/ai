@@ -15,16 +15,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
  * sending 4096 for a Claude 4 Sonnet/Opus silently truncates long completions.
  * This returns a safe default when the user didn't specify one.
  */
-internal fun defaultClaudeMaxTokens(model: String): Int {
-    val m = model.lowercase()
-    return when {
-        "opus-4" in m -> 32_000
-        "sonnet-4" in m -> 8_192
-        "haiku-4" in m -> 8_192
-        "claude-3-5" in m || "claude-3.5" in m -> 8_192
-        else -> 4_096
-    }
-}
+internal fun defaultClaudeMaxTokens(service: AppService, model: String): Int =
+    service.maxTokensDefaults.resolveMaxTokens(model) ?: 4_096
 
 /**
  * Analyze a prompt using the appropriate API format.
@@ -448,13 +440,13 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // String call here for the snapshot. The bandwidth cost is small
     // (model lists are tens of KB at most).
     val modelsUrlForRaw = run {
-        val pathPart = if (service.id == "OpenRouter") "v1/models" else (service.modelsPath ?: "v1/models")
+        val pathPart = if (service.crossProviderModelList) "v1/models" else (service.modelsPath ?: "v1/models")
         normalizeUrl(service.baseUrl) + pathPart
     }
     val rawJson = ApiFactory.fetchUrlAsString(modelsUrlForRaw, mapOf("Authorization" to "Bearer $apiKey"))
 
     // OpenRouter exposes architecture.modality on its detailed list — use that for types.
-    if (service.id == "OpenRouter") {
+    if (service.crossProviderModelList) {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
         val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (e: Exception) {
             android.util.Log.w("ApiDispatch", "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}")
@@ -525,14 +517,15 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     val filtered = service.modelFilterRegex?.let { regex -> modelIds.filter { regex.containsMatchIn(it) } } ?: modelIds
     val ids = filtered.sorted()
 
-    // Cohere's compatibility endpoint strips the `endpoints` field. Hit the native
-    // api.cohere.com/v1/models to recover per-model types AND capability info
-    // (context_length, supports_vision); fall back to heuristic on failure.
+    // Cohere-style compatibility endpoint strips the `endpoints` field; if the
+    // provider declares a native capability URL we hit it to recover per-model
+    // types AND capability info (context_length, supports_vision). Fall back
+    // to heuristic on failure.
     data class CohereCap(val type: String?, val cap: ModelCapabilities)
-    val cohereByName: Map<String, CohereCap> = if (service.id == "Cohere") {
+    val cohereByName: Map<String, CohereCap> = service.nativeCapabilityUrl?.let { capUrl ->
         try {
             val cohere = ApiFactory.createCohereNativeApi()
-            val resp = cohere.listModels("Bearer $apiKey")
+            val resp = cohere.listModels(capUrl, "Bearer $apiKey")
             if (resp.isSuccessful) {
                 resp.body()?.models.orEmpty().mapNotNull { m ->
                     val name = m.name ?: return@mapNotNull null
@@ -546,14 +539,14 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                 }.toMap()
             } else {
                 val body = runCatching { resp.errorBody()?.string()?.take(300) }.getOrNull()
-                android.util.Log.w("ApiDispatch", "Cohere native listModels HTTP ${resp.code()}: ${body ?: "(no body)"}")
+                android.util.Log.w("ApiDispatch", "Native capability listModels HTTP ${resp.code()}: ${body ?: "(no body)"}")
                 emptyMap()
             }
         } catch (e: Exception) {
-            android.util.Log.w("ApiDispatch", "Cohere native listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+            android.util.Log.w("ApiDispatch", "Native capability listModels threw: ${e.javaClass.simpleName}: ${e.message}")
             emptyMap()
         }
-    } else emptyMap()
+    } ?: emptyMap()
 
     val types = ids.associateWith { id ->
         cohereByName[id]?.type
@@ -626,7 +619,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     // so the AppViewModel fetcher (which has Context) can persist it
     // into the PricingCache TOGETHER tier. Values arrive as USD per 1M
     // tokens; divide for the per-token rate ModelPricing expects.
-    val nativePricing = if (service.id == "Together") {
+    val nativePricing = if (service.pricingFromModelList) {
         activeOnly.mapNotNull { m ->
             val id = m.id ?: return@mapNotNull null
             val p = m.pricing ?: return@mapNotNull null
@@ -1022,14 +1015,12 @@ internal fun isReasoningCapableForDispatch(service: AppService, model: String): 
     return true
 }
 
-/** True when [model] is a Claude Opus 4.7+ build that requires the
- *  newer thinking shape (`thinking.type:"adaptive"` +
- *  `output_config.effort`). Older 3.7 / 4.x models still use the
- *  budget_tokens shape. */
-private fun claudeUsesAdaptiveThinking(model: String): Boolean {
-    val id = model.lowercase()
-    return "claude-opus-4-7" in id || "opus-4-7" in id
-}
+/** True when [model] requires the adaptive-thinking request shape
+ *  (`thinking.type:"adaptive"` + `output_config.effort`) per the
+ *  provider's [AppService.adaptiveThinkingPatterns]. Older models
+ *  still use the budget_tokens shape. */
+private fun claudeUsesAdaptiveThinking(service: AppService, model: String): Boolean =
+    service.adaptiveThinkingPatterns.anyMatches(model)
 
 /** Build the OpenAI Responses-API `reasoning` field — `{effort: <value>}` —
  *  or null when the agent didn't set an effort, OR the layered
@@ -1059,7 +1050,7 @@ internal fun budgetForEffort(effort: String?): Int? = when (effort?.lowercase())
 internal fun anthropicThinkingField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     if (effort.isNullOrBlank()) return null
     if (!isReasoningCapableForDispatch(service, model)) return null
-    if (claudeUsesAdaptiveThinking(model)) return mapOf("type" to "adaptive")
+    if (claudeUsesAdaptiveThinking(service, model)) return mapOf("type" to "adaptive")
     val budget = budgetForEffort(effort) ?: return null
     return mapOf("type" to "enabled", "budget_tokens" to budget)
 }
@@ -1071,7 +1062,7 @@ internal fun anthropicThinkingField(service: AppService, model: String, effort: 
 internal fun anthropicOutputConfigField(service: AppService, model: String, effort: String?): Map<String, Any>? {
     if (effort.isNullOrBlank()) return null
     if (!isReasoningCapableForDispatch(service, model)) return null
-    if (!claudeUsesAdaptiveThinking(model)) return null
+    if (!claudeUsesAdaptiveThinking(service, model)) return null
     return mapOf("effort" to effort)
 }
 
@@ -1093,7 +1084,7 @@ internal fun claudeReasoningBundle(
 ): ClaudeReasoningBundle {
     val thinking = anthropicThinkingField(service, model, effort)
     val outputConfig = anthropicOutputConfigField(service, model, effort)
-    val baseMax = requestedMax ?: defaultClaudeMaxTokens(model)
+    val baseMax = requestedMax ?: defaultClaudeMaxTokens(service, model)
     val budget = (thinking?.get("budget_tokens") as? Int) ?: 0
     // Anthropic 400s when max_tokens <= budget_tokens — give the
     // response some additional headroom on top of the thinking budget.
