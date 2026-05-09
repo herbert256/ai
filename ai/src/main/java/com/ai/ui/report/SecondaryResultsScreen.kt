@@ -47,8 +47,20 @@ internal fun SecondaryResultsScreen(
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** Per-model fan-in prompt lists driving the three sub-buttons
+     *  inside the "Create a model fan in report" expandable on L2.
+     *  Each is the user's internalPrompts filtered to its category
+     *  (fan_in_i / fan_in_r / fan_in_m). */
+    fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     onRunFanIn: (() -> Unit)? = null,
+    /** Open the prompt picker filtered to a specific model-fan-in
+     *  category, scoped to the L2 active model. Wired by the three
+     *  sub-buttons inside the "Create a model fan in report"
+     *  expandable on L2. */
+    onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant — fires off all deletes at once on Dispatchers.IO
      *  rather than calling onDelete() in a tight main-thread loop.
@@ -323,9 +335,13 @@ internal fun SecondaryResultsScreen(
                 results = fanOutRowsAll,
                 combinedRows = fanInRows,
                 fanInPrompts = fanInPrompts,
+                fanInIPrompts = fanInIPrompts,
+                fanInRPrompts = fanInRPrompts,
+                fanInMPrompts = fanInMPrompts,
                 fanOutPrompt = fanOutPrompt,
                 runningFanOutPairs = runningFanOutPairs,
                 onRunFanIn = onRunFanIn,
+                onRunModelFanInForCategory = onRunModelFanInForCategory,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
                 onOpen = { id -> openId = id },
@@ -496,9 +512,17 @@ private fun ColumnScope.FanOutDrillInView(
     results: List<SecondaryResult>,
     combinedRows: List<SecondaryResult> = emptyList(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** Per-model fan-in prompt lists driving the three sub-buttons
+     *  inside the "Create a model fan in report" expandable on L2.
+     *  Each is the internalPrompts filtered to its category
+     *  (fan_in_i / fan_in_r / fan_in_m). */
+    fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     runningFanOutPairs: Set<String> = emptySet(),
     onRunFanIn: (() -> Unit)? = null,
+    onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
     onDelete: (String) -> Unit,
     /** Bulk variant for the per-fan out delete sweep. */
     onBulkDelete: (List<String>) -> Unit = { ids -> ids.forEach(onDelete) },
@@ -999,7 +1023,77 @@ private fun ColumnScope.FanOutDrillInView(
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        if (l2Rows.isEmpty()) {
+        // "Create a model fan in report" — produces a per-model
+        // fan-in row scoped to this L2's active (provider, model)
+        // pair. Tapping the button toggles a row of three role-tagged
+        // sub-buttons; each opens the existing prompt picker filtered
+        // to its category and runs through ReportViewModel
+        // .runModelFanInPrompt. Resulting rows carry scopeProviderId /
+        // scopeModel so they surface here (top of L2 list) and also
+        // on the main result page's secondary-runs section.
+        val anyModelFanIn = fanInIPrompts.isNotEmpty() || fanInRPrompts.isNotEmpty() || fanInMPrompts.isNotEmpty()
+        if (anyModelFanIn && onRunModelFanInForCategory != null) {
+            var rolesExpanded by remember { mutableStateOf(false) }
+            Button(
+                onClick = { rolesExpanded = !rolesExpanded },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) {
+                Text(
+                    if (rolesExpanded) "Create a model fan in report ▾" else "Create a model fan in report ▸",
+                    fontSize = 13.sp, maxLines = 1, softWrap = false
+                )
+            }
+            if (rolesExpanded) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_i") },
+                        enabled = fanInIPrompts.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Initiator role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                    OutlinedButton(
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_r") },
+                        enabled = fanInRPrompts.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Responder role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                    OutlinedButton(
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_m") },
+                        enabled = fanInMPrompts.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Init. & Resp.", fontSize = 11.sp, maxLines = 1, softWrap = false) }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Model-scoped fan-in rows for THIS L2 active model. Filtered
+        // out of `combinedRows` (which itself is `fanInRows` — every
+        // fan_in row on the report) by scopeProviderId / scopeModel.
+        // Rendered at the top of the L2 list above the per-pair rows.
+        val modelScopedFanIn = remember(combinedRows, activePid, activeMdl) {
+            combinedRows.filter { it.scopeProviderId == activePid && it.scopeModel == activeMdl }
+                .sortedByDescending { it.timestamp }
+        }
+        // Auto-scroll the L2 list to the top whenever a new
+        // model-scoped fan-in row appears (mirroring L1's
+        // combinedRows scroll-on-grow behaviour).
+        val l2ListState = androidx.compose.foundation.lazy.rememberLazyListState()
+        var lastModelScopedSize by remember { mutableIntStateOf(modelScopedFanIn.size) }
+        LaunchedEffect(modelScopedFanIn.size) {
+            if (modelScopedFanIn.size > lastModelScopedSize) {
+                l2ListState.animateScrollToItem(0)
+            }
+            lastModelScopedSize = modelScopedFanIn.size
+        }
+
+        if (l2Rows.isEmpty() && modelScopedFanIn.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     if (selectedRole == "Responder") "No responses for this model yet"
@@ -1008,7 +1102,63 @@ private fun ColumnScope.FanOutDrillInView(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            LazyColumn(state = l2ListState, modifier = Modifier.weight(1f)) {
+                // Model-scoped fan-in rows (created by the
+                // "Create a model fan in report" button above) sit
+                // at the top of the list, before the per-pair rows.
+                // Each row's status icon mirrors L1's combinedRows
+                // (✅ on success / errored / ⏳ while in flight).
+                if (modelScopedFanIn.isNotEmpty()) {
+                    item(key = "msfi-header") {
+                        Text("Model fan in", fontSize = 12.sp,
+                            color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(bottom = 4.dp))
+                    }
+                    items(modelScopedFanIn, key = { "msfi-${it.id}" }) { row ->
+                        val cost = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)
+                        val provLabel = AppService.findById(row.providerId)?.id ?: row.providerId
+                        val nameLabel = row.metaPromptName?.takeIf { it.isNotBlank() }
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onOpen(row.id) }
+                                .padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
+                                contentAlignment = Alignment.Center) {
+                                when {
+                                    row.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                                    !row.content.isNullOrBlank() || row.durationMs != null ->
+                                        Text("✅", fontSize = 16.sp)
+                                    else -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                                }
+                            }
+                            val rowText = if (nameLabel != null) "$nameLabel · ${com.ai.ui.shared.modelLabel(provLabel, row.model)}"
+                                else com.ai.ui.shared.modelLabel(provLabel, row.model)
+                            Text(
+                                rowText, fontSize = 14.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (cost > 0.0) {
+                                Text(formatCents(cost), fontSize = 11.sp,
+                                    color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(end = 8.dp))
+                            }
+                            Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                        }
+                        HorizontalDivider(color = AppColors.DividerDark)
+                    }
+                    if (l2Rows.isNotEmpty()) {
+                        item(key = "msfi-section-gap") {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(if (selectedRole == "Responder") "Responses" else "Pairs",
+                                fontSize = 12.sp,
+                                color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 4.dp))
+                        }
+                    }
+                }
                 items(l2Rows, key = { it.key }) { row ->
                     val rowProv = AppService.findById(row.provider)?.id ?: row.provider
                     val state = rowState(row.pair)
