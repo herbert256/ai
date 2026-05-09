@@ -326,15 +326,24 @@ fun resolveFanInPrompt(
         .replace("@DATE@", now)
         .replace("@COUNT@", count.toString())
         .replace("@FAN_OUT_COUNT@", fanOutCount.toString())
-    val iterable = "\n\n***Report*** @REPORT@@RESPONSES@"
+    // Whitespace-tolerant detection of the iterable ***Report*** block.
+    // Previously matched a literal "\n\n***Report*** @REPORT@@RESPONSES@",
+    // so a user editing the prompt template in Internal Prompts and
+    // adjusting whitespace by even a single character broke the
+    // expansion silently and the structured Report/Response framing
+    // was lost. The regex matches *** Report *** with optional
+    // surrounding whitespace and the two placeholders adjacent or
+    // separated by whitespace.
+    val iterableRegex = Regex("""\s*\*\*\*\s*Report\s*\*\*\*\s*@REPORT@\s*@RESPONSES@\s*""")
     val expansion = buildString {
         perReport.forEach { (reportBody, responses) ->
             append("\n\n***Report*** ").append(reportBody)
             responses.forEach { fc -> append("\n\n***Response*** ").append(fc) }
         }
     }
-    val expanded = if (withTopLevel.contains(iterable)) {
-        withTopLevel.replaceFirst(iterable, expansion)
+    val match = iterableRegex.find(withTopLevel)
+    val expanded = if (match != null) {
+        withTopLevel.substring(0, match.range.first) + expansion + withTopLevel.substring(match.range.last + 1)
     } else {
         withTopLevel
             .replace("@REPORT@", "")
