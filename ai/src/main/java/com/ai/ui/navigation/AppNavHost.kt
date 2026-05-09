@@ -756,7 +756,16 @@ fun AppNavHost(
                 viewModel = appViewModel,
                 onNavigateHome = navigateHome,
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
-                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) }
+                onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
+                onNavigateToManualCostOverrides = { navController.navigate(NavRoutes.AI_MANUAL_COST_OVERRIDES) }
+            )
+        }
+        composable(NavRoutes.AI_MANUAL_COST_OVERRIDES) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.admin.ManualCostOverridesScreen(
+                aiSettings = uiState.aiSettings,
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_PROVIDER_ADMIN) {
@@ -970,7 +979,8 @@ fun HousekeepingScreenNav(
     viewModel: AppViewModel,
     onNavigateHome: () -> Unit,
     onNavigateToImportExport: () -> Unit = {},
-    onNavigateToRefresh: () -> Unit = {}
+    onNavigateToRefresh: () -> Unit = {},
+    onNavigateToManualCostOverrides: () -> Unit = {}
 ) {
     val context = LocalContext.current
     HousekeepingScreen(
@@ -981,6 +991,7 @@ fun HousekeepingScreenNav(
         onResetApplication = { onComplete -> viewModel.resetApplication(context, onComplete) },
         onNavigateToImportExport = onNavigateToImportExport,
         onNavigateToRefresh = onNavigateToRefresh,
+        onNavigateToManualCostOverrides = onNavigateToManualCostOverrides,
         onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
         onResetBundledPrompts = { viewModel.resetInternalPromptsFromAssets() }
     )

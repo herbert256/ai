@@ -38,6 +38,7 @@ object NavRoutes {
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
     const val AI_IMPORT_EXPORT = "ai_import_export"
+    const val AI_MANUAL_COST_OVERRIDES = "ai_manual_cost_overrides"
     const val AI_REFRESH = "ai_refresh"
     const val AI_PROVIDER_ADMIN = "ai_provider_admin"
     const val AI_CHATS_HUB = "ai_chats_hub"

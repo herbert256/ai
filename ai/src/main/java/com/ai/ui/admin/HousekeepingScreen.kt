@@ -34,6 +34,7 @@ fun HousekeepingScreen(
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit = { _ -> },
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
+    onNavigateToManualCostOverrides: () -> Unit = {},
     /** Run the on-demand merge of `assets/prompts.json`; returns the
      *  number of newly added rows. Surfaced as a one-shot button under
      *  the "Internal prompts" card. */
@@ -382,25 +383,7 @@ fun HousekeepingScreen(
                     ) { Text("Clear Usage Statistics", maxLines = 1, softWrap = false) }
             }
 
-            CollapsibleCard("Manual cost overrides") {
-                    Text(
-                        "Drops every manual price override that is dormant or redundant: covered by LiteLLM, covered by OpenRouter, equal to the built-in default, or equal to what the lookup would return without it.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = {
-                            val n = PricingCache.cleanupRedundantManualOverrides(context)
-                            Toast.makeText(
-                                context,
-                                if (n == 0) "No redundant overrides to remove" else "Removed $n manual cost override${if (n == 1) "" else "s"}",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        },
-                        enabled = busyLabel == null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-                    ) { Text("Cleanup manual cost overrides", maxLines = 1, softWrap = false) }
-            }
+            NavCard("Manual cost overrides", onClick = onNavigateToManualCostOverrides)
 
             CollapsibleCard("Internal prompts") {
                     Text(

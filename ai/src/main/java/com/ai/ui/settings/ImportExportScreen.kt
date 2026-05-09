@@ -23,16 +23,13 @@ import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.csvField
+import com.ai.ui.shared.exportTimestamp
+import com.ai.ui.shared.parseCsvRow
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-private fun exportTimestamp(): String =
-    SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
 
 // Drop-in shape for assets/prompts.json — no id field (the seed
 // loader assigns fresh UUIDs on read). Used by both the standalone
@@ -45,40 +42,6 @@ private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf(
     "agent" to p.agent,
     "text" to p.text
 )
-
-// RFC-4180 minimal CSV row parser. Pairs with the `csvField` writer:
-// a field is unquoted unless it starts with `"`, in which case the
-// closing `"` ends it and `""` decodes to a single `"`. The naive
-// String.split(",") it replaces silently mangled any row containing
-// a quoted-and-comma'd id, which was the exact case csvField was
-// added to handle. Multiline values are not supported — the caller
-// already splits the file on \n, and no real-world provider/model
-// id contains a newline.
-private fun parseCsvRow(line: String): List<String> {
-    val out = mutableListOf<String>()
-    val sb = StringBuilder()
-    var inQuotes = false
-    var i = 0
-    while (i < line.length) {
-        val c = line[i]
-        if (inQuotes) {
-            when {
-                c == '"' && i + 1 < line.length && line[i + 1] == '"' -> { sb.append('"'); i++ }
-                c == '"' -> inQuotes = false
-                else -> sb.append(c)
-            }
-        } else {
-            when {
-                c == ',' -> { out.add(sb.toString()); sb.clear() }
-                c == '"' && sb.isEmpty() -> inQuotes = true
-                else -> sb.append(c)
-            }
-        }
-        i++
-    }
-    out.add(sb.toString())
-    return out
-}
 
 @Composable
 fun ImportExportScreen(
@@ -185,18 +148,6 @@ fun ImportExportScreen(
         ).show()
     }
 
-    // RFC-4180 minimal CSV field escape: wrap in double quotes when the
-    // value contains comma / quote / newline; double up any embedded
-    // quotes. The previous export interpolated raw values, so a model
-    // id containing a comma broke the row layout and the import path
-    // (naive split on `,`) silently corrupted the user's overrides.
-    fun csvField(value: String): String {
-        if (value.any { it == ',' || it == '"' || it == '\n' || it == '\r' }) {
-            return "\"" + value.replace("\"", "\"\"") + "\""
-        }
-        return value
-    }
-
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val manual = PricingCache.getAllManualPricing(context)
@@ -212,63 +163,6 @@ fun ImportExportScreen(
         }
         writeToUri(uri, lines.joinToString("\n"))
         Toast.makeText(context, "${manual.size} cost entries exported", Toast.LENGTH_SHORT).show()
-    }
-
-    // Layered-costs export: every (provider, model) on one row with two empty
-    // columns up front for the user to fill in a new override, followed by
-    // every tier's price in run-time precedence order (LITELLM > MODELSDEV
-    // > OVERRIDE > OPENROUTER > DEFAULT). Re-imports through the existing
-    // Costs import path: same first four columns the importer reads. The
-    // "filtered" variant drops rows whose LiteLLM, models.dev, or
-    // OpenRouter columns are populated — those models already have a
-    // curated price and the user only wants to see the ones they'd need
-    // to override manually.
-    fun buildLayeredCsv(filterCovered: Boolean): Pair<String, Int> {
-        fun fmt(p: Double?): String = p?.let { "%.4f".format(Locale.US, it * 1_000_000) } ?: ""
-        val header = "provider,model,new_input_per_million,new_output_per_million," +
-            "litellm_in,litellm_out,modelsdev_in,modelsdev_out," +
-            "helicone_in,helicone_out,llmprices_in,llmprices_out," +
-            "aa_in,aa_out," +
-            "override_in,override_out,openrouter_in,openrouter_out," +
-            "default_in,default_out"
-        val rows = aiSettings.getActiveServices()
-            .flatMap { svc -> aiSettings.getModels(svc).map { svc to it } }
-            .sortedWith(compareBy({ it.first.id }, { it.second }))
-        val lines = mutableListOf(header)
-        var kept = 0
-        rows.forEach { (provider, model) ->
-            val b = PricingCache.getTierBreakdown(context, provider, model)
-            if (filterCovered && (b.litellm != null || b.modelsDev != null || b.helicone != null || b.llmPrices != null || b.artificialAnalysis != null || b.openrouter != null)) return@forEach
-            kept++
-            lines.add(
-                listOf(
-                    csvField(provider.id), csvField(model), "", "",
-                    fmt(b.litellm?.promptPrice), fmt(b.litellm?.completionPrice),
-                    fmt(b.modelsDev?.promptPrice), fmt(b.modelsDev?.completionPrice),
-                    fmt(b.helicone?.promptPrice), fmt(b.helicone?.completionPrice),
-                    fmt(b.llmPrices?.promptPrice), fmt(b.llmPrices?.completionPrice),
-                    fmt(b.artificialAnalysis?.promptPrice), fmt(b.artificialAnalysis?.completionPrice),
-                    fmt(b.override?.promptPrice), fmt(b.override?.completionPrice),
-                    fmt(b.openrouter?.promptPrice), fmt(b.openrouter?.completionPrice),
-                    fmt(b.default.promptPrice), fmt(b.default.completionPrice)
-                ).joinToString(",")
-            )
-        }
-        return lines.joinToString("\n") to kept
-    }
-
-    val exportLayeredCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val (csv, kept) = buildLayeredCsv(filterCovered = false)
-        writeToUri(uri, csv)
-        Toast.makeText(context, "$kept layered cost rows exported", Toast.LENGTH_SHORT).show()
-    }
-
-    val exportLayeredCostsFilteredLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val (csv, kept) = buildLayeredCsv(filterCovered = true)
-        writeToUri(uri, csv)
-        Toast.makeText(context, "$kept rows not covered by any catalog tier exported", Toast.LENGTH_SHORT).show()
     }
 
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -316,32 +210,6 @@ fun ImportExportScreen(
                     } else skipped++
                 }
                 Toast.makeText(context, "Imported $imported costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
-            }
-            "costs_layered" -> {
-                // Layered re-import: same file produced by "Export all" /
-                // "Export filtered". Most rows are intentionally blank in
-                // columns 3 and 4 (no override added) — ignore them silently
-                // instead of counting as skipped. Only rows where the user
-                // filled in new_input_per_million + new_output_per_million
-                // become manual overrides.
-                val csv = readFromUri(uri)
-                if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                var imported = 0; var skipped = 0
-                csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
-                    val parts = parseCsvRow(line)
-                    if (parts.size < 4) return@forEach
-                    val rawIn = parts[2].trim()
-                    val rawOut = parts[3].trim()
-                    if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
-                    val provider = AppService.findById(parts[0].trim())
-                    val model = parts[1].trim()
-                    val inp = rawIn.toDoubleOrNull()?.div(1_000_000)
-                    val outp = rawOut.toDoubleOrNull()?.div(1_000_000)
-                    if (provider != null && model.isNotBlank() && inp != null && outp != null) {
-                        PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
-                    } else skipped++
-                }
-                Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
             }
             "providers" -> {
                 // Catalog-only update. Per-provider API keys live in
@@ -507,34 +375,6 @@ fun ImportExportScreen(
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "CSV showing every catalog tier's \$/M-token price per (provider, model). Fill the two leading override columns and re-import — only rows with values apply. Filtered drops rows already covered by a catalog tier.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            exportLayeredCostsLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Export all", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                        OutlinedButton(onClick = {
-                            exportLayeredCostsFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Export filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "costs_layered"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Import manual changed costs", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                }
-            }
         }
     }
 }
