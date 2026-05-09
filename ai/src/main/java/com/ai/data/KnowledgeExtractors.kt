@@ -17,6 +17,7 @@ import com.google.android.gms.tasks.Tasks
 import org.jsoup.Jsoup
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import java.io.File
 import java.io.InputStream
 import java.net.URL
 import java.util.zip.ZipInputStream
@@ -302,34 +303,53 @@ internal object KnowledgeExtractors {
             requireNotNull(inp) { "Could not open $uri" }
             val sharedStrings = mutableListOf<String>()
             var sharedStringsReady = false
-            val pendingSheets = mutableListOf<ByteArray>()
+            // Spool pre-shared-strings sheets to temp files instead of
+            // ByteArray. A workbook in the legal-but-unusual ordering
+            // (sheets before sharedStrings.xml) with multi-MB sheets
+            // would otherwise pile every sheet into the heap before
+            // parsing started — OOM territory on large spreadsheets.
+            val pendingSheetFiles = mutableListOf<File>()
             val sb = StringBuilder()
             var sheetIndex = 0
-            fun emitSheet(bytes: ByteArray) {
+            fun emitSheetStream(stream: java.io.InputStream) {
                 sheetIndex++
                 if (sb.isNotEmpty()) sb.append("\n\n")
                 sb.append("[sheet ").append(sheetIndex).append("]\n")
-                sb.append(parseXlsxSheet(bytes.inputStream(), sharedStrings))
+                sb.append(parseXlsxSheet(stream, sharedStrings))
             }
-            ZipInputStream(inp).use { zin ->
-                var entry = zin.nextEntry
-                while (entry != null) {
-                    val name = entry.name
-                    if (name == "xl/sharedStrings.xml") {
-                        sharedStrings += parseXlsxSharedStrings(zin.readBytes().inputStream())
-                        sharedStringsReady = true
-                        pendingSheets.forEach(::emitSheet)
-                        pendingSheets.clear()
-                    } else if (name.startsWith("xl/worksheets/") && name.endsWith(".xml")) {
-                        val bytes = zin.readBytes()
-                        if (sharedStringsReady) emitSheet(bytes) else pendingSheets += bytes
+            try {
+                ZipInputStream(inp).use { zin ->
+                    var entry = zin.nextEntry
+                    while (entry != null) {
+                        val name = entry.name
+                        if (name == "xl/sharedStrings.xml") {
+                            sharedStrings += parseXlsxSharedStrings(zin)
+                            sharedStringsReady = true
+                            pendingSheetFiles.forEach { f ->
+                                f.inputStream().use(::emitSheetStream)
+                            }
+                            pendingSheetFiles.forEach { it.delete() }
+                            pendingSheetFiles.clear()
+                        } else if (name.startsWith("xl/worksheets/") && name.endsWith(".xml")) {
+                            if (sharedStringsReady) {
+                                emitSheetStream(zin)
+                            } else {
+                                val tmp = File.createTempFile("xlsx_sheet_", ".xml", context.cacheDir)
+                                tmp.outputStream().use { out -> zin.copyTo(out) }
+                                pendingSheetFiles += tmp
+                            }
+                        }
+                        entry = zin.nextEntry
                     }
-                    entry = zin.nextEntry
                 }
+                // sharedStrings.xml absent (rare — workbook with only inline / numeric cells):
+                // drain whatever sheets we buffered with the empty sharedStrings list.
+                pendingSheetFiles.forEach { f ->
+                    f.inputStream().use(::emitSheetStream)
+                }
+            } finally {
+                pendingSheetFiles.forEach { runCatching { it.delete() } }
             }
-            // sharedStrings.xml absent (rare — workbook with only inline / numeric cells):
-            // drain whatever sheets we buffered with the empty sharedStrings list.
-            pendingSheets.forEach(::emitSheet)
             sb.toString()
         }.normalised()
     }
@@ -432,7 +452,12 @@ internal object KnowledgeExtractors {
                 var entry = zin.nextEntry
                 while (entry != null) {
                     if (entry.name == "content.xml") {
-                        return@use parseOdsContent(zin.readBytes().inputStream())
+                        // Stream the entry directly into the SAX-style
+                        // parser instead of zin.readBytes(): a multi-MB
+                        // content.xml (data-heavy ODS workbook) would
+                        // otherwise allocate the full file as a ByteArray
+                        // before parsing started.
+                        return@use parseOdsContent(zin)
                     }
                     entry = zin.nextEntry
                 }
