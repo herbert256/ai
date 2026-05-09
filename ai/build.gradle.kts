@@ -144,14 +144,14 @@ dependencies {
     // search. The Tasks API hides tokenisation / device delegation
     // and the bundled native lib is ~5-6 MB. Models live as
     // user-supplied .tflite files under filesDir/local_models/.
-    implementation("com.google.mediapipe:tasks-text:0.10.14")
+    implementation("com.google.mediapipe:tasks-text:0.10.35")
 
     // MediaPipe Tasks GenAI — LLM Inference API. Runs Gemma / Phi /
     // Llama / Falcon / StableLM in MediaPipe's .task bundle format
     // entirely on-device. Models are user-supplied .task files
     // (mostly licence-gated downloads) imported via the SAF picker
     // on the Housekeeping → Local LLMs card.
-    implementation("com.google.mediapipe:tasks-genai:0.10.16")
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
 
     // Apache Commons Compress — used by the Local LLM import flow to
     // unwrap a .task file from a downloaded .zip / .tar / .tar.gz /
