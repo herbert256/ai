@@ -30,6 +30,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listParametersType: Type = object : TypeToken<List<Parameters>>() {}.type
         val listSystemPromptType: Type = object : TypeToken<List<SystemPrompt>>() {}.type
         val listInternalPromptType: Type = object : TypeToken<List<InternalPrompt>>() {}.type
+        val listExamplePromptType: Type = object : TypeToken<List<ExamplePrompt>>() {}.type
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
@@ -60,7 +61,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             modelNameLayout = modelNameLayout,
-            showBackButton = prefs.getBoolean(KEY_SHOW_BACK_BUTTON, true)
+            showBackButton = prefs.getBoolean(KEY_SHOW_BACK_BUTTON, true),
+            subjectToTitleBar = prefs.getBoolean(KEY_SUBJECT_TO_TITLE_BAR, false)
         )
     }
 
@@ -75,6 +77,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
             putBoolean(KEY_SHOW_BACK_BUTTON, settings.showBackButton)
+            putBoolean(KEY_SUBJECT_TO_TITLE_BAR, settings.subjectToTitleBar)
         }
     }
 
@@ -88,6 +91,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
             internalPrompts = loadList(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType),
+            examplePrompts = loadList(KEY_AI_EXAMPLE_PROMPTS, TypeTokens.listExamplePromptType),
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType)
@@ -197,6 +201,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_PARAMETERS, gson.toJson(settings.parameters))
             putString(KEY_AI_SYSTEM_PROMPTS, gson.toJson(settings.systemPrompts))
             putString(KEY_AI_INTERNAL_PROMPTS, gson.toJson(settings.internalPrompts))
+            putString(KEY_AI_EXAMPLE_PROMPTS, gson.toJson(settings.examplePrompts))
             putString(KEY_AI_ENDPOINTS, gson.toJson(settings.endpoints.mapKeys { it.key.id }))
             putString(KEY_PROVIDER_STATES, gson.toJson(settings.providerStates))
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
@@ -412,6 +417,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_SHOW_BACK_BUTTON = "show_back_button"
+        private const val KEY_SUBJECT_TO_TITLE_BAR = "subject_to_title_bar"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
@@ -421,6 +427,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // who already have seeded entries from the previous build don't
         // lose them across the rename to InternalPrompt.
         private const val KEY_AI_INTERNAL_PROMPTS = "ai_meta_prompts"
+        private const val KEY_AI_EXAMPLE_PROMPTS = "ai_example_prompts"
         private const val KEY_AI_ENDPOINTS = "ai_endpoints"
         private const val KEY_PROVIDER_STATES = "provider_states"
         private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"
