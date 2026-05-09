@@ -592,17 +592,16 @@ private fun SettingsMainScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingCard("User name", "Used as the human side of the conversation in agent prompts and report metadata.") {
+            SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
                     value = userName, onValueChange = { userName = it },
+                    label = { Text("Name") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
-            }
-
-            SettingCard("Default email address", "Pre-fills the email export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
                     value = defaultEmail, onValueChange = { defaultEmail = it },
+                    label = { Text("Email address") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

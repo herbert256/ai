@@ -807,8 +807,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Settings",
         cards = listOf(
             HelpCard("Overview", "General app preferences plus the entry point to AI Setup. Edits autosave with a 400 ms debounce, so you don't need a Save button — just type and back out."),
-            HelpCard("User name", "Plain text. Surfaces wherever the app addresses you and defaults the From: header on email-style exports."),
-            HelpCard("Default email address", "Pre-fills the To: field on report email exports. Leave blank to be prompted each time."),
+            HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
             HelpCard("API tracing", "Master switch. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across result screens disappears. On → every API request and response is captured to disk."),
             HelpCard("Model name layout", "Two radio options. Model name only is the dense default. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model on multiple providers."),
             HelpCard("Show < Back", "When off the visible back chevron disappears from every TitleBar and the title left-aligns. System / gesture back keeps working — TitleBar's BackHandler is registered independently."),
