@@ -169,10 +169,15 @@ object ModelType {
                 "gemini-1.5" in id || "gemini-2" in id || "gemini-pro" in id
             }
             ApiFormat.OPENAI_COMPATIBLE -> {
-                // Responses API path (matches infer() above).
-                id.startsWith("gpt-5") || id.startsWith("o1") ||
-                    id.startsWith("o3") || id.startsWith("o4") ||
-                    id.startsWith("gpt-4.1")
+                // Responses API path — must match infer() above. Previously
+                // included o1 and gpt-4.1, but those families have a
+                // working chat-completions endpoint so infer() doesn't
+                // route them through /v1/responses; enabling
+                // web_search_preview here would attach a tool the
+                // chat-completions path can't deliver. Drop them so the
+                // two functions agree on which models actually get the
+                // Responses-API treatment.
+                id.startsWith("gpt-5") || id.startsWith("o3") || id.startsWith("o4")
             }
         }
     }
