@@ -287,17 +287,24 @@ fun ProviderModelSettingsScreen(
         if (modelSource != ModelSource.MANUAL) { manualInput = ""; editingOriginal = null }
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "models_per_provider", title = "Models", onBackClick = onBack)
-        Text(
-            text = service.id,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        TitleBar(
+            helpTopic = "models_per_provider",
+            title = if (foldSubject) service.id else "Models",
+            onBackClick = onBack
         )
+        if (!foldSubject) {
+            Text(
+                text = service.id,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -695,17 +702,24 @@ fun ProviderSettingsScreen(
         return
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "provider_edit", title = "Provider", onBackClick = onBackToSettings)
-        Text(
-            text = service.id,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        TitleBar(
+            helpTopic = "provider_edit",
+            title = if (foldSubject) service.id else "Provider",
+            onBackClick = onBackToSettings
         )
+        if (!foldSubject) {
+            Text(
+                text = service.id,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

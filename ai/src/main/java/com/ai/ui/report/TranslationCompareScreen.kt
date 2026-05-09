@@ -40,15 +40,22 @@ internal fun TranslationCompareScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(helpTopic = "translation_compare", title = "Translation compare", onBackClick = onBack)
-        Text(
-            text = title,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+        TitleBar(
+            helpTopic = "translation_compare",
+            title = if (foldSubject) title else "Translation compare",
+            onBackClick = onBack
         )
+        if (!foldSubject) {
+            Text(
+                text = title,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
 
         // Top pane — original.
         Column(

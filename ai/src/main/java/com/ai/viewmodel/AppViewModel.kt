@@ -55,7 +55,14 @@ data class GeneralSettings(
      *  system / gesture back still works because TitleBar's
      *  BackHandler is registered independently of the button.
      *  Provided to the composition tree via LocalShowBackButton. */
-    val showBackButton: Boolean = true
+    val showBackButton: Boolean = true,
+    /** Compact-header mode. When true, every screen that today shows
+     *  a fixed TitleBar label plus a green "subject" sub-header below
+     *  it (Model Info, Trace detail, Knowledge base, Translation
+     *  run, Agent result, …) folds the dynamic subject into the
+     *  title bar and drops the green line. Default false preserves
+     *  the legacy two-row layout. Provided via LocalSubjectToTitleBar. */
+    val subjectToTitleBar: Boolean = false
 )
 
 // Prompt history entry

@@ -122,21 +122,25 @@ internal fun TranslationCallDetailScreen(
             val translationProviderService = com.ai.data.AppService.findById(result.providerId)
             val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
             val traceEnabled = ApiTracer.isTracingEnabled && translationTraceFilename != null
+            val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
             TitleBar(
                 helpTopic = "translation_call",
-                title = "Translation call", onBackClick = onBack,
+                title = if (foldSubject) titleLang else "Translation call",
+                onBackClick = onBack,
                 onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
                 onInfo = if (translationProviderService != null && result.model.isNotBlank()) {
                     { navToModelInfo(translationProviderService, result.model) }
                 } else null
             )
-            Text(
-                text = titleLang,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            )
+            if (!foldSubject) {
+                Text(
+                    text = titleLang,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
             if (totalCost > 0.0) {
                 Text("Cost: ${formatCents(totalCost)} ¢",
                     fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,

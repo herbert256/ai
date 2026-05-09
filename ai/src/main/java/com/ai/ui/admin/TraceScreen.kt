@@ -199,6 +199,7 @@ fun TraceListScreen(
         val pageItems = traceFiles.subList(startIndex.coerceAtMost(traceFiles.size), (startIndex + pageSize).coerceAtMost(traceFiles.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
+        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
         Column(modifier = Modifier.fillMaxSize()) {
             val subHeader = when {
                 reportId != null -> "Report scope"
@@ -208,10 +209,11 @@ fun TraceListScreen(
             val canClear = reportId == null && modelFilter == null && allTraceFiles.isNotEmpty()
             TitleBar(
                 helpTopic = "trace_list",
-                title = "API Traces", onBackClick = onBack,
+                title = if (foldSubject && subHeader.isNotBlank()) subHeader else "API Traces",
+                onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null
             )
-            if (subHeader.isNotBlank()) {
+            if (!foldSubject && subHeader.isNotBlank()) {
                 Text(
                     text = subHeader,
                     fontSize = 18.sp, color = AppColors.Green,

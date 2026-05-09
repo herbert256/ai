@@ -80,15 +80,22 @@ fun ApiTestScreen(
             else availableModels.filter { it.lowercase().contains(search.lowercase()) }
         }
         BackHandler { showModelDialog = false }
+        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_select_model", title = "Select Model", onBackClick = { showModelDialog = false })
-            Text(
-                text = selectedProvider.id,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            TitleBar(
+                helpTopic = "developer_select_model",
+                title = if (foldSubject) selectedProvider.id else "Select Model",
+                onBackClick = { showModelDialog = false }
             )
+            if (!foldSubject) {
+                Text(
+                    text = selectedProvider.id,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -142,15 +149,22 @@ fun ApiTestScreen(
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
+        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "developer_select_endpoint", title = "Select Endpoint", onBackClick = { showEndpointDialog = false })
-            Text(
-                text = selectedProvider.id,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            TitleBar(
+                helpTopic = "developer_select_endpoint",
+                title = if (foldSubject) selectedProvider.id else "Select Endpoint",
+                onBackClick = { showEndpointDialog = false }
             )
+            if (!foldSubject) {
+                Text(
+                    text = selectedProvider.id,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Column(

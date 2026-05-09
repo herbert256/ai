@@ -79,6 +79,14 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
  *  because TitleBar registers its BackHandler independently. */
 val LocalShowBackButton = compositionLocalOf { true }
 
+/** When true, screens that show a fixed TitleBar label plus a green
+ *  "subject" sub-header (Model Info, Trace detail, Knowledge base,
+ *  Translation run, Agent result, …) fold the subject into the
+ *  title bar and drop the green line. Default false preserves the
+ *  legacy two-row layout. Provided once by AppNavHost from
+ *  GeneralSettings.subjectToTitleBar. */
+val LocalSubjectToTitleBar = compositionLocalOf { false }
+
 /** Provided by AppNavHost so the title-bar Help icon can navigate
  *  to a help page without prop-drilling a callback. The argument is
  *  the screen-specific topic ID (e.g., "agents", "report_result");

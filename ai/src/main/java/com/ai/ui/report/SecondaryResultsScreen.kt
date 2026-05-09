@@ -240,12 +240,15 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
-                helpTopic = "secondary_list", title = "Secondary results", onBackClick = onBack,
+                helpTopic = "secondary_list",
+                title = if (foldSubject) baseTitle else "Secondary results",
+                onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
                 } else null,
@@ -256,13 +259,15 @@ internal fun SecondaryResultsScreen(
                     { pickerConfirmDelete = true }
                 } else null
             )
-            Text(
-                text = baseTitle,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
+            if (!foldSubject) {
+                Text(
+                    text = baseTitle,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -1783,22 +1788,26 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
-            title = "Secondary detail", onBackClick = onBack,
+            title = if (foldSubject) title else "Secondary detail",
+            onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null
         )
-        Text(
-            text = title,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        )
+        if (!foldSubject) {
+            Text(
+                text = title,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {

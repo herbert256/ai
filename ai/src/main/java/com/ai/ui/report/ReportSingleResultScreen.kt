@@ -151,10 +151,13 @@ fun ReportSingleResultScreen(
     val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
-            title = "Agent result", onBackClick = onBack,
+            title = if (foldSubject) agentLabel else "Agent result",
+            onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmRemove = true },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
@@ -162,16 +165,18 @@ fun ReportSingleResultScreen(
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — "),
-                fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
-            )
+        if (!foldSubject) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    agentLabel,
+                    fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
+                )
+            }
         }
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {

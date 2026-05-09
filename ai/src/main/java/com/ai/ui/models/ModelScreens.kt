@@ -751,24 +751,25 @@ fun ModelInfoScreen(
         }
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
-            helpTopic = "model_info", title = "Model Info", onBackClick = onNavigateBack,
+            helpTopic = "model_info",
+            title = if (foldSubject) modelName else "Model Info",
+            onBackClick = onNavigateBack,
             onTrace = if (ApiTracer.isTracingEnabled && traceCount > 0) {
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null
         )
-        // Subject of the page (consistent with Single result, Translation
-        // run detail, Trace detail, …) — green sub-header just below
-        // the static title. Provider link moved to its own card below
-        // Capabilities so this header is purely the model name.
-        Text(
-            text = modelName,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        )
+        if (!foldSubject) {
+            Text(
+                text = modelName,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
 
         when {
             isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1467,6 +1468,7 @@ private fun ModelRawInfoScreen(
 ) {
     BackHandler { onBack() }
     val annotated = remember(body) { colorizeJson(body) }
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
@@ -1474,14 +1476,18 @@ private fun ModelRawInfoScreen(
             // legend: ❓ = help for the current screen, ℹ = drill
             // into a details target (here, the per-provider help).
             helpTopic = "model_raw",
-            title = if (provider != null) "Info provider" else title,
+            title = when {
+                provider != null && foldSubject -> provider.displayName
+                provider != null -> "Info provider"
+                else -> title
+            },
             onBackClick = onBack,
             // ℹ → per-provider help page (LiteLLM, OpenRouter, …).
             onInfo = if (provider != null) {
                 { onNavigateToHelpTopic(provider.topicId) }
             } else null
         )
-        if (provider != null) {
+        if (provider != null && !foldSubject) {
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 provider.displayName,
@@ -1490,6 +1496,8 @@ private fun ModelRawInfoScreen(
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+        if (provider != null) {
             calledUrl?.let { url ->
                 Text(
                     url,

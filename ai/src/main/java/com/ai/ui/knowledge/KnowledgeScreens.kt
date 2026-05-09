@@ -335,20 +335,25 @@ fun KnowledgeDetailScreen(
         }
     }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val kbForTitle = kb
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "knowledge_detail",
-            title = "Knowledge base", onBackClick = onBack,
+            title = if (foldSubject && kbForTitle != null) kbForTitle.name else "Knowledge base",
+            onBackClick = onBack,
             onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
         )
         kb?.let {
-            Text(
-                text = it.name,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
+            if (!foldSubject) {
+                Text(
+                    text = it.name,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
             Text(embedderLabel(it), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
             Text("${it.sources.size} sources · ${it.totalChunks} chunks", fontSize = 11.sp, color = AppColors.TextTertiary)
         }

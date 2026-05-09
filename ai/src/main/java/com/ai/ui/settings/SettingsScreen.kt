@@ -588,12 +588,13 @@ private fun SettingsMainScreen(
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
+    var subjectToTitleBar by remember { mutableStateOf(generalSettings.subjectToTitleBar) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-            showBackButton = showBackButton
+            showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -614,7 +615,7 @@ private fun SettingsMainScreen(
             val updated = generalSettings.copy(
                 userName = userName, defaultEmail = defaultEmail,
                 tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-                showBackButton = showBackButton
+                showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -674,6 +675,18 @@ private fun SettingsMainScreen(
                     )
                 }
             }
+
+            // Compact-header mode. When on, screens that today show a
+            // fixed title plus a green subject sub-header (Model
+            // Info, Trace detail, Knowledge base, Translation run, …)
+            // fold the subject into the title bar and drop the green
+            // line. Drives LocalSubjectToTitleBar.
+            ToggleSettingCard(
+                title = "Subject to title bar",
+                description = "Detail screens normally show a fixed title plus a green page-subject line below it. Turn this on to fold the subject into the title bar and hide the green line — saves a row of vertical space at the cost of long subjects truncating.",
+                checked = subjectToTitleBar,
+                onCheckedChange = { subjectToTitleBar = it }
+            )
 
             // When off, the visible "< Back" button disappears from
             // every TitleBar and the screen title left-aligns.

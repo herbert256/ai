@@ -159,11 +159,14 @@ internal fun TranslationRunDetailScreen(
 
     val erroredCount = results.count { it.errorMessage != null }
 
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val targetLang = first?.targetLanguage
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
             helpTopic = "translation_run",
-            title = "Translation run", onBackClick = onBack,
+            title = if (foldSubject && !targetLang.isNullOrBlank()) targetLang else "Translation run",
+            onBackClick = onBack,
             // 🔄 combines "restart failed" + "start missing" — fires
             // a fresh API call for any errored row plus any expected
             // call that hasn't landed yet. Successful rows are kept.
@@ -172,14 +175,16 @@ internal fun TranslationRunDetailScreen(
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, modelName) } } else null
         )
-        first?.targetLanguage?.let { lang ->
-            Text(
-                text = lang,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            )
+        if (!foldSubject) {
+            targetLang?.let { lang ->
+                Text(
+                    text = lang,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
 
