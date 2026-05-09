@@ -86,8 +86,27 @@ fun AgentEditScreen(
     val scope = rememberCoroutineScope()
     val isEditing = agent != null
 
+    // Empty-registry guard: ProviderRegistry.remove(id) lets the user
+    // wipe every provider via the admin UI, which would crash the
+    // .first() fallback below. Bail to a placeholder so they can
+    // navigate back instead of seeing a NoSuchElementException.
+    val initialProvider = agent?.provider
+        ?: AppService.entries.firstOrNull { aiSettings.isProviderActive(it) }
+        ?: AppService.entries.firstOrNull()
+    if (initialProvider == null) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            TitleBar(title = "Agent", onBackClick = onBack)
+            Text(
+                "No providers configured. Add a provider in Settings → Provider before creating an Agent.",
+                color = AppColors.TextSecondary, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+        }
+        return
+    }
+
     var name by remember { mutableStateOf(agent?.name ?: "") }
-    var selectedProvider by remember { mutableStateOf(agent?.provider ?: AppService.entries.firstOrNull { aiSettings.isProviderActive(it) } ?: AppService.entries.first()) }
+    var selectedProvider by remember { mutableStateOf(initialProvider) }
     var model by remember { mutableStateOf(agent?.model ?: "") }
     var apiKey by remember { mutableStateOf(agent?.apiKey ?: "") }
     var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
