@@ -541,7 +541,12 @@ fun ProviderSettingsScreen(
     onReplaceDefaultAgent: (defaultModel: String) -> Unit = {},
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
-    onNavigateToModels: () -> Unit = {}
+    onNavigateToModels: () -> Unit = {},
+    /** Open the per-provider help page (ℹ on the TitleBar). The
+     *  derived topic id is `provider_<lowercased+alnum-only id>`;
+     *  a missing [com.ai.ui.admin.HELP_TOPICS] entry falls through
+     *  to the home Help page. */
+    onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     BackHandler { onBackToSettings() }
     val scope = rememberCoroutineScope()
@@ -709,7 +714,8 @@ fun ProviderSettingsScreen(
         TitleBar(
             helpTopic = "provider_edit",
             title = if (foldSubject) service.id else "Provider",
-            onBackClick = onBackToSettings
+            onBackClick = onBackToSettings,
+            onInfo = { onNavigateToHelpTopic(com.ai.ui.admin.providerHelpTopicId(service.id)) }
         )
         if (!foldSubject) {
             Text(

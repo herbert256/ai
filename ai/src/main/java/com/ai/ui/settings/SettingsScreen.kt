@@ -256,7 +256,8 @@ fun SettingsScreen(
                         // Jump directly into the Models sub-screen for this provider; back returns here.
                         modelEditFromProvider = true
                         currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT
-                    }
+                    },
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
                 )
             } ?: goBack()
         }

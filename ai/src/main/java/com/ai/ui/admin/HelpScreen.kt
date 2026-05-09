@@ -69,6 +69,7 @@ private fun CompactOverview(onNavigateToTopic: (String) -> Unit = {}) {
     )
     HelpIconTable()
     InfoProviderTable(onNavigateToTopic)
+    CloudProviderTable(onNavigateToTopic)
     HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +
@@ -203,6 +204,103 @@ val INFO_PROVIDERS_BY_TOPIC: Map<String, InfoProviderRef> by lazy {
 fun infoProviderForDisplayName(name: String?): InfoProviderRef? {
     if (name.isNullOrBlank()) return null
     return INFO_PROVIDERS.firstOrNull { it.displayName.equals(name, ignoreCase = true) }
+}
+
+/** Topic id for a cloud-provider help page. Lowercase + strip
+ *  non-alphanumerics so an [AppService.id] like "Novita.ai" or
+ *  "01.AI" maps to "provider_novitaai" / "provider_01ai" without a
+ *  regex collision. Returns the id even when no [HELP_TOPICS] entry
+ *  exists; the lookup gracefully falls through to the home page on
+ *  a missing key (user-added providers, etc.). */
+fun providerHelpTopicId(serviceId: String): String =
+    "provider_" + serviceId.lowercase().filter { it.isLetterOrDigit() }
+
+/** One-line taglines for the [CloudProviderTable] directory on the
+ *  home Help page. Keyed by topic id (the same string the row click
+ *  navigates to). Built-in providers only; user-added providers fall
+ *  through to an empty subtitle. */
+private val CLOUD_PROVIDER_TAGLINES: Map<String, String> = mapOf(
+    "provider_openai" to "ChatGPT, GPT-5 / o-series — Chat Completions + Responses API",
+    "provider_anthropic" to "Claude — `/v1/messages` format, web search tool",
+    "provider_google" to "Gemini — `:generateContent` path, `?key=` auth",
+    "provider_xai" to "Grok — Elon Musk's xAI; cost in ticks (÷10¹⁰)",
+    "provider_groq" to "LPU inference — fast Llama / Mixtral / Whisper",
+    "provider_deepseek" to "DeepSeek-V3 / R1 — reasoning + coding from China",
+    "provider_mistral" to "Mistral / Codestral / Pixtral — `random_seed` field",
+    "provider_perplexity" to "Sonar — search-grounded answers + citations",
+    "provider_together" to "Together AI — open-weight catalog; bare-array `/models`",
+    "provider_openrouter" to "Aggregator — proxies dozens of upstream providers",
+    "provider_siliconflow" to "SiliconCloud — Qwen / DeepSeek mirror (China)",
+    "provider_zai" to "Zhipu AI — GLM family (China)",
+    "provider_moonshot" to "Moonshot AI — Kimi long-context (China)",
+    "provider_cohere" to "Command-R/A — RAG-tuned + native rerank endpoint",
+    "provider_ai21" to "Jamba — hybrid SSM/Transformer family",
+    "provider_dashscope" to "Alibaba Qwen — international mirror of DashScope",
+    "provider_fireworks" to "Open-weight inference — DeepSeek / Llama / Qwen",
+    "provider_cerebras" to "Wafer-scale inference — Llama / Qwen at very high tok/s",
+    "provider_sambanova" to "RDU inference — Llama / DeepSeek / Qwen",
+    "provider_baichuan" to "Baichuan-AI — China-region general-purpose models",
+    "provider_stepfun" to "StepFun — Step-2 / Step-3 long-context (China)",
+    "provider_minimax" to "MiniMax — abab / MiniMax-M family",
+    "provider_nvidia" to "NVIDIA NIM — Nemotron + 3rd-party catalog",
+    "provider_replicate" to "Replicate — public model marketplace",
+    "provider_huggingface" to "HF Inference API — open-weight model serving",
+    "provider_lambda" to "Lambda Labs — Hermes / Llama on H100",
+    "provider_lepton" to "Lepton AI — Llama / Mistral / Gemma serverless",
+    "provider_01ai" to "01.AI — Yi family (Kai-Fu Lee, China)",
+    "provider_doubao" to "ByteDance Doubao — Volcano Engine, China",
+    "provider_reka" to "Reka — multimodal Reka-Core / Flash / Edge",
+    "provider_writer" to "Writer — Palmyra enterprise-tuned models",
+    "provider_cloudflareworkersai" to "Workers AI — replace `YOUR_ACCOUNT_ID` in URL",
+    "provider_deepinfra" to "DeepInfra — open-weight serverless inference",
+    "provider_hyperbolic" to "Hyperbolic — open-weight + image/audio inference",
+    "provider_novitaai" to "Novita.ai — open-weight serverless inference",
+    "provider_featherlessai" to "Featherless.ai — HF model serverless host",
+    "provider_liquidai" to "Liquid AI — LFM-7B/40B foundation models",
+    "provider_llamaapi" to "Meta Llama API — official Llama 3.x / 4.x access",
+    "provider_krutrim" to "Ola Krutrim — India-region open-weight inference",
+    "provider_nebiusaistudio" to "Nebius AI Studio — Llama / DeepSeek / Qwen",
+    "provider_chutes" to "Chutes — Bittensor-backed open-weight serving",
+    "provider_inferencenet" to "Inference.net — open-weight serverless inference"
+)
+
+/** Directory card listing every registered cloud provider. Mirrors
+ *  [InfoProviderTable]: tagline subtitle + clickable row drilling
+ *  into the per-provider help page. Hidden when the registry is
+ *  empty (cold-startup edge case). User-added providers render with
+ *  an empty subtitle and route to the home page if no help entry
+ *  exists for their derived topic id. */
+@Composable
+private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
+    val services = AppService.entries
+    if (services.isEmpty()) return
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("Cloud providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "AI services the app dispatches chat / report / embedding calls to. Tap a row for setup, models, pricing, and pitfalls specific to that provider.",
+                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            services.forEach { svc ->
+                val topicId = providerHelpTopicId(svc.id)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onNavigateToTopic(topicId) }
+                        .padding(vertical = 6.dp)
+                ) {
+                    Text(svc.id, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = Color.White, modifier = Modifier.width(160.dp))
+                    Text(CLOUD_PROVIDER_TAGLINES[topicId].orEmpty(), fontSize = 12.sp,
+                        color = Color(0xFFCCCCCC), lineHeight = 16.sp,
+                        modifier = Modifier.weight(1f))
+                    Text(">", color = AppColors.Blue, fontSize = 14.sp)
+                }
+            }
+        }
+    }
 }
 
 internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
