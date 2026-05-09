@@ -1167,7 +1167,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (row.kind == SecondaryKind.TRANSLATE &&
                 row.translationRunId != null &&
                 row.translationRunId in activeTranslationRunIds) return@forEach
-            SecondaryResultStorage.save(context, row.copy(
+            // TOCTOU close: re-read the row right before saving the
+            // "Interrupted" marker. A non-fan-out, non-translation
+            // META/RERANK/MODERATION call in flight has its placeholder
+            // on disk as blank; if executeSecondaryTask saves the
+            // completion *between* our initial listForReport above and
+            // this save, the stale in-memory copy here would overwrite
+            // the real result with the interrupted marker. Re-reading
+            // shrinks the race window to the get → save microseconds
+            // (a full lock per row would close it entirely but isn't
+            // worth the complexity for a one-shot startup sweep).
+            val current = SecondaryResultStorage.get(context, reportId, row.id) ?: return@forEach
+            if (current.errorMessage != null) return@forEach
+            if (!current.content.isNullOrBlank()) return@forEach
+            if (current.durationMs != null) return@forEach
+            SecondaryResultStorage.save(context, current.copy(
                 errorMessage = "Interrupted by app restart",
                 durationMs = 0
             ))
