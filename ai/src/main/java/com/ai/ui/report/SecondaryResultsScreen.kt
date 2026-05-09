@@ -1465,6 +1465,10 @@ private fun ColumnScope.FanOutDrillInView(
                 TextButton(onClick = {
                     confirmFanOutDelete = false
                     onBulkDelete((results + combinedRows).map { it.id })
+                    // Every row that drove this view is gone — leave the
+                    // now-empty screen so the parent (which re-derives
+                    // its row counts from storage) refreshes on resume.
+                    onBack()
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
