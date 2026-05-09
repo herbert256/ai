@@ -211,6 +211,8 @@ fun PromptsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             ModelsSetupNavCard("🧩", "Internal Prompts", "Meta, Fan-out, Fan-in, and Other internal prompts", "${aiSettings.internalPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB) })
+            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
         }
     }
 }

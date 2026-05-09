@@ -32,6 +32,7 @@ enum class SettingsSubScreen {
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_INTERNAL_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
+    AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_PROMPTS_SETUP,
     AI_LOCAL_MODELS_SETUP,
@@ -95,6 +96,7 @@ fun SettingsScreen(
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
     var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }
+    var editingExamplePromptId by remember { mutableStateOf<String?>(null) }
     // Which Internal Prompts CRUD bucket is currently open. Set by the
     // four cards on Prompt Management; the AI_INTERNAL_PROMPTS list
     // and AI_INTERNAL_PROMPT_EDIT screens filter / pin on it. When the
@@ -155,7 +157,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
-            SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB,
+            SettingsSubScreen.AI_EXAMPLE_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
@@ -173,6 +176,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PARAMETERS_EDIT -> { editingParametersId = null; currentSubScreen = SettingsSubScreen.AI_PARAMETERS }
             SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS }
             SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS }
+            SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPTS }
         }
     }
 
@@ -453,6 +457,28 @@ fun SettingsScreen(
                 onAddInternalPrompt = { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
                 onEditInternalPrompt = { editingInternalPromptId = it; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT }
             )
+        }
+        SettingsSubScreen.AI_EXAMPLE_PROMPTS -> {
+            ExamplePromptsListScreen(
+                aiSettings = aiSettings,
+                onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
+                onAddExamplePrompt = { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT },
+                onEditExamplePrompt = { editingExamplePromptId = it; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT }
+            )
+        }
+        SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> {
+            val ep = editingExamplePromptId?.let { aiSettings.getExamplePromptById(it) }
+            key(ep?.id) {
+                ExamplePromptEditScreen(
+                    examplePrompt = ep,
+                    onSave = { saved ->
+                        val updated = if (ep != null) aiSettings.copy(examplePrompts = aiSettings.examplePrompts.map { if (it.id == ep.id) saved else it })
+                        else aiSettings.copy(examplePrompts = aiSettings.examplePrompts + saved)
+                        onSaveAi(updated); goBack()
+                    },
+                    onBack = goBack, onNavigateHome = onNavigateHome
+                )
+            }
         }
         SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> {
             val ip = editingInternalPromptId?.let { aiSettings.getInternalPromptById(it) }

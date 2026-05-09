@@ -793,9 +793,10 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_INTERNAL_PROMPTS_ADMIN) {
-            com.ai.ui.admin.InternalPromptsAdminScreen(
+            com.ai.ui.admin.PromptsAdminScreen(
                 onLoadBundledPrompts = { appViewModel.loadBundledInternalPrompts() },
                 onResetBundledPrompts = { appViewModel.resetInternalPromptsFromAssets() },
+                onLoadBundledExamples = { appViewModel.loadBundledExamplePrompts() },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )

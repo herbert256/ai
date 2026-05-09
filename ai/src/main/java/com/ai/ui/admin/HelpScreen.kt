@@ -1107,8 +1107,9 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Export · Costs Overrides", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million). Only rows the user explicitly added through Add Manual Override or via Manual cost overrides → Import manual changed costs."),
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
             HelpCard("Export · Workers", "Agents + Flocks + Swarms in one file shaped { agents, flocks, swarms }. References to parameter sets, system prompts, and provider ids stay as ids — dangling on a target where those don't exist, but the worker still loads."),
-            HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts, agents, flocks, swarms } that bundles every export above. Round-trips through Import · All."),
-            HelpCard("Import", "Five buttons matching the five export shapes (API Keys, Costs Overrides, providers.json, prompts.json, Workers) plus a full-width All that reads the bundled JSON. Workers and All upsert agents / flocks / swarms by id; bad rows (e.g. references to a deleted provider) are logged and skipped, the rest go through."),
+            HelpCard("Export · Example prompts", "Drop-in shape for assets/examples.json — top-level array of {title, text} objects, no ids."),
+            HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts, examples, agents, flocks, swarms } that bundles every export above. Round-trips through Import · All."),
+            HelpCard("Import", "Six buttons matching the six export shapes (API Keys, Costs Overrides, providers.json, prompts.json, Workers, Example prompts) plus a full-width All that reads the bundled JSON. Workers and All upsert agents / flocks / swarms by id; bad rows (e.g. references to a deleted provider) are logged and skipped, the rest go through. Example prompts upsert by case-insensitive title."),
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently."),
             HelpCard("Related", "Layered-costs CSV (Housekeeping → Manual cost overrides) is the bulk-edit path for overrides across every model. Backup & Restore is the all-in-one zip alternative.")
         )
@@ -1189,12 +1190,13 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "setup_prompts" to HelpContent(
         title = "Prompt management (setup)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Two cards: System Prompts (free-form reusable text) and Internal Prompts (templated, category-scoped — Meta/Fan-out/Fan-in/Other)."),
+            HelpCard("Overview", "Sub-hub under AI Setup. Three cards: System Prompts (free-form reusable text), Internal Prompts (templated, category-scoped — Meta/Fan-out/Fan-in/Other), and Example prompts (curated title/text starters with no app-feature semantics)."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Fan-out / Fan-in / Other. Count = total across all four categories."),
-            HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features (Meta button on report results, Fan out drill-in, Translate, Model info)."),
-            HelpCard("Pitfalls", "The two are NOT interchangeable — a system prompt cannot replace a meta prompt because Internal Prompts use placeholder substitution that System Prompts do not."),
-            HelpCard("Related", "Housekeeping → Internal prompts → \"Load new prompts from assets/prompts.json\" merges in any bundled rows missing from your set.")
+            HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
+            HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
+            HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not."),
+            HelpCard("Related", "Housekeeping → Prompts → \"Load new prompts from assets/prompts.json\" / \"Add new prompts from assets/examples.json\" merge bundled rows missing from your set.")
         )
     ),
     "setup_local_models" to HelpContent(
@@ -1212,7 +1214,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Housekeeping",
         cards = listOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ for the per-screen detail."),
-            HelpCard("The eight rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Manual cost overrides · Internal prompts · Reset. Order is roughly safe → destructive."),
+            HelpCard("The eight rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Manual cost overrides · Prompts · Reset. Order is roughly safe → destructive."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear all runtime data, and Clear all configuration are not undoable."),
             HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
         )
@@ -1260,15 +1262,25 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Cost Config (Settings → Costs) is the single-row form. Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
         )
     ),
-    "internal_prompts_admin" to HelpContent(
-        title = "Internal prompts (admin)",
+    "prompts_admin" to HelpContent(
+        title = "Prompts (admin)",
         cards = listOf(
-            HelpCard("Overview", "Two-card maintenance screen for the bundled Internal prompts (assets/prompts.json). Load merges new bundled rows; Reset wipes everything and reloads from scratch."),
-            HelpCard("Load new prompts", "Indigo button. Adds any prompt in assets/prompts.json whose (category, name) pair is missing from your set. Existing rows with the same pair are NOT overwritten — your edits are preserved. Status text under the button reports the count."),
-            HelpCard("Reset", "Red button + confirmation dialog. Drops every Internal prompt (including ones you authored) and reloads the bundled set fresh. Use when your edits diverged badly enough that starting over is cleaner than reconciling."),
-            HelpCard("Tips", "Internal Prompts are name-and-category referenced by app features (Meta button on report results, Fan-out drill-in, Translate, Model info). Reset will not break anything that's keyed by name — they'll resolve to the freshly loaded versions."),
-            HelpCard("Pitfalls", "Reset is destructive — there's no undo. Backup & Restore is the only path back if you've lost edits."),
-            HelpCard("Related", "Settings → Prompts → Internal Prompts is the per-row CRUD list.")
+            HelpCard("Overview", "Bundled-asset maintenance for the two prompt families. Internal prompts (assets/prompts.json) drive app features — Meta, Fan-out, Fan-in, Other internal templates with placeholders. Example prompts (assets/examples.json) are user-curated (title, text) starters with no app-feature semantics."),
+            HelpCard("Internal prompts", "Two indigo / red buttons. Load merges any prompt in assets/prompts.json whose (category, name) pair is missing — existing rows keep your edits. Reset wipes every Internal prompt and reloads the bundled set fresh; confirmation dialog gates it."),
+            HelpCard("Example prompts", "One indigo button. Adds any prompt in assets/examples.json whose title (case-insensitive) is missing. Existing prompts (including ones you authored) are NEVER overwritten — there is no Reset for examples."),
+            HelpCard("Tips", "Internal Prompts are name-and-category referenced by app features (Meta button, Fan-out drill-in, Translate, Model info) — Reset is safe because lookups by name resolve against the freshly loaded set. Example prompts have no such references."),
+            HelpCard("Pitfalls", "Internal prompts Reset is destructive — there's no undo. Backup & Restore is the only path back if you've lost edits."),
+            HelpCard("Related", "Settings → Prompts → Internal Prompts is the per-row Internal CRUD; Settings → Prompts → Example prompts is the per-row Example CRUD.")
+        )
+    ),
+    "example_prompt_edit" to HelpContent(
+        title = "Example prompt (edit)",
+        cards = listOf(
+            HelpCard("Overview", "Two-field CRUD: Title (required, also the de-dup key for Load new prompts) plus Text (free-form template body)."),
+            HelpCard("Title", "Required. Used as the case-insensitive de-dup key when Housekeeping → Prompts → Add new prompts from assets/examples.json runs — same title means the bundled row is skipped."),
+            HelpCard("Text", "Multi-line body, no enforced placeholder set. Free-form starter the user pastes into the New Report prompt field; the app does not substitute anything automatically."),
+            HelpCard("Tips", "Example prompts are pure data, not bound to any app feature. Add as many as you like; reorder via Title since the list sorts alphabetically."),
+            HelpCard("Related", "Internal prompt edit (the @QUESTION@ / @RESULTS@ template kind used by Meta / Fan out) is a separate screen with category + agent + reference fields.")
         )
     ),
     "reset" to HelpContent(

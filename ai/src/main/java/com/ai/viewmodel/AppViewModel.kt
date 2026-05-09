@@ -328,6 +328,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return bundled.size
     }
 
+    /** On-demand merge of the prompts declared in `assets/examples.json`
+     *  into [Settings.examplePrompts]. Existing rows (matched by title,
+     *  case-insensitive) are left alone; only new titles are appended.
+     *  Returns the count of newly added prompts. */
+    fun loadBundledExamplePrompts(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        val merged = com.ai.data.ExamplePromptSeed.ensureAllPresent(current.examplePrompts, bundled)
+        val added = merged.size - current.examplePrompts.size
+        if (added > 0) updateSettings(current.copy(examplePrompts = merged))
+        return added
+    }
+
     // ===== Housekeeping primitives =====
     //
     // Each Housekeeping → Reset card button (Clear Usage Statistics,

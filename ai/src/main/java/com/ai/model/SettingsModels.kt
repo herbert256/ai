@@ -172,6 +172,16 @@ data class InternalPrompt(
     val title: String = ""
 )
 
+/** Stand-alone example prompt — pure (title, text) pair the user
+ *  curates as a starter library for the New Report screen and similar
+ *  flows. Distinct from [InternalPrompt] (which carries category /
+ *  agent / placeholder semantics for app-feature templates). */
+data class ExamplePrompt(
+    val id: String,
+    val title: String = "",
+    val text: String = ""
+)
+
 /**
  * Manual user-supplied type assignment for a single (provider, model) pair. Wins
  * over the type stored on ProviderConfig.modelTypes (which comes from native
@@ -203,6 +213,7 @@ data class Settings(
     val parameters: List<Parameters> = emptyList(),
     val systemPrompts: List<SystemPrompt> = emptyList(),
     val internalPrompts: List<InternalPrompt> = emptyList(),
+    val examplePrompts: List<ExamplePrompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
@@ -516,6 +527,7 @@ data class Settings(
     fun getSystemPromptById(id: String) = systemPrompts.find { it.id == id }
     fun getInternalPromptById(id: String) = internalPrompts.find { it.id == id }
     fun getInternalPromptByName(name: String) = internalPrompts.firstOrNull { it.name.equals(name, ignoreCase = true) }
+    fun getExamplePromptById(id: String) = examplePrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
 
@@ -566,6 +578,10 @@ data class Settings(
 
     fun removeInternalPrompt(internalPromptId: String) = copy(
         internalPrompts = internalPrompts.filter { it.id != internalPromptId }
+    )
+
+    fun removeExamplePrompt(examplePromptId: String) = copy(
+        examplePrompts = examplePrompts.filter { it.id != examplePromptId }
     )
 
     /** Ensure the "default agents" flock contains an agent for [service].

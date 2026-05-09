@@ -38,7 +38,7 @@ fun HousekeepingScreen(
             NavCard("Trim by age", onClick = onNavigateToTrimByAge)
             NavCard("Usage statistics", onClick = onNavigateToUsageStatistics)
             NavCard("Manual cost overrides", onClick = onNavigateToManualCostOverrides)
-            NavCard("Internal prompts", onClick = onNavigateToInternalPrompts)
+            NavCard("Prompts", onClick = onNavigateToInternalPrompts)
             NavCard("Reset", onClick = onNavigateToReset)
         }
     }

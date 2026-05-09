@@ -1,0 +1,22 @@
+[
+  {
+    "title": "Explain a concept simply",
+    "text": "Explain @TOPIC@ as if you were teaching a curious 12-year-old. Use one short analogy, then list the three things people most often get wrong about it."
+  },
+  {
+    "title": "Pros and cons table",
+    "text": "Give me a markdown table comparing the pros and cons of @OPTION_A@ versus @OPTION_B@. Five rows. End with a one-sentence recommendation noting which trade-off matters most."
+  },
+  {
+    "title": "Code review",
+    "text": "Review the following code for correctness, security, and clarity. Quote each issue with a line range, explain why it matters, and suggest the smallest change that fixes it. End with a one-paragraph overall verdict.\n\n```\n@CODE@\n```"
+  },
+  {
+    "title": "Summarise long text",
+    "text": "Summarise the text below in three layers: a one-sentence headline, a 100-word abstract, and a five-bullet executive summary. Preserve any numbers and proper nouns verbatim.\n\n@TEXT@"
+  },
+  {
+    "title": "Brainstorm alternatives",
+    "text": "I'm currently planning to @PLAN@. Brainstorm five alternative approaches I haven't considered. For each: a one-line description, the strongest argument for, and the strongest argument against."
+  }
+]

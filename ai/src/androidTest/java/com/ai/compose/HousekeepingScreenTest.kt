@@ -31,7 +31,7 @@ class HousekeepingScreenTest {
         rule.onNodeWithText("Trim by age").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Usage statistics").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Manual cost overrides").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Internal prompts").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Prompts").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Reset").performScrollTo().assertIsDisplayed()
     }
 }

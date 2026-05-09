@@ -161,6 +161,16 @@ fun ImportExportScreen(
         Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
+    val exportExamplePromptsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        // Drop-in shape for assets/examples.json — top-level array of
+        // {title, text} objects, no ids (the seed loader assigns fresh
+        // UUIDs on read).
+        val payload = aiSettings.examplePrompts.map { linkedMapOf("title" to it.title, "text" to it.text) }
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
+        Toast.makeText(context, "Example prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
     val exportWorkersLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         // { agents: [...], flocks: [...], swarms: [...] } — same shape
@@ -209,6 +219,8 @@ fun ImportExportScreen(
         bundle.add("providers", gson.toJsonTree(providers))
         val prompts = aiSettings.internalPrompts.map { promptEntry(it) }
         bundle.add("prompts", gson.toJsonTree(prompts))
+        val examples = aiSettings.examplePrompts.map { linkedMapOf("title" to it.title, "text" to it.text) }
+        bundle.add("examples", gson.toJsonTree(examples))
         val workers = buildWorkersTree(aiSettings)
         workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
         writeToUri(uri, gson.toJson(bundle))
@@ -216,7 +228,8 @@ fun ImportExportScreen(
         Toast.makeText(
             context,
             "Bundle exported ($keysCount keys, ${manual.size} costs, ${providers.size} providers, " +
-                "${prompts.size} prompts, ${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
+                "${prompts.size} prompts, ${examples.size} examples, " +
+                "${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
             Toast.LENGTH_LONG
         ).show()
     }
@@ -305,6 +318,18 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Updated $n internal prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "examples" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val pair = com.ai.data.ExamplePromptSeed.upsertFromJson(json, aiSettings.examplePrompts)
+                if (pair == null) {
+                    Toast.makeText(context, "Could not parse examples.json", Toast.LENGTH_LONG).show()
+                } else {
+                    val (updated, n) = pair
+                    onSave(aiSettings.copy(examplePrompts = updated))
+                    Toast.makeText(context, "Updated $n example prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
             "workers" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -387,6 +412,14 @@ fun ImportExportScreen(
                     }
                 }
 
+                root.getAsJsonArray("examples")?.let { arr ->
+                    val pair = com.ai.data.ExamplePromptSeed.upsertFromJson(arr.toString(), working.examplePrompts)
+                    if (pair != null) {
+                        working = working.copy(examplePrompts = pair.first)
+                        if (pair.second > 0) parts.add("${pair.second} examples")
+                    }
+                }
+
                 run {
                     val w = applyWorkers(root, working)
                     if (!w.isEmpty()) {
@@ -437,14 +470,15 @@ fun ImportExportScreen(
                             exportPromptsJsonLauncher.launch("prompts.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
-                    // Agents + Flocks + Swarms in one file. Half-width
-                    // button paired with a spacer so it lines up with
-                    // the columns above.
+                    // Agents + Flocks + Swarms in one file, plus the
+                    // user-curated Example prompts (title + text only).
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
                             exportWorkersLauncher.launch("ai_workers-${exportTimestamp()}.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = {
+                            exportExamplePromptsLauncher.launch("examples.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // "All": single JSON file bundling every section
                     // above. Round-trips through the matching All import.
@@ -483,7 +517,9 @@ fun ImportExportScreen(
                         OutlinedButton(onClick = {
                             importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = {
+                            importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     OutlinedButton(onClick = {
                         importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))

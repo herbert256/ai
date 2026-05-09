@@ -13,15 +13,21 @@ import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
+/** Housekeeping → Prompts. Two cards: bundled-asset maintenance for
+ *  Internal prompts (Load + Reset under one card) and Example prompts
+ *  (Load only — examples are user-curated, no Reset that would wipe
+ *  the user's set). */
 @Composable
-fun InternalPromptsAdminScreen(
+fun PromptsAdminScreen(
     onLoadBundledPrompts: () -> Int,
     onResetBundledPrompts: () -> Int,
+    onLoadBundledExamples: () -> Int,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    var status by remember { mutableStateOf<String?>(null) }
+    var internalStatus by remember { mutableStateOf<String?>(null) }
+    var exampleStatus by remember { mutableStateOf<String?>(null) }
     var showResetConfirm by remember { mutableStateOf(false) }
 
     if (showResetConfirm) {
@@ -34,7 +40,7 @@ fun InternalPromptsAdminScreen(
                     onClick = {
                         val loaded = onResetBundledPrompts()
                         showResetConfirm = false
-                        status = if (loaded > 0) {
+                        internalStatus = if (loaded > 0) {
                             "Reset complete — loaded $loaded prompt${if (loaded == 1) "" else "s"} from assets/prompts.json"
                         } else {
                             "Reset failed — assets/prompts.json could not be read"
@@ -48,21 +54,21 @@ fun InternalPromptsAdminScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "internal_prompts_admin", title = "Internal prompts", onBackClick = onBack)
+        TitleBar(helpTopic = "prompts_admin", title = "Prompts", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Load new prompts", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Internal prompts", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Merges any prompt in the bundled assets/prompts.json that isn't already present. Matched by (category, name); existing rows with the same pair are not overwritten — they keep your edits.",
+                        "Load merges any prompt in assets/prompts.json that's missing — matched by (category, name); existing rows with the same pair keep your edits. Reset wipes every Internal prompt (including ones you authored) and reloads the bundled set fresh.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Button(
                         onClick = {
                             val added = onLoadBundledPrompts()
-                            status = when {
+                            internalStatus = when {
                                 added == 0 -> "No new prompts in assets/prompts.json"
                                 added == 1 -> "Added 1 new prompt"
                                 else -> "Added $added new prompts"
@@ -71,26 +77,40 @@ fun InternalPromptsAdminScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                     ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
-                }
-            }
-
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Reset", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Drops every Internal prompt (including ones you authored) and reloads the bundled set fresh. Use when your edits diverged badly enough that starting over is cleaner than reconciling.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
                     Button(
                         onClick = { showResetConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                     ) { Text("Reset Internal Prompts to assets/prompts.json", maxLines = 1, softWrap = false) }
+                    internalStatus?.let {
+                        Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+                    }
                 }
             }
 
-            status?.let {
-                Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Example prompts", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Adds any prompt in assets/examples.json that's missing — matched by case-insensitive title. Existing prompts (including ones you authored) are left strictly alone, never overwritten or wiped.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Button(
+                        onClick = {
+                            val added = onLoadBundledExamples()
+                            exampleStatus = when {
+                                added == 0 -> "No new prompts in assets/examples.json"
+                                added == 1 -> "Added 1 new example prompt"
+                                else -> "Added $added new example prompts"
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    ) { Text("Add new prompts from assets/examples.json", maxLines = 1, softWrap = false) }
+                    exampleStatus?.let {
+                        Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
+                    }
+                }
             }
         }
     }
