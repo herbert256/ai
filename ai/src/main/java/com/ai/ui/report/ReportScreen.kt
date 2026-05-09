@@ -859,9 +859,21 @@ fun ReportsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Running ${fanOutMp.name} will call every answerer model once for every other model's response. Each call uses the fan-out prompt below with @RESPONSE@ filled in.",
+                    "Running ${fanOutMp.name} will call every model once for every other model's response. Each call uses the fan-out prompt with @RESPONSE@ filled in.",
                     fontSize = 13.sp, color = AppColors.TextSecondary
                 )
+                if (fanOutMp.text.isNotBlank()) {
+                    Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
+                            modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier.fillMaxWidth()
@@ -899,18 +911,6 @@ fun ReportsScreen(
                                 Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                    }
-                }
-                if (fanOutMp.text.isNotBlank()) {
-                    Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
-                            modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
-                        )
                     }
                 }
             }
