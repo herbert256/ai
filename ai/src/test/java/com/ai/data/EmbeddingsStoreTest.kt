@@ -13,18 +13,18 @@ class EmbeddingsStoreTest {
         val originalVector = listOf(0.1, 0.2, 0.3)
         val editedVector = listOf(0.4, 0.5, 0.6)
 
-        EmbeddingsStore.put(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "original content", originalVector)
+        EmbeddingsStore.put(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "original content", originalVector)
 
-        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "original content"))
+        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "original content"))
             .isEqualTo(originalVector)
-        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "edited content"))
+        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "edited content"))
             .isNull()
 
-        EmbeddingsStore.put(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "edited content", editedVector)
+        EmbeddingsStore.put(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "edited content", editedVector)
 
-        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "original content"))
+        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "original content"))
             .isEqualTo(originalVector)
-        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OPENAI", "text-embedding-3-small", "edited content"))
+        assertThat(EmbeddingsStore.get(filesDir, "report-1", "OpenAI", "text-embedding-3-small", "edited content"))
             .isEqualTo(editedVector)
     }
 }

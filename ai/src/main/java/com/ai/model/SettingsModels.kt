@@ -94,7 +94,7 @@ private val BUILT_IN_ENDPOINTS: Map<String, List<Endpoint>> = mapOf(
         Endpoint("deepseek-chat", "Chat Completions", "https://api.deepseek.com/chat/completions", true),
         Endpoint("deepseek-beta", "Beta (FIM)", "https://api.deepseek.com/beta/completions", false)
     ),
-    "ZAI" to listOf(
+    "Z.AI" to listOf(
         Endpoint("zai-chat", "Chat Completions", "https://api.z.ai/api/paas/v4/chat/completions", true),
         Endpoint("zai-coding", "Coding", "https://api.z.ai/api/coding/paas/v4/chat/completions", false)
     )
