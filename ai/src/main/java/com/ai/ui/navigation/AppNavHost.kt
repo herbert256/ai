@@ -778,8 +778,11 @@ fun AppNavHost(
 
         // ===== Admin =====
         composable(NavRoutes.AI_HOUSEKEEPING) {
+            val uiState by appViewModel.uiState.collectAsState()
+            val hasActiveProvider = uiState.aiSettings.getActiveServices().isNotEmpty()
             com.ai.ui.admin.HousekeepingScreen(
                 onBackToHome = navigateHome,
+                hasActiveProvider = hasActiveProvider,
                 onNavigateToBackupRestore = { navController.navigate(NavRoutes.AI_BACKUP_RESTORE) },
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
@@ -789,9 +792,12 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
+            val uiState by appViewModel.uiState.collectAsState()
+            val hasActiveProvider = uiState.aiSettings.getActiveServices().isNotEmpty()
             com.ai.ui.admin.BackupRestoreScreen(
                 onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                restoreOnly = !hasActiveProvider
             )
         }
         composable(NavRoutes.AI_TRIM_BY_AGE) {

@@ -25,7 +25,13 @@ import kotlinx.coroutines.withContext
 @Composable
 fun BackupRestoreScreen(
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** True when no provider is active yet (first-run / dead-key
+     *  state). Hides the Backup half of the screen and renames
+     *  the title — there's nothing meaningful to back up before
+     *  the user has at least one working API key, but Restore
+     *  from a previous device's backup is exactly the use case. */
+    restoreOnly: Boolean = false
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -126,24 +132,37 @@ fun BackupRestoreScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "backup_restore", title = "Backup & Restore", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "backup_restore",
+            title = if (restoreOnly) "Restore" else "Backup & Restore",
+            onBackClick = onBack
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Backup & Restore", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. Tap Backup, then pick a destination from the system share sheet — Email, Drive, Files, Slack, anything installed. Local LLM .task files and LiteRT .tflite embedders are excluded — they're large and re-downloadable.",
+                        text = if (restoreOnly) "Restore" else "Backup & Restore",
+                        fontWeight = FontWeight.Bold, color = Color.White
+                    )
+                    Text(
+                        text = if (restoreOnly) {
+                            "Reads a single .zip from a previous backup and overwrites all current configuration, API keys, reports, chats, and traces. Pick the file via the Android picker, confirm the prompt, and the app restarts when restore finishes."
+                        } else {
+                            "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. Tap Backup, then pick a destination from the system share sheet — Email, Drive, Files, Slack, anything installed. Local LLM .task files and LiteRT .tflite embedders are excluded — they're large and re-downloadable."
+                        },
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { runBackup() },
-                            enabled = busyLabel == null,
-                            modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-                        ) { Text("Backup", maxLines = 1, softWrap = false) }
+                        if (!restoreOnly) {
+                            Button(
+                                onClick = { runBackup() },
+                                enabled = busyLabel == null,
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                            ) { Text("Backup", maxLines = 1, softWrap = false) }
+                        }
                         Button(
                             // Restrict the picker to .zip files. Some providers report
                             // the mime as application/octet-stream rather than

@@ -17,6 +17,16 @@ import com.ai.ui.shared.TitleBar
 @Composable
 fun HousekeepingScreen(
     onBackToHome: () -> Unit,
+    /** True when at least one provider has a working API key (state ==
+     *  "ok"). When false the screen folds to a minimal "first-run"
+     *  shape: only Refresh + a Restore-only / Import-only pair remain.
+     *  Trim by age / Usage statistics / Reset are hidden because none
+     *  of them have anything meaningful to operate on (no usage, no
+     *  reports, no traces yet). Backup is hidden because there's
+     *  nothing worth backing up; Export is hidden because there's
+     *  nothing to export. The user can still Restore / Import to
+     *  bring data in from another install. */
+    hasActiveProvider: Boolean = true,
     onNavigateToBackupRestore: () -> Unit = {},
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
@@ -30,12 +40,20 @@ fun HousekeepingScreen(
         TitleBar(helpTopic = "housekeeping", title = "Housekeeping", onBackClick = onBackToHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            NavCard("Backup & Restore", onClick = onNavigateToBackupRestore)
-            NavCard("Export & Import", onClick = onNavigateToImportExport)
+            NavCard(
+                title = if (hasActiveProvider) "Backup & Restore" else "Restore",
+                onClick = onNavigateToBackupRestore
+            )
+            NavCard(
+                title = if (hasActiveProvider) "Export & Import" else "Import",
+                onClick = onNavigateToImportExport
+            )
             NavCard("Refresh", onClick = onNavigateToRefresh)
-            NavCard("Trim by age", onClick = onNavigateToTrimByAge)
-            NavCard("Usage statistics", onClick = onNavigateToUsageStatistics)
-            NavCard("Reset", onClick = onNavigateToReset)
+            if (hasActiveProvider) {
+                NavCard("Trim by age", onClick = onNavigateToTrimByAge)
+                NavCard("Usage statistics", onClick = onNavigateToUsageStatistics)
+                NavCard("Reset", onClick = onNavigateToReset)
+            }
         }
     }
 }

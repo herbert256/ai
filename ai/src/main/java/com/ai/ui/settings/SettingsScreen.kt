@@ -545,6 +545,11 @@ fun SettingsScreen(
             LocalLlmsScreen(onBack = goBack, onNavigateHome = onNavigateHome)
         }
         SettingsSubScreen.AI_IMPORT_EXPORT -> {
+            // Fold to Import-only when no provider is active yet —
+            // there's nothing meaningful to export at that point, but
+            // Import from another install is exactly the use case.
+            // Same condition Housekeeping uses for its rename.
+            val importOnly = aiSettings.getActiveServices().isEmpty()
             ImportExportScreen(
                 aiSettings = aiSettings,
                 generalSettings = generalSettings,
@@ -552,7 +557,8 @@ fun SettingsScreen(
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSave = onSaveAi,
                 onSaveGeneral = onSaveGeneral,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                importOnly = importOnly
             )
         }
         SettingsSubScreen.AI_REFRESH -> {

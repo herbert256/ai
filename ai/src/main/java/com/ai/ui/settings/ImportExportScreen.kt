@@ -264,7 +264,13 @@ fun ImportExportScreen(
     onSave: (Settings) -> Unit,
     onSaveGeneral: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** True when no provider is active yet (first-run / dead-key
+     *  state). Hides the Export card and renames the title — there's
+     *  nothing meaningful to export before the user has at least
+     *  one working API key, but Import from another install is
+     *  exactly the use case. */
+    importOnly: Boolean = false
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -717,64 +723,70 @@ fun ImportExportScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "import_export", title = "Export / Import", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "import_export",
+            title = if (importOnly) "Import" else "Export / Import",
+            onBackClick = onBack
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportKeys() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportCosts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    // Bundle-shape exports: provider catalog and internal
-                    // prompts. Drop-in shape for assets/providers.json
-                    // and assets/prompts.json so a developer can ship the
-                    // user's tuned catalog as the new bundled defaults.
-                    // Neither carries an API key.
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportProvidersJson() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportPromptsJson() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    // Agents + Flocks + Swarms in one file, plus the
-                    // user-curated Example prompts (title + text only).
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportWorkers() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportExamplePrompts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    // GeneralSettings (sans the three info-provider keys)
-                    // and per-provider model lists keyed by AppService.id.
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportSettings() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportModelLists() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportParameters() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportSystemPrompts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    // "All": single JSON file bundling every section
-                    // above. Round-trips through the matching All import.
-                    // Two variants — with and without the apiKeys
-                    // section — for safer sharing.
-                    OutlinedButton(onClick = { exportAll(includeApiKeys = true) },
-                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All including API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                    }
-                    OutlinedButton(onClick = { exportAll(includeApiKeys = false) },
-                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All excluding API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
+            if (!importOnly) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportKeys() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportCosts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        // Bundle-shape exports: provider catalog and internal
+                        // prompts. Drop-in shape for assets/providers.json
+                        // and assets/prompts.json so a developer can ship the
+                        // user's tuned catalog as the new bundled defaults.
+                        // Neither carries an API key.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportProvidersJson() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportPromptsJson() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        // Agents + Flocks + Swarms in one file, plus the
+                        // user-curated Example prompts (title + text only).
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportWorkers() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportExamplePrompts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        // GeneralSettings (sans the three info-provider keys)
+                        // and per-provider model lists keyed by AppService.id.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportSettings() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportModelLists() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportParameters() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportSystemPrompts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        // "All": single JSON file bundling every section
+                        // above. Round-trips through the matching All import.
+                        // Two variants — with and without the apiKeys
+                        // section — for safer sharing.
+                        OutlinedButton(onClick = { exportAll(includeApiKeys = true) },
+                            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                            Text("All including API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                        OutlinedButton(onClick = { exportAll(includeApiKeys = false) },
+                            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                            Text("All excluding API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
                     }
                 }
             }
