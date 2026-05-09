@@ -21,6 +21,7 @@ import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
@@ -45,6 +46,20 @@ fun RefreshScreen(
     var progressText by remember { mutableStateOf("") }
     val isAnyRunning by remember { derivedStateOf { progressTitle.isNotBlank() } }
     var taskError by remember { mutableStateOf<String?>(null) }
+
+    // Refresh-all chain — full-screen progress instead of the small
+    // per-task popup. Lists every planned step up front and updates
+    // each as work proceeds; the 6 catalog sources at the top run in
+    // parallel via coroutineScope { ... awaitAll() }, then the
+    // dependent provider/model/agent steps run sequentially.
+    val refreshAllSteps = remember { mutableStateListOf<RefreshAllStep>() }
+    var refreshAllInProgress by remember { mutableStateOf(false) }
+    var refreshAllFinished by remember { mutableStateOf(false) }
+    var refreshAllError by remember { mutableStateOf<String?>(null) }
+    fun setStep(id: String, status: StepStatus) {
+        val i = refreshAllSteps.indexOfFirst { it.id == id }
+        if (i >= 0) refreshAllSteps[i] = refreshAllSteps[i].copy(status = status)
+    }
 
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
@@ -97,6 +112,42 @@ fun RefreshScreen(
     taskError?.let { error ->
         AlertDialog(onDismissRequest = { taskError = null }, title = { Text("Error") },
             text = { Text(error) }, confirmButton = { TextButton(onClick = { taskError = null }) { Text("OK", maxLines = 1, softWrap = false) } })
+    }
+
+    if (refreshAllInProgress) {
+        RefreshAllProgressScreen(
+            steps = refreshAllSteps.toList(),
+            overallError = refreshAllError,
+            isFinished = refreshAllFinished,
+            onRestartNow = {
+                // Same flush-then-process-kill the legacy chain did at
+                // the end. Captured here as an explicit user action so
+                // they can review final step results first.
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                            SettingsPreferences(prefs, context.filesDir).flushUsageStats()
+                        }
+                    }
+                    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+                    launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    if (launch != null) context.startActivity(launch)
+                    Runtime.getRuntime().exit(0)
+                }
+            },
+            onBack = {
+                // Don't allow leaving while work is in flight — keeps
+                // the per-step status reachable for the user.
+                if (refreshAllFinished) {
+                    refreshAllInProgress = false
+                    refreshAllSteps.clear()
+                    refreshAllError = null
+                }
+            },
+            onNavigateHome = onNavigateHome
+        )
+        return
     }
 
     if (showResultsDialog && refreshResults != null) {
@@ -436,52 +487,257 @@ fun RefreshScreen(
         }
     }
 
+    // Refresh-all variants: same work as runProviders / runDefaultAgents
+    // but route progress through a callback (the full-screen progress
+    // page's per-step detail) instead of mutating progressText (which
+    // would no-op since the per-task popup is suppressed during the
+    // refresh-all flow).
+    val runProvidersWithProgress: suspend ((String) -> Unit) -> Unit = { onProgress ->
+        data class Seed(val service: AppService, val final: String?, val testModel: String?)
+        val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
+            val state = aiSettings.getProviderState(service)
+            val apiKey = aiSettings.getApiKey(service)
+            when {
+                state == "inactive" -> Seed(service, "inactive", null)
+                apiKey.isBlank() -> Seed(service, "not-used", null)
+                else -> Seed(service, null, aiSettings.getModel(service))
+            }
+        }
+        providerStateRows.clear()
+        providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
+        val testable = seeds.withIndex().filter { it.value.final == null }
+        val total = testable.size
+        val completed = java.util.concurrent.atomic.AtomicInteger(0)
+        onProgress("0 / $total")
+        supervisorScope {
+            testable.map { (idx, seed) ->
+                val service = seed.service
+                val apiKey = aiSettings.getApiKey(service)
+                val model = seed.testModel ?: ""
+                async(Dispatchers.IO) {
+                    val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                    val newState = if (error == null) "ok" else "error"
+                    withContext(Dispatchers.Main) {
+                        if (idx < providerStateRows.size) providerStateRows[idx] = service.displayName to newState
+                    }
+                    onProviderStateChange(service, newState)
+                    val done = completed.incrementAndGet()
+                    onProgress("$done / $total — ${service.displayName}")
+                }
+            }.awaitAll()
+        }
+    }
+    val runDefaultAgentsWithProgress: suspend ((String) -> Unit) -> Unit = { onProgress ->
+        val candidates = aiSettings.getActiveServices().map { s ->
+            Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
+        }
+        generationRows.clear()
+        generationRows.addAll(candidates.map { it.first.displayName to null })
+        val total = candidates.size
+        val completed = java.util.concurrent.atomic.AtomicInteger(0)
+        onProgress("0 / $total")
+        val results: List<Pair<String, Boolean>> = supervisorScope {
+            candidates.mapIndexed { idx, (service, key, model) ->
+                async(Dispatchers.IO) {
+                    val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
+                    val success = error == null
+                    withContext(Dispatchers.Main) {
+                        if (idx < generationRows.size) generationRows[idx] = service.displayName to success
+                    }
+                    val done = completed.incrementAndGet()
+                    onProgress("$done / $total — ${service.displayName}")
+                    service.displayName to success
+                }
+            }.awaitAll()
+        }
+        withContext(Dispatchers.IO) {
+            var updatedSettings = aiSettings
+            for ((service, _, model) in candidates) {
+                val success = results.find { it.first == service.displayName }?.second == true
+                if (success) {
+                    val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                    if (existing == null) {
+                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                        updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
+                    }
+                }
+            }
+            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
+            if (defaultAgentIds.isNotEmpty()) {
+                val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
+                updatedSettings = if (existingFlock != null) {
+                    updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
+                } else {
+                    val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
+                    updatedSettings.copy(flocks = updatedSettings.flocks + flock)
+                }
+            }
+            onSave(updatedSettings)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Refresh all — runs the catalogs first (OpenRouter, LiteLLM,
-            // models.dev) so the per-provider Models fetch and the
-            // Providers / Default-agents tests see fresh capability data.
+            // Refresh all — runs catalogs first (six in parallel) so
+            // the per-provider Models fetch and the Providers /
+            // Default-agents tests see fresh capability data, then the
+            // dependent steps run sequentially. Status is rendered on
+            // a full-screen progress page rather than the small
+            // per-task popup the individual buttons below use.
             RefreshAction(
                 label = "Refresh all",
-                description = "Run every refresh below in sequence: catalogs first (OpenRouter, LiteLLM, models.dev), then provider keys, model lists, and default agents.",
+                description = "Run all six catalog sources in parallel (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis), then provider keys, model lists, and default agents in sequence.",
                 enabled = !isAnyRunning,
                 onClick = {
-                    launchTask("Refresh all") {
-                        if (openRouterApiKey.isNotBlank()) runOpenRouter(false)
-                        runLiteLLM(false)
-                        runModelsDev(false)
-                        runHelicone(false)
-                        runLLMPrices(false)
-                        if (artificialAnalysisApiKey.isNotBlank()) runArtificialAnalysis(false)
-                        runProviders(false)
-                        runModels(false)
-                        runDefaultAgents(false)
-                        // Auto-restart so the freshly-loaded catalogs and
-                        // recomputed precomputed sets are picked up cleanly
-                        // — saves the user from a manual kill/relaunch.
-                        progressText = "Flushing caches…"
-                        // Flush every in-memory cache that defers writes
-                        // synchronously before we kill the process. The
-                        // usage-stats cache debounces flushes to a 2-second
-                        // window — without an explicit flush here, every
-                        // unsaved counter increment from this Refresh All
-                        // run gets dropped.
-                        withContext(Dispatchers.IO) {
-                            runCatching {
-                                val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                                SettingsPreferences(prefs, context.filesDir).flushUsageStats()
+                    // Build the planned step list up front so the user sees
+                    // every action that's about to happen before kickoff.
+                    refreshAllSteps.clear()
+                    val openRouterEnabled = openRouterApiKey.isNotBlank()
+                    val aaEnabled = artificialAnalysisApiKey.isNotBlank()
+                    refreshAllSteps += RefreshAllStep("openrouter", "OpenRouter",
+                        if (openRouterEnabled) StepStatus.Pending else StepStatus.Skipped)
+                    refreshAllSteps += RefreshAllStep("litellm", "LiteLLM")
+                    refreshAllSteps += RefreshAllStep("modelsdev", "models.dev")
+                    refreshAllSteps += RefreshAllStep("helicone", "Helicone")
+                    refreshAllSteps += RefreshAllStep("llmprices", "llm-prices.com")
+                    refreshAllSteps += RefreshAllStep("aa", "Artificial Analysis",
+                        if (aaEnabled) StepStatus.Pending else StepStatus.Skipped)
+                    refreshAllSteps += RefreshAllStep("providers", "Provider key tests")
+                    refreshAllSteps += RefreshAllStep("models", "Model lists")
+                    refreshAllSteps += RefreshAllStep("agents", "Default agents")
+                    refreshAllError = null
+                    refreshAllFinished = false
+                    refreshAllInProgress = true
+
+                    scope.launch {
+                        try {
+                            // Six catalog sources in parallel — they're
+                            // independent network fetches with no shared
+                            // mutable state, so awaitAll() collapses
+                            // wall-clock from sum-of-latencies to
+                            // max-of-latencies.
+                            coroutineScope {
+                                val jobs = mutableListOf<kotlinx.coroutines.Deferred<*>>()
+                                if (openRouterEnabled) jobs += async(Dispatchers.IO) {
+                                    setStep("openrouter", StepStatus.Running())
+                                    try {
+                                        val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                                        if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
+                                        val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
+                                        openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
+                                        setStep("openrouter", StepStatus.Done("${pricing.size} priced · ${specs?.first ?: 0} specs"))
+                                    } catch (e: Exception) {
+                                        setStep("openrouter", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                jobs += async(Dispatchers.IO) {
+                                    setStep("litellm", StepStatus.Running())
+                                    try {
+                                        val n = PricingCache.fetchLiteLLMPricingOnline(context)
+                                        litellmResult = n
+                                        if (n != null && n > 0) setStep("litellm", StepStatus.Done("$n priced"))
+                                        else setStep("litellm", StepStatus.Failed("no entries"))
+                                    } catch (e: Exception) {
+                                        setStep("litellm", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                jobs += async(Dispatchers.IO) {
+                                    setStep("modelsdev", StepStatus.Running())
+                                    try {
+                                        val n = PricingCache.fetchModelsDevOnline(context)
+                                        modelsDevResult = n
+                                        if (n != null && n > 0) setStep("modelsdev", StepStatus.Done("$n priced"))
+                                        else setStep("modelsdev", StepStatus.Failed("no entries"))
+                                    } catch (e: Exception) {
+                                        setStep("modelsdev", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                jobs += async(Dispatchers.IO) {
+                                    setStep("helicone", StepStatus.Running())
+                                    try {
+                                        val n = PricingCache.fetchHeliconeOnline(context)
+                                        heliconeResult = n
+                                        if (n != null && n > 0) setStep("helicone", StepStatus.Done("$n entries"))
+                                        else setStep("helicone", StepStatus.Failed("no entries"))
+                                    } catch (e: Exception) {
+                                        setStep("helicone", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                jobs += async(Dispatchers.IO) {
+                                    setStep("llmprices", StepStatus.Running())
+                                    try {
+                                        val n = PricingCache.fetchLLMPricesOnline(context)
+                                        llmPricesResult = n
+                                        if (n != null && n > 0) setStep("llmprices", StepStatus.Done("$n entries"))
+                                        else setStep("llmprices", StepStatus.Failed("no entries"))
+                                    } catch (e: Exception) {
+                                        setStep("llmprices", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                if (aaEnabled) jobs += async(Dispatchers.IO) {
+                                    setStep("aa", StepStatus.Running())
+                                    try {
+                                        val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
+                                        aaResult = n
+                                        if (n != null && n > 0) setStep("aa", StepStatus.Done("$n entries"))
+                                        else setStep("aa", StepStatus.Failed("no entries"))
+                                    } catch (e: Exception) {
+                                        setStep("aa", StepStatus.Failed(e.message?.take(80)))
+                                    }
+                                }
+                                jobs.awaitAll()
                             }
+                            // Catalog answers may have shifted — refresh the
+                            // precomputed vision / web-search sets so list
+                            // renders pick up the new state. Single onSave
+                            // covers all the catalogs that ran.
+                            withContext(Dispatchers.Main) { onSave(aiSettings.recomputeAllCapabilities()) }
+
+                            // Sequential: provider key tests
+                            setStep("providers", StepStatus.Running())
+                            try {
+                                runProvidersWithProgress { detail -> setStep("providers", StepStatus.Running(detail)) }
+                                val okCount = providerStateRows.count { it.second == "ok" }
+                                val errCount = providerStateRows.count { it.second == "error" }
+                                setStep("providers", StepStatus.Done("$okCount ok · $errCount failed"))
+                            } catch (e: Exception) {
+                                setStep("providers", StepStatus.Failed(e.message?.take(80)))
+                            }
+
+                            // Sequential: model lists per provider
+                            setStep("models", StepStatus.Running())
+                            try {
+                                refreshResults = onRefreshAllModels(aiSettings, true) { msg ->
+                                    setStep("models", StepStatus.Running(msg))
+                                }
+                                val total = refreshResults?.size ?: 0
+                                val ok = refreshResults?.count { it.value > 0 } ?: 0
+                                setStep("models", StepStatus.Done("$ok / $total providers"))
+                            } catch (e: Exception) {
+                                setStep("models", StepStatus.Failed(e.message?.take(80)))
+                            }
+
+                            // Sequential: default-agent generation
+                            setStep("agents", StepStatus.Running())
+                            try {
+                                runDefaultAgentsWithProgress { detail -> setStep("agents", StepStatus.Running(detail)) }
+                                val okCount = generationRows.count { it.second == true }
+                                val total = generationRows.size
+                                setStep("agents", StepStatus.Done("$okCount / $total agents"))
+                            } catch (e: Exception) {
+                                setStep("agents", StepStatus.Failed(e.message?.take(80)))
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            refreshAllError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                        } finally {
+                            refreshAllFinished = true
                         }
-                        progressText = "Restarting…"
-                        kotlinx.coroutines.delay(400)
-                        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                        launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        if (launch != null) context.startActivity(launch)
-                        Runtime.getRuntime().exit(0)
                     }
                 }
             )
@@ -569,6 +825,103 @@ private fun RefreshAction(
             ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
             Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+// ===== Refresh-all full-screen progress =====
+
+/** Status of a single step in the chained Refresh all run. */
+private sealed class StepStatus {
+    object Pending : StepStatus()
+    data class Running(val detail: String? = null) : StepStatus()
+    data class Done(val detail: String? = null) : StepStatus()
+    data class Failed(val detail: String? = null) : StepStatus()
+    object Skipped : StepStatus()
+}
+
+private data class RefreshAllStep(
+    val id: String,
+    val label: String,
+    val status: StepStatus = StepStatus.Pending
+)
+
+/** Full-screen progress page used by the Refresh all chain. Lists
+ *  every planned step up front with a status icon + sub-detail, so
+ *  the user can see what's been done, what's running, and what's
+ *  still queued without a modal popup blocking the screen. The
+ *  Restart-app step at the bottom is gated on a button at the foot
+ *  of the screen so the user can review final results before
+ *  killing the process. */
+@Composable
+private fun RefreshAllProgressScreen(
+    steps: List<RefreshAllStep>,
+    overallError: String?,
+    isFinished: Boolean,
+    onRestartNow: () -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "refresh", title = "Refresh all", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+        val done = steps.count { it.status is StepStatus.Done || it.status is StepStatus.Skipped || it.status is StepStatus.Failed }
+        Text(
+            "Step $done / ${steps.size}",
+            fontSize = 12.sp, color = AppColors.TextSecondary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { if (steps.isEmpty()) 0f else done.toFloat() / steps.size },
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            color = AppColors.Orange,
+            trackColor = AppColors.DividerDark
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            steps.forEach { step ->
+                val (icon, statusText, color) = when (val s = step.status) {
+                    StepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
+                    is StepStatus.Running -> Triple("▶", s.detail ?: "running…", AppColors.Orange)
+                    is StepStatus.Done -> Triple("✓", s.detail ?: "done", AppColors.Green)
+                    is StepStatus.Failed -> Triple("✗", s.detail ?: "failed", AppColors.Red)
+                    StepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+                    Text(step.label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    Text(statusText, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 220.dp))
+                }
+            }
+            if (overallError != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Refresh aborted", fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                        Text(overallError, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onRestartNow,
+            enabled = isFinished,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text(if (isFinished) "Restart app" else "Working…", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = onBack,
+            enabled = isFinished,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Back without restart", maxLines = 1, softWrap = false) }
     }
 }
 
