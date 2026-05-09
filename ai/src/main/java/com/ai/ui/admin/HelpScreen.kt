@@ -1327,13 +1327,25 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "internal_prompts_hub" to HelpContent(
         title = "Internal prompts (hub)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under Prompt Management with one card per Internal Prompt category. Each card opens the same list screen pinned to that category — counts show how many entries are in each bucket."),
+            HelpCard("Overview", "Sub-hub under Prompt Management. Three cards: Meta prompts (single CRUD), Fan out/in prompts (forwards to its own sub-hub with five fan-* category CRUDs), and Other internal prompts (fixed list)."),
             HelpCard("Meta prompts", "Summarize, Compare — run on the full report (one final call). category=\"meta\"."),
-            HelpCard("Fan-out prompts", "Run across every pair of report-models (N×(N-1) calls). category=\"fan_out\"."),
-            HelpCard("Fan-in prompts", "Combine the report's responses + their fan-out responses into one final report. Run once on a single picked model. category=\"fan_in\"."),
+            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the five fan-* category CRUDs (fan_out, fan_in, fan-initiator, fan-responder, fan-model). The badge count is the sum across all five buckets."),
             HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
             HelpCard("Tips", "Names need to be unique within a category — \"Compare\" can exist under both meta and fan_in without collision."),
             HelpCard("Related", "Housekeeping → Internal prompts has a one-shot \"Load new prompts from assets/prompts.json\" merge that adds bundled rows you don't yet have.")
+        )
+    ),
+    "fan_in_out_prompts_hub" to HelpContent(
+        title = "Fan out/in prompts (hub)",
+        cards = listOf(
+            HelpCard("Overview", "Sub-sub-hub two levels deep under AI Setup → Prompt management → Internal prompts → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
+            HelpCard("Manage Fan Out prompts", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
+            HelpCard("Manage Fan in, total, prompts", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
+            HelpCard("Manage Fan in, model, Initiator prompts", "category=\"fan-initiator\". Per-model initiator template."),
+            HelpCard("Manage Fan in, model, Responder prompts", "category=\"fan-responder\". Per-model responder template."),
+            HelpCard("Manage Fan in, model, Initiator & Responder prompts", "category=\"fan-model\". Combined initiator + responder template."),
+            HelpCard("Tips", "All five fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — same name can exist in fan_out and fan-initiator without collision."),
+            HelpCard("Related", "Settings → AI Setup → Prompt management → Internal prompts → Fan out/in prompts. Each card opens the same list screen pinned to one category — counts show how many entries are in each bucket.")
         )
     ),
     "internal_prompts" to HelpContent(

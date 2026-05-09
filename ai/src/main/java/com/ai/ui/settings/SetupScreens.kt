@@ -322,10 +322,13 @@ fun PromptsSetupScreen(
     }
 }
 
-/** Sub-hub under Prompt Management that groups the four category-
- *  scoped Internal Prompts CRUDs (Meta / Fan-out / Fan-in / Other
- *  internal). Each card opens the same list screen pinned to one
- *  [com.ai.model.InternalPrompt.category]. */
+/** Sub-hub under Prompt Management that groups the category-scoped
+ *  Internal Prompts CRUDs. Three top-level buckets:
+ *    - Meta prompts (single CRUD)
+ *    - Fan out/in prompts (forwards to its own sub-hub holding the
+ *      five fan-* category CRUDs — fan_out / fan_in / fan-initiator /
+ *      fan-responder / fan-model)
+ *    - Other internal prompts (single fixed-list CRUD) */
 @Composable
 fun InternalPromptsHubScreen(
     aiSettings: Settings,
@@ -333,7 +336,9 @@ fun InternalPromptsHubScreen(
     onBackToHome: () -> Unit,
     /** Set the category that the AI_INTERNAL_PROMPTS list + edit
      *  screens filter on, then navigate to the list. */
-    onOpenInternalPrompts: (String) -> Unit
+    onOpenInternalPrompts: (String) -> Unit,
+    /** Forward to the Fan out/in sub-hub. */
+    onOpenFanInOutHub: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(
@@ -343,16 +348,61 @@ fun InternalPromptsHubScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
+        // Sum of every fan-* bucket — what the new Fan out/in card's
+        // count badge shows so the user can see at a glance how many
+        // templates total live in the sub-hub.
+        val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
+            countByCategory("fan-initiator") + countByCategory("fan-responder") +
+            countByCategory("fan-model")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
-            ModelsSetupNavCard("🔀", "Fan-out prompts", "Run across every pair of report-models", "${countByCategory("fan_out")}",
-                onClick = { onOpenInternalPrompts("fan_out") })
-            ModelsSetupNavCard("🪢", "Fan-in prompts", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
-                onClick = { onOpenInternalPrompts("fan_in") })
+            ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs, combined reports, and per-model variants", "$fanTotal",
+                onClick = onOpenFanInOutHub)
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
+        }
+    }
+}
+
+/** Sub-hub one level deeper, opened from the "Fan out/in prompts"
+ *  card on [InternalPromptsHubScreen]. Holds the five category-
+ *  scoped CRUDs the Fan out / Fan in flow consumes:
+ *    - fan_out                  — per-pair source-response template
+ *    - fan_in                   — combined-report template (one run
+ *      per source agent)
+ *    - fan-initiator            — per-model initiator template
+ *    - fan-responder            — per-model responder template
+ *    - fan-model                — combined initiator + responder
+ *      template */
+@Composable
+fun FanInOutPromptsHubScreen(
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
+    onOpenInternalPrompts: (String) -> Unit
+) {
+    BackHandler { onBack() }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(helpTopic = "fan_in_out_prompts_hub", title = "Fan out/in prompts", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+
+        fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🔀", "Manage Fan Out prompts", "Run across every pair of report-models", "${countByCategory("fan_out")}",
+                onClick = { onOpenInternalPrompts("fan_out") })
+            ModelsSetupNavCard("🪢", "Manage Fan in, total, prompts", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
+                onClick = { onOpenInternalPrompts("fan_in") })
+            ModelsSetupNavCard("🎬", "Manage Fan in, model, Initiator prompts", "Per-model initiator template (category fan-initiator)", "${countByCategory("fan-initiator")}",
+                onClick = { onOpenInternalPrompts("fan-initiator") })
+            ModelsSetupNavCard("💬", "Manage Fan in, model, Responder prompts", "Per-model responder template (category fan-responder)", "${countByCategory("fan-responder")}",
+                onClick = { onOpenInternalPrompts("fan-responder") })
+            ModelsSetupNavCard("🧬", "Manage Fan in, model, Initiator & Responder prompts", "Combined initiator + responder template (category fan-model)", "${countByCategory("fan-model")}",
+                onClick = { onOpenInternalPrompts("fan-model") })
         }
     }
 }

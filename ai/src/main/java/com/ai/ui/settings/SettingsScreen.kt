@@ -31,6 +31,7 @@ enum class SettingsSubScreen {
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_INTERNAL_PROMPTS_HUB,
+    AI_FAN_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
@@ -163,7 +164,17 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
             SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB,
             SettingsSubScreen.AI_EXAMPLE_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
-            SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
+            SettingsSubScreen.AI_FAN_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
+            // Back from a per-category list lands on whichever hub
+            // owns that category — Fan out/in for any of the five
+            // fan-* buckets, the main Internal Prompts hub for meta /
+            // internal. selectedInternalCategory is set when the list
+            // is opened, so it's authoritative here.
+            SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen =
+                if (selectedInternalCategory in setOf("fan_out", "fan_in", "fan-initiator", "fan-responder", "fan-model"))
+                    SettingsSubScreen.AI_FAN_PROMPTS_HUB
+                else
+                    SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS_SETUP,
@@ -319,6 +330,17 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> {
             InternalPromptsHubScreen(
+                aiSettings = aiSettings,
+                onBack = goBack, onBackToHome = onNavigateHome,
+                onOpenInternalPrompts = { cat ->
+                    selectedInternalCategory = cat
+                    currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS
+                },
+                onOpenFanInOutHub = { currentSubScreen = SettingsSubScreen.AI_FAN_PROMPTS_HUB }
+            )
+        }
+        SettingsSubScreen.AI_FAN_PROMPTS_HUB -> {
+            FanInOutPromptsHubScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onOpenInternalPrompts = { cat ->

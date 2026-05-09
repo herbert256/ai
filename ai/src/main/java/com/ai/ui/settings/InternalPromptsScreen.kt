@@ -14,8 +14,15 @@ import androidx.compose.ui.unit.sp
 import com.ai.model.*
 import com.ai.ui.shared.*
 
-/** Categories whose prompts are pure templates (no agent dispatch). */
-private val FAN_CATEGORIES = setOf("fan_out", "fan_in")
+/** Categories whose prompts are pure templates (no agent dispatch).
+ *  All five fan-* categories share the same agent-N/A treatment —
+ *  they're consumed by the Fan out / Fan in flow which already
+ *  resolves the model to run on through its own picker, not via
+ *  [Settings.agents]. */
+private val FAN_CATEGORIES = setOf(
+    "fan_out", "fan_in",
+    "fan-initiator", "fan-responder", "fan-model"
+)
 
 /** Sentinel meaning the run-time picker should ask the user which
  *  model to fire on (the legacy behaviour). Stored verbatim in
@@ -34,6 +41,9 @@ fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
+    "fan-initiator" -> "Fan in, model, Initiator prompts"
+    "fan-responder" -> "Fan in, model, Responder prompts"
+    "fan-model" -> "Fan in, model, Initiator & Responder prompts"
     "internal" -> "Other internal prompts"
     else -> category
 }
