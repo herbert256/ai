@@ -1,6 +1,7 @@
 package com.ai.ui.settings
 
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -289,11 +290,24 @@ fun AgentEditScreen(
                                 isTesting = true; testResult = null; lastTraceFile = null
                                 val key = apiKey.ifBlank { aiSettings.getApiKey(selectedProvider) }
                                 // Snapshot the trace folder so we can identify the file produced by THIS test.
-                                val before = com.ai.data.ApiTracer.getTraceFiles().firstOrNull()?.timestamp ?: 0L
+                                // Trace enumeration parses every file on cold cache — push to IO so a large
+                                // trace dir doesn't hitch the picker animation.
+                                val before = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    com.ai.data.ApiTracer.getTraceFiles().firstOrNull()?.timestamp ?: 0L
+                                }
                                 val error = onTestAiModel(selectedProvider, key, effectiveModel)
-                                testSuccess = error == null; testResult = error ?: "Success"
-                                lastTraceFile = com.ai.data.ApiTracer.getTraceFiles()
-                                    .firstOrNull { it.timestamp > before }?.filename
+                                // Filter the post-test traces by hostname (matches the dispatcher path's
+                                // own filter in fetchModels error reporting). Without the host correlation
+                                // a concurrent flow's trace landing in the same window would hijack the row.
+                                val providerHost = runCatching {
+                                    java.net.URI(selectedProvider.baseUrl).host?.lowercase()
+                                }.getOrNull()
+                                lastTraceFile = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    com.ai.data.ApiTracer.getTraceFiles().firstOrNull {
+                                        it.timestamp > before &&
+                                            (providerHost == null || it.hostname.equals(providerHost, ignoreCase = true))
+                                    }?.filename
+                                }
                                 isTesting = false
                             }
                         },
