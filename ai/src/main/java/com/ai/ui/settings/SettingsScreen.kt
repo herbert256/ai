@@ -72,6 +72,7 @@ fun SettingsScreen(
     onLoadBundledPrompts: () -> Int = { 0 },
     onResetBundledPrompts: () -> Int = { 0 },
     onLoadBundledExamples: () -> Int = { 0 },
+    onNavigateToHelpTopic: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -532,7 +533,8 @@ fun SettingsScreen(
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
         }
         SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {
@@ -565,6 +567,7 @@ fun SettingsScreen(
                     selectedProviderId = svc.id
                     currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                 },
+                onNavigateToHelpTopic = onNavigateToHelpTopic,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }

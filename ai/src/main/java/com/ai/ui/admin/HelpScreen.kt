@@ -2,6 +2,7 @@ package com.ai.ui.admin
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,7 +21,17 @@ private data class HelpCard(val title: String, val body: String)
 private data class HelpContent(val title: String, val cards: List<HelpCard>)
 
 @Composable
-fun HelpScreen(topicId: String? = null, onBack: () -> Unit, onNavigateHome: () -> Unit) {
+fun HelpScreen(
+    topicId: String? = null,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    /** Drill from one help topic into another. Wired by AppNavHost
+     *  to `navController.navigate(NavRoutes.helpForTopic(id))`. Used
+     *  by the home page's Info-providers table; per-topic cards
+     *  don't currently navigate but the hook is here for future
+     *  cross-links. */
+    onNavigateToTopic: (String) -> Unit = {}
+) {
     BackHandler { onBack() }
     val topic = topicId?.takeIf { it.isNotBlank() }?.let { HELP_TOPICS[it] }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -29,14 +40,14 @@ fun HelpScreen(topicId: String? = null, onBack: () -> Unit, onNavigateHome: () -
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
             } else {
-                CompactOverview()
+                CompactOverview(onNavigateToTopic)
             }
         }
     }
 }
 
 @Composable
-private fun CompactOverview() {
+private fun CompactOverview(onNavigateToTopic: (String) -> Unit = {}) {
     HelpSection(
         "Welcome",
         "This app runs AI reports, chats, and dual chats against ${'$'}{AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
@@ -46,6 +57,7 @@ private fun CompactOverview() {
         "Every screen has its own help page. Tap ❓ in the top bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
     HelpIconTable()
+    InfoProviderTable(onNavigateToTopic)
     HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +
@@ -101,7 +113,229 @@ private fun HelpIconTable() {
     }
 }
 
+/** Directory card listing the seven info providers — same set as the
+ *  Sources card on Model Info. Each row drills into the matching
+ *  per-provider help topic via [onNavigateToTopic]. */
+@Composable
+private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
+    val taglines = mapOf(
+        "info_provider_huggingface" to "Model cards · context · license",
+        "info_provider_openrouter" to "Aggregator catalog + per-model specs",
+        "info_provider_litellm" to "BerriAI's model_prices JSON",
+        "info_provider_models_dev" to "Community catalog (LiteLLM fallback)",
+        "info_provider_helicone" to "Pricing-only side product",
+        "info_provider_llm_prices" to "Simon Willison's curated 10-vendor table",
+        "info_provider_artificial_analysis" to "Independent benchmarker (key required)"
+    )
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Third-party services the app reads model metadata + pricing from. Same seven that appear on Model Info → Sources. Tap a row for the details.",
+                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            INFO_PROVIDERS.forEach { ref ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onNavigateToTopic(ref.topicId) }
+                        .padding(vertical = 6.dp)
+                ) {
+                    Text(ref.displayName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = Color.White, modifier = Modifier.width(140.dp))
+                    Text(taglines[ref.topicId].orEmpty(), fontSize = 12.sp,
+                        color = Color(0xFFCCCCCC), lineHeight = 16.sp,
+                        modifier = Modifier.weight(1f))
+                    Text(">", color = AppColors.Blue, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+/** One row in the seven-strong directory of third-party "info
+ *  providers" the app fetches model + pricing data from. The same
+ *  set is surfaced as the Sources card on Model Info; this table is
+ *  the single source of truth that the home Help directory, the
+ *  Source detail page, the External Services / Refresh ℹ icons, and
+ *  the Trace detail's ℹ override all consult.
+ *
+ *  [hostnames] match against `URI.host` of the called URL.
+ *  [urlPathPrefix] disambiguates two providers that share a hostname
+ *  (LiteLLM and llm-prices both live on raw.githubusercontent.com).
+ *  [requiresChatCategoryGate] is true for OpenRouter — it doubles as
+ *  an AppService, so a chat-completion trace shouldn't hijack the
+ *  ℹ; the resolver only matches when the trace category is one of
+ *  the info-fetch categories. */
+data class InfoProviderRef(
+    val topicId: String,
+    val displayName: String,
+    val hostnames: List<String>,
+    val urlPathPrefix: String? = null,
+    val requiresChatCategoryGate: Boolean = false
+)
+
+/** Lookup by topic id — handy for callsites that already know which
+ *  provider they want (Source detail buttons, External Services
+ *  cards). */
+val INFO_PROVIDERS_BY_TOPIC: Map<String, InfoProviderRef> by lazy {
+    INFO_PROVIDERS.associateBy { it.topicId }
+}
+
+internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
+    InfoProviderRef(
+        topicId = "info_provider_huggingface",
+        displayName = "HuggingFace",
+        hostnames = listOf("huggingface.co")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_openrouter",
+        displayName = "OpenRouter",
+        hostnames = listOf("openrouter.ai"),
+        requiresChatCategoryGate = true
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_litellm",
+        displayName = "LiteLLM",
+        hostnames = listOf("raw.githubusercontent.com"),
+        urlPathPrefix = "/BerriAI/litellm/"
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_models_dev",
+        displayName = "models.dev",
+        hostnames = listOf("models.dev")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_helicone",
+        displayName = "Helicone",
+        hostnames = listOf("www.helicone.ai", "helicone.ai")
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_llm_prices",
+        displayName = "llm-prices.com",
+        hostnames = listOf("raw.githubusercontent.com"),
+        urlPathPrefix = "/simonw/llm-prices/"
+    ),
+    InfoProviderRef(
+        topicId = "info_provider_artificial_analysis",
+        displayName = "Artificial Analysis",
+        hostnames = listOf("artificialanalysis.ai")
+    )
+)
+
+/** Categories used by [com.ai.data.PricingCache] when calling the
+ *  catalog sources. Anything else (Chat, Translation, etc.) is an AI
+ *  call, not an info-provider call, even if the hostname matches a
+ *  dual-purpose service like OpenRouter. */
+private val INFO_FETCH_CATEGORIES = setOf("Pricing fetch", "OpenRouter model specs")
+
+/** Resolve a URL to one of the 7 info providers. Matches by host
+ *  first, then disambiguates via [InfoProviderRef.urlPathPrefix] for
+ *  hosts shared by multiple providers (raw.githubusercontent.com).
+ *  Returns null when the URL doesn't belong to any of the 7. */
+fun infoProviderForUrl(url: String?): InfoProviderRef? {
+    if (url.isNullOrBlank()) return null
+    val (host, path) = try {
+        val uri = java.net.URI(url)
+        (uri.host ?: "") to (uri.rawPath ?: "")
+    } catch (_: Exception) { "" to "" }
+    if (host.isBlank()) return null
+    return INFO_PROVIDERS.firstOrNull { ref ->
+        ref.hostnames.any { it.equals(host, ignoreCase = true) } &&
+            (ref.urlPathPrefix == null || path.startsWith(ref.urlPathPrefix))
+    }
+}
+
+/** Resolve a captured trace's URL + category to one of the 7
+ *  providers. For dual-purpose services (OpenRouter), the category
+ *  must be one of [INFO_FETCH_CATEGORIES]; otherwise a chat
+ *  completion would hijack the ℹ. */
+fun infoProviderForTrace(url: String?, category: String?): InfoProviderRef? {
+    val ref = infoProviderForUrl(url) ?: return null
+    if (ref.requiresChatCategoryGate && category !in INFO_FETCH_CATEGORIES) return null
+    return ref
+}
+
 private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
+    "info_provider_huggingface" to HelpContent(
+        title = "HuggingFace (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "Hugging Face Inc. runs the largest public registry of machine-learning models, datasets, and demo \"Spaces\". For this app it's a metadata source: we read its model-card API to pull license, context length, capability tags, and the README blurb that surfaces on Model Info."),
+            HelpCard("What we use it for", "Per-model lookups against `https://huggingface.co/api/models/{id}`. Surfaces in Model Info → Sources card under HuggingFace as the raw JSON the call returned. Not a pricing source — HF doesn't publish per-token costs."),
+            HelpCard("Endpoint", "`https://huggingface.co/api/models/{id}` (model card metadata). Anonymous calls are rate-limited; setting an HF token under External Services raises the limit and unlocks gated model metadata."),
+            HelpCard("Freshness", "Lookups are on-demand — each Model Info open re-hits HF for that one model. There's no scheduled refresh because the data is already model-scoped."),
+            HelpCard("Pitfalls", "Gated / private models return 401 without a token. Some \"models\" are duplicate aliases (e.g. fine-tuned forks) — the API returns whatever the user typed, not a canonical id. Long descriptions can balloon the response — we render the JSON tree truncated."),
+            HelpCard("Related", "External Services screen has the API key field. Set the same key under Settings → External Services to reuse it across model-info, embedding, and download flows.")
+        )
+    ),
+    "info_provider_openrouter" to HelpContent(
+        title = "OpenRouter (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "OpenRouter is an aggregator that proxies requests to dozens of upstream AI providers behind a single API. The app uses it in two roles: as an AI provider itself (chat / completion) AND as a metadata + pricing catalog spanning every model OpenRouter routes to."),
+            HelpCard("What we use it for", "Two endpoints: a global catalog with prompt / completion prices, and a per-model specs lookup with capability fields (context, supports vision, supports tools, etc.). Both feed the layered pricing lookup and Model Info."),
+            HelpCard("Endpoint", "Catalog: `https://openrouter.ai/api/v1/models` (auth optional but recommended). Per-model: `https://openrouter.ai/api/v1/models/{id}/endpoints`. API key under External Services raises rate limits."),
+            HelpCard("Freshness", "Refreshed on demand from Refresh → OpenRouter (full catalog) or implicitly when Model Info opens (per-model specs). Catalog refresh disables when no API key is set."),
+            HelpCard("Pitfalls", "OpenRouter quotes the upstream provider's price plus its own margin; numbers can drift from the provider's own published rates. Model ids are slash-prefixed (`anthropic/claude-3-5-sonnet`) — the catalog uses those, while LiteLLM uses bare ids."),
+            HelpCard("Related", "OpenRouter is also an AppService — chat completions go to the same host but carry a different trace category. Used as the cross-provider fallback in PricingCache.getPricing.")
+        )
+    ),
+    "info_provider_litellm" to HelpContent(
+        title = "LiteLLM (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "LiteLLM is an open-source library by BerriAI that abstracts the SDKs of every major AI provider behind one shape. It also ships a curated JSON catalog of every model the maintainers know about, with input/output token prices, context windows, and capability flags."),
+            HelpCard("What we use it for", "We pull the JSON catalog (no SDK / no proxy server — just the data file) and use it as the primary pricing tier in the layered lookup. Also feeds the capability sets (vision, web search, system-message support, …) that drive UI badges."),
+            HelpCard("Endpoint", "`https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json` — a single file, no auth, no rate limit beyond GitHub's. Refreshed on demand from Refresh → LiteLLM."),
+            HelpCard("Freshness", "Updates land in the LiteLLM repo within days of a provider price change — usually faster than the model's own pricing page goes live in the marketing site. Stale by up to a week is normal."),
+            HelpCard("Pitfalls", "Lags `-latest` aliases (model_prices keys are dated ids). New models from less-popular providers can take longer to appear. Keys are bare ids (no provider/ prefix), unlike OpenRouter."),
+            HelpCard("Related", "Sits ahead of OpenRouter in the layered lookup precedence (LiteLLM → models.dev → curated tiers → Override → OpenRouter → Default).")
+        )
+    ),
+    "info_provider_models_dev" to HelpContent(
+        title = "models.dev (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "models.dev is a community-curated catalog of AI models with a single JSON dump endpoint. Slimmer than LiteLLM but covers some entries (and some capability fields) that LiteLLM lags on, so it sits as a per-field fallback in our pricing chain."),
+            HelpCard("What we use it for", "Pricing + capability fallback when LiteLLM has no entry for a model. Same shape as LiteLLM: prompt/completion price + context window + supports-X flags."),
+            HelpCard("Endpoint", "`https://models.dev/api.json` — anonymous, single file. Refreshed on demand from Refresh → models.dev."),
+            HelpCard("Freshness", "Community-driven; updates are less predictable than LiteLLM's. Use both — the layered lookup will pick whichever has a non-null entry first."),
+            HelpCard("Pitfalls", "Coverage gaps for niche providers; some entries lag price changes. The JSON shape sometimes drifts — the parser is forgiving but a totally new field would silently be ignored."),
+            HelpCard("Related", "Sits between LiteLLM and the curated tiers in the layered lookup. Refresh → models.dev recomputes capability snapshots so vision / web-search / reasoning badges pick up changes.")
+        )
+    ),
+    "info_provider_helicone" to HelpContent(
+        title = "Helicone (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "Helicone is an AI observability platform — they run a hosted service that logs LLM API calls. As a side product they publish a public LLM-costs JSON aggregating per-model prices across every provider they instrument."),
+            HelpCard("What we use it for", "Pricing-only fallback. We never send Helicone any data — we only read the public llm-costs endpoint and slot it into the layered lookup."),
+            HelpCard("Endpoint", "`https://www.helicone.ai/api/llm-costs` — anonymous, JSON. Refreshed on demand from Refresh → Helicone."),
+            HelpCard("Freshness", "Publishing cadence varies. Used as a low-priority fallback because Helicone's coverage is biased toward providers their customers actually use; coverage of long-tail models is thinner than LiteLLM's."),
+            HelpCard("Pitfalls", "Pricing only — no capability fields. Helicone's id format sometimes diverges from the provider's own (case differences). The parser falls back gracefully when an id can't be matched."),
+            HelpCard("Related", "Sits in the curated-tiers band of the layered lookup, alongside llm-prices and Artificial Analysis.")
+        )
+    ),
+    "info_provider_llm_prices" to HelpContent(
+        title = "llm-prices.com (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "llm-prices is Simon Willison's hand-curated tracker of frontier-model pricing across roughly 10 vendors (OpenAI, Anthropic, Google, xAI, Meta, Mistral, DeepSeek, …). Smaller scope than LiteLLM but updated quickly when prices change."),
+            HelpCard("What we use it for", "Pricing fallback. Per-vendor JSON files in the simonw/llm-prices GitHub repo; one file per vendor, fetched on demand."),
+            HelpCard("Endpoint", "`https://raw.githubusercontent.com/simonw/llm-prices/main/data/{vendor}.json` (no auth). Refreshed on demand from Refresh → llm-prices.com."),
+            HelpCard("Freshness", "Hand-maintained, often updated within hours of a price announcement. Coverage is intentionally narrow — it's a curated hot-list of frontier models, not a complete catalog."),
+            HelpCard("Pitfalls", "Only covers ~10 vendors. Models from anything else won't be found here. The repo's data shape is stable but small schema drifts are possible — we tolerate missing fields."),
+            HelpCard("Related", "Curated-tier sibling of Helicone and Artificial Analysis. Frequently the freshest source for the big-3 frontier models.")
+        )
+    ),
+    "info_provider_artificial_analysis" to HelpContent(
+        title = "Artificial Analysis (info provider)",
+        cards = listOf(
+            HelpCard("Overview", "Artificial Analysis is an independent benchmarking company. They publish curated model metadata + pricing alongside their own latency / quality benchmarks. We use only the metadata + pricing slice."),
+            HelpCard("What we use it for", "Pricing + capability fallback in the layered lookup. Their dataset is hand-curated and tends to align well with the provider's own pricing page."),
+            HelpCard("Endpoint", "`https://artificialanalysis.ai/api/v2/data/llms/models` — requires an API key set under External Services. Refreshed on demand from Refresh → Artificial Analysis (button disabled until the key is set)."),
+            HelpCard("Freshness", "Updates are reasonably timely — they instrument the providers themselves, so price-change detection is part of their workflow. Not as fast as llm-prices for the very-new-frontier models."),
+            HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
+            HelpCard("Related", "External Services holds the AA API key. Curated-tier sibling of Helicone and llm-prices.")
+        )
+    ),
     "reports_hub" to HelpContent(
         title = "AI Reports",
         cards = listOf(

@@ -828,6 +828,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT
             )
         }
@@ -838,17 +840,25 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_REFRESH
             )
         }
         composable(NavRoutes.HELP) {
-            HelpScreen(onBack = safePopBack, onNavigateHome = navigateHome)
+            HelpScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
+            )
         }
         composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
             val topicId = try {
                 java.net.URLDecoder.decode(entry.arguments?.getString("topicId") ?: "", "UTF-8")
             } catch (_: Exception) { "" }
-            HelpScreen(topicId = topicId, onBack = safePopBack, onNavigateHome = navigateHome)
+            HelpScreen(
+                topicId = topicId, onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
+            )
         }
         composable(NavRoutes.TRACE_LIST) {
             TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
@@ -886,7 +896,8 @@ fun AppNavHost(
                 onEditRequest = { navController.navigate(NavRoutes.AI_API_TEST_EDIT) },
                 onNavigateToProvider = { p -> navController.navigate(NavRoutes.settingsProviderEdit(p.id)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onNavigateToEditAgent = { id -> navController.navigate(NavRoutes.settingsAgentEdit(id)) }
+                onNavigateToEditAgent = { id -> navController.navigate(NavRoutes.settingsAgentEdit(id)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
             )
         }
         composable(NavRoutes.SETTINGS_PROVIDER_EDIT) { entry ->
@@ -896,6 +907,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT,
                 initialProviderId = pid)
         }
@@ -906,6 +919,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_AGENT_EDIT,
                 initialEditingAgentId = aid)
         }
@@ -916,6 +931,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT,
                 initialEditingInternalPromptId = pid)
         }
@@ -925,6 +942,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_AGENTS)
         }
         composable(NavRoutes.SETTINGS_FLOCKS) {
@@ -933,6 +952,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_FLOCKS)
         }
         composable(NavRoutes.SETTINGS_SWARMS) {
@@ -941,6 +962,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_SWARMS)
         }
         composable(NavRoutes.SETTINGS_INTERNAL_PROMPTS_BY_CATEGORY) { entry ->
@@ -952,6 +975,8 @@ fun AppNavHost(
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS,
                 initialInternalPromptCategory = cat)
         }
@@ -975,6 +1000,7 @@ fun SettingsScreenNav(
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToProviderAdmin: () -> Unit = {},
+    onNavigateToHelpTopic: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -1004,6 +1030,7 @@ fun SettingsScreenNav(
         onLoadBundledPrompts = { viewModel.loadBundledInternalPrompts() },
         onResetBundledPrompts = { viewModel.resetInternalPromptsFromAssets() },
         onLoadBundledExamples = { viewModel.loadBundledExamplePrompts() },
+        onNavigateToHelpTopic = onNavigateToHelpTopic,
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,

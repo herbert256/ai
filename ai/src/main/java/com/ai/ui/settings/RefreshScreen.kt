@@ -40,6 +40,7 @@ fun RefreshScreen(
      *  progress screen's "Failed providers" list so the user can jump
      *  straight to the provider whose key / model needs fixing. */
     onOpenProvider: (AppService) -> Unit = {},
+    onNavigateToHelpTopic: (String) -> Unit = {},
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -780,37 +781,49 @@ fun RefreshScreen(
                 label = "OpenRouter",
                 description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
                 enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
-                onClick = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } }
+                onClick = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
+                helpTopic = "info_provider_openrouter",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
             RefreshAction(
                 label = "LiteLLM",
                 description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
                 enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } }
+                onClick = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
+                helpTopic = "info_provider_litellm",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
             RefreshAction(
                 label = "models.dev",
                 description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
                 enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } }
+                onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
+                helpTopic = "info_provider_models_dev",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
             RefreshAction(
                 label = "Helicone",
                 description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
                 enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } }
+                onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } },
+                helpTopic = "info_provider_helicone",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
             RefreshAction(
                 label = "llm-prices.com",
                 description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
                 enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } }
+                onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
+                helpTopic = "info_provider_llm_prices",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
             RefreshAction(
                 label = "Artificial Analysis",
                 description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
                 enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
-                onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } }
+                onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
+                helpTopic = "info_provider_artificial_analysis",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
             )
 
             // Per-provider work (depends on the catalogs above).
@@ -842,7 +855,13 @@ private fun RefreshAction(
     label: String,
     description: String,
     enabled: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    /** When set, an ℹ icon appears on the description row that
+     *  navigates to the matching info-provider help topic. Null for
+     *  rows that aren't info providers (Providers / Models / Default
+     *  agents). */
+    helpTopic: String? = null,
+    onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -855,7 +874,14 @@ private fun RefreshAction(
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()
             ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.fillMaxWidth())
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+                if (helpTopic != null) {
+                    IconButton(onClick = { onNavigateToHelpTopic(helpTopic) }, modifier = Modifier.size(28.dp)) {
+                        Text("ℹ️", fontSize = 14.sp)
+                    }
+                }
+            }
         }
     }
 }

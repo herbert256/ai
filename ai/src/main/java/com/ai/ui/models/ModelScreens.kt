@@ -527,7 +527,19 @@ fun ModelInfoScreen(
     var isAiLoading by remember { mutableStateOf(false) }
     var showAgentEdit by remember { mutableStateOf(false) }
     // null when the raw-view overlay isn't shown; otherwise (title, json) for the source.
-    var rawView by remember { mutableStateOf<Pair<String, String>?>(null) }
+    /** State for the raw-info detail overlay opened from a Source
+     *  button. When [provider] is non-null the overlay renders the
+     *  restructured Source-detail layout (fixed "Info provider"
+     *  title + green provider name + dim called URL); the "Show all"
+     *  combined view leaves [provider] null and falls back to the
+     *  legacy title-only shape. */
+    data class RawView(
+        val title: String,
+        val body: String,
+        val provider: com.ai.ui.admin.InfoProviderRef? = null,
+        val calledUrl: String? = null
+    )
+    var rawView by remember { mutableStateOf<RawView?>(null) }
 
     // Trace count + usage entry — loaded off the main thread because
     // ApiTracer.getTraceFiles() may parse every captured trace file
@@ -569,8 +581,12 @@ fun ModelInfoScreen(
     // Full-screen overlay rendering the raw JSON for one of the three
     // catalog sources (HuggingFace, OpenRouter, LiteLLM). Returns to
     // Model Info on back.
-    rawView?.let { (title, body) ->
-        ModelRawInfoScreen(title = title, body = body, onBack = { rawView = null }, onNavigateHome = onNavigateHome)
+    rawView?.let { rv ->
+        ModelRawInfoScreen(
+            title = rv.title, body = rv.body,
+            provider = rv.provider, calledUrl = rv.calledUrl,
+            onBack = { rawView = null }, onNavigateHome = onNavigateHome
+        )
         return
     }
 
@@ -839,7 +855,11 @@ fun ModelInfoScreen(
                                     Button(
                                         onClick = {
                                             val body = info?.huggingFaceInfo?.let { gson.toJson(it) } ?: "(no HuggingFace data)"
-                                            rawView = "HuggingFace · $modelName" to body
+                                            rawView = RawView(
+                                                title = "HuggingFace · $modelName", body = body,
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_huggingface"],
+                                                calledUrl = "https://huggingface.co/api/models/$modelName"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
@@ -848,7 +868,11 @@ fun ModelInfoScreen(
                                     Button(
                                         onClick = {
                                             val body = info?.openRouterInfo?.let { gson.toJson(it) } ?: "(no OpenRouter data)"
-                                            rawView = "OpenRouter · $modelName" to body
+                                            rawView = RawView(
+                                                title = "OpenRouter · $modelName", body = body,
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_openrouter"],
+                                                calledUrl = "https://openrouter.ai/api/v1/models/$modelName/endpoints"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
@@ -856,7 +880,11 @@ fun ModelInfoScreen(
                                     ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = {
-                                            rawView = "LiteLLM · $modelName" to (liteLLMRaw ?: "(no LiteLLM data)")
+                                            rawView = RawView(
+                                                title = "LiteLLM · $modelName", body = liteLLMRaw ?: "(no LiteLLM data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_litellm"],
+                                                calledUrl = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
@@ -864,7 +892,11 @@ fun ModelInfoScreen(
                                     ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = {
-                                            rawView = "models.dev · $modelName" to (modelsDevRaw ?: "(no models.dev data)")
+                                            rawView = RawView(
+                                                title = "models.dev · $modelName", body = modelsDevRaw ?: "(no models.dev data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_models_dev"],
+                                                calledUrl = "https://models.dev/api.json"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.Green else AppColors.Red),
@@ -874,7 +906,11 @@ fun ModelInfoScreen(
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Button(
                                         onClick = {
-                                            rawView = "Helicone · $modelName" to (heliconeRaw ?: "(no Helicone data)")
+                                            rawView = RawView(
+                                                title = "Helicone · $modelName", body = heliconeRaw ?: "(no Helicone data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_helicone"],
+                                                calledUrl = "https://www.helicone.ai/api/llm-costs"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.Green else AppColors.Red),
@@ -882,7 +918,11 @@ fun ModelInfoScreen(
                                     ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = {
-                                            rawView = "llm-prices.com · $modelName" to (llmPricesRaw ?: "(no llm-prices data)")
+                                            rawView = RawView(
+                                                title = "llm-prices.com · $modelName", body = llmPricesRaw ?: "(no llm-prices data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_llm_prices"],
+                                                calledUrl = "https://raw.githubusercontent.com/simonw/llm-prices/main/data/${provider.id.lowercase()}.json"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.Green else AppColors.Red),
@@ -890,7 +930,11 @@ fun ModelInfoScreen(
                                     ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = {
-                                            rawView = "Artificial Analysis · $modelName" to (aaRaw ?: "(no Artificial Analysis data)")
+                                            rawView = RawView(
+                                                title = "Artificial Analysis · $modelName", body = aaRaw ?: "(no Artificial Analysis data)",
+                                                provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_artificial_analysis"],
+                                                calledUrl = "https://artificialanalysis.ai/api/v2/data/llms/models"
+                                            )
                                         },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.Green else AppColors.Red),
@@ -915,7 +959,7 @@ fun ModelInfoScreen(
                                         val body = sections.joinToString("\n\n") { (label, raw) ->
                                             "=== $label ===\n${raw ?: "(no $label data)"}"
                                         }
-                                        rawView = "All sources · $modelName" to body
+                                        rawView = RawView(title = "All sources · $modelName", body = body)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
@@ -1329,13 +1373,43 @@ private fun ModelInfoRow(label: String, value: String) {
 private fun ModelRawInfoScreen(
     title: String,
     body: String,
+    /** Set for the seven info-provider Source buttons. Triggers the
+     *  restructured layout: fixed "Info provider" title bar with the
+     *  provider's help topic wired to the ❓ icon, green provider
+     *  name + dim called-URL line above the JSON card. The "Show
+     *  all" combined view leaves this null and falls back to the
+     *  legacy title-only shape. */
+    provider: com.ai.ui.admin.InfoProviderRef? = null,
+    calledUrl: String? = null,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val annotated = remember(body) { colorizeJson(body) }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "model_raw", title = title, onBackClick = onBack)
+        TitleBar(
+            helpTopic = provider?.topicId ?: "model_raw",
+            title = if (provider != null) "Info provider" else title,
+            onBackClick = onBack
+        )
+        if (provider != null) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                provider.displayName,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+            calledUrl?.let { url ->
+                Text(
+                    url,
+                    fontSize = 11.sp, color = Color.White, fontFamily = FontFamily.Monospace,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         Card(
             colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),

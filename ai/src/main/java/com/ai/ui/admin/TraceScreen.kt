@@ -514,7 +514,8 @@ fun TraceDetailScreen(
     onEditRequest: () -> Unit,
     onNavigateToProvider: (AppService) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onNavigateToEditAgent: (String) -> Unit = {}
+    onNavigateToEditAgent: (String) -> Unit = {},
+    onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -663,15 +664,27 @@ fun TraceDetailScreen(
         )
     }
 
-    // ℹ Info target: jump straight to Model Info when the trace has
-    // a model attached; otherwise (e.g. /v1/models list calls) fall
-    // back to the matching Provider edit screen so the user still
-    // has a one-tap deep-link from the trace. Lambda is captured into
-    // a local val so the closure preserves the smart-cast on infoProvider.
+    // ℹ Info target. Order:
+    //  1. The trace's URL maps to one of the seven info providers
+    //     (LiteLLM / models.dev / Helicone / llm-prices / AA /
+    //     OpenRouter pricing fetch / HuggingFace) → open that
+    //     provider's help topic. The resolver gates the
+    //     dual-purpose host (OpenRouter) by category so chat-completion
+    //     traces don't hijack the icon.
+    //  2. The trace has a captured model + an AppService match → open
+    //     Model Info for that pair.
+    //  3. The trace has only an AppService match (e.g. /v1/models
+    //     list call) → open the Provider edit screen.
+    //  4. None of the above → no ℹ icon.
+    val infoProviderHelp = remember(t?.request?.url, t?.category) {
+        com.ai.ui.admin.infoProviderForTrace(t?.request?.url, t?.category)
+    }
     val onInfoAction: (() -> Unit)? = run {
+        val help = infoProviderHelp
         val p = infoProvider
         val m = infoTraceModel
         when {
+            help != null -> ({ onNavigateToHelpTopic(help.topicId) })
             p != null && m != null -> ({ onNavigateToModelInfo(p, m) })
             p != null -> ({ onNavigateToProvider(p) })
             else -> null

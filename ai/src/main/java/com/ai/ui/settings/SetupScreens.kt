@@ -556,7 +556,10 @@ fun ExternalServicesScreen(
     onSaveOpenRouterApiKey: (String) -> Unit,
     onSaveArtificialAnalysisApiKey: (String) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** Open the per-info-provider help topic. Each card's ℹ icon
+     *  routes through this; AppNavHost wires it to the help nav. */
+    onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     var hfKey by remember { mutableStateOf(huggingFaceApiKey) }
@@ -594,39 +597,63 @@ fun ExternalServicesScreen(
         TitleBar(helpTopic = "external_services", title = "External Services", onBackClick = onBack)
         Spacer(modifier = Modifier.height(16.dp))
 
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth()
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("HuggingFace", fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Used for model information lookup", fontSize = 12.sp, color = AppColors.TextTertiary)
-                OutlinedTextField(
-                    value = hfKey, onValueChange = { hfKey = it },
-                    label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
+            ExternalServiceCard(
+                name = "HuggingFace",
+                description = "Used for model information lookup",
+                topicId = "info_provider_huggingface",
+                value = hfKey, onValueChange = { hfKey = it },
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            ExternalServiceCard(
+                name = "OpenRouter",
+                description = "Used for pricing data and model specifications",
+                topicId = "info_provider_openrouter",
+                value = orKey, onValueChange = { orKey = it },
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            ExternalServiceCard(
+                name = "Artificial Analysis",
+                description = "Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api",
+                topicId = "info_provider_artificial_analysis",
+                value = aaKey, onValueChange = { aaKey = it },
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+        }
+    }
+}
 
-                HorizontalDivider(color = AppColors.DividerDark)
-
-                Text("OpenRouter", fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Used for pricing data and model specifications", fontSize = 12.sp, color = AppColors.TextTertiary)
-                OutlinedTextField(
-                    value = orKey, onValueChange = { orKey = it },
-                    label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-
-                HorizontalDivider(color = AppColors.DividerDark)
-
-                Text("Artificial Analysis", fontWeight = FontWeight.Bold, color = Color.White)
-                Text("Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api", fontSize = 12.sp, color = AppColors.TextTertiary)
-                OutlinedTextField(
-                    value = aaKey, onValueChange = { aaKey = it },
-                    label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
+/** One External-Services card: name + ℹ that opens the matching
+ *  info-provider help topic, blurb, and the API-key text field. */
+@Composable
+private fun ExternalServiceCard(
+    name: String,
+    description: String,
+    topicId: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onNavigateToHelpTopic: (String) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(name, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                IconButton(onClick = { onNavigateToHelpTopic(topicId) }, modifier = Modifier.size(28.dp)) {
+                    Text("ℹ️", fontSize = 16.sp)
+                }
             }
+            Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
+            OutlinedTextField(
+                value = value, onValueChange = onValueChange,
+                label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(),
+                singleLine = true, colors = AppColors.outlinedFieldColors()
+            )
         }
     }
 }
