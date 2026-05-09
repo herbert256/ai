@@ -1911,21 +1911,12 @@ private fun ColumnScope.GenerationPhase(
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost + liveTranslationCost
 
-    // Totals banner — at the top of the page so the bottom-line cost
-    // is visible without scrolling. Sums tokens and cents across the
-    // per-agent rows, every persisted meta run (rerank / summarize
-    // / compare / moderation / translate), and any in-flight translation
-    // batch's live state.
+    // Totals — sums tokens and cents across the per-agent rows, every
+    // persisted meta run (rerank / summarize / compare / moderation /
+    // translate), and any in-flight translation batch's live state.
+    // Rendered as the last item inside the LazyColumn below so the
+    // layout matches the rest of the rows.
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
-    if (showTotals) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Total: $totalInputTokens/$totalOutputTokens tok", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-            Text("${formatCents(totalCost)} ¢", fontSize = 12.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-        }
-    }
 
     // Progress is in-flight UI: shown only while at least one agent is
     // still pending. Drops out once every agent finishes (or in
@@ -2245,6 +2236,33 @@ private fun ColumnScope.GenerationPhase(
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
 
+        // Footer total row — visually matches the agent rows above:
+        // [icon 24dp][type cell][label weight 1f][cost on right].
+        // Σ stands in for the per-row status icon; the type cell reads
+        // "total" to keep the column alignment.
+        if (showTotals) {
+            item(key = "footer-total") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Σ", fontSize = 16.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                    RowTypeCell("total")
+                    Text(
+                        "$totalInputTokens / $totalOutputTokens tok",
+                        fontSize = 13.sp, color = AppColors.Blue,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // No "¢" suffix here so the right-hand column
+                    // aligns with the per-row cost cells, which print
+                    // formatCents(cost) raw.
+                    Text(
+                        formatCents(totalCost),
+                        fontSize = 10.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
     }
 
 }
