@@ -23,6 +23,8 @@ import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
 import java.text.SimpleDateFormat
@@ -31,6 +33,18 @@ import java.util.Locale
 
 private fun exportTimestamp(): String =
     SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
+
+// Drop-in shape for assets/prompts.json — no id field (the seed
+// loader assigns fresh UUIDs on read). Used by both the standalone
+// prompts.json export and the All-bundle's "prompts" section.
+private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf(
+    "name" to p.name,
+    "title" to p.title,
+    "reference" to p.reference,
+    "category" to p.category,
+    "agent" to p.agent,
+    "text" to p.text
+)
 
 // RFC-4180 minimal CSV row parser. Pairs with the `csvField` writer:
 // a field is unquoted unless it starts with `"`, in which case the
@@ -125,18 +139,50 @@ fun ImportExportScreen(
         // Drop-in shape for assets/prompts.json — top-level array of
         // {name, title, reference, category, agent, text} objects, no
         // ids (the seed loader assigns fresh UUIDs on read).
-        val payload = aiSettings.internalPrompts.map {
-            linkedMapOf(
-                "name" to it.name,
-                "title" to it.title,
-                "reference" to it.reference,
-                "category" to it.category,
-                "agent" to it.agent,
-                "text" to it.text
-            )
-        }
+        val payload = aiSettings.internalPrompts.map { promptEntry(it) }
         writeToUri(uri, createAppGson(prettyPrint = true).toJson(payload))
         Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
+    // "All" bundle: single JSON file carrying every section the
+    // individual buttons would have written. Structure:
+    //   { "apiKeys": {<keys-json>}, "costs": [...], "providers": [...], "prompts": [...] }
+    // Each section is the same payload the matching individual export
+    // produces, so the importer can hand each one to its existing
+    // handler without a separate schema. costs are converted from CSV
+    // to a JSON array since the bundle is JSON-only.
+    val exportAllLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val gson = createAppGson(prettyPrint = true)
+        val bundle = JsonObject()
+        bundle.add(
+            "apiKeys",
+            JsonParser.parseString(buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey))
+        )
+        val costsArr = JsonArray()
+        val manual = PricingCache.getAllManualPricing(context)
+        manual.forEach { (key, pricing) ->
+            val parts = key.split(":", limit = 2)
+            val obj = JsonObject().apply {
+                addProperty("provider", parts[0])
+                addProperty("model", parts.getOrElse(1) { "" })
+                addProperty("inputPerMillion", pricing.promptPrice * 1_000_000)
+                addProperty("outputPerMillion", pricing.completionPrice * 1_000_000)
+            }
+            costsArr.add(obj)
+        }
+        bundle.add("costs", costsArr)
+        val providers = ProviderRegistry.getCustomProviders()
+        bundle.add("providers", gson.toJsonTree(providers))
+        val prompts = aiSettings.internalPrompts.map { promptEntry(it) }
+        bundle.add("prompts", gson.toJsonTree(prompts))
+        writeToUri(uri, gson.toJson(bundle))
+        val keysCount = bundle.getAsJsonObject("apiKeys").size()
+        Toast.makeText(
+            context,
+            "Bundle exported ($keysCount keys, ${manual.size} costs, ${providers.size} providers, ${prompts.size} prompts)",
+            Toast.LENGTH_LONG
+        ).show()
     }
 
     // RFC-4180 minimal CSV field escape: wrap in double quotes when the
@@ -318,6 +364,75 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Updated $n internal prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "all" -> {
+                // All-bundle: { apiKeys, costs, providers, prompts }.
+                // Each section is optional; missing or malformed sections
+                // are skipped, present ones are dispatched through the
+                // same logic the standalone importers use. Settings
+                // updates are folded together (keys + prompts) so the
+                // single onSave at the end carries both.
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (root == null) {
+                    Toast.makeText(context, "Bundle is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val parts = mutableListOf<String>()
+                var working = aiSettings
+
+                root.getAsJsonObject("apiKeys")?.let { keysObj ->
+                    try {
+                        val res = applyApiKeysJson(keysObj.toString(), working)
+                        if (res != null) {
+                            res.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
+                            res.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
+                            res.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
+                            working = res.settings
+                            parts.add("${res.imported} keys")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("ImportExport", "Bundle apiKeys section failed: ${e.message}")
+                    }
+                }
+
+                root.getAsJsonArray("costs")?.let { arr ->
+                    var imported = 0
+                    arr.forEach { el ->
+                        val o = (el as? JsonObject) ?: return@forEach
+                        val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                        val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                        val inp = o.get("inputPerMillion")?.takeIf { it.isJsonPrimitive }?.asDouble?.div(1_000_000) ?: return@forEach
+                        val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive }?.asDouble?.div(1_000_000) ?: return@forEach
+                        val provider = AppService.findById(provId) ?: return@forEach
+                        if (model.isNotBlank()) {
+                            PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                        }
+                    }
+                    if (imported > 0) parts.add("$imported costs")
+                }
+
+                root.getAsJsonArray("providers")?.let { arr ->
+                    val wrapped = JsonObject().apply { add("providers", arr) }
+                    val n = ProviderRegistry.upsertFromJson(wrapped.toString())
+                    if (n > 0) parts.add("$n providers")
+                }
+
+                root.getAsJsonArray("prompts")?.let { arr ->
+                    val pair = com.ai.data.InternalPromptSeed.upsertFromJson(arr.toString(), working.internalPrompts)
+                    if (pair != null) {
+                        working = working.copy(internalPrompts = pair.first)
+                        if (pair.second > 0) parts.add("${pair.second} prompts")
+                    }
+                }
+
+                if (working !== aiSettings) onSave(working)
+                Toast.makeText(
+                    context,
+                    if (parts.isEmpty()) "Bundle had no recognised sections" else "Imported: " + parts.joinToString(", "),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
@@ -351,6 +466,13 @@ fun ImportExportScreen(
                             exportPromptsJsonLauncher.launch("prompts.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    // "All": single JSON file bundling the four sections
+                    // above. Round-trips through the matching All import.
+                    OutlinedButton(onClick = {
+                        exportAllLauncher.launch("ai_bundle-${exportTimestamp()}.json")
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
                 }
             }
 
@@ -377,6 +499,11 @@ fun ImportExportScreen(
                             importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    OutlinedButton(onClick = {
+                        importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
                 }
             }
 
@@ -384,7 +511,7 @@ fun ImportExportScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "One row per (provider, model). Two empty columns up front for a new override; the rest show every tier's \$/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows already covered by any catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter). Fill in the two override columns and re-import via Import manual changed costs — only rows with values are applied.",
+                        "CSV showing every catalog tier's \$/M-token price per (provider, model). Fill the two leading override columns and re-import — only rows with values apply. Filtered drops rows already covered by a catalog tier.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
