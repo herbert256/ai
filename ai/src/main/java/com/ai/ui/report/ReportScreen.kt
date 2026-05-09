@@ -1960,13 +1960,16 @@ private fun ColumnScope.GenerationPhase(
     // the scroll-to-top fires fresh per report open and doesn't
     // disturb later interaction.
     val resultListState = androidx.compose.foundation.lazy.rememberLazyListState()
-    // Scroll to the top on report open. The previous 15 × 100 ms
-    // scrollToItem loop forcibly clobbered any user swipe input in
-    // the first 1.5 s after open. One-shot scroll on report open
-    // is enough — Compose leaves the position alone afterwards
-    // even when secondary / fan out / translation rows arrive
-    // because the list anchors to the visible item.
-    LaunchedEffect(currentReportId) {
+    // Scroll to the top on report open AND every time a new
+    // secondary / fan-out / translation row is appended. New entries
+    // prepend at the top of the list; without the auto-scroll the
+    // user would have to scroll up manually to find them on a long
+    // report. The trigger is the joined per-section size — when a
+    // translation moves from active → summary the trigger still
+    // changes and we re-anchor to the top, which is what the user
+    // wants to see.
+    val newRowTrigger = "${secondaryRuns.size}|${fanOutSummaries.size}|${activeTranslationRuns.size}|${translationRunSummaries.size}"
+    LaunchedEffect(currentReportId, newRowTrigger) {
         if (currentReportId == null) return@LaunchedEffect
         resultListState.scrollToItem(0)
     }
