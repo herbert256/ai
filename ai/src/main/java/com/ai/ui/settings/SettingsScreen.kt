@@ -171,7 +171,7 @@ fun SettingsScreen(
             // internal. selectedInternalCategory is set when the list
             // is opened, so it's authoritative here.
             SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen =
-                if (selectedInternalCategory in setOf("fan_out", "fan_in", "fan-in-i", "fan-in-r", "fan-in-m"))
+                if (selectedInternalCategory in setOf("fan_out", "fan_in", "fan_in_i", "fan_in_r", "fan_in_m"))
                     SettingsSubScreen.AI_FAN_PROMPTS_HUB
                 else
                     SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
