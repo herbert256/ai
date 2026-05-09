@@ -3,8 +3,11 @@ package com.ai.ui.report
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -230,6 +233,19 @@ private fun ReportsViewerScreenLoaded(
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.sortedBy { it.agentName.lowercase() }
     }
     var selectedAgentId by remember { mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.agentId) }
+    var showOnePage by rememberSaveable { mutableStateOf(false) }
+    if (showOnePage) {
+        OnePageReportView(
+            report = report,
+            agentsWithResults = agentsWithResults,
+            translationByTarget = translationByTarget,
+            langTabs = langTabs,
+            selectedLangKey = selectedLangKey,
+            onSelectLang = { selectedLangKey = it },
+            onBack = { showOnePage = false }
+        )
+        return
+    }
     val selectedReportAgent = selectedAgentId?.let { id -> report.agents.find { it.agentId == id } }
     val scrollState = rememberScrollState()
     LaunchedEffect(selectedAgentId) { scrollState.scrollTo(0) }
@@ -360,6 +376,108 @@ private fun ReportsViewerScreenLoaded(
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No analysis available", color = AppColors.TextSecondary, fontSize = 16.sp)
                 }
+            }
+        }
+        if (agentsWithResults.isNotEmpty()) {
+            Button(
+                onClick = { showOnePage = true },
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) { Text("View in one page", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
+/** Full-screen overlay launched from the "View in one page" button
+ *  on the Model response view. Stitches the prompt + every
+ *  successful agent's response into one scrollable page so the user
+ *  can read the whole report without flipping the dropdown. Honors
+ *  the language picker — when a translation is selected the prompt
+ *  and per-agent bodies render their translated copies.
+ *
+ *  LazyColumn (not verticalScroll) — each agent body can be tens of
+ *  KB on long reports, and verticalScroll doesn't virtualise. */
+@Composable
+private fun OnePageReportView(
+    report: Report,
+    agentsWithResults: List<ReportAgent>,
+    translationByTarget: Map<String, String>,
+    langTabs: List<LangTab>,
+    selectedLangKey: String,
+    onSelectLang: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val titleText = report.title.ifBlank { "Report" }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TitleBar(
+            helpTopic = "content_view",
+            title = if (foldSubject) titleText else "View in one page",
+            onBackClick = onBack,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
+        )
+        if (!foldSubject) {
+            Text(
+                text = titleText,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+        }
+        LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
+        val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)
+        ) {
+            item(key = "prompt") {
+                Text("Prompt", fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(4.dp))
+                if (displayPrompt.isBlank()) {
+                    Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                } else {
+                    Text(displayPrompt, fontSize = 13.sp, color = Color.White, lineHeight = 18.sp)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = AppColors.DividerDark)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            items(agentsWithResults, key = { it.agentId }) { agent ->
+                val provName = AppService.findById(agent.provider)?.id ?: agent.provider
+                val label = com.ai.ui.shared.modelLabel(provName, agent.model, separator = " / ")
+                val translated = translationByTarget["AGENT:${agent.agentId}"]
+                val rawBody = translated ?: agent.responseBody.orEmpty()
+                val conclusion = extractTagContent(rawBody, "conclusion")
+                val motivation = extractTagContent(rawBody, "motivation")
+                val strippedBody = if (conclusion != null || motivation != null)
+                    rawBody.replace(conclusionTagRegex, "").replace(motivationTagRegex, "").trim()
+                else rawBody
+
+                Text(label, fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(4.dp))
+                if (conclusion != null) {
+                    Text("Conclusion", fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ContentWithThinkSections(analysis = conclusion)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (motivation != null) {
+                    Text("Motivation", fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    ContentWithThinkSections(analysis = motivation)
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (strippedBody.isNotBlank()) {
+                    ContentWithThinkSections(analysis = strippedBody)
+                } else if (conclusion == null && motivation == null) {
+                    Text("(no response)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = AppColors.DividerDark)
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
