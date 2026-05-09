@@ -13,6 +13,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlinx.coroutines.launch
 
 data class TraceRequest(val url: String, val method: String, val headers: Map<String, String>, val body: String?)
 data class TraceResponse(val statusCode: Int, val headers: Map<String, String>, val body: String?)
@@ -119,6 +120,19 @@ object ApiTracer {
             ?: emptyList()
         cachedTraceFiles = list
         list
+    }
+
+    /** Warm the trace-file cache off the calling thread so the first
+     *  [getTraceFiles] call from UI code doesn't pay the streaming-
+     *  parse cost (one JsonReader per file across the whole trace dir).
+     *  Safe to call multiple times — lock + cache check at the top of
+     *  getTraceFiles makes the prewarm idempotent. App startup
+     *  (AppViewModel.init) calls this so the bulk parse never lands
+     *  on a UI dispatcher coroutine. */
+    fun prewarmCache(scope: kotlinx.coroutines.CoroutineScope) {
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            getTraceFiles()
+        }
     }
 
     /** Streaming-reader variant of the metadata extract used by

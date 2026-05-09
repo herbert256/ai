@@ -225,6 +225,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // on the same launch) consistent with the user's last choice
         // rather than always recording.
         ApiTracer.isTracingEnabled = true
+        // Warm the trace-file cache off the main thread so the first
+        // UI-side getTraceFiles() (Trace screen open, agent test 🐞
+        // lookup, fan-out 🐞 lookup) doesn't pay the streaming-parse
+        // cost across the whole trace dir.
+        ApiTracer.prewarmCache(viewModelScope)
         PricingCache.preloadAsync(application, viewModelScope)
         viewModelScope.launch(Dispatchers.IO) {
             val bs = bootstrap(application)
