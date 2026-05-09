@@ -752,6 +752,17 @@ fun ModelInfoScreen(
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null
         )
+        // Subject of the page (consistent with Single result, Translation
+        // run detail, Trace detail, …) — green sub-header just below
+        // the static title. Provider link moved to its own card below
+        // Capabilities so this header is purely the model name.
+        Text(
+            text = modelName,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+        )
 
         when {
             isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -773,25 +784,11 @@ fun ModelInfoScreen(
                     }
                 }
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // Model name header. The 🐞 ladybug + the dedicated
-                    // "API Traces" card both moved to the title-bar
-                    // 🐞 icon — same destination, single entry point.
-                    item {
-                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
-                            Row(
-                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    Text(
-                                        provider.id, fontSize = 14.sp, color = AppColors.Blue,
-                                        modifier = Modifier.clickable { onNavigateToProviderEdit(provider) }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    // Model name moved to the green sub-header above the
+                    // LazyColumn. The 🐞 ladybug + the dedicated "API
+                    // Traces" card both live behind the title-bar 🐞
+                    // icon now. Provider link gets its own card just
+                    // below Capabilities (further down).
 
                     val hasUsageStats = (usageEntry?.callCount ?: 0) > 0
 
@@ -1150,6 +1147,22 @@ fun ModelInfoScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                                 ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+                            }
+                        }
+                    }
+
+                    // Provider link — moved out of the former top header
+                    // card so the model name can stand alone as the
+                    // page subject. Tapping the row opens the
+                    // provider's edit page in Settings.
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                            modifier = Modifier.fillMaxWidth().clickable { onNavigateToProviderEdit(provider) }
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Provider", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text(provider.id, fontSize = 14.sp, color = Color.White)
                             }
                         }
                     }
