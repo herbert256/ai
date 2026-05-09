@@ -242,7 +242,11 @@ object KnowledgeStore {
         if (!chunksDir.exists()) return
         chunksDir.listFiles { f -> f.extension == "json" }?.forEach { f ->
             runCatching {
-                val arr = gson.fromJson(f.readText(), Array<KnowledgeChunk>::class.java)
+                // Stream straight into Gson — a large source's chunks
+                // file (book-sized PDF, multi-MB text) would otherwise
+                // allocate the full JSON as a String alongside Gson's
+                // parse buffer, doubling peak heap during retrieval.
+                val arr = f.bufferedReader().use { gson.fromJson(it, Array<KnowledgeChunk>::class.java) }
                 arr.forEach(block)
             }
         }

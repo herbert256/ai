@@ -54,7 +54,11 @@ object ChatHistoryManager {
         return lock.withLock {
             val file = File(dir, "$sessionId.json")
             if (!file.exists()) return null
-            try { gson.fromJson(file.readText(), ChatSession::class.java) }
+            // Stream the file straight into Gson via reader() instead of
+            // file.readText() + fromJson(String) — avoids holding the
+            // whole JSON document as a String alongside Gson's parse
+            // buffer, which matters for image-heavy sessions.
+            try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
             catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to load: ${e.message}"); null }
         }
     }
@@ -66,7 +70,7 @@ object ChatHistoryManager {
         return lock.withLock {
             cachedSessions?.let { return it }
             val sessions = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
-                try { gson.fromJson(file.readText(), ChatSession::class.java) }
+                try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
                 catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
             }?.sortedByDescending { it.updatedAt } ?: emptyList()
             cachedSessions = sessions
