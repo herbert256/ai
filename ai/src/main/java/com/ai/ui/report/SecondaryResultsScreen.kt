@@ -1792,7 +1792,13 @@ private fun OnePageView(
     }
 
     val modelLabel = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / ")
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    // OnePageView is rendered as an early-return inside the parent
+    // `SecondaryResultsScreen`, which already wraps its body in a
+    // Column with `.fillMaxSize().background(...).padding(16.dp)`.
+    // Adding our own padding here doubled the top inset, pushing the
+    // TitleBar 16dp lower than on every other page. Use a plain
+    // fillMaxSize so we inherit the parent's padding instead.
+    Column(modifier = Modifier.fillMaxSize()) {
         // Full-screen TitleBar replacing the previous inline header.
         // Back arrow / system back closes the page (no separate
         // "Close" button needed). ℹ → Model Info for the active
