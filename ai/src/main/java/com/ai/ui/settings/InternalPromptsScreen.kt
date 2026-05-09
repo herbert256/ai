@@ -246,6 +246,9 @@ fun InternalPromptEditScreen(
                 when (fixedCategory) {
                     "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
                     "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
+                    "fan_in_i" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (the other models' fan-out responses to the active model — same `***Response***` layout as fan-out), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
+                    "fan_in_r" -> "Placeholders: @RESPONDER_PAIRS@ (pairs where the active model is the responder — each pair `***Report*** {other's report}\\n\\n***Response*** {active's fan-out response}`), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
+                    "fan_in_m" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
                     else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary
