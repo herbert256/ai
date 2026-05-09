@@ -551,8 +551,6 @@ fun SettingsScreen(
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSave = onSaveAi,
                 onSaveGeneral = onSaveGeneral,
-                onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
-                onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }

@@ -262,9 +262,6 @@ fun ImportExportScreen(
     artificialAnalysisApiKey: String,
     onSave: (Settings) -> Unit,
     onSaveGeneral: (GeneralSettings) -> Unit,
-    onSaveHuggingFaceApiKey: (String) -> Unit,
-    onSaveOpenRouterApiKey: (String) -> Unit,
-    onSaveArtificialAnalysisApiKey: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -451,9 +448,19 @@ fun ImportExportScreen(
                         Toast.makeText(context, "Expected a JSON object like {\"OPENAI\": \"sk-...\"}", Toast.LENGTH_LONG).show()
                         return@rememberLauncherForActivityResult
                     }
-                    result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
-                    result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
-                    result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
+                    // Batch all three external-service key updates into
+                    // one onSaveGeneral call. Three sequential per-field
+                    // setters each launch a Dispatchers.IO save coroutine
+                    // with their own GeneralSettings snapshot, and on a
+                    // multi-threaded IO dispatcher those writes race —
+                    // last write wins, so two of the three keys ended up
+                    // dropped on a fresh-install import.
+                    val updatedGs = generalSettings.copy(
+                        huggingFaceApiKey = result.huggingFaceApiKey ?: generalSettings.huggingFaceApiKey,
+                        openRouterApiKey = result.openRouterApiKey ?: generalSettings.openRouterApiKey,
+                        artificialAnalysisApiKey = result.artificialAnalysisApiKey ?: generalSettings.artificialAnalysisApiKey
+                    )
+                    if (updatedGs != generalSettings) onSaveGeneral(updatedGs)
                     onSave(result.settings)
                     val msg = "${result.imported} API keys imported" + if (result.skipped > 0) ", ${result.skipped} skipped" else ""
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -613,14 +620,21 @@ fun ImportExportScreen(
                 }
                 val parts = mutableListOf<String>()
                 var working = aiSettings
+                // Fold every GeneralSettings mutation (apiKeys block +
+                // settings block) into a single onSaveGeneral call at
+                // the end so the three external-service writes don't
+                // race on Dispatchers.IO.
+                var workingGs = generalSettings
 
                 root.getAsJsonObject("apiKeys")?.let { keysObj ->
                     try {
                         val res = applyApiKeysJson(keysObj.toString(), working)
                         if (res != null) {
-                            res.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
-                            res.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
-                            res.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
+                            workingGs = workingGs.copy(
+                                huggingFaceApiKey = res.huggingFaceApiKey ?: workingGs.huggingFaceApiKey,
+                                openRouterApiKey = res.openRouterApiKey ?: workingGs.openRouterApiKey,
+                                artificialAnalysisApiKey = res.artificialAnalysisApiKey ?: workingGs.artificialAnalysisApiKey
+                            )
                             working = res.settings
                             parts.add("${res.imported} keys")
                         }
@@ -678,7 +692,7 @@ fun ImportExportScreen(
                 }
 
                 root.getAsJsonObject("settings")?.let { obj ->
-                    onSaveGeneral(applyGeneralSettings(obj, generalSettings))
+                    workingGs = applyGeneralSettings(obj, workingGs)
                     parts.add("settings")
                 }
 
@@ -697,6 +711,7 @@ fun ImportExportScreen(
                     if (n > 0) { working = updated; parts.add("$n system prompts") }
                 }
 
+                if (workingGs != generalSettings) onSaveGeneral(workingGs)
                 if (working !== aiSettings) onSave(working)
                 Toast.makeText(
                     context,
