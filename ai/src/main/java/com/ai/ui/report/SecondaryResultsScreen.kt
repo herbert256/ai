@@ -1127,6 +1127,11 @@ private fun ColumnScope.FanOutDrillInView(
     val queuedCount = (totalPairs - doneCount - erroredCount - runningCount).coerceAtLeast(0)
     val pendingCount = runningCount + queuedCount
 
+    // Confirm dialogs hoisted above the TitleBar so the bar's reload
+    // and delete icons can drive the same flows the in-card buttons
+    // used to.
+    var confirmRerunComplete by remember { mutableStateOf(false) }
+    var confirmFanOutDelete by remember { mutableStateOf(false) }
     // Static "Fan out" page title in the menu bar; the dynamic
     // prompt name + title surfaces as a green sub-header in the body
     // so the user can tell which Fan out prompt this run came from
@@ -1134,7 +1139,9 @@ private fun ColumnScope.FanOutDrillInView(
     TitleBar(
         helpTopic = "secondary_fan_out",
         title = "Fan out",
-        onBackClick = onBack
+        onBackClick = onBack,
+        onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
+        onDelete = { confirmFanOutDelete = true }
     )
     val l1SubHeader = when {
         fanOutPrompt == null -> ""
@@ -1151,6 +1158,14 @@ private fun ColumnScope.FanOutDrillInView(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
+    }
+    if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { onRunFanIn() },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+        ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -1393,21 +1408,11 @@ private fun ColumnScope.FanOutDrillInView(
 
     // Action buttons — collapsed by default so the L1 page leads with
     // the model rows + stats, and the user expands to find the
-    // run-management actions.
-    var confirmRerunComplete by remember { mutableStateOf(false) }
-    var confirmFanOutDelete by remember { mutableStateOf(false) }
+    // run-management actions. The Rerun / Delete actions live on the
+    // TitleBar's reload / delete icons; the Run-a-Fan-in-prompt button
+    // sits above the sub-header at the top of the page.
     Spacer(modifier = Modifier.height(8.dp))
     CollapsibleCard("Actions") {
-        if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
-            Button(
-                onClick = { onRunFanIn() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) {
-                Text("Combine reports and all fan-out responses",
-                    fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
-        }
         Button(
             onClick = { fanOutPrompt?.let { onRestartFailedFanOut(it) } },
             enabled = fanOutPrompt != null && erroredCount > 0,
@@ -1426,17 +1431,6 @@ private fun ColumnScope.FanOutDrillInView(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
         ) { Text("Edit the used Fan out prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { confirmRerunComplete = true },
-            enabled = fanOutPrompt != null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Rerun the complete Fan out", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { confirmFanOutDelete = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-        ) { Text("Delete this Fan out", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
 
     if (confirmRerunComplete) {
