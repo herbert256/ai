@@ -503,7 +503,7 @@ private fun TraceListItem(trace: TraceFileInfo, onClick: () -> Unit) {
 
 // ===== Trace Detail =====
 
-private enum class TraceContentView { ALL, REQ_HEADERS, RSP_HEADERS, REQ_DATA, RSP_DATA }
+private enum class TraceContentView { ALL, GET, REQ_HEADERS, RSP_HEADERS, REQ_DATA, RSP_DATA }
 
 @Composable
 fun TraceDetailScreen(
@@ -577,13 +577,37 @@ fun TraceDetailScreen(
     val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
     val allTreeNodes = remember(rawJson) { if (rawJson.isNotBlank()) parseJsonTree(rawJson) else null }
 
+    // Split the request URL into (path-without-query, list of (k, v))
+    // so the title-line URL never leaks query params (some carry API
+    // keys) and the new "Get" view can render the params separately.
+    val urlParts = remember(t?.request?.url) {
+        val raw = t?.request?.url ?: return@remember "" to emptyList<Pair<String, String>>()
+        val q = raw.indexOf('?')
+        if (q < 0) raw to emptyList()
+        else {
+            val base = raw.substring(0, q)
+            val params = raw.substring(q + 1).split('&').mapNotNull { pair ->
+                if (pair.isBlank()) null
+                else {
+                    val eq = pair.indexOf('=')
+                    if (eq < 0) pair to ""
+                    else pair.substring(0, eq) to pair.substring(eq + 1)
+                }
+            }
+            base to params
+        }
+    }
+    val baseUrl = urlParts.first
+    val queryParams = urlParts.second
+
     // Build content for current view. The on-screen display always
     // shows the raw bytes (including secrets) — the Copy / Share
     // buttons run their own redaction pass before exporting.
-    val displayContent = remember(t, currentView) {
+    val displayContent = remember(t, currentView, queryParams) {
         if (t == null) return@remember ""
         when (currentView) {
             TraceContentView.ALL -> ApiTracer.prettyPrintJson(rawJson)
+            TraceContentView.GET -> queryParams.joinToString("\n") { "${it.first}: ${it.second}" }
             TraceContentView.REQ_HEADERS -> t.request.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
             TraceContentView.RSP_HEADERS -> t.response.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
             TraceContentView.REQ_DATA -> ApiTracer.prettyPrintJson(t.request.body)
@@ -596,6 +620,7 @@ fun TraceDetailScreen(
     // URL query params replaced by "[REDACTED]".
     fun redactedContentFor(view: TraceContentView, trace: ApiTrace): String = when (view) {
         TraceContentView.ALL -> redactedTraceJson(trace)
+        TraceContentView.GET -> queryParams.joinToString("\n") { (k, _) -> "$k: [REDACTED]" }
         TraceContentView.REQ_HEADERS -> com.ai.ui.report.redactHeaders(trace.request.headers)
         TraceContentView.RSP_HEADERS -> com.ai.ui.report.redactHeaders(trace.response.headers)
         TraceContentView.REQ_DATA -> com.ai.ui.report.redactJsonString(trace.request.body)
@@ -638,13 +663,26 @@ fun TraceDetailScreen(
         )
     }
 
+    // ℹ Info target: jump straight to Model Info when the trace has
+    // a model attached; otherwise (e.g. /v1/models list calls) fall
+    // back to the matching Provider edit screen so the user still
+    // has a one-tap deep-link from the trace. Lambda is captured into
+    // a local val so the closure preserves the smart-cast on infoProvider.
+    val onInfoAction: (() -> Unit)? = run {
+        val p = infoProvider
+        val m = infoTraceModel
+        when {
+            p != null && m != null -> ({ onNavigateToModelInfo(p, m) })
+            p != null -> ({ onNavigateToProvider(p) })
+            else -> null
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
             helpTopic = "trace_detail",
             title = "Trace detail", onBackClick = onBack,
-            onInfo = if (infoProvider != null && infoTraceModel != null) {
-                { onNavigateToModelInfo(infoProvider, infoTraceModel) }
-            } else null,
+            onInfo = onInfoAction,
             // 🗑: confirm + delete this trace file, then pop back.
             onDelete = if (t != null) { { showDeleteConfirm = true } } else null,
             // 🔄: stage this trace's request into the API Test edit
@@ -662,24 +700,19 @@ fun TraceDetailScreen(
                 }
             } else null
         )
+        // First line: HTTP status code + path (no query params — they
+        // can leak API keys and live in the dedicated Get view below).
         Text(
-            text = "${t?.hostname ?: "(unknown host)"} · HTTP $statusCode",
-            fontSize = 18.sp, color = AppColors.Green,
+            text = "$statusCode - ${baseUrl.ifBlank { t?.hostname ?: "(unknown)" }}",
+            fontSize = 14.sp, color = AppColors.Green,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
         )
 
-        // URL
-        t?.request?.url?.let { url ->
-            Text(url, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
-
-        // Resolve provider from the request hostname so we can offer a Provider/Model/Agent
-        // shortcut. Provider lookup matches AppService.baseUrl's host to t.hostname; model
-        // comes from the captured trace; agent is matched by (provider, model) — if multiple
-        // agents share the same pair, the first one wins.
+        // Per-trace deep-link: matching Agent only (Provider is
+        // reachable via the title-bar ℹ icon — directly when no
+        // model, or via Model Info → Provider when a model exists).
         val provider = remember(t?.hostname) {
             t?.hostname?.let { host ->
                 AppService.entries.firstOrNull { svc ->
@@ -691,20 +724,13 @@ fun TraceDetailScreen(
             if (provider == null || t?.model == null) null
             else aiSettings.agents.firstOrNull { it.provider.id == provider.id && it.model == t.model }
         }
-        if (provider != null) {
+        if (matchingAgent != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onClick = { onNavigateToProvider(provider) }, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) { Text("Provider", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                if (matchingAgent != null) {
-                    Button(onClick = { onNavigateToEditAgent(matchingAgent.id) }, modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                        contentPadding = PaddingValues(horizontal = 4.dp)
-                    ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
-            }
+            Button(onClick = { onNavigateToEditAgent(matchingAgent.id) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
         if (translationParts != null) {
             Spacer(modifier = Modifier.height(6.dp))
@@ -717,15 +743,18 @@ fun TraceDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // View selector buttons
+        // View selector buttons. The "Get" button only appears when
+        // the request URL carried query parameters — sandwiched
+        // between All and Req Hdr so the order tracks request lifecycle.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            val views = listOf(
-                TraceContentView.ALL to "All",
-                TraceContentView.REQ_HEADERS to "Req Hdr",
-                TraceContentView.RSP_HEADERS to "Rsp Hdr",
-                TraceContentView.REQ_DATA to "Req",
-                TraceContentView.RSP_DATA to "Rsp"
-            )
+            val views = buildList {
+                add(TraceContentView.ALL to "All")
+                if (queryParams.isNotEmpty()) add(TraceContentView.GET to "Get")
+                add(TraceContentView.REQ_HEADERS to "Req Hdr")
+                add(TraceContentView.RSP_HEADERS to "Rsp Hdr")
+                add(TraceContentView.REQ_DATA to "Req")
+                add(TraceContentView.RSP_DATA to "Rsp")
+            }
             views.forEach { (view, label) ->
                 val isActive = currentView == view
                 OutlinedButton(onClick = { currentView = view }, modifier = Modifier.weight(1f),
@@ -749,7 +778,10 @@ fun TraceDetailScreen(
             else -> null
         }
 
+        // GET reuses the header-style key/value renderer — same shape,
+        // just a different source list.
         val headerEntries: List<Pair<String, String>>? = when (currentView) {
+            TraceContentView.GET -> queryParams
             TraceContentView.REQ_HEADERS -> t?.request?.headers?.entries?.map { it.key to it.value }
             TraceContentView.RSP_HEADERS -> t?.response?.headers?.entries?.map { it.key to it.value }
             else -> null

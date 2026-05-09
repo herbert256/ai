@@ -1341,11 +1341,13 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "trace_detail" to HelpContent(
         title = "Trace detail",
         cards = listOf(
-            HelpCard("Overview", "One trace's full request/response. Title shows status code; background turns dark red on >=300. Body content is rendered as a colored JSON tree (auto-expands depth 0 and 1) when valid JSON, otherwise plain text."),
-            HelpCard("Top deep-links", "URL line beneath the title bar (centered, ellipsised). When the hostname resolves to a provider, a Provider button (blue) and possibly an Agent button (indigo, when a matching agent exists) appear. For Translation traces a \"Translation result\" button opens a side-by-side compare view."),
-            HelpCard("View selector", "5 outlined buttons: All / Req Hdr / Rsp Hdr / Req / Rsp. Active button highlights blue. Switching view resets when navigating prev/next."),
+            HelpCard("Overview", "One trace's full request/response. First line: \"<HTTP status> - <url>\" with query params stripped (they can carry API keys — see the Get view). Background turns dark red on >=300. Body content is rendered as a colored JSON tree (auto-expands depth 0 and 1) when valid JSON, otherwise plain text."),
+            HelpCard("Agent button", "Indigo, only when a saved Agent matches the trace's (provider, model) pair. Drills into the agent's edit screen. Provider drill-in lives on the title-bar ℹ instead — directly when there is no model, or via Model Info → Provider when the trace carries a model."),
+            HelpCard("Translation result", "Translation traces (category == Translation) get a side-by-side compare view of the user's text and the model's translation."),
+            HelpCard("View selector", "All / Get / Req Hdr / Rsp Hdr / Req / Rsp. Get is only present when the request URL had query parameters — same renderer as the header views. Active view highlights blue."),
             HelpCard("Bottom action row", "< (prev trace, fixed 36dp width) — Copy — Edit — Share — > (next). Copy and Share use a redacted variant (URL query params, sensitive headers, sensitive JSON keys → [REDACTED]) so secrets don't leave the device. The on-screen tree always shows raw bytes."),
             HelpCard("Edit", "Persists the trace's request body + url + model into eval_prefs, then opens EditApiRequestScreen with that JSON loaded — fast \"replay this request\" path."),
+            HelpCard("Title bar — ℹ", "When the trace has a model: opens Model Info for (provider, model). When the trace has only a provider (e.g. /v1/models list calls): opens the Provider edit screen in AI Setup."),
             HelpCard("Title bar — 🗑", "Confirm dialog → permanently deletes this trace file from disk and pops back to the trace list. Cannot be undone."),
             HelpCard("Title bar — 🔄", "Same plumbing as the bottom-row Edit button — stages the trace's request into eval_prefs and opens EditApiRequestScreen so you can re-fire (and edit on the way)."),
             HelpCard("Tips", "Translation extraction looks for \"TEXT TO TRANSLATE:\" in the user prompt and walks OpenAI / Anthropic / Gemini response shapes to find the assistant text. Best-effort only — null hides the button."),
