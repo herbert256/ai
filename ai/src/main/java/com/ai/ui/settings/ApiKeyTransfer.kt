@@ -26,10 +26,17 @@ data class ApiKeysImportResult(
 class ConfigBundleMistakenForKeysException : RuntimeException()
 
 /** Build the JSON payload written by the "Export API keys" button. The
- *  shape is a flat object: `{"OPENAI": "sk-...", "EXT_HUGGINGFACE":
- *  "hf_..."}`. EXT_-prefixed keys are external-service keys (HF /
- *  OpenRouter / Artificial Analysis) — the prefix avoids collision
- *  with the "HUGGINGFACE" provider id. */
+ *  shape is a flat object: `{"OpenAI": "sk-...", "EXT_HUGGINGFACE":
+ *  "hf_..."}`. Provider keys use the catalog [AppService.displayName]
+ *  (the human-readable label shown in the UI), so a manually-edited
+ *  keys.json reads naturally. EXT_-prefixed keys are external-service
+ *  keys (HF / OpenRouter / Artificial Analysis) — the prefix keeps
+ *  them separate from any provider that happens to share the name.
+ *
+ *  If two providers share a displayName the later-iterated entry
+ *  wins (the JSON object can only carry one value per key). The
+ *  registry doesn't enforce displayName uniqueness; rename one of
+ *  the duplicates before exporting if both keys matter. */
 fun buildApiKeysJson(
     settings: Settings,
     huggingFaceApiKey: String,
@@ -39,7 +46,7 @@ fun buildApiKeysJson(
     val keys = mutableMapOf<String, String>()
     for (service in AppService.entries) {
         val apiKey = settings.getApiKey(service)
-        if (apiKey.isNotBlank()) keys[service.id] = apiKey
+        if (apiKey.isNotBlank()) keys[service.displayName] = apiKey
     }
     if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
     if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
@@ -81,7 +88,13 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
             "HUGGINGFACE" -> { hf = key; imported++ }
             "OPENROUTER_KEY" -> { or = key; imported++ }
             else -> {
-                val service = AppService.findById(id)
+                // Resolve provider by displayName first (the current
+                // export shape), case-insensitive. Fall back to
+                // findById so older keys.json files written before
+                // the displayName switch still import cleanly.
+                val service = AppService.entries.firstOrNull {
+                    it.displayName.equals(id, ignoreCase = true)
+                } ?: AppService.findById(id)
                 if (service != null) { updated = updated.withApiKey(service, key); imported++ } else skipped++
             }
         }
