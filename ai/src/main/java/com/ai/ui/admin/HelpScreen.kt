@@ -45,6 +45,19 @@ private fun CompactOverview() {
         "Every screen has its own help page. Tap ❓ in the top bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
     HelpSection(
+        "Title bar icons",
+        "Every screen's top bar shares the same vocabulary:\n" +
+            "◀ Back — previous screen.\n" +
+            "🏠 Home — returns here from anywhere.\n" +
+            "❓ Help — opens topic-specific help for the current screen.\n" +
+            "ℹ Info — drills into model info or another details target.\n" +
+            "🗑 Trash — destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty.\n" +
+            "🐞 Trace — opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist for the scope.\n" +
+            "🔄 Reload — re-runs the screen's fetch.\n" +
+            "💬 Chat — opens a chat against the current context.\n" +
+            "Icons that aren't relevant to a screen are simply absent — there's nothing to disable."
+    )
+    HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +
             "2. Refresh All — verify keys + fetch model lists.\n" +
@@ -68,21 +81,6 @@ private fun HelpSection(title: String, content: String) {
 }
 
 private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
-    "hub" to HelpContent(
-        title = "AI Hub",
-        cards = listOf(
-            HelpCard("Overview", "Home base for the app. Every other area lives one tap away from here, and tapping the logo at the top opens the most recent report when at least one exists."),
-            HelpCard("AI Reports", "Send one prompt to many models in parallel. Disabled until at least one Agent has been defined under AI Setup → Workers."),
-            HelpCard("AI Chat", "Single-model and dual-model chat sessions. Disabled until at least one Agent has been defined."),
-            HelpCard("AI Knowledge", "Build RAG knowledge bases from files / web pages. Always enabled — KB management doesn't need a configured provider."),
-            HelpCard("AI Models", "Search every fetched model from every active provider. Disabled until at least one Agent exists."),
-            HelpCard("AI Usage", "Token + cost roll-up across reports / chats / secondaries. Disabled when nothing has been run yet (loadUsageStats() is empty)."),
-            HelpCard("AI API Traces", "Hidden entirely when tracing is off in Settings. When tracing is on but no traces exist yet, the row is shown but disabled."),
-            HelpCard("AI Setup / AI Housekeeping / Settings / Help", "Setup edits providers, workers, prompts, local models. Housekeeping is the maintenance hub. Settings is the small per-user toggles. Help opens this page."),
-            HelpCard("Tips", "The logo image itself is clickable when there's at least one saved report — it jumps you straight to the latest. Card heights and logo sizing adapt to the screen so all 9 (or 10) cards fit without scrolling."),
-            HelpCard("Title bar icons", "Every screen's top bar shares the same vocabulary. ◀ Back: previous screen. 🏠 Home: returns here from anywhere. ❓ Help: opens topic-specific help for the current screen. ℹ Info: drills into model info or another details target. 🗑 Trash: destructive scope-specific delete (clear stats, drop trace list, delete report) — only shown when the destructive scope is non-empty. 🐞 Trace: opens API Traces filtered to the current scope (report / model / session) — only shown when tracing is on AND traces exist for the scope. 🔄 Reload: re-runs the screen's fetch. 💬 Chat: opens a chat against the current context. Icons that aren't relevant to a screen are simply absent — there's nothing to disable.")
-        )
-    ),
     "reports_hub" to HelpContent(
         title = "AI Reports",
         cards = listOf(
