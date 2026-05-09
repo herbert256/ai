@@ -347,62 +347,6 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
                 ) { Text("Add Manual Override", maxLines = 1, softWrap = false) }
             }
 
-            // Cleanup card — drops dormant / redundant overrides.
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Cleanup", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            "Drops every manual price override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it.",
-                            fontSize = 11.sp, color = AppColors.TextTertiary
-                        )
-                        Button(
-                            onClick = {
-                                val n = PricingCache.cleanupRedundantManualOverrides(context)
-                                Toast.makeText(
-                                    context,
-                                    if (n == 0) "No redundant overrides to remove" else "Removed $n manual cost override${if (n == 1) "" else "s"}",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                refreshTrigger++
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-                        ) { Text("Cleanup redundant overrides", maxLines = 1, softWrap = false) }
-                    }
-                }
-            }
-
-            // Layered costs card — bulk-edit CSV path.
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Layered costs", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            "CSV showing every catalog tier's \$/M-token price per (provider, model). Fill the two leading override columns and re-import — only rows with values apply. Filtered drops rows already covered by a catalog tier.",
-                            fontSize = 11.sp, color = AppColors.TextTertiary
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = {
-                                exportLayeredAllLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
-                            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                                Text("Export all", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                            }
-                            OutlinedButton(onClick = {
-                                exportLayeredFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
-                            }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                                Text("Export filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                            }
-                        }
-                        OutlinedButton(onClick = {
-                            importLayeredLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
-                        }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                            Text("Import manual changed costs", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                }
-            }
-
             if (manualPricing.isEmpty()) {
                 item {
                     Text("No manual price overrides configured.\nPricing uses automatic lookup: LiteLLM > OpenRouter > Default.",
@@ -439,6 +383,56 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
                             if (provider != null) { PricingCache.removeManualPricing(context, provider, model); refreshTrigger++ }
                         }
                     )
+                }
+            }
+
+            // Footer: maintenance cards. Collapsed by default — the
+            // user's main task on this screen is curating per-row
+            // overrides; cleanup and the bulk CSV flow are occasional.
+            item {
+                CollapsibleCard("Cleanup") {
+                    Text(
+                        "Drops every manual price override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Button(
+                        onClick = {
+                            val n = PricingCache.cleanupRedundantManualOverrides(context)
+                            Toast.makeText(
+                                context,
+                                if (n == 0) "No redundant overrides to remove" else "Removed $n manual cost override${if (n == 1) "" else "s"}",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            refreshTrigger++
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    ) { Text("Cleanup redundant overrides", maxLines = 1, softWrap = false) }
+                }
+            }
+            item {
+                CollapsibleCard("Layered costs") {
+                    Text(
+                        "CSV showing every catalog tier's \$/M-token price per (provider, model). Fill the two leading override columns and re-import — only rows with values apply. Filtered drops rows already covered by a catalog tier.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportLayeredAllLauncher.launch("ai_costs_layered-${exportTimestamp()}.csv")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Export all", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                        OutlinedButton(onClick = {
+                            exportLayeredFilteredLauncher.launch("ai_costs_layered_filtered-${exportTimestamp()}.csv")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Export filtered", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
+                    }
+                    OutlinedButton(onClick = {
+                        importLayeredLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("Import manual changed costs", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
                 }
             }
         }

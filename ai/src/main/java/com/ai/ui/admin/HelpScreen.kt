@@ -1297,10 +1297,10 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "cost_config" to HelpContent(
         title = "Cost Config",
         cards = listOf(
-            HelpCard("Overview", "Per-row Add Manual Override at the top, then a Cleanup card and a Layered costs card lifted from the former Housekeeping → Manual cost overrides screen, then the list of every manual override currently configured."),
+            HelpCard("Overview", "Per-row Add Manual Override at the top, the list of currently configured overrides in the middle, and at the bottom two collapsed maintenance cards (Cleanup and Layered costs) lifted from the former Housekeeping → Manual cost overrides screen. The maintenance cards stay collapsed by default — the main task here is curating per-row overrides; cleanup and bulk CSV are occasional."),
             HelpCard("Add Manual Override", "Green button — opens AddManualOverrideScreen as a full-screen overlay. The single-row form."),
-            HelpCard("Cleanup", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
-            HelpCard("Layered costs · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order."),
+            HelpCard("Cleanup (collapsed)", "Drops every manual override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it."),
+            HelpCard("Layered costs (collapsed) · Export all", "CSV with one row per (provider, model) for every active provider. Two leading override columns are blank; remaining columns show every catalog tier's $/M-token price in run-time precedence order."),
             HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
             HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
