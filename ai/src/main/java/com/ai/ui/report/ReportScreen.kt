@@ -1915,7 +1915,7 @@ private fun ColumnScope.GenerationPhase(
 
     data class DisplayRow(val rowId: String, val displayName: String, val providerDisplay: String, val isNew: Boolean)
     val displayRows: List<DisplayRow> = remember(isStagedMode, staged, selectedAgents, reportsAgentResults, aiSettings) {
-        if (isStagedMode) {
+        val rows = if (isStagedMode) {
             staged.map { m ->
                 val rowId = if (m.type == "agent" && !m.agentId.isNullOrBlank()) m.agentId!!
                             else "swarm:${m.provider.id}:${m.model}"
@@ -1925,7 +1925,7 @@ private fun ColumnScope.GenerationPhase(
                 DisplayRow(rowId, m.model, m.provider.displayName, !reportsAgentResults.containsKey(rowId))
             }
         } else {
-            selectedAgents.sorted().map { agentId ->
+            selectedAgents.map { agentId ->
                 val result = reportsAgentResults[agentId]
                 val name = result?.let { resolveModelForResult(agentId, it) }
                     ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
@@ -1940,6 +1940,7 @@ private fun ColumnScope.GenerationPhase(
                 DisplayRow(agentId, name, providerDisplay, false)
             }
         }
+        rows.sortedWith(compareBy({ it.displayName.lowercase() }, { it.providerDisplay.lowercase() }))
     }
 
     val activeTranslationRuns = remember(translationRuns) {
