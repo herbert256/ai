@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,9 +25,6 @@ import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun HistoryScreenNav(
@@ -117,14 +113,6 @@ fun HistoryScreenNav(
                 }
             }
 
-            // Table header
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    Text("Title", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.weight(1.5f))
-                    Text("Date/Time", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                }
-            }
-
             Spacer(modifier = Modifier.height(4.dp))
 
             // Report rows — tap a row to open the live Report Result screen.
@@ -180,7 +168,6 @@ fun HistoryScreenNav(
 @Composable
 private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport: () -> Unit) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.US) }
 
     if (showDeleteConfirm) {
         DeleteConfirmationDialog(entityType = "Report", entityName = report.title,
@@ -193,8 +180,7 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport:
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
-            Text(dateFormat.format(Date(report.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Text("✕", fontSize = 14.sp, color = AppColors.Red, maxLines = 1, softWrap = false)
             }

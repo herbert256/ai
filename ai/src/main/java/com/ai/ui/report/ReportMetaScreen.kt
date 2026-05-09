@@ -32,9 +32,6 @@ import com.ai.ui.shared.formatCents
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Unified Meta screen reached from the Actions card. Lists every
@@ -169,7 +166,6 @@ internal fun ReportMetaScreen(
 @Composable
 private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
     val provider = AppService.findById(r.providerId)?.id ?: r.providerId
-    val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
     val kindLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
         ?: com.ai.data.legacyKindDisplayName(r.kind)
     var confirmDelete by remember { mutableStateOf(false) }
@@ -199,7 +195,6 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                 Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         // Cost field: sum of input + output cost on this meta call.
         // Hidden when the call hasn't billed anything (placeholder still

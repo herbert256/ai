@@ -24,9 +24,6 @@ import com.ai.data.SecondaryScope
 import com.ai.model.InternalPrompt
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Inserted between a Meta-prompt button (or Summarize / Compare button
@@ -321,8 +318,7 @@ private enum class ScopeMode { ALL, TOP_RANKED, MANUAL }
 
 private fun rerankLabel(r: SecondaryResult): String {
     val provider = AppService.findById(r.providerId)?.id ?: r.providerId
-    val ts = SimpleDateFormat("MMM d HH:mm", Locale.US).format(Date(r.timestamp))
-    return "$provider · ${r.model} · $ts"
+    return "$provider · ${r.model}"
 }
 
 @Composable

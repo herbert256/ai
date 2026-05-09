@@ -32,9 +32,6 @@ import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Lists every persisted [SecondaryResult] of a given [kind] for [reportId].
@@ -1665,7 +1662,6 @@ private fun OnePageView(
 @Composable
 private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
     val provider = AppService.findById(r.providerId)?.id ?: r.providerId
-    val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
     var confirmDelete by remember { mutableStateOf(false) }
 
     Row(
@@ -1680,7 +1676,6 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(ts, fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         IconButton(onClick = { confirmDelete = true }) {
             Text("🗑", fontSize = 16.sp, color = AppColors.Red)
@@ -1815,8 +1810,6 @@ internal fun SecondaryResultDetailScreen(
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
         }
-        Text(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(result.timestamp)),
-            fontSize = 11.sp, color = AppColors.TextTertiary)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {

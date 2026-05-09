@@ -889,8 +889,6 @@ internal fun ReportSelectFromReportScreen(
             reports.filter { it.title.lowercase().contains(q) || it.prompt.lowercase().contains(q) }
         }
     }
-    val tsFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
-
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_agent", title = "Pick previous report", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
@@ -918,7 +916,7 @@ internal fun ReportSelectFromReportScreen(
                             Text(report.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
-                                "${tsFormat.format(java.util.Date(report.timestamp))}  ·  ${report.agents.size} model${if (report.agents.size == 1) "" else "s"}",
+                                "${report.agents.size} model${if (report.agents.size == 1) "" else "s"}",
                                 fontSize = 11.sp, color = AppColors.TextTertiary
                             )
                         }
