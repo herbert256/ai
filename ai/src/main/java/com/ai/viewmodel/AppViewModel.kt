@@ -658,6 +658,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  fetched ids replace the manual list. A failed fetch leaves
      *  modelSource untouched (the test itself already passed, so the
      *  provider stays "ok" either way). */
+    /** Called by the per-provider settings screen after the user picks
+     *  a new default model and the API-key test succeeds. Drops every
+     *  agent named after the provider's displayName (and prunes those
+     *  ids from every flock), then recreates a fresh default agent
+     *  pointing at [defaultModel] and adds it back to the
+     *  "default agents" flock. */
+    fun replaceDefaultAgent(service: AppService, defaultModel: String) {
+        val current = _uiState.value.aiSettings
+        val droppedIds = current.agents
+            .filter { it.provider.id == service.id && it.name == service.displayName }
+            .map { it.id }.toSet()
+        val pruned = current.copy(
+            agents = current.agents.filterNot { it.id in droppedIds },
+            flocks = current.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
+        )
+        val updated = pruned.ensureDefaultAgentInFlock(service, defaultModel)
+        _uiState.update { it.copy(aiSettings = updated) }
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
+    }
+
     fun markProviderTestedOk(service: AppService, defaultModel: String, fetchAfter: Boolean = true) {
         val updated = _uiState.value.aiSettings
             .withProviderState(service, "ok")

@@ -526,6 +526,12 @@ fun ProviderSettingsScreen(
      *  state flip + agent creation, but skips the embedded background
      *  model-list fetch since the activation flow has already done it. */
     onProviderTestedOkNoFetch: (defaultModel: String) -> Unit = onProviderTestedOk,
+    /** Called when the user picks a new default model and the API-key
+     *  test against that model passes. Drops the existing default
+     *  agent (named after the provider) and recreates a fresh one
+     *  pointing at the new model, re-adding it to the
+     *  "default agents" flock. */
+    onReplaceDefaultAgent: (defaultModel: String) -> Unit = {},
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
     onNavigateToModels: () -> Unit = {}
@@ -645,7 +651,9 @@ fun ProviderSettingsScreen(
     val modelsCount = aiSettings.getProvider(service).models.size
 
     // Auto-save — only the fields this screen edits; modelSource / models are owned by the
-    // Models sub-screen and preserved via copy() of the current config.
+    // Models sub-screen and preserved via copy() of the current config. The default agent
+    // named after the provider is now managed by the explicit activate / deactivate /
+    // change-default-model flows, not from this auto-save.
     LaunchedEffect(apiKey, defaultModel, adminUrl, modelListUrl, selectedParametersIds) {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
@@ -653,26 +661,7 @@ fun ProviderSettingsScreen(
             modelListUrl = modelListUrl, parametersIds = selectedParametersIds
         )
         if (updated == current) return@LaunchedEffect
-        var newSettings = aiSettings.withProvider(service, updated)
-        // Keep the default agent named after the provider in sync with the provider's
-        // default model — update it if it exists, create it if it doesn't (so a freshly
-        // configured provider automatically gets a usable default agent).
-        if (current.model != defaultModel && defaultModel.isNotBlank()) {
-            val idx = newSettings.agents.indexOfFirst { it.provider.id == service.id && it.name == service.displayName }
-            val updatedAgents = if (idx >= 0) {
-                newSettings.agents.toMutableList().also { it[idx] = it[idx].copy(model = defaultModel) }
-            } else {
-                newSettings.agents + Agent(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = service.displayName,
-                    provider = service,
-                    model = defaultModel,
-                    apiKey = ""
-                )
-            }
-            if (updatedAgents != newSettings.agents) newSettings = newSettings.copy(agents = updatedAgents)
-        }
-        onSave(newSettings)
+        onSave(aiSettings.withProvider(service, updated))
     }
 
     if (showParamsDialog) {
@@ -688,7 +677,18 @@ fun ProviderSettingsScreen(
     if (showModelSelector) {
         SelectModelScreen(
             provider = service, aiSettings = aiSettings, currentModel = defaultModel,
-            onSelectModel = { defaultModel = it; showModelSelector = false },
+            onSelectModel = { newModel ->
+                val previous = defaultModel
+                defaultModel = newModel
+                showModelSelector = false
+                if (newModel != previous && newModel.isNotBlank() && apiKey.isNotBlank()) {
+                    scope.launch {
+                        val fresh = AppService.findById(service.id) ?: service
+                        val error = onTestApiKey(fresh, apiKey, newModel)
+                        if (error == null) onReplaceDefaultAgent(newModel)
+                    }
+                }
+            },
             onBack = { showModelSelector = false }, onNavigateHome = onBackToHome,
             // Auto-refresh on entry when the provider's model source is API; the screen
             // shows an inline spinner while the fetch runs.
