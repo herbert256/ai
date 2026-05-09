@@ -2,6 +2,7 @@ package com.ai.ui.chat
 
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -60,6 +61,41 @@ private data class DualMessage(
      *  closest trace tagged with (sessionId, modelName) so the per-bubble
      *  🐞 doesn't alias when the same model speaks several times. */
     val timestamp: Long = System.currentTimeMillis()
+)
+
+/** Saver that lets the dual-chat conversation survive a rotation /
+ *  process recreation. Each message flattens to five entries, so the
+ *  list flattens to a 5N array — Bundle has a practical ~1 MB ceiling
+ *  so a very long high-content session may hit the limit; the previous
+ *  in-memory-only state lost everything regardless, so this is strict
+ *  improvement. */
+private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<DualMessage>, java.util.ArrayList<Any?>>(
+    save = { list ->
+        java.util.ArrayList<Any?>().apply {
+            list.forEach { m ->
+                add(m.modelIndex)
+                add(m.content)
+                add(m.providerName)
+                add(m.modelName)
+                add(m.timestamp)
+            }
+        }
+    },
+    restore = { flat ->
+        val out = mutableListOf<DualMessage>()
+        var i = 0
+        while (i + 4 < flat.size) {
+            out += DualMessage(
+                modelIndex = flat[i] as Int,
+                content = flat[i + 1] as String,
+                providerName = flat[i + 2] as String,
+                modelName = flat[i + 3] as String,
+                timestamp = flat[i + 4] as Long
+            )
+            i += 5
+        }
+        out
+    }
 )
 
 private fun loadStringList(prefs: android.content.SharedPreferences, key: String): List<String> {
@@ -322,16 +358,24 @@ fun DualChatSessionScreen(
         appViewModel.updateUiState { it.copy(dualChatConfig = null) }
     }
 
-    val sessionId = remember { "dualchat_${System.currentTimeMillis()}" }
-    val messages = remember { mutableStateListOf<DualMessage>() }
-    var currentInteraction by remember { mutableIntStateOf(0) }
-    var targetInteractions by remember { mutableIntStateOf(config.interactionCount) }
+    val sessionId = rememberSaveable { "dualchat_${System.currentTimeMillis()}" }
+    // Persist the conversation across rotation / process recreation —
+    // a dual-chat run can take many turns and previously a rotation
+    // mid-run dropped every message back to an empty list. mutableStateOf
+    // + the DualMessage Saver below survive the bundle round-trip;
+    // mutableStateListOf doesn't and would lose its contents.
+    var messages by rememberSaveable(stateSaver = DualMessagesSaver) {
+        mutableStateOf(emptyList<DualMessage>())
+    }
+    val appendMessage: (DualMessage) -> Unit = { m -> messages = messages + m }
+    var currentInteraction by rememberSaveable { mutableIntStateOf(0) }
+    var targetInteractions by rememberSaveable { mutableIntStateOf(config.interactionCount) }
     var isRunning by remember { mutableStateOf(false) }
-    var isStopped by remember { mutableStateOf(false) }
+    var isStopped by rememberSaveable { mutableStateOf(false) }
     var thinkingModel by remember { mutableStateOf<Int?>(null) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var errorMessage by rememberSaveable { mutableStateOf<String?>(null) }
     var chatJob by remember { mutableStateOf<Job?>(null) }
-    var extraChatsText by remember { mutableStateOf("10") }
+    var extraChatsText by rememberSaveable { mutableStateOf("10") }
 
     // Cost tracking
     var model1InputTokens by remember { mutableIntStateOf(0) }
@@ -381,7 +425,7 @@ fun DualChatSessionScreen(
                     val inTokens1 = m1Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens1 = AppViewModel.estimateTokens(response1)
                     model1InputTokens += inTokens1; model1OutputTokens += outTokens1
-                    messages.add(DualMessage(1, response1, config.model1Provider.displayName, config.model1Name))
+                    appendMessage(DualMessage(1, response1, config.model1Provider.displayName, config.model1Name))
                     if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     // Model 2's turn
@@ -396,7 +440,7 @@ fun DualChatSessionScreen(
                     val inTokens2 = m2Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens2 = AppViewModel.estimateTokens(response2)
                     model2InputTokens += inTokens2; model2OutputTokens += outTokens2
-                    messages.add(DualMessage(2, response2, config.model2Provider.displayName, config.model2Name))
+                    appendMessage(DualMessage(2, response2, config.model2Provider.displayName, config.model2Name))
                     if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     currentInteraction++
