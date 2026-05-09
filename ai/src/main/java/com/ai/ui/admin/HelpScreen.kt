@@ -1272,11 +1272,11 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Edit one swarm. Top row holds the name + Save / Create button. Save activates once the name is valid and at least one member is added."),
             HelpCard("System Prompt / Parameters", "Optional shared bundle applied to every member at run time. Buttons go purple when populated."),
-            HelpCard("Member counter", "\"N members\" sits at the left of the action row; the blue \"+ Add model\" button on the right opens the full ModelSearchScreen overlay (search across all known provider+model pairs)."),
+            HelpCard("Member counter", "\"N members\" sits at the left of the action row; the blue \"+ Add model\" button on the right opens the same multi-row picker the New Report's +Model button uses (search + provider filter)."),
             HelpCard("Member cards", "One card per (provider, model) tuple. Provider name in blue, model id in white, plus capability badges (👁 vision / 🌐 web / 🧠 reasoning). The trailing red ✕ removes the member."),
-            HelpCard("Adding from the picker", "If you pick a pair already in the swarm, the duplicate is silently dropped — a member is keyed on (provider.id, model)."),
-            HelpCard("Pitfalls", "The picker shows ALL known models, not just active ones — picking a model whose provider has no key won't fail until you actually run the swarm."),
-            HelpCard("Related", "ModelSearchScreen (the picker) is also reachable from Search → Model search.")
+            HelpCard("Adding from the picker", "Already-added members render dimmed and ignore taps so a duplicate can't sneak in. Members are keyed on (provider.id, model) — case-insensitive on the model id."),
+            HelpCard("Pitfalls", "The picker only surfaces ACTIVE providers (those with a working API key). Models from inactive providers are hidden from the catalog."),
+            HelpCard("Related", "Same picker is reachable from the Hub's AI Models card and from AI Chat → Configure on the fly.")
         )
     ),
     "parameters" to HelpContent(

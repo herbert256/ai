@@ -452,9 +452,16 @@ fun AppNavHost(
         // ===== Models =====
         composable(NavRoutes.AI_MODEL_SEARCH) {
             val uiState by appViewModel.uiState.collectAsState()
-            ModelSearchScreen(aiSettings = uiState.aiSettings,
-                loadingModelsFor = uiState.loadingModelsFor, onBackToAiSetup = safePopBack, onBackToHome = navigateHome,
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
+            // Browse mode: tap a row → open that model's Model Info
+            // page. Picker stays mounted on the back stack so back
+            // from Model Info returns to the list, not the Hub.
+            com.ai.ui.report.ReportSelectModelsScreen(
+                aiSettings = uiState.aiSettings,
+                titleText = "AI Models",
+                onConfirm = { (p, m) -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
+            )
         }
         composable(NavRoutes.AI_MODEL_INFO) { entry ->
             val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
@@ -646,18 +653,17 @@ fun AppNavHost(
         }
         composable(NavRoutes.AI_CHAT_PROVIDER) {
             val uiState by appViewModel.uiState.collectAsState()
-            // Configure-on-the-fly entry: one rich picker (search +
-            // type / provider / capability filters) instead of the old
-            // two-step provider→model flow. Row click jumps straight
-            // to AI_CHAT_PARAMS with the chosen (provider, model).
-            com.ai.ui.models.ModelSearchScreen(
+            // Configure-on-the-fly entry: same picker as the New
+            // Report's +Model button. Row click jumps straight to
+            // AI_CHAT_PARAMS with the chosen (provider, model).
+            com.ai.ui.report.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
-                loadingModelsFor = uiState.loadingModelsFor,
-                onBackToAiSetup = safePopBack, onBackToHome = navigateHome,
-                onNavigateToModelInfo = { _, _ -> },
-                onPickModel = { provider, model ->
+                titleText = "Pick model for chat",
+                onConfirm = { (provider, model) ->
                     navController.navigate(NavRoutes.aiChatParams(provider.id, model))
-                }
+                },
+                onBack = safePopBack,
+                onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_CHAT_PARAMS) { entry ->
