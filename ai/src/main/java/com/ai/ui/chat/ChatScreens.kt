@@ -371,14 +371,12 @@ fun ChatSessionScreen(
         ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            try {
-                val mime = context.contentResolver.getType(uri) ?: "image/png"
-                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                if (bytes != null) {
-                    attachedImage = mime to Base64.encodeToString(bytes, Base64.NO_WRAP)
+            scope.launch {
+                val pair = withContext(Dispatchers.IO) {
+                    runCatching { com.ai.data.loadImageAsBase64(context, uri) }.getOrNull()
                 }
-            } catch (e: Exception) {
-                error = "Failed to attach image: ${e.message}"
+                if (pair != null) attachedImage = pair
+                else error = "Failed to attach image"
             }
         }
     }

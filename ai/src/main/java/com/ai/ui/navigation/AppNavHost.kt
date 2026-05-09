@@ -1011,17 +1011,17 @@ private suspend fun routeShareToReport(
     val (imageUris, nonImageUris) = shared.uris.partition { mimeOf(it)?.startsWith("image/") == true }
     val firstImageUri = imageUris.firstOrNull()
     if (firstImageUri != null) {
-        val pair: Pair<String, ByteArray?> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val u = android.net.Uri.parse(firstImageUri)
-            val resolved = context.contentResolver.getType(u) ?: "image/png"
-            val bytes: ByteArray? = context.contentResolver.openInputStream(u)?.use { it.readBytes() }
-            resolved to bytes
+        // Decode + downscale + JPEG-encode rather than streaming the raw
+        // bytes — a 12 MP phone photo would otherwise spike memory and
+        // ship a multi-MB base64 blob over the wire.
+        val pair = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                com.ai.data.loadImageAsBase64(context, android.net.Uri.parse(firstImageUri))
+            }.getOrNull()
         }
-        val (mime, bytes) = pair
-        if (bytes != null) {
+        if (pair != null) {
             appViewModel.updateUiState {
-                it.copy(reportImageBase64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP),
-                        reportImageMime = mime)
+                it.copy(reportImageBase64 = pair.second, reportImageMime = pair.first)
             }
         }
     }
