@@ -269,24 +269,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ChatHistoryManager.init(application)
         ReportStorage.init(application)
         SecondaryResultStorage.init(application)
-        // One-shot migration of legacy provider storage MUST run before
-        // ProviderRegistry.init reads the registry JSON:
-        //   - Admin URL / model-list URL override layer (pre-prior
-        //     refactor) → catalog adminUrl + drop the dead modelListUrl
-        //   - Provider id unification (this refactor) → rename
-        //     every "${oldPrefsKey}_<suffix>" eval_prefs key to
-        //     "${newId}_<suffix>", rewrite providerStates / endpoints
-        //     / modelTypeOverrides / agents JSON, rewrite manual
-        //     pricing keys, rename model_lists/<oldId>.json files,
-        //     rewrite the registry with the new id-only shape.
-        // Idempotent + gated on a marker pref. Done first so
-        // ProviderRegistry below loads the freshly-rewritten catalog
-        // and loadSettingsWithMigration sees the renamed eval_prefs keys.
-        val migrated = settingsPrefs.migrateLegacyProviderIds(application)
-        if (migrated > 0) {
-            android.util.Log.i("AppViewModel",
-                "Startup migrated $migrated legacy provider entry/entries to unified id shape")
-        }
         ProviderRegistry.init(application)
         PromptCache.init(application)
 

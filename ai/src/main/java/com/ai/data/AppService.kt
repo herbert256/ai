@@ -66,7 +66,7 @@ class AppService(
          *  through the on-device MediaPipe LLM Inference runtime
          *  ([com.ai.data.LocalLlm]). Not registered in
          *  [ProviderRegistry] so it doesn't show up in provider
-         *  lists / pickers / settings; surfaces only by id "LOCAL"
+         *  lists / pickers / settings; surfaces by id "Local"
          *  through [findById] so persisted ChatSessions whose
          *  provider was Local can be reloaded after restart. */
         val LOCAL = AppService(
@@ -76,15 +76,7 @@ class AppService(
             defaultModel = ""
         )
         val entries: List<AppService> get() = ProviderRegistry.getAll()
-        /** Case-insensitive id lookup. The id field migrated from
-         *  SCREAMING_SNAKE ("OPENAI") to mixed-case ("OpenAI") in the
-         *  unification refactor; persisted references in chat sessions,
-         *  reports, traces, and secondary results carry the legacy
-         *  uppercase form. The case-insensitive match resolves them
-         *  transparently to the new mixed-case AppService at
-         *  deserialise time, and the next save rewrites the file with
-         *  the new canonical id. */
-        fun findById(id: String): AppService? = if (id.equals("LOCAL", ignoreCase = true)) LOCAL else ProviderRegistry.findById(id)
+        fun findById(id: String): AppService? = if (id == LOCAL.id) LOCAL else ProviderRegistry.findById(id)
         fun valueOf(id: String): AppService = findById(id)
             ?: throw IllegalArgumentException("Unknown AppService: $id")
     }

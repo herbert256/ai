@@ -167,9 +167,7 @@ object ProviderRegistry {
     }
 
     fun getAll(): List<AppService> = providers.toList()
-    /** Case-insensitive id lookup — see [AppService.findById] for why
-     *  the safety net matters during the post-unification window. */
-    fun findById(id: String): AppService? = providers.find { it.id.equals(id, ignoreCase = true) }
+    fun findById(id: String): AppService? = providers.find { it.id == id }
     fun getCustomProviders(): List<ProviderDefinition> = providers.map { ProviderDefinition.fromAppService(it) }
 
     /** Append [service] to the registry. The UI's Add Provider screen

@@ -213,29 +213,6 @@ object BackupManager {
             // preserving it keeps the finally below well-defined.
             clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
             val filesRestored = applyFilesOnly(context, staged)
-            // Pre-refactor backups can carry both legacy shapes:
-            //   - per-provider Admin URL / modelListUrl override layer
-            //     ("${prefsKey}_admin_url", "${prefsKey}_model_list_url"
-            //     in the main prefs)
-            //   - SCREAMING_SNAKE provider ids + separate displayName /
-            //     prefsKey fields in provider_registry, with eval_prefs
-            //     keys prefixed by the legacy prefsKey, manual_pricing
-            //     keys "OPENAI:gpt-4o", and model_lists/OPENAI.json files
-            // Migrate everything into the unified id shape so the user
-            // lands on the same effective configuration they had at
-            // backup time. Runs AFTER applyFilesOnly so the model_lists
-            // rename and any future filesDir-touching migration step can
-            // see the restored files. No-op on backups already in the
-            // unified shape (gated on a marker pref the helper sets).
-            run {
-                val mainPrefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE)
-                val migrated = SettingsPreferences(mainPrefs, context.filesDir)
-                    .migrateLegacyProviderIds(context)
-                if (migrated > 0) {
-                    android.util.Log.i("BackupManager",
-                        "Restore migrated $migrated legacy provider entry/entries to unified id shape")
-                }
-            }
             RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
         } finally {
             tempZip.delete()

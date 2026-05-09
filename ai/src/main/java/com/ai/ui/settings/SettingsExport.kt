@@ -127,17 +127,7 @@ fun exportAiConfigToClipboard(context: Context, settings: Settings, generalSetti
 // ===== Internal =====
 
 internal fun processImportedConfig(context: Context, export: ConfigExport, currentSettings: Settings, silent: Boolean = false): ConfigImportResult {
-    // Pre-unification (v11-v23) exports carry SCREAMING_SNAKE provider
-    // ids ("OPENAI") plus a separate displayName field on each
-    // ProviderConfigExport. The unification refactor collapsed id +
-    // displayName + prefsKey into the single id (= space-stripped
-    // displayName). Rewrite every old id reference in the export to
-    // the new id BEFORE the rest of the importer runs, so downstream
-    // findById lookups, providerStates / endpoints / modelTypeOverrides
-    // map keys, and persisted agent.provider / swarm.member.provider
-    // strings all resolve correctly. The case-insensitive findById is
-    // a separate safety net; this rewrite is the proper migration.
-    val migrated = mapOldIdsToNew(export)
+    val migrated = export
 
     // Register provider definitions. Updating an existing definition from
     // an import bundle is intentionally NOT done — the only field that
@@ -284,69 +274,3 @@ fun performStartClean(context: Context, onProgress: ((String) -> Unit)? = null) 
     com.ai.data.ApiTracer.deleteTracesOlderThan(cutoff)
 }
 
-/** Migrate provider id references in a [ConfigExport] from the
- *  pre-unification SCREAMING_SNAKE form ("OPENAI") to the unified
- *  mixed-case form ("OpenAI"). Pre-unification exports populate
- *  `displayName` on each [ProviderConfigExport]; the new id is that
- *  displayName with spaces stripped (matching the convention in
- *  assets/providers.json after the refactor). Returns a [ConfigExport]
- *  with every persisted id reference rewritten:
- *    - export.providers map keys
- *    - export.agents[*].provider
- *    - export.swarms[*].members[*].provider
- *    - export.providerEndpoints[*].provider
- *    - export.providerStates map keys
- *    - export.modelTypeOverrides[*].providerId
- *    - export.providerDefinitions[*].id
- *    - export.manualPricing[*].key (when shaped "providerId:model")
- *  Acts as a no-op on already-unified (v24+) bundles where displayName
- *  isn't present on the provider exports. */
-internal fun mapOldIdsToNew(export: ConfigExport): ConfigExport {
-    // Build oldId → newId from the providers map. Skip entries already
-    // in the unified shape (no displayName, or displayName already
-    // matches the key with no spaces).
-    val map: Map<String, String> = export.providers.entries.mapNotNull { (key, p) ->
-        val dn = p.displayName?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-        val newId = dn.replace(" ", "")
-        if (newId == key) null else key to newId
-    }.toMap()
-    if (map.isEmpty()) return export   // already unified
-
-    fun mapId(s: String?): String? = s?.let { map[it] ?: it }
-    val newProviders = export.providers.mapKeys { (k, _) -> map[k] ?: k }
-    val newAgents = export.agents.map { a -> a.copy(provider = mapId(a.provider) ?: a.provider) }
-    val newSwarms = export.swarms?.map { s ->
-        s.copy(members = s.members.map { m -> m.copy(provider = mapId(m.provider) ?: m.provider) })
-    }
-    val newEndpoints = export.providerEndpoints?.map { pe ->
-        pe.copy(provider = mapId(pe.provider) ?: pe.provider)
-    }
-    val newStates = export.providerStates?.mapKeys { (k, _) -> map[k] ?: k }
-    val newOverrides = export.modelTypeOverrides?.map { o ->
-        o.copy(providerId = mapId(o.providerId) ?: o.providerId)
-    }
-    val newDefinitions = export.providerDefinitions?.map { def ->
-        val newId = map[def.id] ?: def.id
-        if (newId == def.id) def else def.copy(id = newId)
-    }
-    val newManualPricing = export.manualPricing?.map { mp ->
-        val colon = mp.key.indexOf(':')
-        if (colon <= 0) mp
-        else {
-            val pid = mp.key.substring(0, colon)
-            val rest = mp.key.substring(colon + 1)
-            val newPid = map[pid] ?: pid
-            if (newPid == pid) mp else mp.copy(key = "$newPid:$rest")
-        }
-    }
-    return export.copy(
-        providers = newProviders,
-        agents = newAgents,
-        swarms = newSwarms,
-        providerEndpoints = newEndpoints,
-        providerStates = newStates,
-        modelTypeOverrides = newOverrides,
-        providerDefinitions = newDefinitions,
-        manualPricing = newManualPricing
-    )
-}
