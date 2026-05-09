@@ -24,6 +24,7 @@ object NavRoutes {
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
+    const val AI_EXAMPLE_PROMPT_PICKER = "ai_example_prompt_picker"
     const val AI_REPORTS = "ai_reports"
     const val AI_SEARCH = "ai_search"
     const val AI_LOCAL_SEARCH = "ai_local_search"

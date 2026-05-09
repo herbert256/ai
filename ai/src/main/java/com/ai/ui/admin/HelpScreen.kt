@@ -107,7 +107,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Reports send the same prompt to multiple models in parallel and collect every response. Each result is saved to disk and can be reopened, exported, translated, summarised, or fed forward into a chat."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
-            HelpCard("Start card", "Three entries: New AI Report (blank), Start with a previous prompt (last 100, deduplicated), Start with photo (camera capture becomes the seed image for a vision-capable run)."),
+            HelpCard("Start card", "Four entries: New AI Report (blank), Start with a previous prompt (last 100, deduplicated), Start with an example prompt (from the user-curated library under Prompt management → Example prompts; disabled when empty), Start with photo (camera capture becomes the seed image for a vision-capable run)."),
             HelpCard("View previous reports", "Opens the History list. Disabled when nothing has been saved yet."),
             HelpCard("Pinned and Recent", "Every pinned report is listed under 📌. The three most recent unpinned reports show under 🕘. Tap a row to open the report."),
             HelpCard("Search card", "Four search modes ordered by escalating cost: 🔍 Quick local (substring), 📂 Extended local (tokenised), 🌐 Remote semantic (cloud embeddings), 📱 Local semantic (on-device embedder)."),
@@ -521,6 +521,16 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Clear History", "Bottom red button — wipes the persisted prompt history and resets the list. Disabled when the list is already empty."),
             HelpCard("Deduplication", "Re-running the exact same (title, prompt) pair just bumps the timestamp; the list never grows past 100 entries."),
             HelpCard("Pitfalls", "Prompt history is independent from Report History — clearing it leaves your saved reports untouched and vice versa."),
+        )
+    ),
+    "example_prompt_picker" to HelpContent(
+        title = "Pick an example prompt",
+        cards = listOf(
+            HelpCard("Overview", "Reached from AI Reports → Start with an example prompt. Lists every Example prompt in your library, sorted alphabetically by title. Tap a row to open New Report seeded with the prompt's (title, text)."),
+            HelpCard("Search field", "Filters by title OR text (case-insensitive). The trailing ✕ clears."),
+            HelpCard("Per-row content", "Title in white; the first line of the text dimmed underneath."),
+            HelpCard("Empty state", "Shown when no example prompts exist. Curate them under AI Setup → Prompt management → Example prompts, or load the bundled set via Housekeeping → Prompts → Add new prompts from assets/examples.json."),
+            HelpCard("Related", "Prompt history (Start with a previous prompt) is the per-run history of titles you've actually sent; Example prompts are a separate user-curated starter library.")
         )
     )
 ,

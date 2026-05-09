@@ -228,9 +228,12 @@ fun AppNavHost(
         composable(NavRoutes.AI_REPORTS_HUB) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
+            val uiState by appViewModel.uiState.collectAsState()
             ReportsHubScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
+                onNavigateToExamplePrompts = { navController.navigate(NavRoutes.AI_EXAMPLE_PROMPT_PICKER) },
+                hasExamplePrompts = uiState.aiSettings.examplePrompts.isNotEmpty(),
                 onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
                 onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
@@ -392,6 +395,14 @@ fun AppNavHost(
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectEntry = { navController.navigate(NavRoutes.aiNewReportWithParams(it.title, it.prompt)) })
+        }
+        composable(NavRoutes.AI_EXAMPLE_PROMPT_PICKER) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.history.ExamplePromptPickerScreen(
+                aiSettings = uiState.aiSettings,
+                onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onSelectEntry = { navController.navigate(NavRoutes.aiNewReportWithParams(it.title, it.text)) }
+            )
         }
 
         // ===== History =====

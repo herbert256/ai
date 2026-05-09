@@ -157,6 +157,8 @@ fun ReportsHubScreen(
     onNavigateHome: () -> Unit,
     onNavigateToNewReport: () -> Unit,
     onNavigateToPromptHistory: () -> Unit,
+    onNavigateToExamplePrompts: () -> Unit = {},
+    hasExamplePrompts: Boolean = false,
     onNavigateToHistory: () -> Unit,
     onNavigateToSearch: () -> Unit,
     onNavigateToLocalSemanticSearch: () -> Unit = {},
@@ -221,8 +223,10 @@ fun ReportsHubScreen(
         }
         StartHubGroup(
             hasPromptHistory = hasPromptHistory,
+            hasExamplePrompts = hasExamplePrompts,
             onNew = onNavigateToNewReport,
             onPreviousPrompt = onNavigateToPromptHistory,
+            onExamplePrompt = onNavigateToExamplePrompts,
             onStartWithPhoto = launchCamera
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -311,8 +315,10 @@ private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.da
 @Composable
 private fun StartHubGroup(
     hasPromptHistory: Boolean,
+    hasExamplePrompts: Boolean,
     onNew: () -> Unit,
     onPreviousPrompt: () -> Unit,
+    onExamplePrompt: () -> Unit,
     onStartWithPhoto: () -> Unit
 ) {
     Card(
@@ -325,6 +331,7 @@ private fun StartHubGroup(
                 modifier = Modifier.padding(bottom = 4.dp))
             SearchHubItem(icon = "\uD83D\uDCDD", title = "New AI Report", enabled = true, onClick = onNew)
             SearchHubItem(icon = "\uD83D\uDD04", title = "Start with a previous prompt", enabled = hasPromptHistory, onClick = onPreviousPrompt)
+            SearchHubItem(icon = "\uD83D\uDCA1", title = "Start with an example prompt", enabled = hasExamplePrompts, onClick = onExamplePrompt)
             SearchHubItem(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }
