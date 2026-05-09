@@ -1243,18 +1243,13 @@ private fun ColumnScope.FanOutDrillInView(
         }
     }
 
-    // Total cost banner.
+    // Total cost across every answerer-row + combined-report row on
+    // this report. Computed up here so the LazyColumn footer item
+    // below can render it; the previous standalone banner above the
+    // list moved into the list itself per user request.
     val totalAnswerersCost = remember(latestByPair, combinedRows) {
         latestByPair.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } +
             combinedRows.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-    }
-    if (totalAnswerersCost > 0.0) {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Total", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-            Text("${formatCents(totalAnswerersCost)} ¢", fontSize = 12.sp,
-                color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-        }
-        Spacer(modifier = Modifier.height(4.dp))
     }
 
     // Scroll to the top whenever a new combined-reports row appears
@@ -1385,6 +1380,29 @@ private fun ColumnScope.FanOutDrillInView(
                 Text(">", fontSize = 16.sp, color = AppColors.Blue)
             }
             HorizontalDivider(color = AppColors.DividerDark)
+        }
+        // Footer row mirroring the per-row layout — Total label on
+        // the left, summed cost (cents) on the right. Hidden when
+        // every row has zero cost, since the footer would just read
+        // "Total" with no value.
+        if (totalAnswerersCost > 0.0) {
+            item(key = "l1-total-footer") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.padding(end = 8.dp).width(20.dp))
+                    Text("Total", fontSize = 14.sp, color = AppColors.Blue,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(formatCents(totalAnswerersCost), fontSize = 11.sp,
+                        color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(end = 8.dp))
+                    // Spacer matching the ">" tap chevron on data rows
+                    // so the totals line up vertically with the
+                    // per-row cost column above.
+                    Box(modifier = Modifier.width(16.dp))
+                }
+            }
         }
     }
 
