@@ -524,7 +524,34 @@ fun ProvidersSetupScreen(
     val context = LocalContext.current
     var refreshTick by remember { mutableStateOf(0) }
     var importStatus by remember { mutableStateOf<String?>(null) }
+    var showRestartConfirm by remember { mutableStateOf(false) }
     val providerCount = remember(refreshTick) { AppService.entries.size }
+
+    if (showRestartConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRestartConfirm = false },
+            title = { Text("Restart from assets/providers.json?") },
+            text = {
+                Text(
+                    "This DROPS every provider definition currently in the registry " +
+                        "(including any hand-edited fields) and reloads the bundled " +
+                        "assets/providers.json verbatim. Per-provider API keys, model " +
+                        "lists and agents are stored separately and will survive."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val n = ProviderRegistry.restartFromAsset(context)
+                    importStatus = if (n >= 0) "Reloaded $n providers from asset." else "Asset reload failed — registry is empty."
+                    showRestartConfirm = false
+                    refreshTick++
+                }) { Text("Restart", color = AppColors.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestartConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -548,6 +575,11 @@ fun ProvidersSetupScreen(
                     }
                     if (added > 0) refreshTick++
                 })
+            ModelsSetupNavCard("♻️", "Restart again from assets/providers.json",
+                "Drops every provider in the registry and reloads the bundled JSON verbatim. " +
+                    "API keys, model lists and agents are kept.",
+                "",
+                onClick = { showRestartConfirm = true })
             importStatus?.let {
                 Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
@@ -568,58 +600,15 @@ fun ProvidersScreen(
     onActiveOnlyChange: (Boolean) -> Unit = {}
 ) {
     BackHandler { onBackToAiSetup() }
-    val context = LocalContext.current
-    // Bumped after a registry-reload action so the AppService.entries
-    // snapshot below recomputes — `aiSettings` doesn't change when
-    // only ProviderRegistry contents shifted.
-    var refreshTick by remember { mutableIntStateOf(0) }
-    var showRestartConfirm by remember { mutableStateOf(false) }
-    var restartResult by remember { mutableStateOf<String?>(null) }
-    val allProviders = remember(refreshTick) { AppService.entries }
+    val allProviders = AppService.entries
     // "Active" = providers that have been tested and have a working API key (state == "ok").
     // The filter choice is hoisted into the parent SettingsScreen so it survives a
     // navigation hop into a provider's detail screen and back.
-    val activeCount = remember(aiSettings, refreshTick) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
+    val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
 
-    val visibleProviders = remember(activeOnly, aiSettings, refreshTick) {
+    val visibleProviders = remember(activeOnly, aiSettings) {
         (if (activeOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
             .sortedBy { it.id }
-    }
-
-    if (showRestartConfirm) {
-        AlertDialog(
-            onDismissRequest = { showRestartConfirm = false },
-            title = { Text("Restart from assets/providers.json?") },
-            text = {
-                Text(
-                    "This DROPS every provider definition currently in the registry " +
-                        "(including any hand-edited fields) and reloads the bundled " +
-                        "assets/providers.json verbatim. Per-provider API keys, model " +
-                        "lists and agents are stored separately and will survive."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val n = ProviderRegistry.restartFromAsset(context)
-                    restartResult = if (n >= 0) "Reloaded $n providers from asset." else "Asset reload failed — registry is empty."
-                    showRestartConfirm = false
-                    refreshTick++
-                }) { Text("Restart", color = AppColors.Red) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestartConfirm = false }) { Text("Cancel") }
-            }
-        )
-    }
-    restartResult?.let { msg ->
-        AlertDialog(
-            onDismissRequest = { restartResult = null },
-            title = { Text("Asset reload") },
-            text = { Text(msg) },
-            confirmButton = {
-                TextButton(onClick = { restartResult = null }) { Text("OK") }
-            }
-        )
     }
 
     Column(
@@ -683,29 +672,6 @@ fun ProvidersScreen(
                         }
                         Text(stateEmoji, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            // Maintenance: nuke + reload from the bundled JSON.
-            // Destructive \u2014 confirmation dialog before doing anything.
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showRestartConfirm = true },
-                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        "Restart again from assets/providers.json",
-                        fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        "Drops every provider in the registry and reloads the bundled JSON. " +
-                            "API keys, model lists and agents are kept.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
                 }
             }
         }
