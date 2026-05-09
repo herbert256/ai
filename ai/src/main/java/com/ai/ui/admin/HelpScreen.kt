@@ -34,8 +34,19 @@ fun HelpScreen(
 ) {
     BackHandler { onBack() }
     val topic = topicId?.takeIf { it.isNotBlank() }?.let { HELP_TOPICS[it] }
+    // ❓ on a per-topic help page opens the meta-topic that describes
+    // the help-screen UI itself (so tapping ❓ doesn't bounce back to
+    // the generic Help home — which is the parent screen, not "help
+    // for this screen"). The meta-topic's own page hides ❓ so it
+    // doesn't loop. The bare Help home (topicId == null) leaves ❓
+    // off because the home view IS the general help.
+    val titleBarHelpTopic = when {
+        topicId.isNullOrBlank() -> null
+        topicId == "help_topic_view" -> null
+        else -> "help_topic_view"
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(title = topic?.title ?: "Help", onBackClick = onBack)
+        TitleBar(helpTopic = titleBarHelpTopic, title = topic?.title ?: "Help", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
@@ -344,6 +355,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Freshness", "Updates are reasonably timely — they instrument the providers themselves, so price-change detection is part of their workflow. Not as fast as llm-prices for the very-new-frontier models."),
             HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
             HelpCard("Related", "External Services holds the AA API key. Curated-tier sibling of Helicone and llm-prices.")
+        )
+    ),
+    "help_topic_view" to HelpContent(
+        title = "Help (this screen)",
+        cards = listOf(
+            HelpCard("Overview", "You're looking at one help topic. Each topic is a stack of cards — Overview / What we use it for / Endpoint / Freshness / Pitfalls / Related is the typical shape, but topics differ in detail. Card titles are blue; bodies are dim."),
+            HelpCard("Title bar — ◀ Back", "Returns to wherever you came from — the home Help page if you tapped a row in the Info-providers table; otherwise the screen whose ℹ icon brought you here."),
+            HelpCard("Title bar — 🏠 Home", "Returns to the AI Hub. Skips the back stack."),
+            HelpCard("Title bar — ❓ Help", "Opens this page (help for the help-topic screen). Hidden on the home Help page and on this meta-topic itself."),
+            HelpCard("Reaching this", "Three doors: home Help → Info-providers table tap; any screen's title-bar ℹ when it points at one of the 7 info providers (Source detail, Trace detail for a pricing fetch, External Services card, Refresh row); inline links such as the source labels on Model Info → Costs and Capabilities cards."),
+            HelpCard("Pitfalls", "Topics don't cross-link inside cards yet — the seven Info-provider topics are reachable only through the entry points listed above. Use the device back arrow / ◀ to navigate.")
         )
     ),
     "reports_hub" to HelpContent(
