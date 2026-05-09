@@ -154,8 +154,8 @@ fun ModelSearchScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     /** When non-null, the screen runs in pick mode: the title becomes
      *  "Select Model", row click invokes this callback instead of
-     *  navigating to the model-info screen. Used by Swarm edit + the
-     *  AI Chat configure-on-the-fly entry to reuse the same rich model
+     *  navigating to the model-info screen. Used by the AI Chat
+     *  configure-on-the-fly entry to reuse the same rich model
      *  browser as a one-shot picker. */
     onPickModel: ((AppService, String) -> Unit)? = null
 ) {
