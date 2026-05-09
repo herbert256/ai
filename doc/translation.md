@@ -26,7 +26,9 @@ From the result-phase Actions row on a finished report, tap
 4. **Run** — fans out one batch per (language, model-pick) and one
    API call per (source × language) within that batch. Each
    `executeSecondaryTask` call writes a `SecondaryResult` with
-   `kind = TRANSLATE`.
+   `kind = TRANSLATE`. Each item is **persisted as it settles**,
+   not in one bulk flush at the end, so a crash mid-run keeps the
+   completed translations.
 
 ## Multiple concurrent translation runs
 
@@ -56,9 +58,10 @@ For each selected language, one TRANSLATE call is made per:
   rows are never translated; their content is structured JSON.
 
 The TRANSLATE prompt template lives as the `InternalPrompt` row
-named `"Translate"` (seeded from `assets/prompts.json` on fresh
-install, editable thereafter via Settings → AI Setup → Prompt
-management). It substitutes:
+named `"translate"` in the `internal` category (seeded from
+`assets/prompts.json` on fresh install, editable thereafter via
+Settings → AI Setup → Prompt management → Other internal). It
+substitutes:
 
 | Variable | Meaning |
 |---|---|
@@ -101,12 +104,20 @@ language.
   group surfaces as a single "run" row with the model name, the
   language list, and the count.
 - **`TranslationRunDetailScreen`** — drill into a run: shows the
-  per-(source, language) calls.
+  per-(source, language) calls, with an **Actions** card carrying
+  *Restart failed* / *Start missing* buttons that re-run only the
+  rows that need it.
 - **`TranslationCallDetailScreen`** — one specific TRANSLATE row,
   with the source text, target language, model, full translated
-  body, raw HTTP trace link, and a 🐞 Trace tree pull-up.
+  body, raw HTTP trace link. Model names render as pane labels;
+  the original text wraps to size. Every row carries a source-type
+  column.
 - **`TranslationCompareScreen`** — side-by-side comparison view of
   the same source across multiple translations / languages.
+
+The Translate detail Actions card uses the layout setting (Model
+only / Provider and model) to derive row labels, and pending /
+live translation rows on the Report Result are clickable.
 
 ## Viewing a translated report
 
@@ -131,11 +142,13 @@ screen + its own row colour in the Report cost table.
 
 ## Editing the translation prompt
 
-Settings → AI Setup → **Prompt management** lists every
-`InternalPrompt` — the Translate entry is the row named
-`"Translate"` under the system-prompt section. Edit its `text`
-field. Defaults are seeded from `assets/prompts.json` on a fresh
-install; existing entries are never overwritten by re-seeds.
+Settings → AI Setup → **Prompt management → Other internal** lists
+the five fixed-name internal templates (intro / model_info /
+translate / rerank / moderation). Edit the `text` field of the
+`translate` row. Defaults are seeded from `assets/prompts.json` on
+a fresh install; existing entries are never overwritten by re-seeds
+unless the user runs Housekeeping → Reset → "Reset Internal Prompts
+to assets/prompts.json".
 
 ## See also
 

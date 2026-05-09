@@ -9,27 +9,35 @@ The lookup precedence in `PricingCache.getPricing` for a
 `(provider, model)` pair is (top → bottom — first hit wins):
 
 ```
-1. Provider self-report:
-   - OpenRouter native (only when caller's provider is OPENROUTER)
-   - Together AI native (only when caller's provider is TOGETHER)
-2. LiteLLM (curated bulk)
-3. models.dev (curated bulk)
-4. llm-prices.com (curated bulk)
-5. Artificial Analysis (curated bulk)
-6. Manual override (user-set per (provider, model))
+1. Manual override (user-set per (provider, model)) — wins outright
+2. Provider self-report:
+   - OpenRouter native (only when caller's provider is OpenRouter)
+   - Together AI native (only when caller's provider is Together)
+3. LiteLLM (curated bulk)
+4. models.dev (curated bulk)
+5. llm-prices.com (curated bulk)
+6. Artificial Analysis (curated bulk)
 7. OpenRouter cross-provider fallback
 8. Helicone (last resort — known data-quality issues, kept only
    so we have *some* answer before falling to default)
 9. DEFAULT ($0 / $0)
 ```
 
+User manual overrides used to sit between Artificial Analysis and
+OpenRouter cross-provider; they were promoted to the top of the
+chain so a deliberate user override always wins.
+`getPricingWithoutOverride` mirrors the same precedence (minus the
+override) for the Costs page's "what would the layered price be
+without your override?" view.
+
 Together AI's native pricing is read out of its `/v1/models` payload
 and persists alongside the OpenRouter snapshot under the same
-file/blob layout (see `together_pricing.json` below).
+file/blob layout (`together_pricing.json`).
 
-Capabilities (`supportsVision`, `supportsWebSearch`, `supportsFunctionCalling`)
-follow a similar layered order, with the per-provider `/models` response
-winning when it surfaces the field directly.
+Capabilities (`supportsVision`, `supportsWebSearch`, `supportsFunctionCalling`,
+`supportsReasoning`) follow a similar layered order, with the
+per-provider `/models` response winning when it surfaces the field
+directly.
 
 **Storage:** the large tier blobs all live as files under
 `<filesDir>/pricing/<key>.json` (one per tier — see
@@ -38,7 +46,10 @@ small `*_timestamp` longs and the user's `manual_pricing` map stay
 in `pricing_cache.xml`. `PricingCache.loadBlob` falls back to the
 legacy prefs key once on first read after the upgrade, copies the
 JSON to the file, and removes the prefs entry — old installs
-migrate transparently.
+migrate transparently. `ensureLoadedBlocking` refuses to flip the
+preload-completed flag on the main thread; UI callers get
+`DEFAULT_PRICING` during the cold window and pick up real values
+on the next state-driven recompose.
 
 ---
 
@@ -48,7 +59,8 @@ migrate transparently.
 - **Auth:** none (public)
 - **Provides:**
   - `input_cost_per_token`, `output_cost_per_token` (prompt / completion price)
-  - `supports_vision`, `supports_web_search`, `supports_function_calling`
+  - `supports_vision`, `supports_web_search`, `supports_function_calling`,
+    `supports_reasoning`
   - `max_input_tokens`, `max_output_tokens`
   - `mode` (chat / embedding / rerank / image / etc.) — used as the
     authoritative model-type when more specific than CHAT
@@ -144,11 +156,27 @@ migrate transparently.
   pointers. Surfaced on the Model Info screen.
 - **Cache:** `huggingface_cache` SharedPreferences with a 7-day TTL.
   Negative results are cached so a model with no HF mirror doesn't
-  re-hit the API every screen open.
+  re-hit the API every screen open. Concurrent load-modify-save is
+  serialised so two simultaneous misses don't tear the JSON blob.
 - **When fetched:** lazily, the first time a Model Info screen is opened
   for `(provider, model)` whose entry is stale or missing.
 
 ---
+
+## Refresh All
+
+The Refresh screen has a top-level **Refresh all** button that runs
+the seven repositories in dependency order on a full-screen progress
+page, then re-tests every active provider, then auto-restarts the
+app. The catalog fetches run in parallel (rather than sequentially
+as in earlier builds) because they touch disjoint disk paths.
+Failed providers list with one-tap nav-to-edit. Refresh-all skips
+the default-agent re-test (it trusts the catalog-fetch results).
+
+The full-screen progress page catches `Throwable` (not just
+`Exception`) and falls back to the throwable's class name when the
+message is empty so an unhandled OOM still surfaces something to
+the user.
 
 ## Per-provider `/models` endpoints
 
@@ -161,6 +189,18 @@ the provider self-reports — Mistral's `capabilities` object, Cohere's
 `ProviderConfig.modelCapabilities`. The provider's own response wins
 over the layered external sources for any field it populates.
 
+Failures surface inline with a 🐞 trace link rather than silently
+returning an empty list, so the user can see what went wrong (404,
+auth failure, parser error) without digging through logcat.
+
 The raw JSON of each provider's last `/models` response is preserved in
 `ProviderConfig.modelListRawJson` so a future parser revision can pull
 out additional fields without forcing a re-fetch.
+
+## Per-provider help pages
+
+Each repository has its own help page deep-linked from every entry
+point — the ℹ icon next to a Source button on the Model Info screen,
+the Trace detail page when the captured trace's category matches a
+known fetch category, and from the per-tier card on the Refresh
+screen.

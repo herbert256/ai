@@ -36,7 +36,9 @@ itself is still done in double internally to avoid float-accumulator
 drift on long vectors. JSON storage on disk is unchanged: Gson
 serialises `FloatArray` and `List<Double>` to the same array of
 JSON numbers, so existing chunk files written before the type
-change keep working.
+change keep working. `KnowledgeChunk` overrides `equals` /
+`hashCode` so the FloatArray field compares by content rather
+than identity.
 
 ## Source types — ten extractors
 
@@ -45,19 +47,23 @@ one of:
 
 | Type | Extractor | Notes |
 |---|---|---|
-| `TEXT` | `readUriText` | UTF-8 read straight, normalised newlines |
+| `TEXT` | `readUriText` | UTF-8 read, normalised newlines, streamed via `BufferedReader` instead of `readText` to avoid loading huge text files into a single String |
 | `MARKDOWN` | `readUriText` | Same as TEXT — chunker preserves paragraph breaks |
-| `PDF` | `readUriPdf` | PDFBox-Android `PDFTextStripper.getText`. **OCR fallback** when the result is blank — `PdfRenderer` rasterises each page at 200 DPI (capped 2400 px long side) and runs MediaPipe Latin text recognition |
+| `PDF` | `readUriPdf` | PDFBox-Android `PDFTextStripper.getText`. **OCR fallback** when the result is blank — `PdfRenderer` rasterises each page at 200 DPI (capped 2400 px long side) and runs ML Kit Latin text recognition |
 | `DOCX` | `readUriDocx` | JDK `ZipInputStream` + `XmlPullParser` over `word/document.xml`; `<w:p>` → paragraph, `<w:t>` → text, `<w:tab>` → tab |
-| `ODT` | `readUriOdt` | Same idea over `content.xml` with `<text:p>` / `<text:h>` paragraphs and direct text |
-| `XLSX` | `readUriXlsx` | Single-pass: walk the zip; `xl/sharedStrings.xml` populates the shared-string table, each `xl/worksheets/sheet*.xml` is parsed inline as encountered (or buffered until shared strings arrive — Office writes them first in the typical case). Cells with `t="s"` resolve to a shared-string index, `t="inlineStr"` reads the literal text under `<is><t>`, anything else takes `<v>` as-is. Output is `[sheet N]` headers + tab-separated rows in zip-encounter order. |
-| `ODS` | `readUriOds` | Walks `content.xml` `<table:table-cell>` with `<text:p>` text, joining multiple `<text:p>` per cell with a space; same `[sheet N]` layout as XLSX |
+| `ODT` | `readUriOdt` | Same idea over `content.xml` with `<text:p>` / `<text:h>` paragraphs and direct text — streamed instead of slurped |
+| `XLSX` | `readUriXlsx` | Single-pass: walk the zip; `xl/sharedStrings.xml` populates the shared-string table, each `xl/worksheets/sheet*.xml` is **spooled** to a temp file as encountered (a multi-sheet workbook never holds two sheets in memory at once). Cells with `t="s"` resolve to a shared-string index, `t="inlineStr"` reads the literal text under `<is><t>`, anything else takes `<v>` as-is. Output is `[sheet N]` headers + tab-separated rows in zip-encounter order. |
+| `ODS` | `readUriOds` | Streams `content.xml` via the spreadsheet zip without an intermediate `readText` slurp; same `[sheet N]` layout as XLSX |
 | `CSV` | `readUriCsv` | Streaming RFC-4180-ish parser: `BufferedReader.mark` + 1 KB sample sniffs `,` vs `;`, then `parseCsvStream` walks the rest via a `PushbackReader` (1-char lookahead for `""` escape and CRLF) and yields rows through a callback. Quoted-field + `""` handling unchanged. CR / LF / CRLF all terminate a row — bare CR catches legacy Mac CSV exports that previously collapsed into one row. Emits the header row at the top of every 10-row block so retrieval chunks always carry column context |
-| `IMAGE` | `readUriImage` | BitmapFactory bounds-decode + downsample to 2400 px max long side, then MediaPipe Latin OCR. The recogniser's async `Task<Text>` is bridged to a synchronous String via `com.google.android.gms.tasks.Tasks.await` — already on the classpath via ML Kit, no coroutine event loop needed for the wait |
+| `IMAGE` | `readUriImage` | BitmapFactory bounds-decode + downsample to 2400 px max long side, then ML Kit Latin OCR. The recogniser's async `Task<Text>` is bridged to a synchronous String via `com.google.android.gms.tasks.Tasks.await` |
 | `URL` | `fetchUrlAsText` | Jsoup fetch + visible-text extraction (drops `script`, `style`, `noscript`, `nav`, `footer`, `aside`, `header`) |
 
 The chunker, embedder, and retriever are type-agnostic. Once an
 extractor returns a string, every downstream stage works unchanged.
+
+JSON loaders across the codebase (provider catalog, prompts, etc.)
+also stream via `JsonReader` rather than `readText` to keep peak
+heap down.
 
 ## Chunking
 
@@ -76,7 +82,7 @@ is a paragraph-greedy chunker with overlap:
 
 Two paths, picked at KB creation:
 
-- **Local**: `embedderProviderId == "LOCAL"`. Calls
+- **Local**: `embedderProviderId == "Local"`. Calls
   `LocalEmbedder.embed(modelName, text)` which holds a per-model
   `TextEmbedder` cache. No network. Default model is
   `universal_sentence_encoder_lite` (~25 MB), downloaded lazily on
@@ -89,6 +95,9 @@ Two paths, picked at KB creation:
 Either way, every embedded chunk is keyed in `EmbeddingsStore` (cache
 under `<filesDir>/embeddings/<sha256>.json`) so re-indexing the same
 content with the same model is a hashmap hit, not a re-embed.
+`Knowledge.saveSource` refuses chunks with empty embeddings or a
+dim mismatch and logs a warning, so the cosine path can never
+silently rank a malformed chunk as 0.
 
 ## Retrieval
 
@@ -125,12 +134,14 @@ The dispatch layer prepends the context block:
   message text via `ChatViewModel.messagesWithRag` (a `suspend`
   function called from inside `flow { … }.flowOn(Dispatchers.IO)`)
   and merges the block into the system message — or prepends a
-  fresh system message if none was set.
+  fresh system message if none was set. Retrieval failures log a
+  warning instead of silently falling back to the raw prompt.
 
 The "embedder must match" rule is enforced by the retrieval path:
 KBs whose embedder differs from the first attached KB's are
 skipped entirely (with a warning log) so a mismatched-dimension
-cosine never silently mis-ranks.
+cosine never silently mis-ranks. Mismatched-dimension chunks
+encountered mid-stream surface as a warning rather than scoring 0.
 
 ## On-disk layout
 
@@ -139,11 +150,17 @@ cosine never silently mis-ranks.
   manifest.json          KnowledgeBase + sources
   chunks/
     <sourceId>.json      JSON array of KnowledgeChunk
+  files/
+    <localCopy>          locally-persisted source file (atomic)
 ```
 
 One JSON file per source keeps add / remove / re-index cheap (no
 full-KB rewrite for a single-source change), while loading a whole
-KB for retrieval still scans only one directory.
+KB for retrieval still scans only one directory. `KnowledgeStore`
+takes a single lock around the manifest-update + chunk-write pair
+so a crash mid-write can't leave the manifest pointing at half a
+chunk file. Source files are persisted via tmp + fsync + atomic
+rename.
 
 ## UI
 
@@ -156,6 +173,8 @@ KB for retrieval still scans only one directory.
 - `ui/knowledge/KnowledgeDetailScreen.kt` — per-KB sources + add
   file / add URL / re-index / delete + status line. Auto-consumes the
   share-target queue when entered with a non-empty `pendingUris`.
+  The auto-ingest `LaunchedEffect` re-keys whenever the KB loads so
+  late-arriving share intents still drain.
 
 ## Picker MIME filter
 
@@ -180,9 +199,11 @@ The same MIME types appear in the share-target intent filters in
 - `KnowledgeStore.deleteSource(kbId, sourceId)` removes the chunk
   file and the manifest entry.
 - `KnowledgeStore.deleteKnowledgeBase(kbId)` `deleteRecursively`s the
-  KB directory.
-- A full reset (Housekeeping → Full reset) wipes
-  `<filesDir>/knowledge/` and the `embeddings/` cache.
+  KB directory; also takes the store lock during `clearAll` so a
+  full-reset and an in-flight ingest can't race.
+- A full reset (Housekeeping → Reset → Clear all runtime data) wipes
+  `<filesDir>/knowledge/`, the `embeddings/` cache, and the local-
+  semantic-search cache.
 - Embedder model files (`.tflite`) and Local LLM bundles (`.task`)
   persist across full resets — they have their own per-row Remove
   on **AI Setup → Local Models**. They're also excluded from the

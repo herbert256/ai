@@ -20,13 +20,11 @@ The top-level AI configuration object. Persisted in `eval_prefs`.
 | swarms | `List<Swarm>` | groups of provider/model pairs |
 | parameters | `List<Parameters>` | reusable parameter presets |
 | systemPrompts | `List<SystemPrompt>` | reusable system prompts |
+| internalPrompts | `List<InternalPrompt>` | user-managed Meta / Fan-out / Fan-in / Other internal templates |
+| examplePrompts | `List<ExamplePrompt>` | starter (title, text) pairs surfaced in the New Report flow |
 | endpoints | `Map<AppService, List<Endpoint>>` | per-provider endpoint URLs |
 | providerStates | `Map<String, String>` | "ok" / "error" / "inactive" / "not-used" per provider id |
 | modelTypeOverrides | `List<ModelTypeOverride>` | manual per-model type assignments |
-
-> **Note:** the older `prompts: List<Prompt>` field ("Internal
-> Prompts") has been removed. Intro / model-info / translate
-> templates now live on `GeneralSettings`.
 
 ### `ProviderConfig`
 | Field | Type | Notes |
@@ -37,15 +35,19 @@ The top-level AI configuration object. Persisted in `eval_prefs`.
 | models | `List<String>` | model ids (from API list or hardcoded fallback) |
 | modelTypes | `Map<String, String>` | id → type ("chat", "embedding", "rerank", ...) |
 | visionModels | `Set<String>` | user-flagged vision-capable ids |
+| webSearchModels | `Set<String>` | user-flagged web-search-capable ids |
+| reasoningModels | `Set<String>` | user-flagged reasoning-capable ids |
 | modelCapabilities | `Map<String, ModelCapabilities>` | provider's own self-report |
 | modelListRawJson | `String?` | raw `/models` response for future parsing |
-| webSearchModels | `Set<String>` | user-flagged web-search-capable ids |
 | visionCapableComputed | `Set<String>` | precomputed layered lookup result |
 | webSearchCapableComputed | `Set<String>` | precomputed layered lookup result |
+| reasoningCapableComputed | `Set<String>` | precomputed layered lookup result |
 | modelPricing | `Map<String, PricingCache.ModelPricing>` | precomputed per-model price |
-| adminUrl | `String` | provider's admin/console URL |
-| modelListUrl | `String` | optional override for the /models URL |
 | parametersIds | `List<String>` | default param presets |
+
+> The legacy `adminUrl` and `modelListUrl` per-provider override
+> fields have been dropped — admin-URL overrides now live as part
+> of the bundled provider definition only.
 
 ### `Agent`
 | Field | Type |
@@ -64,6 +66,10 @@ The top-level AI configuration object. Persisted in `eval_prefs`.
 | agentIds | `List<String>` |
 | paramsIds | `List<String>` |
 | systemPromptId | `String?` |
+
+The constant `DEFAULT_AGENTS_FLOCK_NAME = "default agents"` names
+the auto-managed flock the per-provider Test button and
+Refresh-all populate.
 
 ### `Swarm`
 | id, name | `String` |
@@ -92,7 +98,7 @@ A named parameter preset.
 | seed | `Int?` |
 | responseFormatJson | `Boolean` |
 | searchEnabled | `Boolean` |
-| returnCitations | `Boolean` |
+| returnCitations | `Boolean` (default true) |
 | searchRecency | `String?` |
 | webSearchTool | `Boolean` |
 | reasoningEffort | `String?` (`"low"`, `"medium"`, `"high"`, or null) |
@@ -104,12 +110,45 @@ A named parameter preset.
 ### `SystemPrompt`
 | id, name, prompt | `String` |
 
-### `ModelTypeOverride`
+### `InternalPrompt`
+User-managed prompt template. Covers Meta-prompt launchers on the
+Report Result screen (`category="meta"`), Fan-out / Fan-in
+templates (`category="fan_out"` / `"fan_in"`), and the fixed
+internal templates (`category="internal"`: intro, model_info,
+translate, rerank, moderation).
+
+| Field | Type | Notes |
+|---|---|---|
+| id | `String` (UUID) | |
+| name | `String` | unique within (category, name) |
+| reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
+| category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
+| agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
+| text | `String` | template body with `@QUESTION@` / `@RESULTS@` / `@COUNT@` / `@TITLE@` / `@DATE@` / `@RESPONSE@` / `@LANGUAGE@` / `@TEXT@` / `@FAN_OUT_COUNT@` / `***Report*** @REPORT@@RESPONSES@` placeholders |
+| title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
+
+> The legacy `type` field is gone — routing is now derived from
+> `category`. `category="meta"` plus a `name` matching `"rerank"`,
+> `"moderation"`, etc. drives `metaTypeToKind` resolution at
+> runtime.
+
+### `ExamplePrompt`
+Stand-alone (title, text) pair the user curates as a starter library
+for the New Report screen.
+
 | Field | Type |
 |---|---|
-| id, providerId, modelId, type | `String` |
-| supportsVision | `Boolean` |
-| supportsWebSearch | `Boolean` |
+| id | `String` (UUID) |
+| title | `String` |
+| text | `String` |
+
+### `ModelTypeOverride`
+| Field | Type | Notes |
+|---|---|---|
+| id, providerId, modelId, type | `String` | |
+| supportsVision | `Boolean` | wins over per-provider visionModels for this id |
+| supportsWebSearch | `Boolean` | same idea for web-search |
+| supportsReasoning | `Boolean` | same idea for reasoning-capable |
 
 ### `ReportModel`
 Used during the report selection phase.
@@ -131,7 +170,7 @@ A per-(provider, model, kind) aggregate.
 | callCount | `Int` | |
 | inputTokens | `Long` | |
 | outputTokens | `Long` | |
-| kind | `String` | `report`, `rerank`, `summarize`, `compare`, `moderate`, or `translate` |
+| kind | `String` | `report`, `rerank`, `meta`, `moderate`, or `translate`. (Fan-out rows tag as `meta` since they share the META kind; the Type column reads the prompt name on display.) |
 
 ### `ModelCapabilities`
 | supportsVision | `Boolean?` |
@@ -162,7 +201,7 @@ Result of a single provider model-list fetch.
 | totalCost | `Double` |
 | rapportText, closeText | `String?` |
 | reportType | `ReportType` (`CLASSIC` or `TABLE`) |
-| imageBase64, imageMime | `String?` (vision attachments) |
+| imageBase64, imageMime | `String?` (vision attachments — downscaled + JPEG-encoded before storage) |
 | webSearchTool | `Boolean` (per-report 🌐 toggle) |
 | reasoningEffort | `String?` (per-report 🧠 hint) |
 | sourceReportId | `String?` (set when this report is a translated copy of another) |
@@ -186,8 +225,8 @@ Result of a single provider model-list fetch.
 
 ### `SecondaryResult`
 Meta-result tied to a parent report — rerank, chat-type Meta
-(driven by the user's Meta-prompt CRUD entries), moderation, or
-translation.
+(driven by the user's Meta-prompt CRUD entries), moderation,
+translation, fan-out per-pair row, or fan-in combined-report row.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -201,8 +240,11 @@ translation.
 | tokenUsage | `TokenUsage?` | |
 | inputCost, outputCost | `Double?` | |
 | durationMs | `Long?` | |
-| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"`) entry that produced this row. Drives per-(report, prompt) "last-selection" lookups |
-| metaPromptName | `String?` | display name of the Meta prompt copied at run time. Drives every UI bucket / export section / cost-row label so renaming or deleting the Meta prompt later doesn't reshape old rows |
+| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"` / `"fan_out"` / `"fan_in"`) that produced this row |
+| metaPromptName | `String?` | display name of the prompt copied at run time. Drives every UI bucket / export section / cost-row label so renaming or deleting the prompt later doesn't reshape old rows |
+| fanOutSourceAgentId | `String?` | Fan-out per-pair rows: agentId of the report-model whose response was substituted into the prompt's `@RESPONSE@` slot. Together with this row's own `(providerId, model)` (the answerer) it forms the (answerer, source) pair the fan-out drill-in keys on |
+| fanInOf | `String?` | Fan-in combined-report rows: id of the `InternalPrompt` that produced this combined output. Lets the fan-out detail screen distinguish the single combined output from the per-pair response rows |
+| secondaryScope | `String?` | Encoded `SecondaryScope` used when this row was originally produced — `"ALL"` / `"TOP:<rerankResultId>:<count>"` / `"MANUAL:<agentId>,..."`. Cascade-on-prompt-change re-runs at the same scope |
 | translateSourceTargetId | `String?` | TRANSLATE only — id of the item translated (`"prompt"`, `agent.agentId`, or a secondary `id`) |
 | translateSourceKind | `String?` | TRANSLATE only — `"PROMPT"`, `"AGENT"`, `"META"` |
 | targetLanguage | `String?` | TRANSLATE only — English language name (e.g. `"Dutch"`) |
@@ -215,7 +257,12 @@ translation.
 - `TopRanked(count: Int, rerankResultId: String)` — input narrowed
   to the top-N entries of a chosen rerank.
 - `Manual(agentIds: Set<String>)` — explicit list of agent ids the
-  user picked from the existing report; only those rows feed in.
+  user picked from the existing report.
+
+`encode()` serialises to `"ALL"` / `"TOP:<id>:<count>"` /
+`"MANUAL:<id>,<id>"` for storage on `SecondaryResult.secondaryScope`.
+`decodeOrAllReports(s)` is defensive — corrupt or legacy strings
+fall back to `AllReports`.
 
 ### `SecondaryLanguageScope` (sealed)
 For chat-type META and Translate fan-out across translated content
@@ -223,7 +270,29 @@ present on the report.
 
 - `AllPresent` — fan out across every language present.
 - `Selected(languages: Set<String>)` — restrict to the chosen
-  English-name languages.
+  English-name languages (plus the empty string for the original /
+  untranslated source).
+
+### `RerankApiResult`
+Result of a provider's dedicated rerank endpoint call (e.g.
+Cohere `/v2/rerank`). Mapped into the same `[{id, rank, score, reason}, ...]`
+JSON the chat-model rerank flow produces, so the rest of the system
+(HTML export, Top-Ranked scope) doesn't need a second code path.
+
+| content | `String?` (JSON in the same shape as the chat prompt) |
+| errorMessage | `String?` |
+| httpStatusCode | `Int?` |
+| billedSearchUnits | `Int?` |
+| durationMs | `Long` |
+
+### `ModerationApiResult`
+Outcome of a single moderation endpoint call.
+
+| content | `String?` (JSON `[{id, flagged, categories, scores}, ...]`) |
+| errorMessage | `String?` |
+| httpStatusCode | `Int?` |
+| tokenUsage | `TokenUsage?` |
+| durationMs | `Long` |
 
 ### `SecondaryRunState`
 In-progress UI state surfaced on the Report screen.
@@ -271,7 +340,7 @@ A named collection of indexed documents.
 |---|---|
 | id | `String` (UUID) |
 | name | `String` |
-| embedderProviderId | `String` (`"LOCAL"` for on-device, otherwise `AppService.id`) |
+| embedderProviderId | `String` (`"Local"` for on-device, otherwise `AppService.id`) |
 | embedderModel | `String` |
 | embeddingDim | `Int` |
 | createdAt | `Long` |
@@ -302,6 +371,10 @@ A single ingested document inside a KB.
 | text | `String` |
 | embedding | `FloatArray` (primitive — boxed `List<Double>` was ~6× heavier per dim; JSON storage on disk is unchanged because Gson serialises both to the same array of numbers, so existing chunk files keep working) |
 
+`equals` / `hashCode` are overridden so the `FloatArray` field
+compares by content, not identity — required for chunk-list
+deduplication and assertion equality.
+
 ### `KnowledgeSourceType` (enum)
 `TEXT`, `MARKDOWN`, `PDF`, `DOCX`, `ODT`, `XLSX`, `ODS`, `CSV`,
 `IMAGE`, `URL`.
@@ -311,7 +384,7 @@ A single ingested document inside a KB.
 ## Local Runtime (`com.ai.data.LocalLlm`, `com.ai.data.LocalEmbedder`)
 
 ### `LocalLlm.RecommendedLlm`
-Hand-off link shown on the Housekeeping → Local LLMs card.
+Hand-off link shown on the AI Setup → Local Models → Local LLMs card.
 
 | name | `String` |
 | url | `String` |
@@ -333,44 +406,44 @@ A `.tflite` text embedder the app can download directly into
 ## Provider routing (`com.ai.data`)
 
 ### `AppService`
-A registered provider (loaded from `setup.json` + custom additions).
-See [providers.md](providers.md) for the full per-provider table.
+A registered provider (loaded from `assets/providers.json` + custom
+additions). See [providers.md](providers.md) for the full
+per-provider table.
 
-| Field | Type |
-|---|---|
-| id, displayName, baseUrl, adminUrl, defaultModel | `String` |
-| openRouterName | `String?` |
-| apiFormat | `ApiFormat` (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`) |
-| typePaths | `Map<String, String>` |
-| modelsPath | `String?` |
-| prefsKey | `String` |
-| seedFieldName | `String` |
-| supportsCitations, supportsSearchRecency, extractApiCost | `Boolean` |
-| costTicksDivisor | `Double?` |
-| modelListFormat | `String` (`"object"` or `"array"`) |
-| modelFilter | `String?` (regex) |
-| litellmPrefix | `String?` |
-| hardcodedModels | `List<String>?` |
-| defaultModelSource | `String?` |
-| endpointRules | `List<EndpointRule>` |
+| Field | Type | Notes |
+|---|---|---|
+| id | `String` | identifier AND human-readable label. The id-unification refactor collapsed three name-like fields (`id` / `displayName` / `prefsKey`) into one. SharedPreferences key prefixes use `id` directly |
+| baseUrl, adminUrl, defaultModel | `String` | |
+| openRouterName | `String?` | |
+| apiFormat | `ApiFormat` | (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`) |
+| typePaths | `Map<String, String>` | per-type API paths overriding the global default |
+| modelsPath | `String?` | default `"v1/models"` |
+| seedFieldName | `String` | default `"seed"`, Mistral uses `"random_seed"` |
+| supportsCitations, supportsSearchRecency, extractApiCost | `Boolean` | |
+| costTicksDivisor | `Double?` | xAI returns ticks; divisor is 1e10 |
+| modelListFormat | `String` | `"object"` or `"array"` |
+| modelFilter | `String?` | regex |
+| litellmPrefix | `String?` | composite-key prefix for the LiteLLM tier |
+| hardcodedModels | `List<String>?` | fallback list |
+| defaultModelSource | `String?` | `"API"` or `"MANUAL"` |
 
 There is also a synthetic singleton `AppService.LOCAL` (`id =
-"LOCAL"`, `displayName = "Local"`, `baseUrl = "local://"`) **not**
-in `ProviderRegistry`. It surfaces only via `findById("LOCAL")` and
-routes chat / report / RAG calls through `LocalLlm` /
+"Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
+It surfaces only via `findById("Local")` (case-insensitive — the
+legacy `"LOCAL"` string in persisted data still resolves) and routes
+chat / report / RAG / Fan-out calls through `LocalLlm` /
 `LocalEmbedder`.
-
-### `EndpointRule`
-| modelPrefix, endpointType | `String` |
 
 ### `ApiFormat` (enum)
 `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All cloud dispatch keys
 off this — provider identity is never used for routing. The on-device
-runtime dispatches off `provider.id == "LOCAL"` instead.
+runtime dispatches off `provider.id == "Local"` instead.
 
 ### `ModelType` (constants)
 `CHAT`, `RESPONSES`, `EMBEDDING`, `RERANK`, `IMAGE`, `TTS`, `STT`,
-`MODERATION`, `CLASSIFY`, `UNKNOWN`.
+`MODERATION`, `CLASSIFY`, `UNKNOWN`. `inferWebSearch` mirrors
+`infer` for OpenAI so the heuristic surfaces web-search-capable
+GPT models.
 
 ---
 
@@ -396,7 +469,7 @@ Costs page and the layered-costs CSV export.
 ### `ChatMessage`
 | role | `String` (`user`, `assistant`, `system`) |
 | content | `String` |
-| imageBase64, imageMime | `String?` (vision attachment as base64) |
+| imageBase64, imageMime | `String?` (vision attachment as base64; JPEG-encoded after downscale) |
 | timestamp | `Long` |
 
 ### `ChatSession`
@@ -415,7 +488,8 @@ Computed:
 ### `ChatParameters`
 Per-chat overrides — same shape as `Parameters` minus id/name, plus:
 - `reasoningEffort: String?` — set per-turn from the chat session
-  screen's 🧠 pulldown.
+  screen's 🧠 pulldown. Clamped to the active model's supported
+  range on session resume.
 
 ### `DualChatConfig`
 Two-models-talk-to-each-other configuration. Persisted to
@@ -443,18 +517,19 @@ Two-models-talk-to-each-other configuration. Persisted to
 
 ### `TraceRequest`
 | url, method | `String` |
-| headers | `Map<String, String>` |
+| headers | `Map<String, String>` (auth headers redacted at write time) |
 | body | `String?` |
 
 ### `TraceResponse`
 | statusCode | `Int` |
 | headers | `Map<String, String>` |
-| body | `String?` |
+| body | `String?` (capped at 8 MiB; streaming responses note "[streaming response - not captured]") |
 
 ### `TraceFileInfo`
 | filename, hostname, reportId, model | `String` / `String?` |
 | timestamp | `Long` |
 | statusCode | `Int` |
+| category | `String?` (e.g. `"Report meta: Compare"`, `"Translation"`) |
 
 ---
 
@@ -477,60 +552,36 @@ Computed:
 
 ---
 
-## Export / Import (`com.ai.model.ExportModels`)
-
-### `ConfigExport` (current version `21`)
-- `version: Int`
-- `providers: Map<String, ProviderConfigExport>`
-- `agents: List<AgentExport>`
-- `flocks, swarms, parameters, systemPrompts, aiPrompts: List<...>?`
-  (the latter is a legacy preserved field for old exports — Internal
-  Prompts have been removed)
-- `huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey: String?`
-- `manualPricing: List<ManualPricingExport>?`
-- `providerEndpoints: List<ProviderEndpointsExport>?`
-- `providerDefinitions: List<ProviderDefinition>?`
-- `providerStates: Map<String, String>?`
-- `modelTypeOverrides: List<ModelTypeOverride>?`
-- `defaultTypePaths: Map<String, String>?`
-- `introPrompt, modelInfoPrompt, translatePrompt: String?` (the
-  three system-prompt strings; chat-type Meta prompts and Rerank
-  ride along under `aiPrompts` / `internalPrompts`)
-
-### `ConfigImportResult`
-Mirror of the above — what `processImportedConfig` returns to the
-caller.
-
-### `ApiKeysExport`
-Standalone API-keys export (separate from full config).
-- `type = "api_keys"`
-- `keys: List<ApiKeyEntry(service, apiKey)>`
-- `huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey: String?`
-
-### `AgentExport`, `FlockExport`, `SwarmExport`, `SwarmMemberExport`, `ParametersExport`, `SystemPromptExport`, `EndpointExport`, `ProviderEndpointsExport`, `ManualPricingExport`, `ProviderConfigExport`
-Wire-format twins of the runtime classes — same fields stripped of
-any runtime-only state. See `ExportModels.kt` for the exact field
-list.
-
----
-
 ## ViewModel state (`com.ai.viewmodel`)
 
 ### `GeneralSettings`
 | Field | Type | Notes |
 |---|---|---|
-| userName | `String` | |
+| userName | `String` (default `"user"`) | |
 | huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey | `String` | |
 | defaultEmail | `String` | |
-| defaultTypePaths | `Map<String, String>` | |
-| introPrompt | `String` | empty → seeded default from `assets/prompts.json`; used by the model self-introduction step in Comprehensive PDF |
-| modelInfoPrompt | `String` | empty → seeded default; used by the Model Info screen's "model info" prompt |
-| translatePrompt | `String` | empty → seeded default; used by the Report result screen's Translate flow |
+| defaultTypePaths | `Map<String, String>` | global per-type API path defaults |
+| tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled` |
+| modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
+| showBackButton | `Boolean` (default true) | when false hides the visible `< Back` button on every TitleBar; system back still works |
+| subjectToTitleBar | `Boolean` (default false) | folds detail-screen subjects into the TitleBar; drops the green sub-header line |
 
-> Rerank and every chat-type Meta prompt are **not** fields on
-> `GeneralSettings` — they live as `InternalPrompt` entries in
-> `Settings.internalPrompts`, CRUD-managed via the Prompt
-> management screen.
+> The intro / model_info / translate / rerank / moderation prompt
+> templates that used to live as `GeneralSettings` fields now live
+> as `InternalPrompt` rows under `Settings.internalPrompts`
+> (category = `"internal"` for the fixed five) and are CRUD'd via
+> Settings → AI Setup → Prompt management.
+
+### `ModelNameLayout` (enum)
+`MODEL_ONLY`, `PROVIDER_AND_MODEL`. Provided to the composition
+tree via `LocalModelNameLayout` in `AppNavHost`.
+
+### `FetchModelsError`
+| message | `String` |
+| traceFile | `String?` (filename of the captured trace, if any) |
+
+Surfaced inline on the model-picker UI with a 🐞 deep-link to the
+captured trace.
 
 ### `UiState`
 The single immutable bag the entire UI subscribes to. See
@@ -539,6 +590,7 @@ The single immutable bag the entire UI subscribes to. See
 - `aiSettings: Settings`
 - `generalSettings: GeneralSettings`
 - `loadingModelsFor: Set<AppService>`
+- `fetchModelsErrors: Map<String, FetchModelsError>`
 - Report flow: `showGenericAgentSelection`, `showGenericReportsDialog`,
   `genericPromptTitle/Text`, `currentReportId`, `genericReportsProgress/Total`,
   `pendingReportModels`, `editModeReportId`, `stagedReportModels`,
@@ -547,12 +599,19 @@ The single immutable bag the entire UI subscribes to. See
   `reportReasoningEffort`, `reportAdvancedParameters`,
   `attachedKnowledgeBaseIds`
 - Share-target staging: `chatStarterText: String?`,
-  `pendingKnowledgeUris: List<String>`
+  `chatStarterImageBase64/Mime: String?`,
+  `pendingKnowledgeUris: List<String>`,
+  `pendingReportKnowledgeUris: List<String>`
 - `activeSecondaryBatches: Int` — count of in-flight secondary
   batches; the Meta button's hourglass / poll loop key off this
 - `externalIntent: ExternalIntent`
 - Chat: `chatParameters: ChatParameters`,
   `dualChatConfig: DualChatConfig?`
+
+Hot per-pair state lives **outside UiState**:
+`AppViewModel.runningFanOutPairs: StateFlow<Set<String>>` carries
+the 5–15 Hz updates from a Fan-out batch so consumers that don't
+care don't recompose.
 
 ### `ExternalIntent`
 Bundle of all 13 fields a launching intent (`com.ai.ACTION_NEW_REPORT`
@@ -570,6 +629,8 @@ or similar) can stuff into UiState.
 
 ## Provider definitions (`com.ai.data.ProviderDefinition`)
 
-Wire format used by `setup.json` and import/export. Same fields as
-`AppService` plus `defaultModelSource: String?`. Translated into a
-runtime `AppService` by `ProviderDefinition.toAppService()`.
+Wire format used by `assets/providers.json` and import/export. Same
+fields as `AppService`. Translated into a runtime `AppService` by
+`ProviderDefinition.toAppService()`. Custom providers added by the
+user are persisted as `ProviderDefinition` JSON in the
+`provider_registry` prefs file.

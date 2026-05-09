@@ -5,9 +5,10 @@ history, reports, knowledge bases, traces, pricing snapshots, and
 all the bookkeeping that makes a restored install pick up exactly
 where the source install left off — into a single `.zip` file.
 
-The user opens it from **Settings → Housekeeping → Backup** (write
-to a SAF-picked location) and **Restore** (read from a SAF-picked
-location). One Activity, one `BackupManager` object, no service.
+The user opens it from **Settings → Housekeeping → Backup & Restore
+→ Backup** (write to a SAF-picked location) and **Restore** (read
+from a SAF-picked location). One Activity, one `BackupManager`
+object, no service.
 
 ## Zip layout
 
@@ -20,30 +21,34 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
 │   └── huggingface_cache.json
-└── files/
-    ├── reports/<reportId>.json
-    ├── secondary/<reportId>/<resultId>.json
-    ├── chat-history.json
-    ├── trace/<hostname>_<ts>_<seq>.json
-    ├── knowledge/<kbId>/manifest.json
-    ├── knowledge/<kbId>/files/<localCopy>
-    ├── knowledge/<kbId>/chunks/<sourceId>.json
-    ├── embeddings/<sha256>.json
-    ├── model_lists/<providerId>.json
-    ├── pricing/<key>.json
-    ├── prompt-history.json
-    ├── prompt_cache/...
-    ├── usage-stats.json
-    ├── model_pricing.json
-    ├── model_supported_parameters.json
-    └── datastore/app_prefs.preferences_pb
+├── files/
+│   ├── reports/<reportId>.json
+│   ├── secondary/<reportId>/<resultId>.json
+│   ├── chat-history.json
+│   ├── trace/<hostname>_<ts>_<seq>.json
+│   ├── knowledge/<kbId>/manifest.json
+│   ├── knowledge/<kbId>/files/<localCopy>
+│   ├── knowledge/<kbId>/chunks/<sourceId>.json
+│   ├── embeddings/<sha256>.json
+│   ├── model_lists/<providerId>.json
+│   ├── pricing/<key>.json
+│   ├── prompt-history.json
+│   ├── prompt_cache/...
+│   └── usage-stats.json
+└── cache/
+    └── (exports, shared traces, camera captures — except
+         in-flight temp files matching CACHE_TOPLEVEL_SKIP_PREFIXES)
 ```
 
 Files are written verbatim. Prefs are encoded as a list of
 `{k, t, v}` objects — `t` is a one-letter type discriminator
 (`s` String, `b` Boolean, `i` Int, `l` Long, `f` Float,
 `ss` String set) so values round-trip through Gson without an
-Int silently coming back as a Double.
+Int silently coming back as a Double. Unknown type tags log a
+warning instead of silently dropping the entry.
+
+Symlinks under `filesDir` are skipped on backup so a maliciously
+linked external file can't end up in the zip.
 
 ## What's included
 
@@ -51,11 +56,11 @@ Int silently coming back as a Double.
 
 | Pref file | What it carries |
 |---|---|
-| `eval_prefs` | All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts, the rerank/summarize/compare/intro/model-info/translate prompt templates, and the various per-screen recents (last selections for Reports, the report title/prompt, the secondary-pickers per-(report, kind) state) |
-| `provider_registry` | Custom provider definitions added or imported by the user — keyed by provider id, merged with `assets/setup.json` at runtime |
+| `eval_prefs` | All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (the legacy `ai_meta_prompts` key, kept for compat) / example prompts, and the various per-screen recents (last selections for Reports, the report title/prompt, the secondary-pickers per-(report, prompt) state) |
+| `provider_registry` | Custom provider definitions added or imported by the user — keyed by provider id, merged with `assets/providers.json` at runtime |
 | `pricing_cache` | Timestamps for each pricing tier + the user's manual price overrides. The bulk pricing JSON itself lives in `files/pricing/` (see below) |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers |
-| `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have) |
+| `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). Concurrent load-modify-save is serialised to prevent torn writes |
 
 ### Files (under `<filesDir>`)
 
@@ -65,27 +70,34 @@ in `FILES_DIR_BACKUP_EXCLUDES` (see next section). Notable contents:
 - `reports/`, `secondary/`, `chat-history.json`,
   `prompt-history.json` — the user's content
 - `trace/` — captured API traces (subject to whatever cutoff the
-  user set)
+  user set). Auth headers redacted at write time
 - `knowledge/<kbId>/` — KB manifests, chunk JSONs (with
   `FloatArray` embeddings serialised as numeric arrays), and
   the locally-persisted source files
 - `embeddings/` — the per-document embedding cache that backs
   Local / Remote semantic search
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
-  Helicone, llm-prices and Artificial Analysis tier blobs.
-  Migrated out of `pricing_cache.xml` to keep SharedPreferences
-  small (see [persistent.md](persistent.md))
+  Helicone, llm-prices and Artificial Analysis tier blobs
 - `model_lists/` — the most recent `/models` raw JSON per
   provider, used by the Model Info screen
 - `model_pricing.json`, `model_supported_parameters.json` —
-  supplementary catalogs written alongside the prefs
+  supplementary catalogs (atomic writes)
 - `prompt_cache/` — `PromptCache` entries (Model Info "model
   info" prompt and similar TTL-cached responses)
 - `usage-stats.json` — per-(provider, model, kind) cumulative
   costs that drive the AI Usage screen
-- `datastore/app_prefs.preferences_pb` — the Jetpack DataStore
-  proto file (currently just the `setup_imported` bootstrap flag
-  but new atomic-flag entries land here too)
+
+### Cache (under `<cacheDir>`)
+
+The backup also mirrors `cacheDir` (exports, shared-trace handoffs,
+camera captures, bulk-export staging) but **skips** in-flight temp
+files whose names match `CACHE_TOPLEVEL_SKIP_PREFIXES`:
+
+- `ai-restore-` — the temp zip the current restore is reading
+- `reset_keys_` — API keys in plaintext written by the reset
+  orchestrator (would leak keys if archived)
+- `ai-backup-` — defensive — should the backup ever stage a
+  temp file, exclude it.
 
 ## What's excluded
 
@@ -113,11 +125,6 @@ ship with them.
 
 ### Other things deliberately not in the zip
 
-- Anything under `cacheDir` — exports
-  (`cacheDir/exports/...`), the shared-traces staging dir for the
-  Share button on the Trace screen, the temp `ai-restore-…zip`
-  file the restore flow uses to validate before wiping. All
-  regeneratable and non-portable.
 - `WebViewChromiumPrefs` — Chromium cookies and web-process
   state. Doesn't make sense across devices.
 - Any SharedPreferences file not in `PREFS_TO_BACKUP`. New prefs
@@ -135,15 +142,28 @@ ship with them.
    Path-traversal guard: every `files/<rel>` entry has its
    resolved canonical path checked against the canonical
    `filesDir` root; entries that escape are dropped with a
-   `Log.w`. (See commit `87c607e0` for the original guard,
-   `bcffeb1b` for the validate-then-write split.)
-2. **Apply** — `clearFilesDirForRestore` wipes filesDir, then
-   `applyStagedEntries` writes the staged map to disk and
-   restores each pref file. After all writes,
-   `mergeMissingProvidersFromSetup` reads `assets/setup.json`
-   and grafts in any provider id the running build has but the
-   restored prefs don't (handles "old backup, new app
-   version, new provider").
+   `Log.w`.
+2. **Apply prefs** — `applyPrefsOnly` commits every
+   `prefs/<name>.json` entry into SharedPreferences. Prefs go
+   first so a process death between writes leaves prefs valid +
+   filesDir empty (re-restorable), rather than the inverse where
+   filesDir is partially written and prefs still point at the
+   pre-restore state.
+3. **Apply files** — `clearFilesDirForRestore` wipes filesDir
+   (preserving `FILES_DIR_BACKUP_EXCLUDES`) plus the staged cache
+   entries, then writes the staged map to disk. Each restored
+   file is **fsync'd** before the caller is allowed to kill the
+   process.
+4. **Merge providers** — `mergeMissingProvidersFromSetup` reads
+   `assets/providers.json` and grafts in any provider id the
+   running build has but the restored prefs don't (handles "old
+   backup, new app version, new provider").
+
+The manifest's `version` field is **read first** — a missing or
+unparseable manifest fails fast (sentinel −1) so a random zip
+can't accidentally trigger the destructive wipe. Reject also fires
+if the manifest version exceeds the running build's
+`MANIFEST_VERSION` (currently `1`).
 
 Memory cost: full uncompressed payload during the staging
 pass. Acceptable because backups are typically 10–50 MB, and
@@ -175,7 +195,7 @@ there.
 ## Provider catalog merge
 
 `mergeMissingProvidersFromSetup` runs after the prefs and files
-have been written. It reads the bundled `assets/setup.json`,
+have been written. It reads the bundled `assets/providers.json`,
 parses every provider definition, and adds any whose `id` isn't
 already in the restored `provider_registry` prefs. The number of
 new providers is returned in `RestoreSummary.newProviders` and
@@ -183,8 +203,8 @@ shown to the user.
 
 This handles the otherwise-confusing "old backup, new app
 version" case: backup was taken when only N providers shipped,
-the new app version added Cloudflare / DeepInfra / etc., the
-restore would otherwise leave them invisible until a manual
+the new app version added Cloudflare / DeepInfra / Nebius / etc.,
+the restore would otherwise leave them invisible until a manual
 prefs wipe.
 
 ## Manifest version
@@ -193,12 +213,17 @@ prefs wipe.
 private const val MANIFEST_VERSION = 1
 ```
 
-`restore` reads the manifest's `version` field and rejects a
-backup whose version exceeds the running build's
-`MANIFEST_VERSION` with an `IllegalStateException` ("Backup is
-from a newer app version (N). Please update the app."). Bump
-`MANIFEST_VERSION` only when the format changes in a way an old
-restore can't read.
+`restore` reads the manifest's `version` field. Bumps:
+
+- `version > MANIFEST_VERSION` → `IllegalStateException` ("Backup
+  is from a newer app version (N). Please update the app.")
+- `version < 1` (missing or unparseable) →
+  `IllegalStateException` ("Backup is missing a recognizable
+  manifest.json — refusing to restore.") — defensive guard so a
+  random zip doesn't trigger the destructive wipe.
+
+Bump `MANIFEST_VERSION` only when the format changes in a way an
+old restore can't read.
 
 ## Singleton staleness after restore
 
@@ -232,7 +257,8 @@ and StateFlow subscribers).
 ## Code & tests
 
 Implementation: `data/BackupManager.kt`.
-Entry points: Housekeeping screen's Backup / Restore buttons.
+Entry points: Housekeeping screen's Backup & Restore card →
+Backup / Restore buttons.
 
 Tests:
 

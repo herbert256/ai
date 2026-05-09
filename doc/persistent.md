@@ -2,7 +2,7 @@
 
 Everything the app keeps on disk, where it lives, and what's in each
 slot. All of this rounds-trip through `BackupManager` (Settings →
-Housekeeping → Backup) into a single `.zip`.
+Housekeeping → Backup & Restore) into a single `.zip`.
 
 ## SharedPreferences (5 files)
 
@@ -15,24 +15,25 @@ By far the largest. Loaded by `SettingsPreferences`.
 #### General settings
 | Key | Type | Notes |
 |---|---|---|
-| `user_name` | String | display name shown in UI |
+| `user_name` | String | display name shown in UI (default `"user"`) |
 | `huggingface_api_key` | String | for HF Model Info lookups |
 | `openrouter_api_key` | String | for OpenRouter pricing tier |
 | `artificial_analysis_api_key` | String | for AA pricing/scores tier |
 | `default_email` | String | default email for the report email export |
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
-| `intro_prompt` | String | Self-introduction template (blank → seeded default from `assets/prompts.json`) |
-| `model_info_prompt` | String | Model Info template (blank → seeded default) |
-| `translate_prompt` | String | Translate template (blank → seeded default) |
+| `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
+| `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
+| `show_back_button` | Boolean (default true) | when false hides the visible Back button |
+| `subject_to_title_bar` | Boolean (default false) | folds detail-screen subjects into the TitleBar |
+| `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed |
 
-> Rerank and every chat-type Meta prompt (Compare, Critique,
-> Summarize, …) used to live here as dedicated keys; they now
-> live as `InternalPrompt` rows under
-> `eval_prefs.internal_prompts` and are CRUD-managed via Settings
-> → AI Setup → Prompt management.
+> The intro / model_info / translate / rerank / moderation prompt
+> templates that used to live as dedicated `*_prompt` keys now live
+> as `InternalPrompt` rows under `ai_meta_prompts` (with
+> `category="internal"`) — see below.
 
 #### Per-provider config
-For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
+For every provider id (`<key> = service.id`, e.g. `OpenAI`):
 | Key | Type | Notes |
 |---|---|---|
 | `<key>_api_key` | String | provider API key |
@@ -42,30 +43,32 @@ For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
 | `<key>_model_types` | JSON Map<String,String> | id → "chat"/"embedding"/... |
 | `<key>_vision_models` | JSON List<String> | user-flagged vision-capable ids |
 | `<key>_web_search_models` | JSON List<String> | user-flagged web-search-capable ids |
+| `<key>_reasoning_models` | JSON List<String> | user-flagged reasoning-capable ids |
 | `<key>_vision_capable_computed` | JSON List<String> | precomputed layered lookup result |
 | `<key>_web_search_capable_computed` | JSON List<String> | precomputed layered lookup result |
+| `<key>_reasoning_capable_computed` | JSON List<String> | precomputed layered lookup result |
 | `<key>_model_pricing` | JSON Map<String, ModelPricing> | precomputed prices |
 | `<key>_model_capabilities` | JSON Map<String, ModelCapabilities> | provider self-report |
 | `<key>_models_response_raw` | String | raw last `/models` response |
-| `<key>_admin_url` | String | provider's admin URL (overridable) |
-| `<key>_model_list_url` | String | optional `/models` URL override |
 | `<key>_parameters_id` | JSON List<String> | default param presets |
 
-#### Top-level lists
-| Key | Type |
-|---|---|
-| `ai_agents` | JSON List<Agent> |
-| `ai_flocks` | JSON List<Flock> |
-| `ai_swarms` | JSON List<Swarm> |
-| `ai_parameters` | JSON List<Parameters> |
-| `ai_system_prompts` | JSON List<SystemPrompt> |
-| `ai_endpoints` | JSON Map<String, List<Endpoint>> (keyed by provider id) |
-| `provider_states` | JSON Map<String, String> ("ok"/"error"/"inactive"/"not-used") |
-| `ai_model_type_overrides` | JSON List<ModelTypeOverride> |
+> The legacy per-provider `_admin_url` and `_model_list_url` override
+> keys have been dropped — admin URLs come from the bundled
+> provider definition only.
 
-> **Note:** the older `ai_prompts` (Internal Prompts) key is no
-> longer written. The intro / model-info / translate templates have
-> moved to dedicated `*_prompt` keys above.
+#### Top-level lists
+| Key | Type | Notes |
+|---|---|---|
+| `ai_agents` | JSON List<Agent> | |
+| `ai_flocks` | JSON List<Flock> | |
+| `ai_swarms` | JSON List<Swarm> | |
+| `ai_parameters` | JSON List<Parameters> | |
+| `ai_system_prompts` | JSON List<SystemPrompt> | |
+| `ai_meta_prompts` | JSON List<InternalPrompt> | despite the legacy `meta` name in the key, this holds **every** Internal Prompt — Meta / Fan-out / Fan-in / Other internal categories — so users who already have seeded entries don't lose them across the rename to InternalPrompt |
+| `ai_example_prompts` | JSON List<ExamplePrompt> | starter library for the New Report flow |
+| `ai_endpoints` | JSON Map<String, List<Endpoint>> | keyed by provider id |
+| `provider_states` | JSON Map<String, String> | "ok"/"error"/"inactive"/"not-used" |
+| `ai_model_type_overrides` | JSON List<ModelTypeOverride> | |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -74,15 +77,15 @@ For every provider id (`<key> = service.prefsKey`, e.g. `ai_openai`):
 | `caps_precomputed_version` | Int | bootstrap-migration version flag for the precompute pass |
 | `ai_report_agents_v2` | StringSet | last-used agent selection for the Reports flow |
 | `ai_report_models_v2` | StringSet | last-used direct-model selection for the Reports flow |
-| `secondary_last_<kind>_<reportId>` | StringSet | per-(report, kind) last-selected models for the secondary pickers |
+| `secondary_last_<promptId>_<reportId>` | StringSet | per-(report, prompt) last-selected models for the Meta / Translate pickers |
 | `last_ai_report_title` | String | most recent report title (used by external-intent flows) |
 | `last_ai_report_prompt` | String | most recent report prompt |
 
 ### `provider_registry`
 Custom provider definitions added by the user (or imported via
-`setup.json`). Keyed by provider id; serialized as `ProviderDefinition`
-JSON. Read by `ProviderRegistry` at startup; merges with the bundled
-`assets/setup.json` definitions.
+`assets/providers.json`). Keyed by provider id; serialized as
+`ProviderDefinition` JSON. Read by `ProviderRegistry` at startup;
+merges with the bundled `assets/providers.json` definitions.
 
 ### `pricing_cache`
 Bookkeeping (timestamps) plus the small manual-override map. The
@@ -125,7 +128,8 @@ keyed on `<providerId>::<modelId>`.
 | `entries_json` | JSON Map<String, Entry(ts, info?)> |
 
 `info = null` is meaningful — a cached miss that short-circuits the
-network call until the TTL expires.
+network call until the TTL expires. Concurrent load-modify-save
+is serialised so two simultaneous misses don't tear the JSON blob.
 
 ## Files (under `<filesDir>`)
 
@@ -135,6 +139,11 @@ captured by the backup zip with two top-level exceptions —
 multi-GB on-device model bundles. See
 [backup-restore.md](backup-restore.md) for the exclude-and-preserve
 contract.
+
+Almost every JSON write goes through `AtomicFileWrite.writeTextAtomic`
+— a `Files.move(ATOMIC_MOVE)` of an fsync'd temp file, with
+parent-dir auto-mkdir. Most writes are also wrapped in a
+`ReentrantLock` per storage object.
 
 ### `pricing/<key>.json`
 Tier blobs for `PricingCache`. One file per (tier, payload):
@@ -166,36 +175,58 @@ request/response/headers/usage/citations/cost, status, durations,
 plus `knowledgeBaseIds`, `imageBase64/Mime` (vision), `webSearchTool`
 / `reasoningEffort` (regen state), `sourceReportId` (translated
 copies), and `pinned`. Written atomically; protected by
-`ReportStorage`'s `ReentrantLock`.
+`ReportStorage`'s `ReentrantLock`. Save failures log a warning
+instead of being silently swallowed.
 
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type
-Meta prompt), MODERATION, or TRANSLATE. META rows carry the
-user-given `metaPromptName` (and `metaPromptId`) so the UI /
-exports group them under the Meta-prompt name regardless of how
-many or which prompts the user has configured. Subdirectory per
+Meta / Fan-out / Fan-in prompt), MODERATION, or TRANSLATE. META
+rows carry the user-given `metaPromptName` (and `metaPromptId`)
+so the UI / exports group them under the prompt name regardless
+of how many or which prompts the user has configured. The
+`secondaryScope` field encodes the SecondaryScope used at run
+time so a cascade re-runs at the same scope. Subdirectory per
 parent report so deleting a report cascades cleanly. Translate
 rows additionally carry `translateSourceTargetId/Kind`,
-`targetLanguage/Native`, and a shared `translationRunId` so the
-result viewer can group rows from one batch.
+`targetLanguage/Native`, and a shared `translationRunId`. Fan-out
+rows carry `fanOutSourceAgentId`; Fan-in rows carry `fanInOf`.
+
+`SecondaryResultStorage.save` validates that the resolved file
+path stays inside the configured directory (defence against
+`..`-traversal in a corrupt id), keeps a per-(reportId)
+fingerprint cache (`(name, mtime, length)` joined across every
+JSON file) to catch in-place edits, and invalidates the cache
+on delete.
 
 ### `trace/<hostname>_<timestamp>_<seq>.json`
 One file per outbound API call (when `ApiTracer.isTracingEnabled` is
-true — debug builds always have it on). Each holds the full request
-(URL, method, headers, body) and the response (status, headers,
-body — except streaming responses, which note that they were not
-captured to avoid breaking the response stream). Tagged with the
-`reportId` and `model` of the originating call where applicable.
+true — on by default; toggleable in Settings). Each holds the full
+request (URL, method, headers, body) and the response (status,
+headers, body — except streaming responses, which note that they
+were not captured to avoid breaking the response stream). Tagged
+with the `reportId` and `model` of the originating call where
+applicable.
+
+Auth headers are redacted at write time, not just on Copy / Share
+— a leaked filesystem dump never carries plain keys. Body capture
+caps at 8 MiB so a runaway streaming response doesn't blow up.
+Hostnames are sanitised before being used as filename components
+(no path-traversal injection from a malicious URL).
 
 On-device LLM (`LocalLlm.generate`) and on-device embedder
 (`LocalEmbedder.embed`) calls write traces too, with
 `hostname = "local"` and url like `local://generate/<modelFile>` or
 `local://embed/<modelFile>`.
 
+`ApiTracer` keeps an in-memory `cachedTraceFiles` list, prewarmed
+off the main thread on `init`, so the Trace list / detail
+prev-next nav is O(1) once the cache is populated.
+
 ### `chat-history.json`
 Single JSON file with every persisted chat session. Managed by
 `ChatHistoryManager`. Sessions are auto-saved as messages arrive.
-Holds `pinned` and `knowledgeBaseIds` per session.
+Holds `pinned` and `knowledgeBaseIds` per session. Atomic writes;
+delete + cache invalidation are taken under a single lock.
 
 ### `prompt-history.json`
 Up to 100 most-recently-used report prompts. Managed by
@@ -205,12 +236,24 @@ card reads it.
 ### `usage-stats.json`
 List of `UsageStats` entries — one per `(provider, model, kind)`
 triple. Updated in-memory by every successful API call; disk-flushed
-on a 2-second debounce. Read by the AI Usage screen.
+on a 2-second debounce. `ViewModel.onCleared` forces a flush off
+the main thread on `NonCancellable` so a Refresh-all auto-restart
+can't drop in-flight stats. Read by the AI Usage screen.
 
-### `prompt-cache.json`
+### `prompt_cache/`
 Cached `PromptCache` entries — per-prompt cached responses with TTL.
 Used by `PromptCache` to short-circuit repeat lookups (e.g. the
-Model Info "model info" prompt).
+Model Info "model info" prompt). Cache keys are length-prefixed
+hashes so a `|` separator collision can't conflate two distinct
+keys.
+
+### `model_lists/<providerId>.json`
+Most recent `/models` raw JSON per provider. Used by the Model Info
+screen and by `ModelListCache`. Atomic writes; provider id is
+sanitised before use as a filename.
+
+### `model_pricing.json`, `model_supported_parameters.json`
+Supplementary catalogs (atomic writes).
 
 ### `knowledge/<kbId>/`
 Knowledge base data. Per-KB layout:
@@ -220,19 +263,23 @@ knowledge/<kbId>/
   manifest.json     — KnowledgeBase + KnowledgeSource[] list
   chunks/
     <sourceId>.json — JSON array of KnowledgeChunk for that source
+  files/
+    <localCopy>     — locally-persisted source file
 ```
 
 One JSON file per source keeps add / remove / re-index cheap (no
 full-KB rewrite for a single-source change), while loading a whole
-KB for retrieval still scans only one directory. See
-[knowledge.md](knowledge.md).
+KB for retrieval still scans only one directory. Chunk + manifest
+writes are taken under a single lock so a crash mid-write can't
+leave the manifest pointing at half a chunk file. `clearAll` and
+`deleteKnowledgeBase` also take the store lock so a full-reset
+and an in-flight ingest can't race. See [knowledge.md](knowledge.md).
 
 ### `embeddings/<sha256>.json`
 Per-document embedding cache, keyed by SHA-256 of `(providerId, model,
-docId, contentHash)`. Doubles instead of Floats — half the size
-benefit isn't worth the precision loss for cosine over short
-documents. Used by the layered Local / Remote semantic search
-screens to short-circuit re-embedding.
+docId, contentHash)`. Used by the layered Local / Remote semantic
+search screens to short-circuit re-embedding. Dim mismatches log a
+warning instead of silently zeroing.
 
 ### `local_models/<name>.tflite`
 On-device text-embedder models for `LocalEmbedder`. The default
@@ -256,10 +303,6 @@ links and a SAF picker that accepts `.task`, `.zip`, `.tar.gz`,
 **Backup behaviour:** same as `local_models/` above — excluded
 from the backup zip, preserved through the restore wipe.
 
-### `datastore/*` (Jetpack DataStore proto files)
-Used for atomic flags like `setup_imported`. See
-`com.ai.data.AppDataStore`.
-
 ## What's NOT persisted
 
 - Raw streaming SSE bodies (response body in trace files reads
@@ -267,9 +310,9 @@ Used for atomic flags like `setup_imported`. See
 - WebView Chromium cookies and process state — intentionally
   excluded from the backup zip; doesn't make sense to restore on a
   different device.
-- The `assets/setup.json` provider catalog — this ships in the APK
-  and is consumed once at first run; the merged result lives in
-  `provider_registry` prefs from then on. Restore re-reads the
+- The `assets/providers.json` provider catalog — this ships in the
+  APK and is consumed once at first run; the merged result lives
+  in `provider_registry` prefs from then on. Restore re-reads the
   asset and grafts in any provider id missing from the restored
   prefs (handles "old backup, new app version, new provider").
 
@@ -280,8 +323,15 @@ Used for atomic flags like `setup_imported`. See
   `BackupManager.FILES_DIR_BACKUP_EXCLUDES`; skipped on backup,
   preserved through the restore wipe so a settings/data restore
   doesn't destroy them.
-- Anything under `cacheDir` (exports, shared traces, the restore
-  temp file) — regeneratable and non-portable.
+- In-flight cacheDir temp files matching
+  `CACHE_TOPLEVEL_SKIP_PREFIXES` (`ai-restore-`, `reset_keys_`,
+  `ai-backup-`) — these would self-contain the in-flight backup,
+  yank the file out from under the in-flight restore, or leak API
+  keys.
+
+`cacheDir` itself **is** mirrored into the backup zip
+(`cache/...`) so exports / shared-trace handoffs / camera captures
+round-trip — only the in-flight temp prefixes are skipped.
 
 See [backup-restore.md](backup-restore.md) for the full backup
 format and restore semantics.
@@ -294,10 +344,17 @@ format and restore semantics.
 - `clearUsageStats()` — empties `usage-stats.json` and the in-memory cache
 - `clearTraces()` — `ApiTracer.clearTraces()` deletes every file under `trace/`
 
-`Housekeeping → Full reset` runs all of the above plus deletes every
-chat session, every report (and cascaded secondary results), every
-knowledge base, every cached embedding, and every trace older than
-the cutoff timestamp. (It does not delete on-device `.task` /
-`.tflite` files — those persist across full resets and have their
-own per-row Remove on the matching Local LLMs / Local Models
-cards.)
+**Housekeeping → Reset** has three full-reset variants:
+- **Clear all runtime data** — wipes reports, chats, traces, KBs,
+  embeddings, the local-semantic-search cache, the
+  knowledge / pricing / model-list caches.
+- **Clear all configuration** — wipes provider config, prompts,
+  Local LLMs, LiteRT models. Asks before destructive actions.
+- **Reset application** — factory-style reset that preserves API
+  keys (written to a temp file under `cacheDir/reset_keys_*`,
+  restored after the wipe), then runs the full Refresh-all chain.
+
+None of these touch the on-device `.task` / `.tflite` files unless
+the "Clear all configuration" path is taken — those persist across
+runtime resets and have their own per-row Remove on the matching
+Local LLMs / Local Models cards.

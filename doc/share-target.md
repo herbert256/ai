@@ -83,6 +83,10 @@ destination cards. Cards disable themselves when the payload doesn't
 fit (e.g. "New Chat" needs text; "Add to Knowledge" needs a file or
 a URL).
 
+The overlay's open / closed state is preserved across nav so a
+back-press from a deep destination (e.g. a captured trace's detail)
+returns to the chooser, not to the bare home screen.
+
 ## Three landing routes
 
 ### Report
@@ -92,19 +96,26 @@ sharedContent)`:
 
 1. Pre-fill `genericPromptTitle` and `genericPromptText` from the
    shared subject + text.
-2. If exactly one image was attached, decode the bytes and base64
-   them into `reportImageBase64` / `reportImageMime` so the
-   Generate path treats it as a vision attachment.
-3. Navigate to `AI_NEW_REPORT`.
+2. If exactly one image was attached, decode the bytes (off the
+   main thread), downscale + JPEG-encode, and base64 the result
+   into `reportImageBase64` / `reportImageMime` so the Generate
+   path treats it as a vision attachment.
+3. If non-image files were attached too, queue them on
+   `UiState.pendingReportKnowledgeUris` so the New Report screen
+   can offer a one-tap "create a one-shot KB from these files"
+   banner.
+4. Navigate to `AI_NEW_REPORT`.
 
 ### Chat
 
-Stage `chatStarterText = sharedContent.text` in `UiState`, navigate
-to `AI_CHAT_PROVIDER` (the configure-on-the-fly model picker so the
+Stage `chatStarterText = sharedContent.text` in `UiState`,
+optionally stage `chatStarterImageBase64/Mime`, navigate to
+`AI_CHAT_PROVIDER` (the configure-on-the-fly model picker so the
 user picks model / params before chatting). `ChatSessionScreen`
 consumes the staged text on first composition and clears it via
 `onConsumeStarter()` so back-and-forward navigation doesn't
-re-stuff the input box.
+re-stuff the input box. Staged image / text persist across process
+recreation.
 
 ### Knowledge
 
@@ -123,10 +134,14 @@ composition:
 - `http://` / `https://` URI → `KnowledgeService.indexUrl(...)`
 - `content://` / `file://` URI → `pickTypeForUri` +
   `displayNameForUri` + `KnowledgeService.indexFile(...)`
+- The auto-ingest `LaunchedEffect` re-keys on the KB's full
+  selection contents so a late-arriving share intent still drains.
 - Status line cycles through "Reading…" / "Embedding…" / "Indexed"
   exactly the same as the manual + File / + Web page buttons.
 - After the queue drains, `onConsumePending()` clears it so a
-  back-and-forward doesn't re-import.
+  back-and-forward doesn't re-import. A shared URL alongside file
+  attachments stays in the queue separately so it gets indexed
+  too.
 
 ## Custom external intent — separate codepath
 

@@ -8,15 +8,23 @@ Two singletons wrap MediaPipe Tasks for fully-offline AI:
   TextEmbedder (`.tflite` models).
 
 Both surface to the rest of the app through the synthetic
-`AppService.LOCAL` provider, so they show up in every model picker
-as a normal "Local" provider — no bespoke buttons, no separate
-flows. The dispatch layer routes by `provider.id == "LOCAL"`.
+`AppService.LOCAL` provider (id `"Local"`), so they show up in every
+model picker as a normal "Local" provider — no bespoke buttons, no
+separate flows. The dispatch layer routes by `provider.id == "Local"`.
+`AppService.findById` does the lookup case-insensitively, so the
+legacy uppercase `"LOCAL"` baked into older persisted ChatSessions
+still resolves.
 
 Both write **synthetic API trace** entries (hostname `local`, url
 like `local://generate/<modelFile>` or `local://embed/<modelFile>`)
 so on-device traffic shows up on the Trace screen alongside HTTP
 calls. Tracing respects the same global flag every other call site
 uses.
+
+Per-native-handle calls are **serialised** via a per-handle mutex
+(separate locks for `LlmInference` and `TextEmbedder` keyed by
+filename) so two concurrent users of the same `.task` or `.tflite`
+don't race the shared MediaPipe context.
 
 **Backup behaviour:** `<filesDir>/local_llms/` and
 `<filesDir>/local_models/` are listed in
@@ -28,6 +36,11 @@ B's local models intact). See
 [backup-restore.md](backup-restore.md) and the
 "What's NOT in the backup zip" section in
 [persistent.md](persistent.md).
+
+The `Clear all configuration` action under Housekeeping → Reset
+also wipes Local LLMs and LiteRT models (so a fresh-start reset
+truly starts fresh) — separate from `Clear all runtime data` which
+keeps them.
 
 ## LocalLlm
 
@@ -52,8 +65,8 @@ doesn't expose a partial-token callback, so chat sessions show the
 full reply when the call returns — not as a stream.
 
 Each `LlmInference` instance is cached in a `ConcurrentHashMap`
-keyed by `.task` filename so successive calls reuse the same
-runtime without re-initialisation.
+populated via `computeIfAbsent` (atomic) keyed by `.task` filename
+so successive calls reuse the same runtime without re-initialisation.
 
 ### Recommended models — the "gating dance"
 
@@ -84,13 +97,15 @@ The SAF picker on the same Local LLMs card accepts:
   into `local_llms/`.
 
 Per-row **Remove** deletes the file and evicts the cached
-`LlmInference` so the next list refresh shows it gone.
+`LlmInference` so the next list refresh shows it gone. Delete
+failure surfaces as a toast instead of silently failing.
 
 ### Provider listing integration
 
 When `LocalLlm.availableLlms()` is non-empty:
-- The synthetic `LOCAL` provider becomes selectable in every model
-  picker (Reports, Chats, Dual Chat, Agents, Swarms).
+- The synthetic `Local` provider becomes selectable in every model
+  picker (Reports, Chats, Dual Chat, Agents, Swarms, Fan-out
+  answerer/source pickers).
 - The AI Chat hub shows a one-tap "Chat with a local LLM" card.
 - The model picker on the Reports flow's `+Provider` shows Local
   alongside the cloud providers.
@@ -112,14 +127,14 @@ or the runtime will refuse to load it.
 
 ### Inference
 
-`embed(context, modelName, text)` returns a `List<Double>` vector.
-Each `TextEmbedder` instance is cached in a `ConcurrentHashMap`
-keyed by `.tflite` filename. Output dimension depends on the model
-(USE Lite is 100; Average Word Embedder is 100 too).
+`embed(context, modelName, inputs)` returns a `List<List<Double>>`
+vector list. Each `TextEmbedder` instance is cached in a
+`ConcurrentHashMap` (computeIfAbsent) keyed by `.tflite` filename.
+Output dimension depends on the model.
 
 ### Curated downloads
 
-`LocalEmbedder.downloadable` is a hardcoded list of two
+`LocalEmbedder.downloadable` is a hardcoded list of
 `DownloadableModel` entries — the only MediaPipe-published text
 embedders with the metadata the runtime accepts:
 
@@ -129,10 +144,12 @@ embedders with the metadata the runtime accepts:
 | `average_word_embedder` | Average Word Embedder | ~5 MB | Tiny + fast English. Lower quality. |
 
 `download(context, spec, onProgress)` streams the model into
-`local_models/` and writes a synthetic ApiTrace entry so the
-download surfaces on the Trace screen. The default model is
-downloaded **lazily** the first time the user opens the Local
-Semantic Search screen or creates a Local-embedder Knowledge base.
+`local_models/` via `Files.move` ATOMIC_MOVE (download to a tmp
+file, then atomically swap into place), and writes a synthetic
+ApiTrace entry so the download surfaces on the Trace screen. The
+default model is downloaded **lazily** the first time the user
+opens the Local Semantic Search screen or creates a Local-embedder
+Knowledge base.
 
 ### Importing
 
@@ -145,7 +162,7 @@ HuggingFace sentence-transformer models.
 
 - **Local Semantic Search** screen (`ui/search/LocalSemanticSearchScreen.kt`)
   — embed report prompts + responses, embed the query, rank by cosine.
-- **Knowledge bases** with `embedderProviderId == "LOCAL"` — see
+- **Knowledge bases** with `embedderProviderId == "Local"` — see
   [knowledge.md](knowledge.md).
 
 ## Adding a new download
@@ -175,4 +192,5 @@ shows up next to HTTP calls. The trace bodies look like:
 ```
 
 Tracing respects the same global on/off flag every cloud call site
-uses; debug builds keep it on by default.
+uses — the master switch is **Settings → API tracing** (on by
+default in every build).

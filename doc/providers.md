@@ -1,9 +1,19 @@
 # Providers
 
-Every provider shipped in `assets/setup.json`, plus the synthetic
-`LOCAL` provider added at runtime. The full schema is in
+Every provider shipped in `assets/providers.json`, plus the synthetic
+`Local` provider added at runtime. The full schema is in
 [datastructures.md](datastructures.md) under `AppService`; this table
 shows only the fields that differ from the default.
+
+The bundled JSON is a flat `{"providers": [...]}` array — no top-level
+`version`. Custom providers added by the user persist as
+`ProviderDefinition` JSON in the `provider_registry` SharedPreferences
+file and are merged with the bundle at runtime.
+
+The id-unification refactor collapsed the legacy `displayName` and
+`prefsKey` fields into `id`. UI shows `id` directly; SharedPreferences
+key prefixes use `id` directly (e.g. `"OpenAI_api_key"`,
+`"OpenAI_model"`).
 
 Defaults: `apiFormat = OPENAI_COMPATIBLE`, `modelsPath = "v1/models"`,
 `chatPath` derived from `ModelType.DEFAULT_PATHS["chat"] =
@@ -14,47 +24,52 @@ Where a provider declares a `litellmPrefix`, the LiteLLM lookup key is
 `<litellmPrefix>/<modelId>`. Where it declares an `openRouterName`, the
 OpenRouter lookup key is `<openRouterName>/<modelId>`.
 
-| Provider | Base URL | Admin URL | Default model | Notable non-default fields |
+| Provider id | Base URL | Admin URL | Default model | Notable non-default fields |
 |---|---|---|---|---|
-| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `defaultModelSource=API`, hardcoded moderation models (`omni-moderation-*`, `text-moderation-*`) since `/v1/models` doesn't surface them |
-| **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-sonnet-4-6` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `modelsPath=v1/models`, `openRouterName=anthropic`, 9 hardcoded models |
-| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API` |
-| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `defaultModelSource=API` |
+| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt|o1|o3|o4`, `defaultModelSource=API`, hardcoded moderation models (`omni-moderation-*`, `text-moderation-*`) since `/v1/models` doesn't surface them |
+| **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-sonnet-4-20250514` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API` |
+| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API` |
+| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API` |
 | **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
-| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `defaultModelSource=API` |
-| **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `defaultModelSource=API` |
-| **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, 4 hardcoded models |
-| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `defaultModelSource=API` |
+| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API` |
+| **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral|open-mistral|codestral|pixtral`, `defaultModelSource=API` |
+| **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, `modelFilter=sonar|llama`, 4 hardcoded models |
+| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat|instruct|llama`, `defaultModelSource=API` |
 | **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `anthropic/claude-3.5-sonnet` | `extractApiCost=true`, `defaultModelSource=API` |
-| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen3-32B` | `defaultModelSource=API`, 9 hardcoded models |
-| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-5` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `defaultModelSource=API`, 7 hardcoded models |
-| **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-k2.5` | `openRouterName=moonshot`, `defaultModelSource=API`, 7 hardcoded models |
-| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-a-03-2025` | `openRouterName=cohere`, 7 hardcoded models |
+| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models |
+| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.7-flash` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm|codegeex|charglm`, 7 hardcoded models, `defaultModelSource=API` |
+| **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
+| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-a-03-2025` | `openRouterName=cohere`, 4 hardcoded models. Native `/v2/rerank` endpoint wired for the Rerank flow |
 | **AI21** | `https://api.ai21.com/` | `https://studio.ai21.com/` | `jamba-mini` | `openRouterName=ai21`, 4 hardcoded models |
-| **DashScope** | `https://dashscope-intl.aliyuncs.com/compatible-mode/` | `https://dashscope.console.aliyun.com/` | `qwen3.5-plus` | 7 hardcoded models |
-| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/deepseek-v3p2` | 6 hardcoded models |
-| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `llama-3.3-70b` | 7 hardcoded models |
-| **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 8 hardcoded models |
-| **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 3 hardcoded models |
-| **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-3.5-flash` | 5 hardcoded models |
-| **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.7` | `openRouterName=minimax`, 5 hardcoded models |
+| **DashScope** | `https://dashscope-intl.aliyuncs.com/compatible-mode/` | `https://dashscope.console.aliyun.com/` | `qwen-plus` | 6 hardcoded models |
+| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/llama-v3p3-70b-instruct` | 4 hardcoded models |
+| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `llama-3.3-70b` | 5 hardcoded models |
+| **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 5 hardcoded models |
+| **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 5 hardcoded models |
+| **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models |
+| **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.1` | `openRouterName=minimax`, 4 hardcoded models |
 | **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `nvidia/llama-3.1-nemotron-70b-instruct` | `defaultModelSource=API` |
 | **Replicate** | `https://api.replicate.com/v1/` | `https://replicate.com/account/api-tokens` | `meta/meta-llama-3-70b-instruct` | `typePaths.chat=chat/completions`, 3 hardcoded models |
-| **Hugging Face** | `https://api-inference.huggingface.co/` | `https://huggingface.co/settings/tokens` | `meta-llama/Llama-3.1-70B-Instruct` | 4 hardcoded models |
+| **HuggingFace** | `https://api-inference.huggingface.co/` | `https://huggingface.co/settings/tokens` | `meta-llama/Llama-3.1-70B-Instruct` | 4 hardcoded models |
 | **Lambda** | `https://api.lambdalabs.com/` | `https://cloud.lambdalabs.com/api-keys` | `hermes-3-llama-3.1-405b-fp8` | `defaultModelSource=API` |
 | **Lepton** | `https://api.lepton.ai/` | `https://dashboard.lepton.ai/` | `llama3-1-70b` | 4 hardcoded models |
-| **01.AI** | `https://api.01.ai/` | `https://platform.01.ai/` | `yi-lightning` | `defaultModelSource=API`, 5 hardcoded models |
-| **Doubao** | `https://ark.cn-beijing.volces.com/api/` | `https://console.volcengine.com/` | `doubao-seed-2.0-pro` | `typePaths.chat=v3/chat/completions`, 7 hardcoded models |
-| **Reka** | `https://api.reka.ai/` | `https://platform.reka.ai/` | `reka-flash-3` | 4 hardcoded models |
-| **Writer** | `https://api.writer.com/` | `https://app.writer.com/` | `palmyra-x5` | 2 hardcoded models |
-| **Cloudflare Workers AI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
+| **01.AI** | `https://api.01.ai/` | `https://platform.01.ai/` | `yi-lightning` | `defaultModelSource=API`, 4 hardcoded models |
+| **Doubao** | `https://ark.cn-beijing.volces.com/api/` | `https://console.volcengine.com/` | `doubao-pro-32k` | `typePaths.chat=v3/chat/completions`, 4 hardcoded models |
+| **Reka** | `https://api.reka.ai/` | `https://platform.reka.ai/` | `reka-flash` | 3 hardcoded models |
+| **Writer** | `https://api.writer.com/` | `https://app.writer.com/` | `palmyra-x-004` | 2 hardcoded models |
+| **CloudflareWorkersAI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
 | **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
 | **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
 | **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `meta-llama/llama-3.1-70b-instruct` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
 | **Featherless.ai** | `https://api.featherless.ai/` | `https://featherless.ai/account/api-keys` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
-| **Liquid AI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
-| **Llama API** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |
+| **LiquidAI** | `https://inference-1.liquid.ai/` | `https://platform.liquid.ai/` | `lfm-7b` | `defaultModelSource=API` |
+| **LlamaAPI** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |
 | **Krutrim** | `https://cloud.olakrutrim.com/` | `https://cloud.olakrutrim.com/console` | `Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
+| **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
+| **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
+| **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
+
+**42 providers total.**
 
 ## Field reference
 
@@ -78,25 +93,36 @@ A few non-default fields warrant explanation:
   field (e.g. OpenRouter); the dispatch layer extracts it instead of
   computing from `tokenUsage * unitPrice`.
 - **`costTicksDivisor`**: provider returns cost in ticks rather than
-  dollars (xAI uses 10¹⁰).
+  dollars (xAI uses 10¹⁰). Provider-config edit refuses non-positive
+  values.
 - **`modelListFormat`**: `"object"` (default — wrapped in
-  `{ "data": [...] }`) vs `"array"` (Together's bare top-level array).
+  `{ "data": [...] }`) vs `"array"` (Together's bare top-level array;
+  Google also returns an array).
 - **`modelFilter`**: regex applied to model ids during listing —
   trims out internal/test/preview models from a noisy catalog.
 - **`litellmPrefix`** / **`openRouterName`**: composite-key prefixes
   for the corresponding pricing tier.
 - **`hardcodedModels`**: fallback list shown when no `/models` endpoint
-  is available or `defaultModelSource=MANUAL`.
+  is available, `defaultModelSource=MANUAL`, **or** to reinstate
+  documented-but-unlisted endpoints (OpenAI moderation / TTS /
+  transcription / image; merged via the OpenAI-only fallback union
+  in `Settings.withModels`).
 - **`defaultModelSource`**: `API` or `MANUAL`. Determines whether the
   app fetches a live list or shows the hardcoded fallback.
-- **`endpointRules`**: prefix-based routing (e.g. OpenAI maps `gpt-5`
-  to the Responses API, everything else to Chat Completions).
 
-## The synthetic LOCAL provider
+## Activation gating
+
+Setting an API key on a provider isn't enough to mark it active —
+both the `/models` fetch and the API-key test must pass. A
+mis-configured provider stays `not-used` until it can prove it
+actually works. Refresh-all surfaces failed providers with a one-tap
+nav-to-edit so the user can fix bad configurations without hunting.
+
+## The synthetic Local provider
 
 In addition to the table above, the app exposes a runtime-only
 `AppService` for the on-device path:
 
-| Provider | Base URL | Admin URL | Default model | Notes |
+| Provider id | Base URL | Admin URL | Default model | Notes |
 |---|---|---|---|---|
-| **Local** (`id = LOCAL`) | `local://` | (none) | (empty) | Routes chat / report / embedding calls through `LocalLlm.generate` (for `.task` LLMs) and `LocalEmbedder.embed` (for `.tflite` text embedders). Not registered in `ProviderRegistry`; surfaces only via `AppService.findById("LOCAL")`. The model list comes from whatever `.task` files live under `<filesDir>/local_llms/`; the embedder list from `<filesDir>/local_models/`. No `apiFormat` — dispatch is by `provider.id == "LOCAL"`. See [local-runtime.md](local-runtime.md). |
+| **Local** (`id = Local`) | `local://` | (none) | (empty) | Routes chat / report / Fan-out / RAG / embedding calls through `LocalLlm.generate` (for `.task` LLMs) and `LocalEmbedder.embed` (for `.tflite` text embedders). Not registered in `ProviderRegistry`; surfaces only via `AppService.findById("Local")` (case-insensitive — accepts the legacy uppercase `"LOCAL"` from persisted ChatSessions). The model list comes from whatever `.task` files live under `<filesDir>/local_llms/`; the embedder list from `<filesDir>/local_models/`. No `apiFormat` — dispatch is by `provider.id == "Local"`. See [local-runtime.md](local-runtime.md). |
