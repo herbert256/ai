@@ -50,7 +50,7 @@ fun AgentsScreen(
             val active = aiSettings.isProviderActive(agent.provider)
             val model = aiSettings.getEffectiveModelForAgent(agent)
             val tail = if (active) "" else " \u00B7 (inactive)"
-            "${agent.provider.displayName} \u00B7 $model$tail"
+            "${agent.provider.id} \u00B7 $model$tail"
         },
         onAdd = onAddAgent,
         onEdit = { onEditAgent(it.id) },
@@ -176,7 +176,7 @@ fun AgentEditScreen(
 
             // Provider selection
             OutlinedButton(onClick = { overlayMode = 1 }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                Text("Provider: ${selectedProvider.displayName}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Provider: ${selectedProvider.id}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             // Model selection
@@ -275,7 +275,7 @@ fun AgentEditScreen(
                 else null
                 if (supportsSystem == false) {
                     Text(
-                        "⚠ ${selectedProvider.displayName} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
+                        "⚠ ${selectedProvider.id} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
                         fontSize = 11.sp, color = AppColors.Red
                     )
                 }

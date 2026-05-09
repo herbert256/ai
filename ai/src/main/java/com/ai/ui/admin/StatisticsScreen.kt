@@ -156,7 +156,7 @@ private fun UsageProviderCard(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(group.provider.displayName, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text(group.provider.id, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     Text("${group.totalCalls} calls", fontSize = 12.sp, color = AppColors.TextTertiary)
                 }
                 Text(formatCurrency(group.totalCost), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
@@ -274,7 +274,7 @@ fun CostConfigurationScreen(aiSettings: Settings, onBack: () -> Unit, onNavigate
                     val isEditing = editingKey == key
 
                     CostConfigCard(
-                        providerName = provider?.displayName ?: parts[0], model = model,
+                        providerName = provider?.id ?: parts[0], model = model,
                         inputPrice = pricing.promptPrice, outputPrice = pricing.completionPrice,
                         isEditing = isEditing, editInputPrice = editInputPrice, editOutputPrice = editOutputPrice,
                         onEditInputChange = { editInputPrice = it }, onEditOutputChange = { editOutputPrice = it },
@@ -416,7 +416,7 @@ internal fun AddManualOverrideScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                Text("Provider: ${selectedProvider?.displayName ?: "Select"}", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("Provider: ${selectedProvider?.id ?: "Select"}", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

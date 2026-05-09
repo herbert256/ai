@@ -141,7 +141,7 @@ private fun embedderLabel(kb: KnowledgeBase): String =
 private fun embedderOptionLabel(providerId: String, model: String): String =
     if (providerId == "LOCAL") "Local · $model"
     else {
-        val prov = AppService.findById(providerId)?.displayName ?: providerId
+        val prov = AppService.findById(providerId)?.id ?: providerId
         com.ai.ui.shared.modelLabel(prov, model)
     }
 
@@ -167,7 +167,7 @@ fun NewKnowledgeBaseScreen(
     // Each option encodes (providerId, modelName, displayLabel).
     val options = remember(localEmbedders, remoteEmbedders) {
         val local = localEmbedders.map { Triple("LOCAL", it, "Local · $it") }
-        val remote = remoteEmbedders.map { (svc, m) -> Triple(svc.id, m, "${svc.displayName} · $m") }
+        val remote = remoteEmbedders.map { (svc, m) -> Triple(svc.id, m, "${svc.id} · $m") }
         local + remote
     }
     var selected by remember { mutableStateOf(options.firstOrNull()) }

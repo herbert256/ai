@@ -13,14 +13,12 @@ class SemanticSearchChoicesTest {
     @Test fun supportedEmbeddingChoices_keeps_only_openai_compatible_embedding_models() {
         val openAiCompatible = AppService(
             id = "UNIT_SEARCH_OPENAI",
-            displayName = "Unit Search OpenAI",
             baseUrl = "https://openai-compatible.example.com/",
             adminUrl = "",
             defaultModel = "chat"
         )
         val google = AppService(
             id = "UNIT_SEARCH_GOOGLE",
-            displayName = "Unit Search Google",
             baseUrl = "https://google.example.com/",
             adminUrl = "",
             defaultModel = "gemini",

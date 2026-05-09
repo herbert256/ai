@@ -377,7 +377,7 @@ fun ProvidersScreen(
 
     val visibleProviders = remember(activeOnly, aiSettings) {
         (if (activeOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
-            .sortedBy { it.displayName }
+            .sortedBy { it.id }
     }
 
     Column(
@@ -433,7 +433,7 @@ fun ProvidersScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(provider.displayName, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                             if (state == "ok") {
                                 val model = aiSettings.getModel(provider)
                                 if (model.isNotBlank()) Text(model, fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)

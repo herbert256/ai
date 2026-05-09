@@ -364,7 +364,7 @@ private fun providerLabelForHost(host: String): String =
         val baseHost = runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
         baseHost?.equals(host, ignoreCase = true) == true ||
             PROVIDER_AUX_HOSTS[svc.id]?.any { it.equals(host, ignoreCase = true) } == true
-    }?.displayName ?: "(unknown)"
+    }?.id ?: "(unknown)"
 
 /** Generic dropdown slot used by Category, Provider and the Model
  *  launcher — outlined button labelled "<label>: <value>" with a

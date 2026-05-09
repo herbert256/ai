@@ -271,7 +271,7 @@ private fun ReportsViewerScreenLoaded(
         if (agentsWithResults.isNotEmpty()) {
             var pickerOpen by remember { mutableStateOf(false) }
             val selectedLabel = selectedReportAgent?.let { agent ->
-                val agentProv = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
                 com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
             } ?: "Pick a model"
             Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
@@ -292,7 +292,7 @@ private fun ReportsViewerScreenLoaded(
                     modifier = Modifier.fillMaxWidth(0.85f)
                 ) {
                     agentsWithResults.forEach { agent ->
-                        val agentProv = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                        val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
                         val label = com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
                         val isSelected = agent.agentId == selectedAgentId
                         DropdownMenuItem(
@@ -383,7 +383,7 @@ fun ReportCostTable(report: Report) {
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, agent.model) }
         val inCents = (pricing?.let { tu.inputTokens * it.promptPrice } ?: 0.0) * 100
         val outCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
-        CostRow("report", providerEnum?.displayName ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+        CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     // Rerank / summarize call costs end up alongside the report rows so the
     // user sees one consolidated breakdown \u2014 distinguished by the new Type
@@ -391,7 +391,7 @@ fun ReportCostTable(report: Report) {
     val secondaryRows = secondary.mapNotNull { s ->
         val tu = s.tokenUsage ?: return@mapNotNull null
         val providerEnum = AppService.findById(s.providerId)
-        val providerDisplay = providerEnum?.displayName ?: s.providerId
+        val providerDisplay = providerEnum?.id ?: s.providerId
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, s.model) }
         val inCents = (s.inputCost ?: 0.0) * 100
         val outCents = (s.outputCost ?: 0.0) * 100

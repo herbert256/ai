@@ -35,7 +35,6 @@ fun ProviderAddScreen(
     val context = LocalContext.current
 
     var id by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
     var baseUrl by remember { mutableStateOf("") }
     var defaultModel by remember { mutableStateOf("") }
     var apiFormat by remember { mutableStateOf(ApiFormat.OPENAI_COMPATIBLE) }
@@ -48,33 +47,25 @@ fun ProviderAddScreen(
     var litellmPrefix by remember { mutableStateOf("") }
     var modelFilter by remember { mutableStateOf("") }
     var seedFieldName by remember { mutableStateOf("seed") }
-    var prefsKey by remember { mutableStateOf("") }
     var extractApiCost by remember { mutableStateOf(false) }
     var supportsCitations by remember { mutableStateOf(false) }
     var supportsSearchRecency by remember { mutableStateOf(false) }
     var costTicksDivisor by remember { mutableStateOf("") }
     var hardcodedModelsText by remember { mutableStateOf("") }
 
-    val normalizedId = id.trim().uppercase()
+    // Post-unification: id is the only name field. It serves as both
+    // identifier (used as SharedPreferences key prefix and persisted
+    // reference) and human label. Spaces are stripped so the id stays
+    // safe as a key prefix; everything else passes through.
+    val normalizedId = id.trim().replace(" ", "")
     val idTaken = normalizedId.isNotBlank() && AppService.findById(normalizedId) != null
-    // "LOCAL" is the synthetic on-device provider sentinel — a custom
-    // provider with that id would be unreachable through
+    // "LOCAL" / "Local" is the synthetic on-device provider sentinel —
+    // a custom provider with that id would be unreachable through
     // AppService.findById (which routes the LOCAL branch first), so
     // refuse it here instead of letting the user create a ghost row.
-    val idReserved = normalizedId == "LOCAL"
-    // Block prefsKey collisions: a custom provider that picks the
-    // same prefsKey as an existing one silently shares storage with
-    // the existing provider, corrupting both providers' stored API
-    // key / models / endpoints. Compare against every registered
-    // provider's prefsKey (case-insensitive — Android resolves
-    // SharedPreferences names case-sensitively, but reusing a
-    // differently-cased near-twin is still a footgun).
-    val effectivePrefsKey = prefsKey.trim().ifBlank { normalizedId.lowercase() }
-    val prefsKeyTaken = effectivePrefsKey.isNotBlank() && AppService.entries.any {
-        it.id != normalizedId && it.prefsKey.equals(effectivePrefsKey, ignoreCase = true)
-    }
-    val canSave = normalizedId.isNotBlank() && !idTaken && !idReserved && !prefsKeyTaken &&
-        displayName.isNotBlank() && baseUrl.isNotBlank() && defaultModel.isNotBlank()
+    val idReserved = normalizedId.equals("LOCAL", ignoreCase = true)
+    val canSave = normalizedId.isNotBlank() && !idTaken && !idReserved &&
+        baseUrl.isNotBlank() && defaultModel.isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "provider_add", title = "Add provider", onBackClick = onBack)
@@ -84,18 +75,16 @@ fun ProviderAddScreen(
 
             SectionCard("Basics") {
                 OutlinedTextField(
-                    value = id, onValueChange = { id = it.uppercase().replace(Regex("[^A-Z0-9_]"), "_") },
-                    label = { Text("ID (uppercase, unique)") }, supportingText = {
+                    value = id, onValueChange = { id = it },
+                    label = { Text("ID (also the display label)") }, supportingText = {
                         when {
-                            idReserved -> Text("LOCAL is reserved for the on-device provider", color = AppColors.Red, fontSize = 11.sp)
+                            idReserved -> Text("Local is reserved for the on-device provider", color = AppColors.Red, fontSize = 11.sp)
                             idTaken -> Text("Already in use", color = AppColors.Red, fontSize = 11.sp)
+                            id.contains(" ") -> Text("Spaces are stripped — id will be saved as \"$normalizedId\"", color = AppColors.TextTertiary, fontSize = 11.sp)
                         }
                     },
                     isError = idTaken || idReserved, singleLine = true, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
-                OutlinedTextField(value = displayName, onValueChange = { displayName = it },
-                    label = { Text("Display name") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it },
                     label = { Text("Base URL (https://…/)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
@@ -173,15 +162,10 @@ fun ProviderAddScreen(
                 }
             }
 
-            CollapsibleCard(title = "Storage", summary = prefsKey.ifBlank { "auto" }) {
-                OutlinedTextField(value = prefsKey, onValueChange = { prefsKey = it },
-                    label = { Text("Prefs key (blank = id.lowercase())") }, singleLine = true,
-                    isError = prefsKeyTaken,
-                    supportingText = {
-                        if (prefsKeyTaken) Text("Already in use by another provider", color = AppColors.Red, fontSize = 11.sp)
-                    },
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
-            }
+            // (Pre-unification builds had a "Storage" card here that
+            // exposed a separate "prefs key" the user could override —
+            // the unification refactor collapsed prefsKey into id, so
+            // the SharedPreferences key prefix is now just `${id}_`.)
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -190,7 +174,6 @@ fun ProviderAddScreen(
                 val hardcoded = hardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
                 val service = AppService(
                     id = normalizedId,
-                    displayName = displayName.trim(),
                     baseUrl = baseUrl.trim(),
                     adminUrl = adminUrl.trim(),
                     defaultModel = defaultModel.trim(),
@@ -198,7 +181,6 @@ fun ProviderAddScreen(
                     apiFormat = apiFormat,
                     typePaths = chatPath.trim().ifBlank { null }?.let { mapOf(com.ai.data.ModelType.CHAT to it) } ?: emptyMap(),
                     modelsPath = modelsPath.trim().ifBlank { null },
-                    prefsKey = prefsKey.trim().ifBlank { normalizedId.lowercase() },
                     seedFieldName = seedFieldName.trim().ifBlank { "seed" },
                     supportsCitations = supportsCitations,
                     supportsSearchRecency = supportsSearchRecency,
@@ -213,7 +195,7 @@ fun ProviderAddScreen(
                     defaultModelSource = defaultModelSource
                 )
                 ProviderRegistry.add(service)
-                Toast.makeText(context, "Provider $displayName added", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Provider $normalizedId added", Toast.LENGTH_SHORT).show()
                 onSaved(service)
             },
             enabled = canSave,

@@ -172,7 +172,7 @@ private fun providerLabelFor(host: String): String =
     AppService.entries.firstOrNull { svc ->
         runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
             ?.equals(host, ignoreCase = true) == true
-    }?.displayName ?: host
+    }?.id ?: host
 
 /** Render a "🐞 trace" link relative to a page at [pageDepth] inside
  *  the report's tree, with [basePath] adding extra ../ levels for

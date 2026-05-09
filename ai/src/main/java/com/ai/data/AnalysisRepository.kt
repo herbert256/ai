@@ -53,7 +53,7 @@ data class AnalysisResponse(
     val httpStatusCode: Int? = null
 ) {
     val isSuccess: Boolean get() = analysis != null && error == null
-    val displayName: String get() = agentName ?: service.displayName
+    val displayName: String get() = agentName ?: service.id
 }
 
 /**
@@ -100,7 +100,7 @@ class AnalysisRepository {
     private fun buildPrompt(promptTemplate: String, content: String, agent: com.ai.model.Agent? = null): String {
         var result = promptTemplate.replace("@FEN@", content).replace("@DATE@", formatCurrentDate())
         if (agent != null) {
-            result = result.replace("@MODEL@", agent.model).replace("@PROVIDER@", agent.provider.displayName).replace("@AGENT@", agent.name)
+            result = result.replace("@MODEL@", agent.model).replace("@PROVIDER@", agent.provider.id).replace("@AGENT@", agent.name)
         }
         return result
     }

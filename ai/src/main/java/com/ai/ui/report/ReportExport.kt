@@ -241,7 +241,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             val outCost = if (tu != null && pricing != null) tu.outputTokens * pricing.completionPrice else null
             HtmlAgentData(
                 agentId = agent.agentId, agentName = agent.agentName, provider = provider,
-                providerDisplay = provider?.displayName ?: agent.provider, model = agent.model,
+                providerDisplay = provider?.id ?: agent.provider, model = agent.model,
                 responseText = agent.responseBody, errorMessage = agent.errorMessage?.takeIf { agent.reportStatus == ReportStatus.ERROR },
                 citations = agent.citations, searchResults = agent.searchResults, relatedQuestions = agent.relatedQuestions,
                 rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
@@ -256,7 +256,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         val secPricing = secProvider?.let { PricingCache.getPricing(context, it, s.model) }
         HtmlSecondaryData(
             id = s.id, kind = s.kind,
-            providerDisplay = secProvider?.displayName ?: s.providerId,
+            providerDisplay = secProvider?.id ?: s.providerId,
             model = s.model,
             agentName = s.agentName,
             timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(s.timestamp)),

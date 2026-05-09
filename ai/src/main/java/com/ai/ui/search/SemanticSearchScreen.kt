@@ -88,14 +88,14 @@ fun SemanticSearchScreen(
                 colors = AppColors.outlinedButtonColors()
             ) {
                 Text(
-                    text = picked?.let { (s, m) -> com.ai.ui.shared.modelLabel(s.displayName, m, separator = " / ") } ?: "Pick embedding model",
+                    text = picked?.let { (s, m) -> com.ai.ui.shared.modelLabel(s.id, m, separator = " / ") } ?: "Pick embedding model",
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                 embeddingChoices.forEach { (s, m) ->
                     DropdownMenuItem(
-                        text = { Text(com.ai.ui.shared.modelLabel(s.displayName, m, separator = " / ")) },
+                        text = { Text(com.ai.ui.shared.modelLabel(s.id, m, separator = " / ")) },
                         onClick = { picked = s to m; pickerOpen = false }
                     )
                 }
@@ -121,7 +121,7 @@ fun SemanticSearchScreen(
                 val q = query.trim()
                 if (q.isBlank()) return@Button
                 val key = aiSettings.getApiKey(svc)
-                if (key.isBlank()) { status = "No API key set for ${svc.displayName}"; return@Button }
+                if (key.isBlank()) { status = "No API key set for ${svc.id}"; return@Button }
                 running = true
                 status = "Indexing reports…"
                 results = emptyList()

@@ -40,7 +40,7 @@ internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent
     var search by remember { mutableStateOf("") }
     val all = aiSettings.agents
     val filtered = if (search.isBlank()) all else all.filter { a ->
-        a.name.lowercase().contains(search.lowercase()) || a.provider.displayName.lowercase().contains(search.lowercase())
+        a.name.lowercase().contains(search.lowercase()) || a.provider.id.lowercase().contains(search.lowercase())
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -60,7 +60,7 @@ internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent
                         Row(modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(com.ai.ui.shared.modelLabel(agent.provider.displayName, model),
+                                Text(com.ai.ui.shared.modelLabel(agent.provider.id, model),
                                     fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
@@ -84,7 +84,7 @@ internal fun ReportSelectProviderDialog(aiSettings: Settings, onSelectProvider: 
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 activeProviders.forEach { provider ->
-                    Text(provider.displayName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1,
+                    Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1,
                         modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp))
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
@@ -114,7 +114,7 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("${provider.displayName} \u2014 ${all.size} models", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
+                Text("${provider.id} \u2014 ${all.size} models", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
@@ -224,12 +224,12 @@ internal fun ReportSelectModelsScreen(
         }
     } else providerFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
-        prov.displayName.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
+        prov.id.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }
     val sorted = remember(searched) {
         // Stable alphabetical order \u2014 no jumping when the user taps.
         searched.sortedWith(
-            compareBy<Pair<AppService, String>> { it.first.displayName.lowercase() }
+            compareBy<Pair<AppService, String>> { it.first.id.lowercase() }
                 .thenBy { it.second.lowercase() }
         )
     }
@@ -241,16 +241,16 @@ internal fun ReportSelectModelsScreen(
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White), border = BorderStroke(1.dp, AppColors.BorderUnfocused)) {
-                Text(providerFilter?.displayName ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp,
+                Text(providerFilter?.id ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp,
                     color = if (providerFilter != null) Color.White else AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("\u25be", color = AppColors.TextTertiary)
             }
             DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(Color(0xFF2D2D2D))) {
                 DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
                     onClick = { providerFilter = null; providerDropdownExpanded = false })
-                remember(effectiveServices) { effectiveServices.sortedBy { it.displayName.lowercase() } }.forEach { provider ->
+                remember(effectiveServices) { effectiveServices.sortedBy { it.id.lowercase() } }.forEach { provider ->
                     val mc = if (provider.id == "LOCAL") localModelsForFilter.size else aiSettings.getModels(provider).size
-                    DropdownMenuItem(text = { Text("${provider.displayName} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
+                    DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
                         onClick = { providerFilter = provider; providerDropdownExpanded = false })
                 }
             }
@@ -291,7 +291,7 @@ internal fun ReportSelectModelsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f).alpha(rowAlpha)) {
-                        Text(provider.displayName, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(provider.id, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
@@ -497,7 +497,7 @@ internal fun ReportSelectSwarmScreen(
                         Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
                         if (swarm.members.isNotEmpty()) {
                             Text(
-                                swarm.members.joinToString(", ") { "${it.provider.displayName}/${it.model}" },
+                                swarm.members.joinToString(", ") { "${it.provider.id}/${it.model}" },
                                 fontSize = 11.sp, color = AppColors.TextDim,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis
                             )

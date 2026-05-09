@@ -34,7 +34,7 @@ class ProviderRegistryInstrumentedTest {
         all.forEach { svc ->
             assertThat(svc.id).isNotEmpty()
             assertThat(svc.baseUrl).isNotEmpty()
-            assertThat(svc.displayName).isNotEmpty()
+            assertThat(svc.id).isNotEmpty()
         }
         // Second call is a no-op — every id already present.
         val secondAdded = ProviderRegistry.importFromAsset(context)
@@ -47,19 +47,18 @@ class ProviderRegistryInstrumentedTest {
 
     @Test fun add_then_remove_round_trips_a_synthetic_provider() {
         val testProvider = AppService(
-            id = "UNIT_REGISTRY_PROBE",
-            displayName = "Unit Registry Probe",
+            id = "UnitRegistryProbe",
             baseUrl = "https://probe.example.com/",
             adminUrl = "",
             defaultModel = "model"
         )
         ProviderRegistry.add(testProvider)
         try {
-            assertThat(ProviderRegistry.findById("UNIT_REGISTRY_PROBE")).isNotNull()
+            assertThat(ProviderRegistry.findById("UnitRegistryProbe")).isNotNull()
         } finally {
-            ProviderRegistry.remove("UNIT_REGISTRY_PROBE")
+            ProviderRegistry.remove("UnitRegistryProbe")
         }
-        assertThat(ProviderRegistry.findById("UNIT_REGISTRY_PROBE")).isNull()
+        assertThat(ProviderRegistry.findById("UnitRegistryProbe")).isNull()
     }
 
     @Test fun update_replaces_existing_entry() {
@@ -67,16 +66,18 @@ class ProviderRegistryInstrumentedTest {
         ProviderRegistry.importFromAsset(context)
         val all = ProviderRegistry.getAll()
         val first = all.firstOrNull() ?: error("import yielded no providers")
+        // Update with new adminUrl (id is identity — can't change it
+        // without orphaning every persisted reference).
         val updated = AppService(
             id = first.id,
-            displayName = "Renamed Display",
             baseUrl = first.baseUrl,
-            adminUrl = first.adminUrl,
+            adminUrl = "https://example.test/admin/changed",
             defaultModel = first.defaultModel
         )
         ProviderRegistry.update(updated)
         try {
-            assertThat(ProviderRegistry.findById(first.id)?.displayName).isEqualTo("Renamed Display")
+            assertThat(ProviderRegistry.findById(first.id)?.adminUrl)
+                .isEqualTo("https://example.test/admin/changed")
         } finally {
             ProviderRegistry.update(first)
         }

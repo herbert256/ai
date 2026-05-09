@@ -7,7 +7,6 @@ class ResponsesUrlTest {
     @Test fun responsesUrlFor_uses_custom_base_url_and_provider_path() {
         val service = AppService(
             id = "UNIT_RESPONSES",
-            displayName = "Unit Responses",
             baseUrl = "https://provider.example.com/",
             adminUrl = "",
             defaultModel = "gpt-5",
@@ -21,7 +20,6 @@ class ResponsesUrlTest {
     @Test fun responsesUrlFor_does_not_duplicate_complete_endpoint_url() {
         val service = AppService(
             id = "UNIT_RESPONSES_COMPLETE",
-            displayName = "Unit Responses Complete",
             baseUrl = "https://provider.example.com/",
             adminUrl = "",
             defaultModel = "gpt-5",
@@ -35,7 +33,6 @@ class ResponsesUrlTest {
     @Test fun responsesUrlFor_falls_back_to_default_responses_path() {
         val service = AppService(
             id = "UNIT_RESPONSES_DEFAULT",
-            displayName = "Unit Responses Default",
             baseUrl = "https://provider.example.com/",
             adminUrl = "",
             defaultModel = "gpt-5"

@@ -505,14 +505,14 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
         val response = api.listModelsArray(modelsUrl, "Bearer $apiKey")
         if (response.isSuccessful) response.body().orEmpty()
         else throw FetchModelsException(
-            "${service.displayName} listModels HTTP ${response.code()}: " +
+            "${service.id} listModels HTTP ${response.code()}: " +
                 (runCatching { response.errorBody()?.string()?.take(300) }.getOrNull() ?: "(no body)")
         )
     } else {
         val response = api.listModels(modelsUrl, "Bearer $apiKey")
         if (response.isSuccessful) response.body()?.data.orEmpty()
         else throw FetchModelsException(
-            "${service.displayName} listModels HTTP ${response.code()}: " +
+            "${service.id} listModels HTTP ${response.code()}: " +
                 (runCatching { response.errorBody()?.string()?.take(300) }.getOrNull() ?: "(no body)")
         )
     }

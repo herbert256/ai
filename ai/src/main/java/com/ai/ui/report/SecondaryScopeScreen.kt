@@ -217,7 +217,7 @@ internal fun SecondaryScopeScreen(
                                 // verbatim; rebuild from a.provider /
                                 // a.model so the Model name layout
                                 // setting wins.
-                                val agentProv = AppService.findById(a.provider)?.displayName ?: a.provider
+                                val agentProv = AppService.findById(a.provider)?.id ?: a.provider
                                 Text(
                                     com.ai.ui.shared.modelLabel(agentProv, a.model, separator = " / "),
                                     fontSize = 13.sp, color = Color.White,
@@ -313,7 +313,7 @@ internal fun SecondaryScopeScreen(
 private enum class ScopeMode { ALL, TOP_RANKED, MANUAL }
 
 private fun rerankLabel(r: SecondaryResult): String {
-    val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+    val provider = AppService.findById(r.providerId)?.id ?: r.providerId
     val ts = SimpleDateFormat("MMM d HH:mm", Locale.US).format(Date(r.timestamp))
     return "$provider · ${r.model} · $ts"
 }

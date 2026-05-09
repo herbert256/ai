@@ -139,7 +139,7 @@ internal fun TranslationRunDetailScreen(
     // Every call in a translation run shares the same model — show
     // it once at the top instead of repeating it on every row.
     val providerService = first?.providerId?.let { AppService.findById(it) }
-    val providerDisplay = providerService?.displayName ?: first?.providerId.orEmpty()
+    val providerDisplay = providerService?.id ?: first?.providerId.orEmpty()
     val modelName = first?.model.orEmpty()
 
     // Tally of how many translation traces exist for this report so
@@ -217,14 +217,14 @@ internal fun TranslationRunDetailScreen(
                     "AGENT" -> {
                         val agent = r.translateSourceTargetId?.let { agentsByIdFromReport[it] }
                         if (agent != null) {
-                            val pn = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                            val pn = AppService.findById(agent.provider)?.id ?: agent.provider
                             com.ai.ui.shared.modelLabel(pn, agent.model, separator = " / ")
                         } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
                     }
                     "META" -> {
                         val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
                         if (src != null) {
-                            val pn = AppService.findById(src.providerId)?.displayName ?: src.providerId
+                            val pn = AppService.findById(src.providerId)?.id ?: src.providerId
                             com.ai.ui.shared.modelLabel(pn, src.model, separator = " / ")
                         } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
                     }

@@ -46,7 +46,7 @@ fun buildApiKeysJson(
     val keys = mutableMapOf<String, String>()
     for (service in AppService.entries) {
         val apiKey = settings.getApiKey(service)
-        if (apiKey.isNotBlank()) keys[service.displayName] = apiKey
+        if (apiKey.isNotBlank()) keys[service.id] = apiKey
     }
     if (huggingFaceApiKey.isNotBlank()) keys["EXT_HUGGINGFACE"] = huggingFaceApiKey
     if (openRouterApiKey.isNotBlank()) keys["EXT_OPENROUTER"] = openRouterApiKey
@@ -93,7 +93,7 @@ fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResu
                 // findById so older keys.json files written before
                 // the displayName switch still import cleanly.
                 val service = AppService.entries.firstOrNull {
-                    it.displayName.equals(id, ignoreCase = true)
+                    it.id.equals(id, ignoreCase = true)
                 } ?: AppService.findById(id)
                 if (service != null) { updated = updated.withApiKey(service, key); imported++ } else skipped++
             }

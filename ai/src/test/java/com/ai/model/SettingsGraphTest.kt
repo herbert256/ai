@@ -120,7 +120,6 @@ class SettingsGraphTest {
 
     private fun service(id: String) = AppService(
         id = id,
-        displayName = id,
         baseUrl = "https://$id.example.com/",
         adminUrl = "",
         defaultModel = "default",

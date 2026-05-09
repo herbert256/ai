@@ -81,7 +81,7 @@ fun exportAiConfig(context: Context, settings: Settings, generalSettings: com.ai
             modelTypes = config.modelTypes.takeIf { it.isNotEmpty() },
             visionModels = config.visionModels.toList().ifEmpty { null },
             webSearchModels = config.webSearchModels.toList().ifEmpty { null },
-            displayName = service.displayName, baseUrl = service.baseUrl,
+            displayName = service.id, baseUrl = service.baseUrl,
             apiFormat = service.apiFormat.name,
             typePaths = service.typePaths.takeIf { it.isNotEmpty() },
             modelsPath = service.modelsPath, openRouterName = service.openRouterName,
@@ -127,11 +127,23 @@ fun exportAiConfigToClipboard(context: Context, settings: Settings, generalSetti
 // ===== Internal =====
 
 internal fun processImportedConfig(context: Context, export: ConfigExport, currentSettings: Settings, silent: Boolean = false): ConfigImportResult {
+    // Pre-unification (v11-v23) exports carry SCREAMING_SNAKE provider
+    // ids ("OPENAI") plus a separate displayName field on each
+    // ProviderConfigExport. The unification refactor collapsed id +
+    // displayName + prefsKey into the single id (= space-stripped
+    // displayName). Rewrite every old id reference in the export to
+    // the new id BEFORE the rest of the importer runs, so downstream
+    // findById lookups, providerStates / endpoints / modelTypeOverrides
+    // map keys, and persisted agent.provider / swarm.member.provider
+    // strings all resolve correctly. The case-insensitive findById is
+    // a separate safety net; this rewrite is the proper migration.
+    val migrated = mapOldIdsToNew(export)
+
     // Register provider definitions. Updating an existing definition from
     // an import bundle is intentionally NOT done — the only field that
     // ever drove an update was endpointRules, which is now ignored.
     // New providers (no existing match by id) are still added.
-    export.providerDefinitions?.let { defs ->
+    migrated.providerDefinitions?.let { defs ->
         val newProviders = mutableListOf<AppService>()
         for (def in defs) {
             if (ProviderRegistry.findById(def.id) == null) {
@@ -141,18 +153,18 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         if (newProviders.isNotEmpty()) ProviderRegistry.ensureProviders(newProviders)
     }
 
-    val agents = export.agents.mapNotNull { e -> AppService.findById(e.provider)?.let { Agent(e.id, e.name, it, e.model, e.apiKey, e.endpointId, e.parametersIds ?: emptyList(), e.systemPromptId) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped agent ${e.name}: unknown provider ${e.provider}") } }
-    val flocks = export.flocks?.map { Flock(it.id, it.name, it.agentIds, it.parametersIds ?: emptyList(), it.systemPromptId) } ?: emptyList()
-    val swarms = export.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
-    val parameters = export.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) } ?: emptyList()
-    val systemPrompts = export.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
+    val agents = migrated.agents.mapNotNull { e -> AppService.findById(e.provider)?.let { Agent(e.id, e.name, it, e.model, e.apiKey, e.endpointId, e.parametersIds ?: emptyList(), e.systemPromptId) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped agent ${e.name}: unknown provider ${e.provider}") } }
+    val flocks = migrated.flocks?.map { Flock(it.id, it.name, it.agentIds, it.parametersIds ?: emptyList(), it.systemPromptId) } ?: emptyList()
+    val swarms = migrated.swarms?.mapNotNull { e -> try { Swarm(e.id, e.name, e.members.mapNotNull { m -> AppService.findById(m.provider)?.let { SwarmMember(it, m.model) }.also { if (it == null) android.util.Log.w("SettingsExport", "Skipped swarm member ${m.provider}/${m.model}: unknown provider") } }, e.parametersIds ?: emptyList(), e.systemPromptId) } catch (ex: Exception) { android.util.Log.w("SettingsExport", "Skipped swarm ${e.name}: ${ex.message}"); null } } ?: emptyList()
+    val parameters = migrated.parameters?.map { Parameters(it.id, it.name, it.temperature, it.maxTokens, it.topP, it.topK, it.frequencyPenalty, it.presencePenalty, it.systemPrompt, it.stopSequences, it.seed, it.responseFormatJson, it.searchEnabled, it.returnCitations, it.searchRecency, it.webSearchTool, it.reasoningEffort) } ?: emptyList()
+    val systemPrompts = migrated.systemPrompts?.map { SystemPrompt(it.id, it.name, it.prompt) } ?: emptyList()
     // Pull internalPrompts; fall back to the legacy v22 metaPrompts
     // field when an older bundle is being imported. v22 metaPrompts
     // rows had no category / agent — Gson reflection bypass leaves
     // those properties as runtime null. Default category to "meta"
     // (the legacy data was always meta-eligible) and agent to
     // "*select" so the imported rows carry valid values.
-    val internalPromptSource = export.internalPrompts ?: export.metaPrompts
+    val internalPromptSource = migrated.internalPrompts ?: migrated.metaPrompts
     val mappedInternalPrompts: List<InternalPrompt>? = internalPromptSource?.map { e ->
         @Suppress("USELESS_CAST")
         val cat = (e.category as String?)?.takeIf { it.isNotBlank() } ?: "meta"
@@ -177,20 +189,20 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
                 )
             }
         }
-        upsertLegacy("Intro", export.introPrompt)
-        upsertLegacy("Model info", export.modelInfoPrompt)
-        upsertLegacy("Translate", export.translatePrompt)
+        upsertLegacy("Intro", migrated.introPrompt)
+        upsertLegacy("Model info", migrated.modelInfoPrompt)
+        upsertLegacy("Translate", migrated.translatePrompt)
         base.toList()
     }
 
     var settings = currentSettings.copy(
         agents = agents, flocks = flocks, swarms = swarms,
         parameters = parameters, systemPrompts = systemPrompts, internalPrompts = internalPrompts,
-        providerStates = export.providerStates ?: currentSettings.providerStates,
-        modelTypeOverrides = export.modelTypeOverrides ?: currentSettings.modelTypeOverrides
+        providerStates = migrated.providerStates ?: currentSettings.providerStates,
+        modelTypeOverrides = migrated.modelTypeOverrides ?: currentSettings.modelTypeOverrides
     )
 
-    for ((providerKey, p) in export.providers) {
+    for ((providerKey, p) in migrated.providers) {
         val service = AppService.findById(providerKey) ?: continue
         val cur = settings.getProvider(service)
         val importedConfig = cur.copy(
@@ -224,7 +236,7 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
         }
     }
 
-    export.manualPricing?.let { pricingList ->
+    migrated.manualPricing?.let { pricingList ->
         val map = pricingList.associate { entry ->
             val modelId = entry.key.substringAfter(':', entry.key)
             entry.key to PricingCache.ModelPricing(modelId, entry.promptPrice, entry.completionPrice, "manual")
@@ -233,23 +245,23 @@ internal fun processImportedConfig(context: Context, export: ConfigExport, curre
     }
 
     var settingsWithEndpoints = settings
-    export.providerEndpoints?.forEach { pe ->
+    migrated.providerEndpoints?.forEach { pe ->
         AppService.findById(pe.provider)?.let { provider ->
             settingsWithEndpoints = settingsWithEndpoints.withEndpoints(provider, pe.endpoints.map { Endpoint(it.id, it.name, it.url, it.isDefault) })
         }
     }
 
     if (!silent) {
-        val apiKeys = export.providers.values.count { it.apiKey.isNotBlank() }
-        val pricing = export.manualPricing?.size ?: 0
-        val endpoints = export.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
+        val apiKeys = migrated.providers.values.count { it.apiKey.isNotBlank() }
+        val pricing = migrated.manualPricing?.size ?: 0
+        val endpoints = migrated.providerEndpoints?.sumOf { it.endpoints.size } ?: 0
         val msg = "Imported ${agents.size} agents, $apiKeys API keys" +
             (if (pricing > 0) ", $pricing price overrides" else "") +
             (if (endpoints > 0) ", $endpoints endpoints" else "")
         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
     }
 
-    return ConfigImportResult(settingsWithEndpoints, export.huggingFaceApiKey, export.openRouterApiKey, export.artificialAnalysisApiKey, export.defaultTypePaths)
+    return ConfigImportResult(settingsWithEndpoints, migrated.huggingFaceApiKey, migrated.openRouterApiKey, migrated.artificialAnalysisApiKey, migrated.defaultTypePaths)
 }
 
 /**
@@ -270,4 +282,71 @@ fun performStartClean(context: Context, onProgress: ((String) -> Unit)? = null) 
     sp.clearUsageStats()
     onProgress?.invoke("Deleting API traces...")
     com.ai.data.ApiTracer.deleteTracesOlderThan(cutoff)
+}
+
+/** Migrate provider id references in a [ConfigExport] from the
+ *  pre-unification SCREAMING_SNAKE form ("OPENAI") to the unified
+ *  mixed-case form ("OpenAI"). Pre-unification exports populate
+ *  `displayName` on each [ProviderConfigExport]; the new id is that
+ *  displayName with spaces stripped (matching the convention in
+ *  assets/providers.json after the refactor). Returns a [ConfigExport]
+ *  with every persisted id reference rewritten:
+ *    - export.providers map keys
+ *    - export.agents[*].provider
+ *    - export.swarms[*].members[*].provider
+ *    - export.providerEndpoints[*].provider
+ *    - export.providerStates map keys
+ *    - export.modelTypeOverrides[*].providerId
+ *    - export.providerDefinitions[*].id
+ *    - export.manualPricing[*].key (when shaped "providerId:model")
+ *  Acts as a no-op on already-unified (v24+) bundles where displayName
+ *  isn't present on the provider exports. */
+internal fun mapOldIdsToNew(export: ConfigExport): ConfigExport {
+    // Build oldId → newId from the providers map. Skip entries already
+    // in the unified shape (no displayName, or displayName already
+    // matches the key with no spaces).
+    val map: Map<String, String> = export.providers.entries.mapNotNull { (key, p) ->
+        val dn = p.displayName?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        val newId = dn.replace(" ", "")
+        if (newId == key) null else key to newId
+    }.toMap()
+    if (map.isEmpty()) return export   // already unified
+
+    fun mapId(s: String?): String? = s?.let { map[it] ?: it }
+    val newProviders = export.providers.mapKeys { (k, _) -> map[k] ?: k }
+    val newAgents = export.agents.map { a -> a.copy(provider = mapId(a.provider) ?: a.provider) }
+    val newSwarms = export.swarms?.map { s ->
+        s.copy(members = s.members.map { m -> m.copy(provider = mapId(m.provider) ?: m.provider) })
+    }
+    val newEndpoints = export.providerEndpoints?.map { pe ->
+        pe.copy(provider = mapId(pe.provider) ?: pe.provider)
+    }
+    val newStates = export.providerStates?.mapKeys { (k, _) -> map[k] ?: k }
+    val newOverrides = export.modelTypeOverrides?.map { o ->
+        o.copy(providerId = mapId(o.providerId) ?: o.providerId)
+    }
+    val newDefinitions = export.providerDefinitions?.map { def ->
+        val newId = map[def.id] ?: def.id
+        if (newId == def.id) def else def.copy(id = newId)
+    }
+    val newManualPricing = export.manualPricing?.map { mp ->
+        val colon = mp.key.indexOf(':')
+        if (colon <= 0) mp
+        else {
+            val pid = mp.key.substring(0, colon)
+            val rest = mp.key.substring(colon + 1)
+            val newPid = map[pid] ?: pid
+            if (newPid == pid) mp else mp.copy(key = "$newPid:$rest")
+        }
+    }
+    return export.copy(
+        providers = newProviders,
+        agents = newAgents,
+        swarms = newSwarms,
+        providerEndpoints = newEndpoints,
+        providerStates = newStates,
+        modelTypeOverrides = newOverrides,
+        providerDefinitions = newDefinitions,
+        manualPricing = newManualPricing
+    )
 }

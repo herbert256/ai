@@ -135,7 +135,7 @@ fun ReportSingleResultScreen(
 
     if (showTranslationCompare && sourceAgentBody != null && agent.responseBody != null) {
         TranslationCompareScreen(
-            title = "Translation info — ${com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " / ")}",
+            title = "Translation info — ${com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " / ")}",
             originalLabel = "Original",
             originalContent = sourceAgentBody,
             translatedLabel = "Translation",
@@ -167,7 +167,7 @@ fun ReportSingleResultScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                com.ai.ui.shared.modelLabel(provider.displayName, agent.model, separator = " — "),
+                com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — "),
                 fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
@@ -239,7 +239,7 @@ fun ReportSingleResultScreen(
 
     if (confirmReload) {
         com.ai.ui.shared.ReloadConfirmationDialog(
-            target = "${provider.displayName} / ${agent.model}",
+            target = "${provider.id} / ${agent.model}",
             onConfirm = {
                 confirmReload = false
                 onRegenerateAgent(reportId, agentId)
@@ -255,7 +255,7 @@ fun ReportSingleResultScreen(
             title = { Text("Remove from report?") },
             text = {
                 Text(
-                    "Drop ${provider.displayName} / ${agent.model} from this report. " +
+                    "Drop ${provider.id} / ${agent.model} from this report. " +
                         "Removes the saved response and recomputes totals; can't be undone."
                 )
             },

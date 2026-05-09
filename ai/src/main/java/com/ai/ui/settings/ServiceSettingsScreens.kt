@@ -123,7 +123,7 @@ fun ModelsListScreen(
         // filter on the Providers screen.
         val activeProviders = AppService.entries
             .filter { aiSettings.getProviderState(it) == "ok" }
-            .sortedBy { it.displayName }
+            .sortedBy { it.id }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (activeProviders.isEmpty()) {
@@ -145,7 +145,7 @@ fun ModelsListScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(provider.displayName, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                             if (model.isNotBlank()) {
                                 Text(model, fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -292,7 +292,7 @@ fun ProviderModelSettingsScreen(
     ) {
         TitleBar(helpTopic = "models_per_provider", title = "Models", onBackClick = onBack)
         Text(
-            text = service.displayName,
+            text = service.id,
             fontSize = 18.sp, color = AppColors.Green,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -406,7 +406,7 @@ fun ProviderModelSettingsScreen(
                     )
                 }
             } else if (modelSource == ModelSource.API && apiKey.isBlank()) {
-                Text("Set an API key for ${service.displayName} in Providers to fetch models.", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Text("Set an API key for ${service.id} in Providers to fetch models.", fontSize = 12.sp, color = AppColors.TextTertiary)
             }
 
             // Manual-only add/update form — placed above the list so the CRUD affordances are obvious.
@@ -556,7 +556,6 @@ fun ProviderSettingsScreen(
     // ===== Provider definition (catalog) state =====
     // Mirrors every field on ProviderDefinition / AppService so the user can edit the
     // catalog entry that ships in setup.json. Auto-saves via ProviderRegistry.update().
-    var defDisplayName by remember(service.id) { mutableStateOf(service.displayName) }
     var defBaseUrl by remember(service.id) { mutableStateOf(service.baseUrl) }
     var defAdminUrl by remember(service.id) { mutableStateOf(service.adminUrl) }
     var defDefaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
@@ -582,15 +581,14 @@ fun ProviderSettingsScreen(
     }
 
     LaunchedEffect(
-        defDisplayName, defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
+        defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
         defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
         defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
-        val same = defDisplayName == service.displayName &&
-            defBaseUrl == service.baseUrl &&
+        val same = defBaseUrl == service.baseUrl &&
             defAdminUrl == service.adminUrl &&
             defDefaultModel == service.defaultModel &&
             defOpenRouterName == (service.openRouterName ?: "") &&
@@ -608,11 +606,10 @@ fun ProviderSettingsScreen(
             defSupportsSearchRecency == service.supportsSearchRecency &&
             defHardcodedModelsText == (service.hardcodedModels?.joinToString(", ") ?: "")
         if (same) return@LaunchedEffect
-        if (defDisplayName.isBlank() || defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
+        if (defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
         ProviderRegistry.update(AppService(
             id = service.id,
-            displayName = defDisplayName.trim(),
             baseUrl = defBaseUrl.trim(),
             adminUrl = defAdminUrl.trim(),
             defaultModel = defDefaultModel.trim(),
@@ -620,7 +617,6 @@ fun ProviderSettingsScreen(
             apiFormat = defApiFormat,
             typePaths = defTypePaths.mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
             modelsPath = defModelsPath.trim().ifBlank { null },
-            prefsKey = service.prefsKey,
             seedFieldName = defSeedFieldName.trim().ifBlank { "seed" },
             supportsCitations = defSupportsCitations,
             supportsSearchRecency = defSupportsSearchRecency,
@@ -704,7 +700,7 @@ fun ProviderSettingsScreen(
     ) {
         TitleBar(helpTopic = "provider_edit", title = "Provider", onBackClick = onBackToSettings)
         Text(
-            text = service.displayName,
+            text = service.id,
             fontSize = 18.sp, color = AppColors.Green,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -894,9 +890,14 @@ fun ProviderSettingsScreen(
             // bundled catalog is editable.
 
             CollapsibleCard(title = "Definition · Basics", summary = null) {
-                OutlinedTextField(value = defDisplayName, onValueChange = { defDisplayName = it },
-                    label = { Text("Display name") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                // The provider id (which is also its display label) is
+                // shown in the screen's title bar above; this card edits
+                // only the catalog values that aren't the identity. Pre-
+                // unification builds had a separate "Display name" field
+                // here that mapped to the now-removed AppService.displayName
+                // — the unification refactor collapsed id + displayName +
+                // prefsKey into the single id, so a rename is a Add /
+                // Remove operation rather than an in-place edit.
                 OutlinedTextField(value = defBaseUrl, onValueChange = { defBaseUrl = it },
                     label = { Text("Base URL") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
@@ -998,7 +999,7 @@ fun ProviderSettingsScreen(
                 OutlinedTextField(value = service.id, onValueChange = {},
                     label = { Text("ID") }, singleLine = true, readOnly = true, enabled = false,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
-                OutlinedTextField(value = service.prefsKey, onValueChange = {},
+                OutlinedTextField(value = service.id, onValueChange = {},
                     label = { Text("Prefs key") }, singleLine = true, readOnly = true, enabled = false,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }

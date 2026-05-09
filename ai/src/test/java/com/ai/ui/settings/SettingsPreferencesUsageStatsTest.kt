@@ -17,7 +17,6 @@ class SettingsPreferencesUsageStatsTest {
         val prefs = SettingsPreferences(UnusedSharedPreferences(), tmp.root)
         val service = AppService(
             id = "UNIT_USAGE",
-            displayName = "Unit Usage",
             baseUrl = "https://usage.example.com/",
             adminUrl = "",
             defaultModel = "model",

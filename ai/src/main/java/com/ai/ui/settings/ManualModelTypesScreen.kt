@@ -135,7 +135,7 @@ internal fun ManualModelTypeEditScreen(
 ) {
     BackHandler { onCancel() }
 
-    val allProviders = remember { AppService.entries.sortedBy { it.displayName } }
+    val allProviders = remember { AppService.entries.sortedBy { it.id } }
     var providerId by remember { mutableStateOf(initial?.providerId ?: initialProviderId ?: allProviders.firstOrNull()?.id ?: "") }
     var modelId by remember { mutableStateOf(initial?.modelId ?: initialModelId ?: "") }
     var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
@@ -170,7 +170,7 @@ internal fun ManualModelTypeEditScreen(
                 onExpandedChange = { providerExpanded = !providerExpanded }
             ) {
                 OutlinedTextField(
-                    value = AppService.findById(providerId)?.displayName ?: providerId,
+                    value = AppService.findById(providerId)?.id ?: providerId,
                     onValueChange = {}, readOnly = true,
                     label = { Text("Provider") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
@@ -180,7 +180,7 @@ internal fun ManualModelTypeEditScreen(
                 ExposedDropdownMenu(expanded = providerExpanded, onDismissRequest = { providerExpanded = false }) {
                     allProviders.forEach { p ->
                         DropdownMenuItem(
-                            text = { Text(p.displayName) },
+                            text = { Text(p.id) },
                             onClick = {
                                 if (providerId != p.id) modelId = ""
                                 providerId = p.id

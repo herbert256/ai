@@ -14,8 +14,14 @@ import java.lang.reflect.Type
  * Identity is based on `id` only — equality, hashing, and serialization all use `id`.
  */
 class AppService(
+    /** Stable identifier AND human-readable label. Pre-unification
+     *  builds carried three name-like fields (id / displayName /
+     *  prefsKey); these collapsed into one in the id-unification
+     *  refactor. UI shows `id` directly; SharedPreferences key
+     *  prefixes use `id` directly (e.g. `"OpenAI_api_key"`). Bundled
+     *  values come from assets/providers.json; user-added providers
+     *  set their own. */
     val id: String,
-    val displayName: String,
     val baseUrl: String,
     val adminUrl: String,
     val defaultModel: String,
@@ -26,7 +32,6 @@ class AppService(
      *  computed views over this map for back-compat. */
     val typePaths: Map<String, String> = emptyMap(),
     val modelsPath: String? = "v1/models",
-    val prefsKey: String = "",
     val seedFieldName: String = "seed",
     val supportsCitations: Boolean = false,
     val supportsSearchRecency: Boolean = false,
@@ -65,13 +70,20 @@ class AppService(
          *  through [findById] so persisted ChatSessions whose
          *  provider was Local can be reloaded after restart. */
         val LOCAL = AppService(
-            id = "LOCAL",
-            displayName = "Local",
+            id = "Local",
             baseUrl = "local://",
             adminUrl = "",
             defaultModel = ""
         )
         val entries: List<AppService> get() = ProviderRegistry.getAll()
+        /** Case-insensitive id lookup. The id field migrated from
+         *  SCREAMING_SNAKE ("OPENAI") to mixed-case ("OpenAI") in the
+         *  unification refactor; persisted references in chat sessions,
+         *  reports, traces, and secondary results carry the legacy
+         *  uppercase form. The case-insensitive match resolves them
+         *  transparently to the new mixed-case AppService at
+         *  deserialise time, and the next save rewrites the file with
+         *  the new canonical id. */
         fun findById(id: String): AppService? = if (id.equals("LOCAL", ignoreCase = true)) LOCAL else ProviderRegistry.findById(id)
         fun valueOf(id: String): AppService = findById(id)
             ?: throw IllegalArgumentException("Unknown AppService: $id")

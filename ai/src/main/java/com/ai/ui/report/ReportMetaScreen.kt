@@ -168,7 +168,7 @@ internal fun ReportMetaScreen(
 
 @Composable
 private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
-    val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+    val provider = AppService.findById(r.providerId)?.id ?: r.providerId
     val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
     val kindLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
         ?: com.ai.data.legacyKindDisplayName(r.kind)

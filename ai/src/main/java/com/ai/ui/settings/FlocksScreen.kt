@@ -92,7 +92,7 @@ fun FlockEditScreen(
     }
     val filteredAgents = remember(searchQuery, availableAgents) {
         if (searchQuery.isBlank()) availableAgents
-        else availableAgents.filter { it.name.contains(searchQuery, ignoreCase = true) || it.provider.displayName.contains(searchQuery, ignoreCase = true) }
+        else availableAgents.filter { it.name.contains(searchQuery, ignoreCase = true) || it.provider.id.contains(searchQuery, ignoreCase = true) }
     }
     val sortedAgents = remember(filteredAgents, selectedAgentIds) {
         filteredAgents.sortedWith(compareByDescending<Agent> { it.id in selectedAgentIds }.thenBy { it.name.lowercase() })
@@ -167,7 +167,7 @@ fun FlockEditScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(agent.name, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(com.ai.ui.shared.modelLabel(agent.provider.displayName, effectiveModel),
+                        Text(com.ai.ui.shared.modelLabel(agent.provider.id, effectiveModel),
                             fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }

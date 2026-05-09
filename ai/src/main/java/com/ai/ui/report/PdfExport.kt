@@ -232,7 +232,7 @@ internal fun buildShortHtml(context: Context, report: Report): String {
     sb.append("<h2>Results</h2>")
     for (a in agents) {
         val provider = AppService.findById(a.provider)
-        sb.append("<h3>").append(esc(provider?.displayName ?: a.provider))
+        sb.append("<h3>").append(esc(provider?.id ?: a.provider))
             .append(" / ").append(esc(a.model)).append("</h3>")
         if (a.reportStatus == ReportStatus.ERROR) {
             sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown")).append("</p>")
@@ -256,7 +256,7 @@ internal fun buildShortHtml(context: Context, report: Report): String {
         if (items.isEmpty()) return
         sb.append("<h2>").append(heading).append("</h2>")
         for (s in items) {
-            val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+            val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
             val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(s.timestamp))
             sb.append("<h3>").append(esc(provDisplay)).append(" / ").append(esc(s.model))
                 .append("<span class='meta-ts'>").append(esc(ts)).append("</span></h3>")

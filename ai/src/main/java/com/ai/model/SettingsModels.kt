@@ -579,13 +579,13 @@ data class Settings(
      *  so callers can compare reference-equally and skip a redundant
      *  save. */
     fun ensureDefaultAgentInFlock(service: AppService, defaultModel: String): Settings {
-        val existingAgent = agents.find { it.name == service.displayName && it.provider.id == service.id }
+        val existingAgent = agents.find { it.name == service.id && it.provider.id == service.id }
         val (agentId, withAgent) = if (existingAgent != null) {
             existingAgent.id to this
         } else {
             val newAgent = Agent(
                 id = java.util.UUID.randomUUID().toString(),
-                name = service.displayName, provider = service,
+                name = service.id, provider = service,
                 model = defaultModel, apiKey = ""
             )
             newAgent.id to copy(agents = agents + newAgent)

@@ -187,7 +187,7 @@ fun DualChatSetupScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Model 1
             ModelSelectionCard(
-                label = "Model 1", providerName = model1Provider?.displayName, modelName = model1Name,
+                label = "Model 1", providerName = model1Provider?.id, modelName = model1Name,
                 onSelectClick = { overlayMode = 1 }, color = Color(0xFF4488CC),
                 aiSettings = aiSettings, paramsIds = model1ParamsIds, onParamsIdsChange = { model1ParamsIds = it },
                 systemPromptId = model1SystemPromptId, onSystemPromptIdChange = { model1SystemPromptId = it }
@@ -204,7 +204,7 @@ fun DualChatSetupScreen(
 
             // Model 2
             ModelSelectionCard(
-                label = "Model 2", providerName = model2Provider?.displayName, modelName = model2Name,
+                label = "Model 2", providerName = model2Provider?.id, modelName = model2Name,
                 onSelectClick = { overlayMode = 3 }, color = Color(0xFF44AA66),
                 aiSettings = aiSettings, paramsIds = model2ParamsIds, onParamsIdsChange = { model2ParamsIds = it },
                 systemPromptId = model2SystemPromptId, onSystemPromptIdChange = { model2SystemPromptId = it }
@@ -425,7 +425,7 @@ fun DualChatSessionScreen(
                     val inTokens1 = m1Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens1 = AppViewModel.estimateTokens(response1)
                     model1InputTokens += inTokens1; model1OutputTokens += outTokens1
-                    appendMessage(DualMessage(1, response1, config.model1Provider.displayName, config.model1Name))
+                    appendMessage(DualMessage(1, response1, config.model1Provider.id, config.model1Name))
                     if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     // Model 2's turn
@@ -440,7 +440,7 @@ fun DualChatSessionScreen(
                     val inTokens2 = m2Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens2 = AppViewModel.estimateTokens(response2)
                     model2InputTokens += inTokens2; model2OutputTokens += outTokens2
-                    appendMessage(DualMessage(2, response2, config.model2Provider.displayName, config.model2Name))
+                    appendMessage(DualMessage(2, response2, config.model2Provider.id, config.model2Name))
                     if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     currentInteraction++
@@ -559,7 +559,7 @@ fun DualChatSessionScreen(
             text = {
                 Column {
                     Text(
-                        "${config.model1Provider.displayName} — ${config.model1Name}",
+                        "${config.model1Provider.id} — ${config.model1Name}",
                         fontSize = 14.sp, color = Color.White,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false
@@ -567,7 +567,7 @@ fun DualChatSessionScreen(
                         }.padding(vertical = 12.dp)
                     )
                     Text(
-                        "${config.model2Provider.displayName} — ${config.model2Name}",
+                        "${config.model2Provider.id} — ${config.model2Name}",
                         fontSize = 14.sp, color = Color.White,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false
@@ -622,7 +622,7 @@ private fun DualMessageBubble(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val msgProviderService = com.ai.data.AppService.entries.firstOrNull { it.displayName == msg.providerName }
+                    val msgProviderService = com.ai.data.AppService.entries.firstOrNull { it.id == msg.providerName }
                     Text(
                         com.ai.ui.shared.modelLabel(msg.providerName, msg.modelName, separator = " / "),
                         fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,

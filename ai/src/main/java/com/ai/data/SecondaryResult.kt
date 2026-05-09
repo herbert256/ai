@@ -394,7 +394,7 @@ fun buildReferenceLegend(report: Report, includeIds: Set<Int>? = null): String {
     successful.forEachIndexed { idx, agent ->
         val originalId = idx + 1
         if (includeIds != null && originalId !in includeIds) return@forEachIndexed
-        val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+        val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
         if (sb.isNotEmpty()) sb.append('\n')
         sb.append("[").append(originalId).append("] = ")
             .append(provDisplay).append(" / ").append(agent.model)
@@ -500,7 +500,7 @@ suspend fun callRerankApi(
         "COHERE" -> callCohereRerank(apiKey, model, query, documents, start)
         else -> RerankApiResult(
             content = null,
-            errorMessage = "Rerank API not wired for provider ${provider.displayName}. Pick a chat model instead, or open an issue to add ${provider.id} rerank support.",
+            errorMessage = "Rerank API not wired for provider ${provider.id}. Pick a chat model instead, or open an issue to add ${provider.id} rerank support.",
             durationMs = System.currentTimeMillis() - start
         )
     }
@@ -548,7 +548,7 @@ suspend fun callModerationApi(
         else -> {
             val err = ModerationApiResult(
                 content = null,
-                errorMessage = "Moderation API not wired for provider ${provider.displayName}. Pick a Mistral moderation model instead, or open an issue to add ${provider.id} moderation support.",
+                errorMessage = "Moderation API not wired for provider ${provider.id}. Pick a Mistral moderation model instead, or open an issue to add ${provider.id} moderation support.",
                 durationMs = System.currentTimeMillis() - start
             )
             null to err

@@ -128,7 +128,7 @@ fun RefreshScreen(
         val failedProviders = remember(refreshAllSteps.toList(), providerStateRows.toList()) {
             providerStateRows
                 .filter { it.second == "error" }
-                .mapNotNull { (name, _) -> AppService.entries.find { it.displayName == name } }
+                .mapNotNull { (name, _) -> AppService.entries.find { it.id == name } }
         }
         RefreshAllProgressScreen(
             steps = refreshAllSteps.toList(),
@@ -418,7 +418,7 @@ fun RefreshScreen(
     }
     val runProviders: suspend (Boolean) -> Unit = { showProgressDialog ->
         data class Seed(val service: AppService, val final: String?, val testModel: String?)
-        val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
+        val seeds = AppService.entries.sortedBy { it.id }.map { service ->
             val state = aiSettings.getProviderState(service)
             val apiKey = aiSettings.getApiKey(service)
             when {
@@ -428,7 +428,7 @@ fun RefreshScreen(
             }
         }
         providerStateRows.clear()
-        providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
+        providerStateRows.addAll(seeds.map { it.service.id to it.final })
         val testable = seeds.withIndex().filter { it.value.final == null }
         val total = testable.size
         // Avoid flashing an empty "0 / 0" dialog when every provider
@@ -447,11 +447,11 @@ fun RefreshScreen(
                     val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
                     val newState = if (error == null) "ok" else "error"
                     withContext(Dispatchers.Main) {
-                        if (idx < providerStateRows.size) providerStateRows[idx] = service.displayName to newState
+                        if (idx < providerStateRows.size) providerStateRows[idx] = service.id to newState
                     }
                     onProviderStateChange(service, newState)
                     val done = completed.incrementAndGet()
-                    progressText = "$done / $total — ${service.displayName}"
+                    progressText = "$done / $total — ${service.id}"
                 }
             }.awaitAll()
         }
@@ -465,7 +465,7 @@ fun RefreshScreen(
             Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
         }
         generationRows.clear()
-        generationRows.addAll(candidates.map { it.first.displayName to null })
+        generationRows.addAll(candidates.map { it.first.id to null })
         if (showProgressDialog) showGenerationDialog = true
         val total = candidates.size
         val completed = java.util.concurrent.atomic.AtomicInteger(0)
@@ -476,27 +476,27 @@ fun RefreshScreen(
                     val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
                     val success = error == null
                     withContext(Dispatchers.Main) {
-                        if (idx < generationRows.size) generationRows[idx] = service.displayName to success
+                        if (idx < generationRows.size) generationRows[idx] = service.id to success
                     }
                     val done = completed.incrementAndGet()
-                    progressText = "$done / $total — ${service.displayName}"
-                    service.displayName to success
+                    progressText = "$done / $total — ${service.id}"
+                    service.id to success
                 }
             }.awaitAll()
         }
         withContext(Dispatchers.IO) {
             var updatedSettings = aiSettings
             for ((service, _, model) in candidates) {
-                val success = results.find { it.first == service.displayName }?.second == true
+                val success = results.find { it.first == service.id }?.second == true
                 if (success) {
-                    val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                    val existing = updatedSettings.agents.find { it.name == service.id && it.provider.id == service.id }
                     if (existing == null) {
-                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.id, service, model, "")
                         updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
                     }
                 }
             }
-            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
+            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.id && it.second } }.map { it.id }
             // Skip flock creation when no agent passed — an empty
             // "Default agents" flock is just clutter the user has to
             // delete by hand.
@@ -520,7 +520,7 @@ fun RefreshScreen(
     // refresh-all flow).
     val runProvidersWithProgress: suspend ((String) -> Unit) -> Unit = { onProgress ->
         data class Seed(val service: AppService, val final: String?, val testModel: String?)
-        val seeds = AppService.entries.sortedBy { it.displayName }.map { service ->
+        val seeds = AppService.entries.sortedBy { it.id }.map { service ->
             val state = aiSettings.getProviderState(service)
             val apiKey = aiSettings.getApiKey(service)
             when {
@@ -530,7 +530,7 @@ fun RefreshScreen(
             }
         }
         providerStateRows.clear()
-        providerStateRows.addAll(seeds.map { it.service.displayName to it.final })
+        providerStateRows.addAll(seeds.map { it.service.id to it.final })
         val testable = seeds.withIndex().filter { it.value.final == null }
         val total = testable.size
         val completed = java.util.concurrent.atomic.AtomicInteger(0)
@@ -544,11 +544,11 @@ fun RefreshScreen(
                     val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
                     val newState = if (error == null) "ok" else "error"
                     withContext(Dispatchers.Main) {
-                        if (idx < providerStateRows.size) providerStateRows[idx] = service.displayName to newState
+                        if (idx < providerStateRows.size) providerStateRows[idx] = service.id to newState
                     }
                     onProviderStateChange(service, newState)
                     val done = completed.incrementAndGet()
-                    onProgress("$done / $total — ${service.displayName}")
+                    onProgress("$done / $total — ${service.id}")
                 }
             }.awaitAll()
         }
@@ -565,15 +565,15 @@ fun RefreshScreen(
      *       way to tell which one slipped. */
     val runDefaultAgentsFromPassed: suspend (List<AppService>, (String) -> Unit) -> Unit = { passedProviders, onProgress ->
         generationRows.clear()
-        generationRows.addAll(passedProviders.map { it.displayName to true })
+        generationRows.addAll(passedProviders.map { it.id to true })
         onProgress("${passedProviders.size} / ${passedProviders.size} (already tested)")
         withContext(Dispatchers.IO) {
             var updatedSettings = aiSettings
             for (service in passedProviders) {
                 val model = aiSettings.getModel(service)
-                val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                val existing = updatedSettings.agents.find { it.name == service.id && it.provider.id == service.id }
                 if (existing == null) {
-                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.id, service, model, "")
                     updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
                 }
             }
@@ -581,9 +581,9 @@ fun RefreshScreen(
             // displayName matches a passed provider goes into the
             // flock. Includes user-renamed agents pointing at a passed
             // provider (mirrors the prior runDefaultAgents semantics).
-            val passedNames = passedProviders.map { it.displayName }.toSet()
+            val passedNames = passedProviders.map { it.id }.toSet()
             val defaultAgentIds = updatedSettings.agents
-                .filter { it.provider.displayName in passedNames }
+                .filter { it.provider.id in passedNames }
                 .map { it.id }
             if (defaultAgentIds.isNotEmpty()) {
                 val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
@@ -755,7 +755,7 @@ fun RefreshScreen(
                             try {
                                 val passedProviders = providerStateRows
                                     .filter { it.second == "ok" }
-                                    .mapNotNull { (name, _) -> AppService.entries.find { it.displayName == name } }
+                                    .mapNotNull { (name, _) -> AppService.entries.find { it.id == name } }
                                 runDefaultAgentsFromPassed(passedProviders) { detail ->
                                     setStep("agents", StepStatus.Running(detail))
                                 }
@@ -961,7 +961,7 @@ private fun RefreshAllProgressScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text("✗", fontSize = 14.sp, color = AppColors.Red, modifier = Modifier.width(20.dp))
-                                Text(svc.displayName, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(svc.id, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
                                 Text("Open ›", fontSize = 12.sp, color = AppColors.Blue)
                             }
                             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)

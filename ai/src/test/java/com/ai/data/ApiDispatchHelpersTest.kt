@@ -6,8 +6,7 @@ import org.junit.Test
 class ApiDispatchHelpersTest {
     @Test fun buildOpenAiRequest_maps_seed_and_provider_specific_flags() {
         val service = AppService(
-            id = "UNIT_OPENAI_REQUEST",
-            displayName = "Unit OpenAI Request",
+            id = "UnitOpenAIRequest",
             baseUrl = "https://unit.example.com/",
             adminUrl = "",
             defaultModel = "model",
@@ -142,8 +141,7 @@ class ApiDispatchHelpersTest {
 
     @Test fun reasoning_and_tool_helpers_emit_expected_wire_shapes() {
         val service = AppService(
-            id = "UNIT_REASONING",
-            displayName = "Unit Reasoning",
+            id = "UnitReasoning",
             baseUrl = "https://unit.example.com/",
             adminUrl = "",
             defaultModel = "model"

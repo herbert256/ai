@@ -108,7 +108,7 @@ fun SelectModelScreen(
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             Text(
-                text = "${provider.displayName} — ${allModels.size} models",
+                text = "${provider.id} — ${allModels.size} models",
                 style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
                 modifier = Modifier.weight(1f)
             )
@@ -235,7 +235,7 @@ fun SelectProviderScreen(
         // index-based slicing the search relies on elsewhere).
         else {
             val lq = searchQuery.lowercase(java.util.Locale.ROOT)
-            allProviders.filter { it.displayName.lowercase(java.util.Locale.ROOT).contains(lq) }
+            allProviders.filter { it.id.lowercase(java.util.Locale.ROOT).contains(lq) }
         }
     }
 
@@ -280,7 +280,7 @@ fun SelectProviderScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(provider.displayName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Text(stateEmoji, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                 }
@@ -311,7 +311,7 @@ fun SelectAgentScreen(
             val lq = searchQuery.lowercase(java.util.Locale.ROOT)
             allAgents.filter { agent ->
                 agent.name.lowercase(java.util.Locale.ROOT).contains(lq) ||
-                    agent.provider.displayName.lowercase(java.util.Locale.ROOT).contains(lq) ||
+                    agent.provider.id.lowercase(java.util.Locale.ROOT).contains(lq) ||
                     aiSettings.getEffectiveModelForAgent(agent).lowercase(java.util.Locale.ROOT).contains(lq)
             }
         }
@@ -370,7 +370,7 @@ fun SelectAgentScreen(
                             WebSearchBadge(aiSettings.isWebSearchCapable(agent.provider, effectiveModel))
                             ReasoningBadge(aiSettings.isReasoningCapable(agent.provider, effectiveModel))
                         }
-                        Text(modelLabel(agent.provider.displayName, effectiveModel),
+                        Text(modelLabel(agent.provider.id, effectiveModel),
                             style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }

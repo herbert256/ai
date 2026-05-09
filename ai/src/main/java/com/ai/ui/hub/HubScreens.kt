@@ -783,7 +783,7 @@ private fun SharedKbBanner(
             LocalEmbedder.isDefaultModelInstalled(context) ->
                 "Local · ${LocalEmbedder.DEFAULT_MODEL_DISPLAY_NAME}"
             else -> supportedEmbeddingChoices(aiSettings).firstOrNull()
-                ?.let { (svc, model) -> "${svc.displayName} · $model" }
+                ?.let { (svc, model) -> "${svc.id} · $model" }
         }
     }
     val canAttach = embedderLabel != null && state is SharedKbBannerState.Idle

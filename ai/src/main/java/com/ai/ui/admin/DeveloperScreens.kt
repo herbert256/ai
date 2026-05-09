@@ -83,7 +83,7 @@ fun ApiTestScreen(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(helpTopic = "developer_select_model", title = "Select Model", onBackClick = { showModelDialog = false })
             Text(
-                text = selectedProvider.displayName,
+                text = selectedProvider.id,
                 fontSize = 18.sp, color = AppColors.Green,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -145,7 +145,7 @@ fun ApiTestScreen(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(helpTopic = "developer_select_endpoint", title = "Select Endpoint", onBackClick = { showEndpointDialog = false })
             Text(
-                text = selectedProvider.displayName,
+                text = selectedProvider.id,
                 fontSize = 18.sp, color = AppColors.Green,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -194,7 +194,7 @@ fun ApiTestScreen(
                     val idx = AppService.entries.indexOf(selectedProvider)
                     selectedProvider = AppService.entries[(idx + 1) % AppService.entries.size]
                 }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                    Text(selectedProvider.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(selectedProvider.id, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
 
@@ -311,7 +311,7 @@ fun EditApiRequestScreen(
         // Info card
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("${provider.displayName} / $model", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("${provider.id} / $model", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                 Text(apiUrl, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

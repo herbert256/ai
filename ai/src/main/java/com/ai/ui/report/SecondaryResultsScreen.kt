@@ -273,7 +273,7 @@ internal fun SecondaryResultsScreen(
             val sel = pickerSelected
             val noun = (sel.metaPromptName?.takeIf { it.isNotBlank() }
                 ?: com.ai.data.legacyKindDisplayName(sel.kind)).lowercase()
-            val provDisplay = AppService.findById(sel.providerId)?.displayName ?: sel.providerId
+            val provDisplay = AppService.findById(sel.providerId)?.id ?: sel.providerId
             AlertDialog(
                 onDismissRequest = { pickerConfirmDelete = false },
                 title = { Text("Delete this $noun?") },
@@ -403,7 +403,7 @@ private fun ColumnScope.MetaResultsPickerView(
     ) {
         results.forEach { r ->
             val isSelected = r.id == selectedId
-            val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+            val provider = AppService.findById(r.providerId)?.id ?: r.providerId
             Button(
                 onClick = { selectedId = r.id },
                 colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Orange else Color(0xFF3A3A4A)),
@@ -717,7 +717,7 @@ private fun ColumnScope.FanOutDrillInView(
                 val srcAgentId = row.fanOutSourceAgentId.orEmpty()
                 val src = activeAgents.firstOrNull { it.agentId == srcAgentId }
                 val sourceLabel = if (multiAgent && src != null) {
-                    val pn = AppService.findById(src.provider)?.displayName ?: src.provider
+                    val pn = AppService.findById(src.provider)?.id ?: src.provider
                     "↤ $pn / ${src.model}"
                 } else null
                 L2Row(
@@ -743,13 +743,13 @@ private fun ColumnScope.FanOutDrillInView(
         // "$prov / $model" rather than the raw UUID.
         val sourceLabelAgent = sourceAgent ?: agentsByIdAll[srcAgentIdL3]
         val sourceLabel = sourceLabelAgent?.let {
-            val pn = AppService.findById(it.provider)?.displayName ?: it.provider
+            val pn = AppService.findById(it.provider)?.id ?: it.provider
             com.ai.ui.shared.modelLabel(pn, it.model, separator = " / ")
         } ?: srcAgentIdL3
         val answererLabel = answererKeyL3.split("|").let { parts ->
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
-            val pn = AppService.findById(pid)?.displayName ?: pid
+            val pn = AppService.findById(pid)?.id ?: pid
             com.ai.ui.shared.modelLabel(pn, mdl, separator = " / ")
         }
         // Source-side trace — closest report-agent run for the source
@@ -926,7 +926,7 @@ private fun ColumnScope.FanOutDrillInView(
 
     // ===== L2 (role-aware list) =====
     if (activeKey != null) {
-        val provName = AppService.findById(activePid)?.displayName ?: activePid
+        val provName = AppService.findById(activePid)?.id ?: activePid
         val activeProviderService = AppService.findById(activePid)
         var confirmModelDelete by remember { mutableStateOf(false) }
         // Trace filename for the active model's report-agent run.
@@ -1008,7 +1008,7 @@ private fun ColumnScope.FanOutDrillInView(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(l2Rows, key = { it.key }) { row ->
-                    val rowProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    val rowProv = AppService.findById(row.provider)?.id ?: row.provider
                     val state = rowState(row.pair)
                     val cost = row.pair?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
                     Row(
@@ -1279,7 +1279,7 @@ private fun ColumnScope.FanOutDrillInView(
             }
             val sortedCombined = combinedRows.sortedByDescending { it.timestamp }
             items(sortedCombined, key = { "ac-${it.id}" }) { row ->
-                val acProv = AppService.findById(row.providerId)?.displayName ?: row.providerId
+                val acProv = AppService.findById(row.providerId)?.id ?: row.providerId
                 val acCost = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)
                 val acLabel = row.metaPromptName?.takeIf { it.isNotBlank() }
                 Row(
@@ -1333,7 +1333,7 @@ private fun ColumnScope.FanOutDrillInView(
             val parts = ak.split("|")
             val pid = parts.getOrNull(0).orEmpty()
             val mdl = parts.getOrNull(1).orEmpty()
-            val provName = AppService.findById(pid)?.displayName ?: pid
+            val provName = AppService.findById(pid)?.id ?: pid
             val rs = rowStatsByKey[ak] ?: L1RowStats(0, 0, 0, 0, 0.0)
             val rowFinished = rs.ok + rs.err
             val rowPending = (rs.totalSources - rowFinished).coerceAtLeast(0)
@@ -1531,7 +1531,7 @@ private fun OnePageView(
     onNavigateToTraceFile: (String) -> Unit
 ) {
     BackHandler { onClose() }
-    val provName = AppService.findById(activePid)?.displayName ?: activePid
+    val provName = AppService.findById(activePid)?.id ?: activePid
 
     // Flatten into a stable item list driven by role. Source bodies
     // appear once per source agent so the multi-agent Initiator view
@@ -1556,7 +1556,7 @@ private fun OnePageView(
                     responseBody = src?.responseBody
                 )
                 rows.forEach { row ->
-                    val ansProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                    val ansProv = AppService.findById(row.provider)?.id ?: row.provider
                     list += OnePageItem.Response(
                         key = "fc-${row.l3PairKey}",
                         ansProv = ansProv,
@@ -1571,7 +1571,7 @@ private fun OnePageView(
             // Responder — one source response + response per L2 row.
             l2Rows.flatMap { row ->
                 val src = agentsById[row.key]
-                val srcProv = AppService.findById(row.provider)?.displayName ?: row.provider
+                val srcProv = AppService.findById(row.provider)?.id ?: row.provider
                 listOf(
                     OnePageItem.SourceHeader(
                         key = "src-${row.key}",
@@ -1655,7 +1655,7 @@ private fun OnePageView(
 
 @Composable
 private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
-    val provider = AppService.findById(r.providerId)?.displayName ?: r.providerId
+    val provider = AppService.findById(r.providerId)?.id ?: r.providerId
     val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(r.timestamp))
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -1707,7 +1707,7 @@ internal fun SecondaryResultDetailScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val providerService = AppService.findById(result.providerId)
-    val provider = providerService?.displayName ?: result.providerId
+    val provider = providerService?.id ?: result.providerId
     // Prefer the user-given Meta-prompt name over the legacy kind
     // label — every chat-type Meta runs under kind=META, so the kind
     // alone would surface "Meta" even when the user picked "Compare".
@@ -1738,7 +1738,7 @@ internal fun SecondaryResultDetailScreen(
             report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
                     (idx + 1) to "$provDisplay / ${agent.model}"
                 }.toMap()
         }

@@ -585,7 +585,7 @@ fun ReportsScreen(
         }
         uiState.externalModelSpecs.forEach { spec ->
             val parts = spec.split("/", limit = 2)
-            val provider = AppService.findById(parts.getOrNull(0) ?: "") ?: AppService.entries.find { it.displayName.equals(parts.getOrNull(0), ignoreCase = true) }
+            val provider = AppService.findById(parts.getOrNull(0) ?: "") ?: AppService.entries.find { it.id.equals(parts.getOrNull(0), ignoreCase = true) }
             val model = parts.getOrNull(1)
             if (provider != null && model != null) result.add(toReportModel(provider, model))
             else missing.add("model: $spec")
@@ -1184,7 +1184,7 @@ fun ReportsScreen(
                 Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
                     unique.forEach { rm ->
                         Text(
-                            "${rm.provider.displayName} — ${rm.model}",
+                            "${rm.provider.id} — ${rm.model}",
                             fontSize = 14.sp, color = Color.White,
                             modifier = Modifier.fillMaxWidth().clickable {
                                 showInfoPicker = false
@@ -1592,7 +1592,7 @@ private fun ColumnScope.SelectionPhase(
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(entry.provider, entry.model))
                             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(entry.provider, entry.model))
                         }
-                        Text("${entry.provider.displayName}${if (entry.sourceName.isNotBlank()) " via ${entry.sourceName}" else ""}", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        Text("${entry.provider.id}${if (entry.sourceName.isNotBlank()) " via ${entry.sourceName}" else ""}", fontSize = 11.sp, color = AppColors.TextTertiary)
                     }
                     Text(pricing.text, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                         color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.Red,
@@ -1922,7 +1922,7 @@ private fun ColumnScope.GenerationPhase(
                 // Carry both the model and the provider display name so
                 // the row label can honour the user's "Model name layout"
                 // setting (model-only vs provider+model).
-                DisplayRow(rowId, m.model, m.provider.displayName, !reportsAgentResults.containsKey(rowId))
+                DisplayRow(rowId, m.model, m.provider.id, !reportsAgentResults.containsKey(rowId))
             }
         } else {
             selectedAgents.map { agentId ->
@@ -1931,10 +1931,10 @@ private fun ColumnScope.GenerationPhase(
                     ?: aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
                     ?: agentId
-                val providerDisplay = result?.service?.displayName
-                    ?: aiSettings.getAgentById(agentId)?.provider?.displayName
+                val providerDisplay = result?.service?.id
+                    ?: aiSettings.getAgentById(agentId)?.provider?.id
                     ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let {
-                        AppService.findById(it)?.displayName ?: it
+                        AppService.findById(it)?.id ?: it
                     }
                     ?: ""
                 DisplayRow(agentId, name, providerDisplay, false)
@@ -2030,7 +2030,7 @@ private fun ColumnScope.GenerationPhase(
                     RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " \u00B7 $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
-                        val runProv = AppService.findById(run.providerId)?.displayName ?: run.providerId
+                        val runProv = AppService.findById(run.providerId)?.id ?: run.providerId
                         Text(
                             "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix",
                             fontSize = 13.sp, color = Color.White,

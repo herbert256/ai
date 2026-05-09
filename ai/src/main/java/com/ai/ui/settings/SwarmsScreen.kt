@@ -44,7 +44,7 @@ fun SwarmsScreen(
             val active = all.filter { aiSettings.isProviderActive(it.provider) }
             val countLabel = if (active.size != all.size) "${active.size}/${all.size} members"
                              else "${all.size} members"
-            "$countLabel: ${all.joinToString(", ") { "${it.provider.displayName}/${it.model}" }}"
+            "$countLabel: ${all.joinToString(", ") { "${it.provider.id}/${it.model}" }}"
         },
         onAdd = onAddSwarm,
         onEdit = { onEditSwarm(it.id) },
@@ -180,7 +180,7 @@ fun SwarmEditScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(member.provider.displayName, fontSize = 13.sp, color = AppColors.Blue,
+                                Text(member.provider.id, fontSize = 13.sp, color = AppColors.Blue,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(member.model, fontSize = 12.sp, color = Color.White,

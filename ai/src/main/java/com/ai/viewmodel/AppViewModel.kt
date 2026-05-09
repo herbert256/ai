@@ -269,22 +269,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ChatHistoryManager.init(application)
         ReportStorage.init(application)
         SecondaryResultStorage.init(application)
-        ProviderRegistry.init(application)
-        PromptCache.init(application)
-
-        // One-shot migration of legacy per-provider Admin URL overrides
-        // ("${prefsKey}_admin_url" + "${prefsKey}_model_list_url" in
-        // the main prefs) into the catalog (ProviderRegistry). Pre-
-        // refactor builds stored these as a separate override layer
-        // that shadowed the catalog at read time. The migrate helper
-        // is idempotent: subsequent runs find no legacy keys and
-        // return 0. Runs before loadSettingsWithMigration so the
-        // resulting Settings object never sees the legacy fields.
-        val migrated = settingsPrefs.migrateLegacyProviderOverrides()
+        // One-shot migration of legacy provider storage MUST run before
+        // ProviderRegistry.init reads the registry JSON:
+        //   - Admin URL / model-list URL override layer (pre-prior
+        //     refactor) → catalog adminUrl + drop the dead modelListUrl
+        //   - Provider id unification (this refactor) → rename
+        //     every "${oldPrefsKey}_<suffix>" eval_prefs key to
+        //     "${newId}_<suffix>", rewrite providerStates / endpoints
+        //     / modelTypeOverrides / agents JSON, rewrite manual
+        //     pricing keys, rename model_lists/<oldId>.json files,
+        //     rewrite the registry with the new id-only shape.
+        // Idempotent + gated on a marker pref. Done first so
+        // ProviderRegistry below loads the freshly-rewritten catalog
+        // and loadSettingsWithMigration sees the renamed eval_prefs keys.
+        val migrated = settingsPrefs.migrateLegacyProviderIds(application)
         if (migrated > 0) {
             android.util.Log.i("AppViewModel",
-                "Startup migrated $migrated legacy adminUrl override(s) into ProviderRegistry")
+                "Startup migrated $migrated legacy provider entry/entries to unified id shape")
         }
+        ProviderRegistry.init(application)
+        PromptCache.init(application)
 
         var gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettingsWithMigration()
@@ -613,9 +617,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         for ((service, _, model) in candidates) {
             val success = results.find { it.first == service }?.second == true
             if (success) {
-                val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                val existing = updatedSettings.agents.find { it.name == service.id && it.provider.id == service.id }
                 if (existing == null) {
-                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.id, service, model, "")
                     updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
                 }
             }
@@ -662,7 +666,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // When a provider goes inactive, drop its default agent (the one named after the
             // provider's displayName) so flocks/swarms don't keep referencing a disabled path.
             if (state == "inactive") {
-                val pruned = updated.agents.filterNot { it.provider.id == service.id && it.name == service.displayName }
+                val pruned = updated.agents.filterNot { it.provider.id == service.id && it.name == service.id }
                 if (pruned.size != updated.agents.size) {
                     val droppedIds = updated.agents.filter { it !in pruned }.map { it.id }.toSet()
                     val flocks = updated.flocks.map { f -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds }) }
@@ -703,7 +707,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // closed-over local-snapshot pattern.
         _uiState.update { current ->
             val droppedIds = current.aiSettings.agents
-                .filter { it.provider.id == service.id && it.name == service.displayName }
+                .filter { it.provider.id == service.id && it.name == service.id }
                 .map { it.id }.toSet()
             val pruned = current.aiSettings.copy(
                 agents = current.aiSettings.agents.filterNot { it.id in droppedIds },
@@ -813,7 +817,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 null
             } catch (e: Exception) {
-                android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
+                android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.id}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
                 // Match the trace bracketed by withTraceCategory("Retrieve
                 // models list") in ApiDispatch.fetchModelsWithKinds. Filtering
@@ -859,7 +863,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val results = coroutineScope {
                 toRefresh.map { service ->
                     async {
-                        onProgress?.invoke(service.displayName)
+                        onProgress?.invoke(service.id)
                         // Clear any previous error for this provider — the
                         // try below either succeeds (no error needed) or
                         // catches and re-stamps a fresh one.
@@ -904,7 +908,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val cfg = final.getProvider(service)
                 if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
             }
-            results.associate { it.first.displayName to it.second }
+            results.associate { it.first.id to it.second }
         }
     }
 

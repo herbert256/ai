@@ -143,21 +143,19 @@ object ProviderRegistry {
     private fun parseProvidersJson(json: String): List<AppService> {
         val defs: List<ProviderDefinition> = createAppGson().fromJson(json, providerListType)
         // Gson reflection bypasses Kotlin's null-safety checks, so a
-        // malformed entry can deserialise with a null id / displayName /
-        // baseUrl. Filter those out instead of letting them surface as
-        // an NPE the first time someone reads `service.id.lowercase()`
-        // or similar — a single bad entry should not corrupt the whole
+        // malformed entry can deserialise with a null id / baseUrl.
+        // Filter those out instead of letting them surface as an NPE
+        // the first time someone reads `service.id.lowercase()` or
+        // similar — a single bad entry should not corrupt the whole
         // registry. Logged so the issue is at least visible.
         return defs.mapNotNull { def ->
             @Suppress("USELESS_CAST")
             val id = def.id as String?
             @Suppress("USELESS_CAST")
-            val name = def.displayName as String?
-            @Suppress("USELESS_CAST")
             val baseUrl = def.baseUrl as String?
-            if (id.isNullOrBlank() || name.isNullOrBlank() || baseUrl.isNullOrBlank()) {
+            if (id.isNullOrBlank() || baseUrl.isNullOrBlank()) {
                 android.util.Log.w("ProviderRegistry",
-                    "Skipping malformed provider entry (id=$id, displayName=$name, baseUrl=$baseUrl)")
+                    "Skipping malformed provider entry (id=$id, baseUrl=$baseUrl)")
                 null
             } else {
                 try { def.toAppService() } catch (e: Exception) {
@@ -169,7 +167,9 @@ object ProviderRegistry {
     }
 
     fun getAll(): List<AppService> = providers.toList()
-    fun findById(id: String): AppService? = providers.find { it.id == id }
+    /** Case-insensitive id lookup — see [AppService.findById] for why
+     *  the safety net matters during the post-unification window. */
+    fun findById(id: String): AppService? = providers.find { it.id.equals(id, ignoreCase = true) }
     fun getCustomProviders(): List<ProviderDefinition> = providers.map { ProviderDefinition.fromAppService(it) }
 
     /** Append [service] to the registry. The UI's Add Provider screen
@@ -226,8 +226,13 @@ object ProviderRegistry {
  * JSON-serializable representation of an AppService provider definition.
  */
 data class ProviderDefinition(
+    /** Stable identifier + UI label. Pre-unification builds carried
+     *  three fields (id / displayName / prefsKey); the id-unification
+     *  refactor collapsed them. Legacy persisted entries with a
+     *  `displayName` field present are remapped at restore / startup
+     *  time by [com.ai.ui.settings.SettingsPreferences.migrateLegacyProviderIds]
+     *  before this deserialiser is reached. */
     val id: String,
-    val displayName: String,
     val baseUrl: String,
     val adminUrl: String? = "",
     val defaultModel: String,
@@ -240,7 +245,6 @@ data class ProviderDefinition(
     /** Legacy field — folded into typePaths during deserialization. */
     val responsesPath: String? = null,
     val modelsPath: String? = "v1/models",
-    val prefsKey: String? = "",
     val seedFieldName: String? = "seed",
     val supportsCitations: Boolean? = false,
     val supportsSearchRecency: Boolean? = false,
@@ -266,12 +270,12 @@ data class ProviderDefinition(
         chatPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.CHAT, it) }
         responsesPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.RESPONSES, it) }
         return AppService(
-            id = id, displayName = displayName, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
+            id = id, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
             defaultModel = defaultModel, openRouterName = openRouterName,
             apiFormat = try { ApiFormat.valueOf(apiFormat ?: "OPENAI_COMPATIBLE") } catch (_: Exception) { ApiFormat.OPENAI_COMPATIBLE },
             typePaths = paths,
             modelsPath = modelsPath,
-            prefsKey = prefsKey ?: id.lowercase(), seedFieldName = seedFieldName ?: "seed",
+            seedFieldName = seedFieldName ?: "seed",
             supportsCitations = supportsCitations ?: false, supportsSearchRecency = supportsSearchRecency ?: false,
             extractApiCost = extractApiCost ?: false, costTicksDivisor = costTicksDivisor,
             modelListFormat = modelListFormat ?: "object", modelFilter = modelFilter,
@@ -282,14 +286,14 @@ data class ProviderDefinition(
 
     companion object {
         fun fromAppService(s: AppService) = ProviderDefinition(
-            id = s.id, displayName = s.displayName, baseUrl = s.baseUrl, adminUrl = s.adminUrl,
+            id = s.id, baseUrl = s.baseUrl, adminUrl = s.adminUrl,
             defaultModel = s.defaultModel, openRouterName = s.openRouterName,
             apiFormat = s.apiFormat.name,
             typePaths = s.typePaths.takeIf { it.isNotEmpty() },
             // Legacy fields no longer written — typePaths is canonical now.
             chatPath = null, responsesPath = null,
             modelsPath = s.modelsPath,
-            prefsKey = s.prefsKey, seedFieldName = s.seedFieldName,
+            seedFieldName = s.seedFieldName,
             supportsCitations = s.supportsCitations, supportsSearchRecency = s.supportsSearchRecency,
             extractApiCost = s.extractApiCost, costTicksDivisor = s.costTicksDivisor,
             modelListFormat = s.modelListFormat, modelFilter = s.modelFilter,

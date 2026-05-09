@@ -276,8 +276,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,
-                ReportAgent(sid, "${member.provider.displayName} / ${member.model}", member.provider.id, member.model, ReportStatus.PENDING),
-                Agent(sid, "${member.provider.displayName} / ${member.model}", member.provider, member.model, aiSettings.getApiKey(member.provider)),
+                ReportAgent(sid, "${member.provider.id} / ${member.model}", member.provider.id, member.model, ReportStatus.PENDING),
+                Agent(sid, "${member.provider.id} / ${member.model}", member.provider, member.model, aiSettings.getApiKey(member.provider)),
                 params
             )
         }
@@ -987,7 +987,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
                             if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.displayName} / ${answerer.model}"
+                            val agentName = "${provider.id} / ${answerer.model}"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
                             ).copy(
@@ -1435,7 +1435,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     if (perReport.all { it.second.isEmpty() }) {
                         val (provider, model) = pick
-                        val agentName = "${provider.displayName} / $model"
+                        val agentName = "${provider.id} / $model"
                         val placeholder = SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, provider.id, model, agentName
                         ).copy(
@@ -1656,7 +1656,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
-        val agentName = "${provider.displayName} / $model$langSuffix"
+        val agentName = "${provider.id} / $model$langSuffix"
         val placeholder = existingPlaceholder ?: run {
             val fresh = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
                 .copy(
@@ -2040,7 +2040,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             sourceReport.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .forEach { agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.displayName ?: agent.provider
+                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
                     items += TranslationItem(
                         id = "agent:${agent.agentId}",
                         label = "$provDisplay / ${agent.model}",
@@ -2056,7 +2056,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // not a hardcoded "Summary" / "Compare".
             secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
                 .forEachIndexed { idx, s ->
-                    val provDisplay = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
                     val name = s.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
                     items += TranslationItem(
@@ -2139,7 +2139,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .replace("@TEXT@", item.sourceText)
         val agent = Agent(
             id = "translate:${provider.id}:$model",
-            name = "Translate / ${provider.displayName} / $model",
+            name = "Translate / ${provider.id} / $model",
             provider = provider, model = model, apiKey = apiKey
         )
         val callStart = System.currentTimeMillis()
@@ -2354,7 +2354,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 )
                 "AGENT" -> {
                     val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
-                    val prov = AppService.findById(ag.provider)?.displayName ?: ag.provider
+                    val prov = AppService.findById(ag.provider)?.id ?: ag.provider
                     TranslationItem(
                         id = "agent:${ag.agentId}",
                         label = "$prov / ${ag.model}",
@@ -2365,7 +2365,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
                 "META" -> {
                     val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
-                    val prov = AppService.findById(s.providerId)?.displayName ?: s.providerId
+                    val prov = AppService.findById(s.providerId)?.id ?: s.providerId
                     val name = s.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
                     TranslationItem(

@@ -48,7 +48,7 @@ fun ProviderAdminScreen(
             .sortedWith(
                 compareBy(
                     { stateRank(it.second) },
-                    { it.first.displayName.lowercase() }
+                    { it.first.id.lowercase() }
                 )
             )
     }
@@ -69,7 +69,7 @@ fun ProviderAdminScreen(
                     onOpen = {
                         val url = provider.adminUrl
                         if (url.isBlank()) {
-                            Toast.makeText(context, "No admin URL configured for ${provider.displayName}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "No admin URL configured for ${provider.id}", Toast.LENGTH_SHORT).show()
                         } else {
                             // Validate the scheme. A user-imported provider
                             // definition could in principle smuggle in
@@ -118,7 +118,7 @@ private fun ProviderAdminRow(provider: AppService, state: String, onOpen: () -> 
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(provider.displayName, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Text(stateEmoji, fontSize = 14.sp)
             }
             val url = provider.adminUrl

@@ -47,7 +47,6 @@ class ModelTypeTest {
 
     private fun service(id: String, format: ApiFormat) = AppService(
         id = id,
-        displayName = id,
         baseUrl = "https://$id.example.com/",
         adminUrl = "",
         defaultModel = "model",

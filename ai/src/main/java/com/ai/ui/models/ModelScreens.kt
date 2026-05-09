@@ -187,7 +187,7 @@ fun ModelSearchScreen(
     // sources fighting?"
     var conflictingPricingOnly by rememberSaveable { mutableStateOf(false) }
 
-    val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.displayName.lowercase() } }
+    val activeServices = remember(aiSettings) { aiSettings.getActiveServices().sortedBy { it.id.lowercase() } }
     val providerFilter = providerFilterId?.let { id -> activeServices.firstOrNull { it.id == id } }
 
     // Build aggregated model list from all active providers. Settings.withModels
@@ -196,8 +196,8 @@ fun ModelSearchScreen(
     val allModels = remember(aiSettings) {
         activeServices.flatMap { service ->
             val models = aiSettings.getModels(service)
-            if (models.isNotEmpty()) models.map { ModelSearchItem(service, service.displayName, it) }
-            else listOf(ModelSearchItem(service, service.displayName, aiSettings.getModel(service)))
+            if (models.isNotEmpty()) models.map { ModelSearchItem(service, service.id, it) }
+            else listOf(ModelSearchItem(service, service.id, aiSettings.getModel(service)))
         }.sortedWith(compareBy({ it.providerName }, { it.modelName }))
     }
 
@@ -299,7 +299,7 @@ fun ModelSearchScreen(
                     border = BorderStroke(1.dp, AppColors.BorderUnfocused)
                 ) {
                     Text(
-                        text = providerFilter?.displayName ?: "All providers",
+                        text = providerFilter?.id ?: "All providers",
                         fontSize = 13.sp,
                         color = if (providerFilter != null) Color.White else AppColors.TextTertiary,
                         modifier = Modifier.weight(1f),
@@ -323,7 +323,7 @@ fun ModelSearchScreen(
                         val mc = aiSettings.getModels(service).size
                         DropdownMenuItem(
                             text = {
-                                Text("${service.displayName} ($mc)", fontSize = 13.sp,
+                                Text("${service.id} ($mc)", fontSize = 13.sp,
                                     color = if (providerFilterId == service.id) AppColors.Blue else Color.White)
                             },
                             onClick = { providerFilterId = service.id; providerMenuExpanded = false }
@@ -578,7 +578,7 @@ fun ModelInfoScreen(
     // ModelSearchScreen used to use before its popup was retired.
     if (showAgentEdit) {
         AgentEditScreen(
-            agent = Agent(java.util.UUID.randomUUID().toString(), "${provider.displayName} $modelName", provider, modelName, aiSettings.getApiKey(provider)),
+            agent = Agent(java.util.UUID.randomUUID().toString(), "${provider.id} $modelName", provider, modelName, aiSettings.getApiKey(provider)),
             aiSettings = aiSettings,
             existingNames = aiSettings.agents.map { it.name.lowercase() }.toSet(),
             onTestAiModel = onTestAiModel,
@@ -641,7 +641,7 @@ fun ModelInfoScreen(
                     // Try both dash and dot variants since some repos use either form in
                     // the version segment.
                     val baseCandidate = if ("/" in modelName) modelName
-                        else (provider.openRouterName ?: provider.displayName).takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
+                        else (provider.openRouterName ?: provider.id).takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
                     if (baseCandidate != null) {
                         val variants = sequenceOf(baseCandidate, baseCandidate.replace('-', '.'), baseCandidate.replace('.', '-')).distinct()
                         for (cand in variants) {
@@ -693,8 +693,8 @@ fun ModelInfoScreen(
     val introResolvedPrompt = remember(modelInfoPromptTemplate, provider, modelName) {
         modelInfoPromptTemplate
             .replace("@MODEL@", modelName)
-            .replace("@PROVIDER@", provider.displayName)
-            .replace("@AGENT@", "${provider.displayName} / $modelName")
+            .replace("@PROVIDER@", provider.id)
+            .replace("@AGENT@", "${provider.id} / $modelName")
     }
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
         PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
@@ -707,7 +707,7 @@ fun ModelInfoScreen(
         if (!canRequestIntro || isAiLoading) return@req
         val selfAgent = Agent(
             id = "model_info_self:${provider.id}:$modelName",
-            name = "${provider.displayName} / $modelName",
+            name = "${provider.id} / $modelName",
             provider = provider, model = modelName,
             apiKey = pageApiKey
         )
@@ -769,7 +769,7 @@ fun ModelInfoScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(modelName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     Text(
-                                        provider.displayName, fontSize = 14.sp, color = AppColors.Blue,
+                                        provider.id, fontSize = 14.sp, color = AppColors.Blue,
                                         modifier = Modifier.clickable { onNavigateToProviderEdit(provider) }
                                     )
                                 }

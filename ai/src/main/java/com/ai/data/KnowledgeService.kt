@@ -144,7 +144,7 @@ object KnowledgeService {
                 val service = AppService.findById(kb.embedderProviderId)
                     ?: error("Provider ${kb.embedderProviderId} not configured")
                 val apiKey = aiSettings.getApiKey(service)
-                if (apiKey.isBlank()) error("No API key set for ${service.displayName}")
+                if (apiKey.isBlank()) error("No API key set for ${service.id}")
                 repository.embed(service, apiKey, kb.embedderModel, batch)
             } ?: error("Embedder failed on batch of ${batch.size}")
             vectors.addAll(out)

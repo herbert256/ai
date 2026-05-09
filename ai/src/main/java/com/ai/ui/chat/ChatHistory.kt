@@ -93,7 +93,7 @@ fun ChatHistoryScreen(
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Row {
-                                        Text(session.provider.displayName, fontSize = 12.sp, color = AppColors.Blue)
+                                        Text(session.provider.id, fontSize = 12.sp, color = AppColors.Blue)
                                         Text(" \u00B7 ${session.model}", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                     Text(dateFormat.format(session.updatedAt), fontSize = 11.sp, color = AppColors.TextDim)
@@ -167,7 +167,7 @@ private suspend fun searchInChats(query: String): List<ChatSearchResult> = withC
                 results.add(
                     ChatSearchResult(
                         sessionId = session.id,
-                        sessionTitle = session.preview.ifBlank { "Chat with ${session.provider.displayName}" },
+                        sessionTitle = session.preview.ifBlank { "Chat with ${session.provider.id}" },
                         messageRole = message.role,
                         messagePreview = preview,
                         messageTimestamp = message.timestamp
