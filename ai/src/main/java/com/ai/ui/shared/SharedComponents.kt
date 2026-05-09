@@ -239,6 +239,7 @@ fun TitleBar(
         }
     } else {
         val showBackButton = LocalShowBackButton.current
+        val foldSubject = LocalSubjectToTitleBar.current
         val backVisible = onBackClick != null && showBackButton
         val hasLeftSlot = leftContent != null || backVisible
         // When the user has hidden the "< Back" button the title row
@@ -247,7 +248,14 @@ fun TitleBar(
         // bar takes advantage of that space and reads larger at a
         // glance. Standard back-button mode keeps the original 1×
         // sizing so the layout still fits next to "< Back".
+        //
+        // Subject-to-title-bar mode is the exception: it folds the
+        // page subject (often a long model id or KB name) into the
+        // title slot, so that slot is the bottleneck and the icons
+        // shouldn't steal width from it. Keep the icons at 1× even
+        // when "< Back" is hidden whenever foldSubject is on.
         val scale = if (showBackButton) 1f else 1.25f
+        val iconScale = if (showBackButton || foldSubject) 1f else 1.25f
         val titleStyle = MaterialTheme.typography.titleLarge
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -280,7 +288,7 @@ fun TitleBar(
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
-                scale = scale
+                scale = iconScale
             )
         }
     }
