@@ -516,9 +516,16 @@ fun ProviderSettingsScreen(
     onBackToHome: () -> Unit,
     onSave: (Settings) -> Unit,
     onFetchModels: (String) -> Unit = {},
+    /** Suspend variant of [onFetchModels] used by the activation flow.
+     *  Returns null on success or an error message on failure. */
+    onFetchModelsAwait: suspend (AppService, String) -> String? = { _, _ -> null },
     onTestApiKey: suspend (AppService, String, String) -> String?,
     onProviderStateChange: (String) -> Unit = {},
     onProviderTestedOk: (defaultModel: String) -> Unit = {},
+    /** Variant of [onProviderTestedOk] for the activation flow: same
+     *  state flip + agent creation, but skips the embedded background
+     *  model-list fetch since the activation flow has already done it. */
+    onProviderTestedOkNoFetch: (defaultModel: String) -> Unit = onProviderTestedOk,
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
     onNavigateToModels: () -> Unit = {}
@@ -721,17 +728,26 @@ fun ProviderSettingsScreen(
                                 onProviderStateChange("inactive")
                             } else {
                                 scope.launch {
-                                    if (apiKey.isNotBlank()) {
-                                        // Resolve the latest AppService from the registry — the
-                                        // captured `service` may be stale after auto-save edits to
-                                        // apiFormat / typePaths / etc. ran during this screen.
-                                        val fresh = AppService.findById(service.id) ?: service
-                                        val error = onTestApiKey(fresh, apiKey, defaultModel)
-                                        if (error == null) onProviderTestedOk(defaultModel)
-                                        else onProviderStateChange("error")
-                                    } else {
+                                    if (apiKey.isBlank()) {
                                         onProviderStateChange("not-used")
+                                        return@launch
                                     }
+                                    // Resolve the latest AppService from the registry — the
+                                    // captured `service` may be stale after auto-save edits to
+                                    // apiFormat / typePaths / etc. ran during this screen.
+                                    val fresh = AppService.findById(service.id) ?: service
+                                    // Activation gate: model-list fetch + API-key test
+                                    // both have to pass before we flip to "ok" and create
+                                    // the default agent. Either failure leaves the
+                                    // provider in "error" state with no agent created.
+                                    val fetchError = onFetchModelsAwait(fresh, apiKey)
+                                    if (fetchError != null) {
+                                        onProviderStateChange("error")
+                                        return@launch
+                                    }
+                                    val testError = onTestApiKey(fresh, apiKey, defaultModel)
+                                    if (testError == null) onProviderTestedOkNoFetch(defaultModel)
+                                    else onProviderStateChange("error")
                                 }
                             }
                         }

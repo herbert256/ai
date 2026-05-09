@@ -658,16 +658,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  fetched ids replace the manual list. A failed fetch leaves
      *  modelSource untouched (the test itself already passed, so the
      *  provider stays "ok" either way). */
-    fun markProviderTestedOk(service: AppService, defaultModel: String) {
+    fun markProviderTestedOk(service: AppService, defaultModel: String, fetchAfter: Boolean = true) {
         val updated = _uiState.value.aiSettings
             .withProviderState(service, "ok")
             .ensureDefaultAgentInFlock(service, defaultModel)
         _uiState.update { it.copy(aiSettings = updated) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(updated) }
         // Background model-list fetch with API-source flip on success.
-        // Read the api key off the latest snapshot so a key change
-        // mid-flight is honored.
-        fetchModels(service, _uiState.value.aiSettings.getApiKey(service), flipToApiOnSuccess = true)
+        // The activation flow pre-fetches synchronously and passes
+        // [fetchAfter] = false to avoid a duplicate request.
+        if (fetchAfter) {
+            fetchModels(service, _uiState.value.aiSettings.getApiKey(service), flipToApiOnSuccess = true)
+        }
     }
 
     fun clearTraces() = ApiTracer.clearTraces()
@@ -684,7 +686,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== Model Fetching =====
 
     fun fetchModels(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch { fetchModelsAwait(service, apiKey, flipToApiOnSuccess) }
+    }
+
+    /** Suspend variant of [fetchModels]. Returns null on success or an
+     *  error message on failure. Used by the provider-activation flow,
+     *  which needs to await the result before deciding whether to test
+     *  the API key and create the default agent. */
+    suspend fun fetchModelsAwait(service: AppService, apiKey: String, flipToApiOnSuccess: Boolean = false): String? {
+        return withContext(Dispatchers.IO) {
             val startedAt = System.currentTimeMillis()
             _uiState.update { it.copy(
                 loadingModelsFor = it.loadingModelsFor + service,
@@ -739,6 +749,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(other, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
                     }
                 }
+                null
             } catch (e: Exception) {
                 android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.displayName}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
@@ -768,6 +779,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     loadingModelsFor = it.loadingModelsFor - service,
                     fetchModelsErrors = it.fetchModelsErrors + (service.id to FetchModelsError(msg, traceFile))
                 ) }
+                msg
             }
         }
     }

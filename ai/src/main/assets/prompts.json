@@ -57,7 +57,7 @@
   },
   {
     "name": "response",
-    "title": "Just the resoinse",
+    "title": "Just the response",
     "reference": false,
     "category": "fan_out",
     "agent": "*n/a",

@@ -52,9 +52,11 @@ fun SettingsScreen(
     onSaveGeneral: (GeneralSettings) -> Unit,
     onSaveAi: (Settings) -> Unit,
     onFetchModels: (AppService, String) -> Unit = { _, _ -> },
+    onFetchModelsAwait: suspend (AppService, String) -> String? = { _, _ -> null },
     onTestAiModel: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AppService, String) -> Unit = { _, _ -> },
     onProviderTestedOk: (AppService, String) -> Unit = { _, _ -> },
+    onProviderTestedOkNoFetch: (AppService, String) -> Unit = onProviderTestedOk,
     onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
     onSaveHuggingFaceApiKey: (String) -> Unit = {},
     onSaveOpenRouterApiKey: (String) -> Unit = {},
@@ -231,8 +233,10 @@ fun SettingsScreen(
                         val fresh = AppService.findById(provider.id) ?: provider
                         onFetchModels(fresh, it)
                     },
+                    onFetchModelsAwait = { svc, key -> onFetchModelsAwait(svc, key) },
                     onTestApiKey = onTestAiModel, onProviderStateChange = { onProviderStateChange(provider, it) },
                     onProviderTestedOk = { defaultModel -> onProviderTestedOk(provider, defaultModel) },
+                    onProviderTestedOkNoFetch = { defaultModel -> onProviderTestedOkNoFetch(provider, defaultModel) },
                     onTestModelWithPrompt = { prompt ->
                         val fresh = AppService.findById(provider.id) ?: provider
                         onTestModelWithPrompt(fresh, aiSettings.getApiKey(fresh), aiSettings.getModel(fresh), prompt)
