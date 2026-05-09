@@ -172,7 +172,22 @@ object ProviderRegistry {
     fun findById(id: String): AppService? = providers.find { it.id == id }
     fun getCustomProviders(): List<ProviderDefinition> = providers.map { ProviderDefinition.fromAppService(it) }
 
-    fun add(service: AppService) = synchronized(lock) { providers.add(service); save() }
+    /** Append [service] to the registry. The UI's Add Provider screen
+     *  already checks for duplicate ids; this defensive check covers
+     *  programmatic adds (import flows, restore, future callers) so a
+     *  duplicate id can't sneak into the registry and shadow the
+     *  original on every findById lookup. Returns true on success,
+     *  false if an entry with the same id already exists. */
+    fun add(service: AppService): Boolean = synchronized(lock) {
+        if (providers.any { it.id == service.id }) {
+            android.util.Log.w("ProviderRegistry",
+                "Refusing to add duplicate provider id ${service.id}; existing entry kept")
+            return@synchronized false
+        }
+        providers.add(service)
+        save()
+        true
+    }
     fun update(service: AppService) = synchronized(lock) {
         val i = providers.indexOfFirst { it.id == service.id }
         if (i >= 0) { providers[i] = service; save() }
