@@ -344,7 +344,11 @@ private fun TitleBarActionStrip(
         // a visible gap before it; tighten to 22dp to bring it
         // closer to the neighbour on its left.
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
-        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, scale = scale)
+        // Trace's 🐞 glyph reads narrower than its trailing space in
+        // a 28dp slot, leaving a visible gap before the next icon.
+        // Tighten to 22dp so it sits closer to its right neighbour
+        // (Help) without getting cramped.
+        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = 22.dp, scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
         // Tightening further to 18dp keeps it snug against both
