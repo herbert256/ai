@@ -1009,18 +1009,13 @@ private fun ColumnScope.FanOutDrillInView(
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        // Per-model total cost. Memoised so role flip / batching tick
-        // recompositions don't re-walk the list.
+        // Per-model total cost across the per-pair rows. Memoised so
+        // role flip / batching tick recompositions don't re-walk the
+        // list. Rendered as a footer item inside the LazyColumn
+        // below — matching the L1 page's per-row layout — so the
+        // total visually belongs to the rows it sums.
         val totalCost = remember(l2Rows) {
             l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
-        }
-        if (totalCost > 0.0) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Total", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-                Text("${formatCents(totalCost)} ¢", fontSize = 12.sp,
-                    color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-            }
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
         // "Create a model fan in report" — produces a per-model
@@ -1208,6 +1203,30 @@ private fun ColumnScope.FanOutDrillInView(
                         Text(">", fontSize = 16.sp, color = AppColors.Blue)
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
+                }
+                // Footer row mirroring the per-pair layout — Total
+                // label on the left, summed cost on the right. Same
+                // status-icon-width spacer + chevron-width spacer as
+                // the data rows so the columns line up vertically.
+                // Hidden when every row has zero cost.
+                if (totalCost > 0.0) {
+                    item(key = "l2-total-footer") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.padding(end = 8.dp).width(20.dp))
+                            Text("Total", fontSize = 14.sp, color = AppColors.Blue,
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text(formatCents(totalCost), fontSize = 11.sp,
+                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 8.dp))
+                            // Match the ">" tap chevron's slot on
+                            // the data rows so the cost column lines
+                            // up vertically.
+                            Box(modifier = Modifier.width(16.dp))
+                        }
+                    }
                 }
             }
         }
