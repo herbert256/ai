@@ -313,7 +313,12 @@ fun TitleBar(
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
                 onMemo = navigateToCurrentReport,
-                scale = iconScale
+                scale = iconScale,
+                // Tight inter-icon spacing in the 1.5× mode. Without
+                // this, scaled-up slots leave 1.5× the air too —
+                // the strip looks loose. With it, slots shrink so
+                // the glyphs sit nearly shoulder-to-shoulder.
+                compactSpacing = iconScale > 1f
             )
         }
     }
@@ -334,33 +339,39 @@ private fun TitleBarActionStrip(
     onTrace: (() -> Unit)?,
     onHelp: () -> Unit,
     onMemo: (() -> Unit)?,
-    scale: Float = 1f
+    scale: Float = 1f,
+    /** When true, every icon's slot width shrinks by 6dp (clamped at
+     *  16dp minimum) so the strip looks compact instead of airy at
+     *  the larger 1.5× icon scale. The glyph itself still scales —
+     *  only the surrounding tap-target slop is reduced. */
+    compactSpacing: Boolean = false
 ) {
+    fun w(slot: Dp): Dp = if (compactSpacing) (slot - 6.dp).coerceAtLeast(16.dp) else slot
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, scale = scale)
-        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, scale = scale)
-        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, scale = scale)
+        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = w(28.dp), scale = scale)
+        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
+        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
         // 🗑 reads narrow on the leading edge, so a 28dp slot leaves
         // a visible gap before it; tighten to 22dp to bring it
         // closer to the neighbour on its left.
-        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
+        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = w(22.dp), scale = scale)
         // Trace's 🐞 glyph reads narrower than its trailing space in
         // a 28dp slot, leaving a visible gap before the next icon.
         // Tighten to 22dp so it sits closer to its right neighbour
         // (Help) without getting cramped.
-        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = 22.dp, scale = scale)
+        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = w(22.dp), scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
         // Tightening further to 18dp keeps it snug against both
         // neighbours (the previous 22dp still left air on either side).
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, scale = scale)
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(18.dp), scale = scale)
         // 📝 Memo — "back to the current AI Report's result page".
         // Sits between Help and Home so the rightmost slot still
         // belongs to Home (the global anchor); only renders when
         // [LocalNavigateToCurrentReport] is non-null, i.e. the user
         // is on a screen that's deeper than the result page itself.
-        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, scale = scale)
-        TitleBarIcon("🏠", AppColors.Blue, onHome, scale = scale)
+        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = w(28.dp), scale = scale)
+        TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(28.dp), scale = scale)
     }
 }
 
