@@ -610,14 +610,12 @@ private fun SettingsMainScreen(
             // Master switch for API tracing. Off → no new trace files,
             // the Hub "AI API Traces" card and every 🐞 ladybug icon in
             // the result screens disappear.
-            SettingCard("API tracing", "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.") {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Switch(
-                        checked = tracingEnabled,
-                        onCheckedChange = { tracingEnabled = it }
-                    )
-                }
-            }
+            ToggleSettingCard(
+                title = "API tracing",
+                description = "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
+                checked = tracingEnabled,
+                onCheckedChange = { tracingEnabled = it }
+            )
 
             // Model name layout — controls how combined provider+model
             // labels render across the app. MODEL_ONLY is the dense
@@ -625,21 +623,20 @@ private fun SettingsMainScreen(
             // name (joined with " · ") for users running the same
             // model on multiple providers.
             SettingCard("Model name layout", "How model labels render across rows and pickers.") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
+                // Inner Column with no inter-row spacing so the two
+                // radios sit tight; the SettingCard's outer 8dp gap
+                // would otherwise push them apart.
+                Column {
+                    RadioRow(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.MODEL_ONLY,
+                        label = "Model name only",
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.MODEL_ONLY }
                     )
-                    Text("Model name only", fontSize = 14.sp, color = Color.White,
-                        modifier = Modifier.clickable { modelNameLayout = com.ai.viewmodel.ModelNameLayout.MODEL_ONLY }.padding(start = 4.dp))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(
+                    RadioRow(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL,
+                        label = "Provider and model name",
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
                     )
-                    Text("Provider and model name", fontSize = 14.sp, color = Color.White,
-                        modifier = Modifier.clickable { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }.padding(start = 4.dp))
                 }
             }
 
@@ -647,14 +644,12 @@ private fun SettingsMainScreen(
             // every TitleBar and the screen title left-aligns.
             // System / gesture back still works (TitleBar's
             // BackHandler is registered independently).
-            SettingCard("Show < Back", "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.") {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Switch(
-                        checked = showBackButton,
-                        onCheckedChange = { showBackButton = it }
-                    )
-                }
-            }
+            ToggleSettingCard(
+                title = "Show < Back",
+                description = "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
+                checked = showBackButton,
+                onCheckedChange = { showBackButton = it }
+            )
         }
     }
 }
@@ -676,5 +671,48 @@ private fun SettingCard(
             }
             content()
         }
+    }
+}
+
+/** Switch on the same row as the title, description below — denser
+ *  than [SettingCard] for the boolean preferences that don't need a
+ *  full-width control beneath them. The whole card is clickable so
+ *  the tap target isn't limited to the small Switch thumb. */
+@Composable
+private fun ToggleSettingCard(
+    title: String,
+    description: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Switch(checked = checked, onCheckedChange = onCheckedChange)
+            }
+            if (description != null) {
+                Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+        }
+    }
+}
+
+/** Radio + label on one row. Default RadioButton ships with a 48dp
+ *  touch-target padding which leaves a wide gap between stacked rows
+ *  — fine for accessibility but visually noisy here. We let the
+ *  default through (don't shrink the touch target) but wrap rows in
+ *  a no-spacing Column so they sit at their natural minimum. */
+@Composable
+private fun RadioRow(selected: Boolean, label: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.padding(start = 4.dp))
     }
 }
