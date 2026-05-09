@@ -89,50 +89,50 @@
   },
   {
     "name": "i (a)",
-    "title": "fan_in_i (a)",
+    "title": "initiator (a)",
     "reference": false,
-    "category": "fan_in_i",
+    "category": "initiator",
     "agent": "*select",
-    "text": "fan_in_i (a)"
+    "text": "initiator (a)"
   },
   {
     "name": "r (a)",
-    "title": "fan_in_r (a)",
+    "title": "requester (a)",
     "reference": false,
-    "category": "fan_in_r",
+    "category": "requester",
     "agent": "*select",
-    "text": "fan_in_r (a)"
+    "text": "requester (a)"
   },
   {
     "name": "m (a)",
-    "title": "fan_in_m (a)",
+    "title": "model (a)",
     "reference": false,
-    "category": "fan_in_m",
+    "category": "model",
     "agent": "*select",
-    "text": "fan_in_m (a)"
+    "text": "model (a)"
   },
   {
     "name": "i (b)",
-    "title": "fan_in_i (b)",
+    "title": "initiator (b)",
     "reference": false,
-    "category": "fan_in_i",
+    "category": "initiator",
     "agent": "*select",
-    "text": "fan_in_i (b)"
+    "text": "initiator (b)"
   },
   {
     "name": "r (b)",
-    "title": "fan_in_r (b)",
+    "title": "requester (b)",
     "reference": false,
-    "category": "fan_in_r",
+    "category": "requester",
     "agent": "*select",
-    "text": "fan_in_r (b)"
+    "text": "requester (b)"
   },
   {
     "name": "m (n)",
-    "title": "fan_in_m (b)",
+    "title": "model (b)",
     "reference": false,
-    "category": "fan_in_m",
+    "category": "model",
     "agent": "*select",
-    "text": "fan_in_m (b)"
+    "text": "model (b)"
   }
 ]

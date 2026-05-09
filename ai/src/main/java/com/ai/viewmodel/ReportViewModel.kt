@@ -1472,18 +1472,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  fan-out entries that involve the specified active model
      *  (provider, modelName) into one combined-report row, instead
      *  of the legacy "total" fan_in that combines every entry on the
-     *  report. Driven by the three new categories `fan_in_i`
-     *  (active is source), `fan_in_r` (active is answerer), and
-     *  `fan_in_m` (both). The resulting row carries scopeProviderId /
+     *  report. Driven by the three new categories `initiator`
+     *  (active is source), `requester` (active is answerer), and
+     *  `model` (both). The resulting row carries scopeProviderId /
      *  scopeModel so the L2 page can filter to its own model's rows.
      *
      *  Math for 10 models with active = A:
-     *    fan_in_i — 9 fan-out responses where A is the source.
+     *    initiator — 9 fan-out responses where A is the source.
      *               @RESPONDERS@ holds those bodies; @INITIATOR@ is
      *               A's own report response.
-     *    fan_in_r — 9 pairs (other_i's report response, A's fan-out
+     *    requester — 9 pairs (other_i's report response, A's fan-out
      *               response to other_i). @RESPONDER_PAIRS@ holds them.
-     *    fan_in_m — both blocks populated. */
+     *    model — both blocks populated. */
     fun runModelFanInPrompt(
         scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
@@ -1529,8 +1529,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
                         .sortedBy { it.timestamp }
 
-                    val needResponders = category == "fan_in_i" || category == "fan_in_m"
-                    val needPairs = category == "fan_in_r" || category == "fan_in_m"
+                    val needResponders = category == "initiator" || category == "model"
+                    val needPairs = category == "requester" || category == "model"
 
                     // @RESPONDERS@: rows where the active model is the
                     // SOURCE (others responded TO active's report). One
@@ -1568,9 +1568,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // nothing to combine — same shape as the legacy
                     // fan_in does for empty fan-out states.
                     val nothingToCombine = when (category) {
-                        "fan_in_i" -> responders.isEmpty()
-                        "fan_in_r" -> responderPairs.isEmpty()
-                        "fan_in_m" -> responders.isEmpty() && responderPairs.isEmpty()
+                        "initiator" -> responders.isEmpty()
+                        "requester" -> responderPairs.isEmpty()
+                        "model" -> responders.isEmpty() && responderPairs.isEmpty()
                         else -> true
                     }
                     if (nothingToCombine) {

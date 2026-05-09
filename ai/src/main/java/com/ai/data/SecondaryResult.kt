@@ -93,7 +93,7 @@ data class SecondaryResult(
      *  there, matching prior behaviour. */
     val secondaryScope: String? = null,
     /** Set when this row is a model-scoped fan-in (categories
-     *  fan_in_i / fan_in_r / fan_in_m). Identifies which (provider,
+     *  initiator / requester / model). Identifies which (provider,
      *  model) pair the L2 page should surface this row under so the
      *  per-model drill-in can filter to just its own. Null on every
      *  other row including the legacy "total" fan_in (which combines
@@ -364,7 +364,7 @@ fun resolveFanInPrompt(
 }
 
 /** Resolve the prompt template for a model-scoped fan-in run
- *  (categories fan_in_i / fan_in_r / fan_in_m). Distinct from
+ *  (categories initiator / requester / model). Distinct from
  *  [resolveFanInPrompt] — the model-scoped resolver pre-builds the
  *  iterable blocks in code (not via regex expansion of an
  *  `***Report*** @REPORT@@RESPONSES@` template fragment) because
@@ -376,18 +376,18 @@ fun resolveFanInPrompt(
  *  - `@DATE@` — current date/time, `yyyy-MM-dd HH:mm`
  *  - `@COUNT@` — `max(responders.size, responderPairs.size)`
  *  - `@INITIATOR@` — active model's own report response. Used by
- *    fan_in_i / fan_in_m. Empty for fan_in_r where the active model
+ *    initiator / model. Empty for requester where the active model
  *    is the answerer, not the source.
  *  - `@RESPONDERS@` — block of fan-out responses where the active
  *    model is the source (other models responded TO active's report).
  *    One `***Response*** {body}` line per responder, separated by
  *    blank lines. Same `***Response***` prefix the legacy fan-in
- *    iterable uses for parallel rendering. Used by fan_in_i / fan_in_m.
+ *    iterable uses for parallel rendering. Used by initiator / model.
  *  - `@RESPONDER_PAIRS@` — iterable list of pairs where the active
  *    model is the answerer. Each pair renders as
  *    `***Report*** {other's report body}\n\n***Response*** {active's
  *    fan-out response}`. Pairs separated by blank lines. Used by
- *    fan_in_r / fan_in_m. */
+ *    requester / model. */
 fun resolveModelFanInPrompt(
     template: String,
     question: String,

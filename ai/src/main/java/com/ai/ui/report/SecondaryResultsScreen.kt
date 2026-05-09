@@ -50,7 +50,7 @@ internal fun SecondaryResultsScreen(
     /** Per-model fan-in prompt lists driving the three sub-buttons
      *  inside the "Create a model fan in report" expandable on L2.
      *  Each is the user's internalPrompts filtered to its category
-     *  (fan_in_i / fan_in_r / fan_in_m). */
+     *  (initiator / requester / model). */
     fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
@@ -515,7 +515,7 @@ private fun ColumnScope.FanOutDrillInView(
     /** Per-model fan-in prompt lists driving the three sub-buttons
      *  inside the "Create a model fan in report" expandable on L2.
      *  Each is the internalPrompts filtered to its category
-     *  (fan_in_i / fan_in_r / fan_in_m). */
+     *  (initiator / requester / model). */
     fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
@@ -1050,19 +1050,19 @@ private fun ColumnScope.FanOutDrillInView(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_i") },
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "initiator") },
                         enabled = fanInIPrompts.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                         colors = AppColors.outlinedButtonColors()
                     ) { Text("Initiator role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_r") },
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "requester") },
                         enabled = fanInRPrompts.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                         colors = AppColors.outlinedButtonColors()
                     ) { Text("Responder role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                     OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "fan_in_m") },
+                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "model") },
                         enabled = fanInMPrompts.isNotEmpty(),
                         modifier = Modifier.weight(1f),
                         colors = AppColors.outlinedButtonColors()
