@@ -515,6 +515,11 @@ fun ModelInfoScreen(
     onNavigateToAddCostOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToProviderEdit: (AppService) -> Unit = {},
     onOpenReport: (String) -> Unit = {},
+    /** Open a per-info-provider help topic. Wired by AppNavHost to
+     *  the helpForTopic(id) route. Used by the Costs card, the
+     *  Capabilities source labels, and the per-section "Source:"
+     *  footer to make every info-provider name clickable. */
+    onNavigateToHelpTopic: (String) -> Unit = {},
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -992,7 +997,16 @@ fun ModelInfoScreen(
                                 } else {
                                     rows.forEach { (label, p) ->
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                            // Provider name → help topic when it
+                                            // resolves to one of the seven info
+                                            // providers ("Override" stays plain).
+                                            InfoProviderName(
+                                                name = label,
+                                                fontSize = 13.sp,
+                                                plainColor = Color.White,
+                                                onNavigateToHelpTopic = onNavigateToHelpTopic,
+                                                modifier = Modifier.weight(1f)
+                                            )
                                             Text(
                                                 "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
                                                 fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
@@ -1088,15 +1102,27 @@ fun ModelInfoScreen(
                                 Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                 Row {
                                     Text(visionLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                    Text(visionSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    InfoProviderName(
+                                        name = visionSrcText, fontSize = 12.sp,
+                                        plainColor = AppColors.TextTertiary,
+                                        onNavigateToHelpTopic = onNavigateToHelpTopic
+                                    )
                                 }
                                 Row {
                                     Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                    Text(webSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    InfoProviderName(
+                                        name = webSrcText, fontSize = 12.sp,
+                                        plainColor = AppColors.TextTertiary,
+                                        onNavigateToHelpTopic = onNavigateToHelpTopic
+                                    )
                                 }
                                 Row {
                                     Text(reasoningLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                    Text(reasoningSrcText, fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    InfoProviderName(
+                                        name = reasoningSrcText, fontSize = 12.sp,
+                                        plainColor = AppColors.TextTertiary,
+                                        onNavigateToHelpTopic = onNavigateToHelpTopic
+                                    )
                                 }
                                 // PDF input — currently only Anthropic
                                 // self-reports this on its /v1/models, so
@@ -1198,7 +1224,7 @@ fun ModelInfoScreen(
                     // OpenRouter description
                     info?.openRouterInfo?.description?.let { desc ->
                         item {
-                            ModelInfoSection("Description", "OpenRouter") {
+                            ModelInfoSection("Description", "OpenRouter", onNavigateToHelpTopic) {
                                 Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC))
                             }
                         }
@@ -1207,7 +1233,7 @@ fun ModelInfoScreen(
                     // Technical specs
                     info?.openRouterInfo?.let { or ->
                         item {
-                            ModelInfoSection("Technical Specifications", "OpenRouter") {
+                            ModelInfoSection("Technical Specifications", "OpenRouter", onNavigateToHelpTopic) {
                                 or.context_length?.let { ModelInfoRow("Context Length", formatCompactNumber(it.toLong())) }
                                 or.top_provider?.max_completion_tokens?.let { ModelInfoRow("Max Completion", formatCompactNumber(it.toLong())) }
                                 or.architecture?.modality?.let { ModelInfoRow("Modality", it) }
@@ -1231,7 +1257,7 @@ fun ModelInfoScreen(
                     // HuggingFace info
                     info?.huggingFaceInfo?.let { hf ->
                         item {
-                            ModelInfoSection("HuggingFace", "HuggingFace") {
+                            ModelInfoSection("HuggingFace", "HuggingFace", onNavigateToHelpTopic) {
                                 hf.author?.let { ModelInfoRow("Author", it) }
                                 hf.pipeline_tag?.let { ModelInfoRow("Pipeline", it) }
                                 hf.library_name?.let { ModelInfoRow("Library", it) }
@@ -1248,7 +1274,7 @@ fun ModelInfoScreen(
                     val tags = info?.huggingFaceInfo?.tags
                     if (!tags.isNullOrEmpty()) {
                         item {
-                            ModelInfoSection("Tags", "HuggingFace") {
+                            ModelInfoSection("Tags", "HuggingFace", onNavigateToHelpTopic) {
                                 Text(tags.joinToString(", "), fontSize = 12.sp, color = AppColors.TextTertiary)
                             }
                         }
@@ -1358,15 +1384,55 @@ fun ModelInfoScreen(
 }
 
 @Composable
-private fun ModelInfoSection(title: String, source: String?, content: @Composable ColumnScope.() -> Unit) {
+private fun ModelInfoSection(
+    title: String,
+    source: String?,
+    onNavigateToHelpTopic: (String) -> Unit = {},
+    content: @Composable ColumnScope.() -> Unit
+) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
             content()
             if (source != null) {
-                Text("Source: $source", fontSize = 10.sp, color = AppColors.TextDim, modifier = Modifier.padding(top = 4.dp))
+                val ref = com.ai.ui.admin.infoProviderForDisplayName(source)
+                if (ref != null) {
+                    // Linked footer: full label is one tappable Text so
+                    // the entire "Source: …" line is the affordance.
+                    Text(
+                        "Source: $source",
+                        fontSize = 10.sp, color = AppColors.Blue,
+                        modifier = Modifier.padding(top = 4.dp).clickable { onNavigateToHelpTopic(ref.topicId) }
+                    )
+                } else {
+                    Text("Source: $source", fontSize = 10.sp, color = AppColors.TextDim,
+                        modifier = Modifier.padding(top = 4.dp))
+                }
             }
         }
+    }
+}
+
+/** Render a display name as a help-topic link when it matches one of
+ *  the seven info providers, or a plain Text otherwise. Used by the
+ *  Cost breakdown rows + Capabilities source labels so every place
+ *  the user sees a provider name can drill into the matching help. */
+@Composable
+private fun InfoProviderName(
+    name: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    plainColor: Color,
+    onNavigateToHelpTopic: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val ref = com.ai.ui.admin.infoProviderForDisplayName(name)
+    if (ref != null) {
+        Text(
+            name, fontSize = fontSize, color = AppColors.Blue,
+            modifier = modifier.clickable { onNavigateToHelpTopic(ref.topicId) }
+        )
+    } else {
+        Text(name, fontSize = fontSize, color = plainColor, modifier = modifier)
     }
 }
 

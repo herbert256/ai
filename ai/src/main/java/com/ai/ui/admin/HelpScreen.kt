@@ -184,6 +184,16 @@ val INFO_PROVIDERS_BY_TOPIC: Map<String, InfoProviderRef> by lazy {
     INFO_PROVIDERS.associateBy { it.topicId }
 }
 
+/** Resolve a display name (e.g. "LiteLLM", "llm-prices.com",
+ *  "models.dev") to its [InfoProviderRef]. Case-insensitive. Used
+ *  by callsites that surface the user-visible name and want to
+ *  optionally link it to the matching help topic — Cost breakdown
+ *  rows, Capabilities source labels, ModelInfoSection footers, etc. */
+fun infoProviderForDisplayName(name: String?): InfoProviderRef? {
+    if (name.isNullOrBlank()) return null
+    return INFO_PROVIDERS.firstOrNull { it.displayName.equals(name, ignoreCase = true) }
+}
+
 internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
     InfoProviderRef(
         topicId = "info_provider_huggingface",

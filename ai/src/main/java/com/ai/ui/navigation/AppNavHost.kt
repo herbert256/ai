@@ -487,6 +487,7 @@ fun AppNavHost(
                             navController.navigate(NavRoutes.AI_REPORTS)
                         }
                     },
+                    onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }
