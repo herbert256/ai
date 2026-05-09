@@ -325,9 +325,10 @@ fun TitleBar(
 }
 
 /** Action strip rendered on the right of every [TitleBar]. Help and
- *  Home are always shown (Home is the rightmost slot, Help just to
- *  its left); the conditional slots (Reload / Chat / Info / Delete /
- *  Trace) only render when their callback is non-null — null means
+ *  Home are always shown (Help is the rightmost slot — the global
+ *  "what does this screen do?" anchor — with Home one over from it);
+ *  the conditional slots (Reload / Chat / Info / Delete / Trace /
+ *  Memo) only render when their callback is non-null — null means
  *  the icon is omitted entirely so the strip stays tight. */
 @Composable
 private fun TitleBarActionStrip(
@@ -360,18 +361,18 @@ private fun TitleBarActionStrip(
         // Tighten to 22dp so it sits closer to its right neighbour
         // (Help) without getting cramped.
         if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = w(22.dp), scale = scale)
-        // Help glyph reads narrower than the other emojis, so a
-        // standard 28dp slot leaves visible gaps on either side.
-        // Tightening further to 18dp keeps it snug against both
-        // neighbours (the previous 22dp still left air on either side).
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(18.dp), scale = scale)
         // 📝 Memo — "back to the current AI Report's result page".
-        // Sits between Help and Home so the rightmost slot still
-        // belongs to Home (the global anchor); only renders when
+        // Sits to the left of Home / Help; only renders when
         // [LocalNavigateToCurrentReport] is non-null, i.e. the user
         // is on a screen that's deeper than the result page itself.
         if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = w(28.dp), scale = scale)
         TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(28.dp), scale = scale)
+        // Help glyph reads narrower than the other emojis, so a
+        // standard 28dp slot leaves visible gaps on either side.
+        // Tightening further to 18dp keeps it snug against its left
+        // neighbour. Help is now the rightmost slot — the global
+        // "what does this screen do?" anchor.
+        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(18.dp), scale = scale)
     }
 }
 
