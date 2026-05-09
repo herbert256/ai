@@ -1131,14 +1131,13 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Export / Import",
         cards = listOf(
             HelpCard("Overview", "Three card groups: Export, Import, Layered costs. All exports use Android's Storage Access Framework (CreateDocument) — the picker decides where the file lands; the app never sees the location."),
-            HelpCard("Export · Config", "Full ai_config-<yyMMdd-HHmm>.json — provider configs (with keys), agents/flocks/swarms/parameters/prompts, default type paths, External Services keys."),
             HelpCard("Export · API Keys", "Just the keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) as a flat JSON object. Toast reports the populated key count."),
-            HelpCard("Export · Costs", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million)."),
+            HelpCard("Export · Costs Overrides", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million). Only rows the user explicitly added through Add Manual Override or via re-import."),
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
-            HelpCard("Import", "Five buttons matching the five export shapes (Config, API Keys, Costs, providers.json, prompts.json). Layered-costs files are re-imported from their own card via Import manual changed costs. Config import picks up apiSettings + general settings + 3 external keys atomically."),
+            HelpCard("Import", "Four buttons matching the four export shapes (API Keys, Costs Overrides, providers.json, prompts.json). Layered-costs files are re-imported from their own card via Import manual changed costs."),
             HelpCard("Layered costs", "One row per (provider, model). Two empty new_input/new_output columns up front for a manual override; rest show every tier's $/M-token price in run-time precedence order (LiteLLM > models.dev > Helicone > llm-prices > Artificial Analysis > Override > OpenRouter > Default). Export all covers every model; Export filtered drops rows already covered by LiteLLM/models.dev/Helicone/llm-prices/AA/OpenRouter. Import manual changed costs reads the same CSV back: only rows where the user filled in the two override columns are applied; blank rows are silently ignored."),
             HelpCard("Title bar", "helpTopic=import_export. Plain back."),
-            HelpCard("Pitfalls", "Importing API Keys with a full Config payload throws ConfigBundleMistakenForKeysException — the toast points you back to the Config import button. Costs CSV importer skips malformed rows silently."),
+            HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently."),
             HelpCard("Related", "Backup & Restore (Housekeeping) is the all-in-one zip alternative; this screen is for selective shape-typed transfer.")
         )
     ),

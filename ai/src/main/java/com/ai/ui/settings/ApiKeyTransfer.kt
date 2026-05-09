@@ -20,9 +20,9 @@ data class ApiKeysImportResult(
     val skipped: Int
 )
 
-/** Marker thrown when the picked file looks like a full ConfigExport
- *  (has top-level "version" + "providers"). The caller can show a
- *  more helpful "use the Config import button instead" toast. */
+/** Marker thrown when the picked file looks like a legacy full-config
+ *  bundle (has top-level "version" + "providers"). The caller shows a
+ *  toast clarifying that this isn't an API keys file. */
 class ConfigBundleMistakenForKeysException : RuntimeException()
 
 /** Build the JSON payload written by the "Export API keys" button. The
@@ -58,7 +58,7 @@ fun buildApiKeysJson(
  *  updated [Settings] plus any external-service keys for the caller
  *  to wire through GeneralSettings. Returns null when the JSON isn't a
  *  plain object. Throws [ConfigBundleMistakenForKeysException] when the
- *  payload looks like a full ConfigExport (version + providers). */
+ *  payload looks like a legacy full-config bundle (version + providers). */
 fun applyApiKeysJson(json: String, currentSettings: Settings): ApiKeysImportResult? {
     @Suppress("DEPRECATION")
     val root = JsonParser().parse(json)

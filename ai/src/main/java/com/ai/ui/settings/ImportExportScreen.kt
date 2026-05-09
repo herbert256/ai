@@ -35,7 +35,6 @@ private fun exportTimestamp(): String =
 @Composable
 fun ImportExportScreen(
     aiSettings: Settings,
-    generalSettings: com.ai.viewmodel.GeneralSettings,
     huggingFaceApiKey: String,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
@@ -43,14 +42,13 @@ fun ImportExportScreen(
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
     onSaveArtificialAnalysisApiKey: (String) -> Unit,
-    onSaveGeneral: (com.ai.viewmodel.GeneralSettings) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    var importType by remember { mutableStateOf("config") }
+    var importType by remember { mutableStateOf("keys") }
 
     fun writeToUri(uri: Uri, content: String) {
         // Force UTF-8 — toByteArray() and bufferedReader() default to
@@ -62,12 +60,6 @@ fun ImportExportScreen(
 
     fun readFromUri(uri: Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
-    }
-
-    val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        writeToUri(uri, exportAiConfig(context, aiSettings, generalSettings))
-        Toast.makeText(context, "Configuration exported", Toast.LENGTH_SHORT).show()
     }
 
     val exportKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -202,18 +194,6 @@ fun ImportExportScreen(
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         when (importType) {
-            "config" -> {
-                val result = importAiConfigFromFile(context, uri, aiSettings)
-                if (result != null) {
-                    onSave(result.aiSettings)
-                    result.huggingFaceApiKey?.let { onSaveHuggingFaceApiKey(it) }
-                    result.openRouterApiKey?.let { onSaveOpenRouterApiKey(it) }
-                    result.artificialAnalysisApiKey?.let { onSaveArtificialAnalysisApiKey(it) }
-                    var gs = generalSettings
-                    result.defaultTypePaths?.let { gs = gs.copy(defaultTypePaths = it) }
-                    if (gs != generalSettings) onSaveGeneral(gs)
-                }
-            }
             "keys" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -230,7 +210,7 @@ fun ImportExportScreen(
                     val msg = "${result.imported} API keys imported" + if (result.skipped > 0) ", ${result.skipped} skipped" else ""
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                 } catch (e: ConfigBundleMistakenForKeysException) {
-                    Toast.makeText(context, "This looks like a full config — use the Config import button instead.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "This looks like a full config bundle, not an API keys file.", Toast.LENGTH_LONG).show()
                 } catch (e: JsonSyntaxException) {
                     android.util.Log.e("ImportExport", "API keys import parse error", e)
                     Toast.makeText(context, "Not valid JSON", Toast.LENGTH_SHORT).show()
@@ -318,14 +298,11 @@ fun ImportExportScreen(
                     Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
-                            exportConfigLauncher.launch("ai_config-${exportTimestamp()}.json")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Config", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
                             exportKeysLauncher.launch("ai_keys-${exportTimestamp()}.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         OutlinedButton(onClick = {
                             exportCostsLauncher.launch("ai_costs-${exportTimestamp()}.csv")
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // Bundle-shape exports: provider catalog and internal
                     // prompts. Drop-in shape for assets/providers.json
@@ -348,14 +325,11 @@ fun ImportExportScreen(
                     Text("Import", fontWeight = FontWeight.Bold, color = Color.White)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
-                            importType = "config"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Config", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
                             importType = "keys"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("API Keys", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         OutlinedButton(onClick = {
                             importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                     // Bundle-shape imports: provider catalog and internal
                     // prompts. Upsert by id (providers) or by name
