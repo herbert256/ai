@@ -8,6 +8,7 @@ object NavRoutes {
     const val SETTINGS_PROVIDER_EDIT = "settings_provider_edit/{providerId}"
     const val SETTINGS_AGENT_EDIT = "settings_agent_edit/{agentId}"
     const val SETTINGS_INTERNAL_PROMPT_EDIT = "settings_internal_prompt_edit/{promptId}"
+    const val SETTINGS_AGENTS = "settings_agents"
     const val SETTINGS_FLOCKS = "settings_flocks"
     const val SETTINGS_SWARMS = "settings_swarms"
     const val SETTINGS_INTERNAL_PROMPTS_BY_CATEGORY = "settings_internal_prompts/{category}"

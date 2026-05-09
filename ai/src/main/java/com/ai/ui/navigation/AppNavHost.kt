@@ -347,6 +347,7 @@ fun AppNavHost(
                 onNavigateToInternalPromptEdit = { id ->
                     navController.navigate(NavRoutes.settingsInternalPromptEdit(id))
                 },
+                onNavigateToAgentsEdit = { navController.navigate(NavRoutes.SETTINGS_AGENTS) },
                 onNavigateToFlocksEdit = { navController.navigate(NavRoutes.SETTINGS_FLOCKS) },
                 onNavigateToSwarmsEdit = { navController.navigate(NavRoutes.SETTINGS_SWARMS) },
                 onNavigateToInternalPromptsByCategory = { cat ->
@@ -914,6 +915,14 @@ fun AppNavHost(
                 onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
                 initialSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT,
                 initialEditingInternalPromptId = pid)
+        }
+        composable(NavRoutes.SETTINGS_AGENTS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                initialSubScreen = SettingsSubScreen.AI_AGENTS)
         }
         composable(NavRoutes.SETTINGS_FLOCKS) {
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,

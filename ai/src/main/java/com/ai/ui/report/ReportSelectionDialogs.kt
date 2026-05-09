@@ -34,43 +34,89 @@ private fun dlgFmtPriceM(perMillion: Double): String {
     return when { perMillion == 0.0 -> "0"; perMillion < 0.01 -> "<.01"; else -> "%.2f".format(perMillion) }
 }
 
+/** Full-screen agent picker. Mirror of [ReportSelectFlockScreen] \u2014
+ *  search field + list of agents with effective model and per-call
+ *  cost estimate, plus an "Edit Agents" footer that deep-links into
+ *  Settings \u2192 AI Workers \u2192 Agents. */
 @Composable
-internal fun ReportSelectAgentDialog(aiSettings: Settings, onSelectAgent: (Agent) -> Unit, onDismiss: () -> Unit) {
+internal fun ReportSelectAgentScreen(
+    aiSettings: Settings,
+    onSelectAgent: (Agent) -> Unit,
+    onBack: () -> Unit,
+    onEditAgents: () -> Unit
+) {
+    BackHandler { onBack() }
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
     val all = aiSettings.agents
-    val filtered = if (search.isBlank()) all else all.filter { a ->
-        a.name.lowercase().contains(search.lowercase()) || a.provider.id.lowercase().contains(search.lowercase())
+    val filtered = remember(all, search) {
+        if (search.isBlank()) all
+        else all.filter { a ->
+            val q = search.lowercase(java.util.Locale.ROOT)
+            a.name.lowercase(java.util.Locale.ROOT).contains(q)
+                || a.provider.id.lowercase(java.util.Locale.ROOT).contains(q)
+        }
     }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text("Select an agent", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
-                Spacer(modifier = Modifier.height(6.dp))
-                OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
-                Spacer(modifier = Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(filtered, key = { it.id }) { agent ->
-                        val model = aiSettings.getEffectiveModelForAgent(agent)
-                        val p = PricingCache.getPricing(context, agent.provider, model)
-                        val real = p.source != "DEFAULT"
-                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(com.ai.ui.shared.modelLabel(agent.provider.id, model),
-                                    fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
-                        }
-                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                    }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
+            placeholder = { Text("Search agents...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
+            trailingIcon = {
+                if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
+                    Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp)
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
+            }
+        )
+        Text("${filtered.size} of ${all.size} agents", fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(top = 4.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (all.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("No agents yet.", color = AppColors.TextTertiary, fontSize = 14.sp)
+                    Text("Agents pair a provider, model, and parameter set for one-tap inclusion.", color = AppColors.TextDim, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(filtered, key = { it.id }) { agent ->
+                    val model = aiSettings.getEffectiveModelForAgent(agent)
+                    val p = PricingCache.getPricing(context, agent.provider, model)
+                    val real = p.source != "DEFAULT"
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(agent.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(com.ai.ui.shared.modelLabel(agent.provider.id, model),
+                                fontSize = 12.sp, color = AppColors.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(
+                            "${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}",
+                            fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                            color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                            modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                        )
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
             }
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onEditAgents, modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Edit Agents", maxLines = 1, softWrap = false) }
     }
 }
 

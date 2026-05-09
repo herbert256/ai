@@ -54,6 +54,7 @@ fun ReportsScreenNav(
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    onNavigateToAgentsEdit: () -> Unit = {},
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
     onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
@@ -179,6 +180,7 @@ fun ReportsScreenNav(
         onContinueWithAgentPicker = onContinueWithAgentPicker,
         onContinueWithOnTheFly = onContinueWithOnTheFly,
         onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+        onNavigateToAgentsEdit = onNavigateToAgentsEdit,
         onNavigateToFlocksEdit = onNavigateToFlocksEdit,
         onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
         onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
@@ -325,9 +327,10 @@ fun ReportsScreen(
      *  named run's persisted rows. Wired to
      *  ReportViewModel.startMissingTranslations. */
     onStartMissingTranslations: (String, String) -> Unit = { _, _ -> },
-    /** Deep-link callbacks fired by the full-screen +Flock / +Swarm /
-     *  Meta / Fan out pickers' "Edit X" buttons. AppNavHost wires each
-     *  to the matching Settings sub-screen route. */
+    /** Deep-link callbacks fired by the full-screen +Agent / +Flock /
+     *  +Swarm / Meta / Fan out pickers' "Edit X" buttons. AppNavHost
+     *  wires each to the matching Settings sub-screen route. */
+    onNavigateToAgentsEdit: () -> Unit = {},
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
     onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
@@ -695,7 +698,18 @@ fun ReportsScreen(
         )
         return
     }
-    if (showSelectAgent) { ReportSelectAgentDialog(aiSettings, onSelectAgent = { expandAgentToModel(it, aiSettings)?.let { m -> models = deduplicateModels(models + m) }; showSelectAgent = false }, onDismiss = { showSelectAgent = false }); return }
+    if (showSelectAgent) {
+        ReportSelectAgentScreen(
+            aiSettings = aiSettings,
+            onSelectAgent = {
+                expandAgentToModel(it, aiSettings)?.let { m -> models = deduplicateModels(models + m) }
+                showSelectAgent = false
+            },
+            onBack = { showSelectAgent = false },
+            onEditAgents = onNavigateToAgentsEdit
+        )
+        return
+    }
     if (showSelectSwarm) {
         ReportSelectSwarmScreen(
             aiSettings = aiSettings,
@@ -1554,21 +1568,34 @@ private fun ColumnScope.SelectionPhase(
 ) {
     val context = LocalContext.current
 
+    // +Report only makes sense when at least one saved report exists
+    // — querying ReportStorage on entry. SelectionPhase doesn't get
+    // re-composed mid-flight so a one-shot read is enough. Default
+    // false so the row doesn't briefly flicker the button before the
+    // IO read returns.
+    val hasAnyReport by androidx.compose.runtime.produceState(initialValue = false) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getAllReports(context).isNotEmpty()
+        }
+    }
+
     // Add buttons. The all-models picker (+Model) supersedes the
     // provider-then-model two-step, so the +Provider variant has been
     // dropped from the row. The unused onAddModel callback stays in
     // the signature for now but is ignored here. Local LLMs surface
     // inside +Model under the "Local" provider when installed —
-    // there's no separate +Local button.
+    // there's no separate +Local button. +Model sits at the rightmost
+    // position; +Report is omitted when no saved reports exist.
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf(
+        val entries = mutableListOf(
             "Agent" to onAddAgent,
             "Flock" to onAddFlock,
-            "Swarm" to onAddSwarm,
-            "Model" to onAddAllModels,
-            "Report" to onAddFromReport
-        ).forEach { (label, action) ->
+            "Swarm" to onAddSwarm
+        )
+        if (hasAnyReport) entries.add("Report" to onAddFromReport)
+        entries.add("Model" to onAddAllModels)
+        entries.forEach { (label, action) ->
             OutlinedButton(onClick = action, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp), modifier = Modifier.heightIn(min = 40.dp), colors = AppColors.outlinedButtonColors()) {
                 Text("+$label", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
