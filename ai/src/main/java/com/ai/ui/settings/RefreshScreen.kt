@@ -527,42 +527,38 @@ fun RefreshScreen(
             }.awaitAll()
         }
     }
-    val runDefaultAgentsWithProgress: suspend ((String) -> Unit) -> Unit = { onProgress ->
-        val candidates = aiSettings.getActiveServices().map { s ->
-            Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
-        }
+    /** Refresh-all variant of runDefaultAgents that takes the providers
+     *  that already passed the preceding "Provider key tests" step
+     *  instead of re-testing them. Two reasons:
+     *    1. Re-testing every provider seconds after a successful test
+     *       wastes a round-trip and quota per provider.
+     *    2. The second test occasionally fails (rate-limit 429,
+     *       transient network) on a provider that passed the first —
+     *       producing the surface bug "N active providers but only
+     *       N-1 agents in the default flock" where the user has no
+     *       way to tell which one slipped. */
+    val runDefaultAgentsFromPassed: suspend (List<AppService>, (String) -> Unit) -> Unit = { passedProviders, onProgress ->
         generationRows.clear()
-        generationRows.addAll(candidates.map { it.first.displayName to null })
-        val total = candidates.size
-        val completed = java.util.concurrent.atomic.AtomicInteger(0)
-        onProgress("0 / $total")
-        val results: List<Pair<String, Boolean>> = supervisorScope {
-            candidates.mapIndexed { idx, (service, key, model) ->
-                async(Dispatchers.IO) {
-                    val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
-                    val success = error == null
-                    withContext(Dispatchers.Main) {
-                        if (idx < generationRows.size) generationRows[idx] = service.displayName to success
-                    }
-                    val done = completed.incrementAndGet()
-                    onProgress("$done / $total — ${service.displayName}")
-                    service.displayName to success
-                }
-            }.awaitAll()
-        }
+        generationRows.addAll(passedProviders.map { it.displayName to true })
+        onProgress("${passedProviders.size} / ${passedProviders.size} (already tested)")
         withContext(Dispatchers.IO) {
             var updatedSettings = aiSettings
-            for ((service, _, model) in candidates) {
-                val success = results.find { it.first == service.displayName }?.second == true
-                if (success) {
-                    val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
-                    if (existing == null) {
-                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
-                        updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
-                    }
+            for (service in passedProviders) {
+                val model = aiSettings.getModel(service)
+                val existing = updatedSettings.agents.find { it.name == service.displayName && it.provider.id == service.id }
+                if (existing == null) {
+                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.displayName, service, model, "")
+                    updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
                 }
             }
-            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.displayName && it.second } }.map { it.id }
+            // Match the legacy behaviour: every agent whose provider's
+            // displayName matches a passed provider goes into the
+            // flock. Includes user-renamed agents pointing at a passed
+            // provider (mirrors the prior runDefaultAgents semantics).
+            val passedNames = passedProviders.map { it.displayName }.toSet()
+            val defaultAgentIds = updatedSettings.agents
+                .filter { it.provider.displayName in passedNames }
+                .map { it.id }
             if (defaultAgentIds.isNotEmpty()) {
                 val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
                 updatedSettings = if (existingFlock != null) {
@@ -721,13 +717,23 @@ fun RefreshScreen(
                                 setStep("models", StepStatus.Failed(e.message?.take(80)))
                             }
 
-                            // Sequential: default-agent generation
+                            // Sequential: default-agent generation. Uses
+                            // the providers that just passed the
+                            // Provider-key-tests step instead of
+                            // re-testing — eliminates the
+                            // "N active providers but only N-1 agents in
+                            // the default flock" surface bug where a
+                            // transient re-test failure dropped one
+                            // provider from the flock.
                             setStep("agents", StepStatus.Running())
                             try {
-                                runDefaultAgentsWithProgress { detail -> setStep("agents", StepStatus.Running(detail)) }
-                                val okCount = generationRows.count { it.second == true }
-                                val total = generationRows.size
-                                setStep("agents", StepStatus.Done("$okCount / $total agents"))
+                                val passedProviders = providerStateRows
+                                    .filter { it.second == "ok" }
+                                    .mapNotNull { (name, _) -> AppService.entries.find { it.displayName == name } }
+                                runDefaultAgentsFromPassed(passedProviders) { detail ->
+                                    setStep("agents", StepStatus.Running(detail))
+                                }
+                                setStep("agents", StepStatus.Done("${passedProviders.size} agents"))
                             } catch (e: Exception) {
                                 setStep("agents", StepStatus.Failed(e.message?.take(80)))
                             }
