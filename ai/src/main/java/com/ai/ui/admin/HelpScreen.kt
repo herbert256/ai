@@ -75,7 +75,7 @@ private fun HelpIconTable() {
         Triple("◀", "Back", "Previous screen."),
         Triple("🏠", "Home", "Returns here from anywhere."),
         Triple("❓", "Help", "Opens topic-specific help for the current screen."),
-        Triple("ℹ", "Info", "Drills into model info or another details target."),
+        Triple("ℹ️", "Info", "Drills into model info or another details target."),
         Triple("🗑", "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
         Triple("🐞", "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
         Triple("🔄", "Reload", "Re-runs the screen's fetch."),
