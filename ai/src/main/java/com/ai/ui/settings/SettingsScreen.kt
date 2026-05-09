@@ -531,6 +531,10 @@ fun SettingsScreen(
                 onRefreshAllModels = onRefreshAllModels,
                 onTestApiKey = onTestAiModel,
                 onProviderStateChange = onProviderStateChange,
+                onOpenProvider = { svc ->
+                    selectedProviderId = svc.id
+                    currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+                },
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }

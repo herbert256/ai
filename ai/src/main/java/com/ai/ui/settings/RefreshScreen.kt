@@ -35,6 +35,11 @@ fun RefreshScreen(
     onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
     onTestApiKey: suspend (AppService, String, String) -> String?,
     onProviderStateChange: (AppService, String) -> Unit,
+    /** Navigate the parent settings screen to AI Setup → Providers →
+     *  edit page for a specific provider. Used by the Refresh-all
+     *  progress screen's "Failed providers" list so the user can jump
+     *  straight to the provider whose key / model needs fixing. */
+    onOpenProvider: (AppService) -> Unit = {},
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -115,10 +120,31 @@ fun RefreshScreen(
     }
 
     if (refreshAllInProgress) {
+        // Resolve failed-provider rows back to AppService so the
+        // "Failed providers" list can drive a direct nav to each
+        // provider's edit page. The displayName lookup is safe
+        // because the same AppService.entries iteration produced
+        // the row in runProvidersWithProgress.
+        val failedProviders = remember(refreshAllSteps.toList(), providerStateRows.toList()) {
+            providerStateRows
+                .filter { it.second == "error" }
+                .mapNotNull { (name, _) -> AppService.entries.find { it.displayName == name } }
+        }
         RefreshAllProgressScreen(
             steps = refreshAllSteps.toList(),
             overallError = refreshAllError,
             isFinished = refreshAllFinished,
+            failedProviders = failedProviders,
+            onOpenProvider = { svc ->
+                // Tear down the in-progress overlay before navigating
+                // so a back-press from the provider edit screen
+                // doesn't drop the user back into a stale refresh-all
+                // view that'll auto-clear on its next render anyway.
+                refreshAllInProgress = false
+                refreshAllSteps.clear()
+                refreshAllError = null
+                onOpenProvider(svc)
+            },
             onRestartNow = {
                 // Same flush-then-process-kill the legacy chain did at
                 // the end. Captured here as an explicit user action so
@@ -863,6 +889,8 @@ private fun RefreshAllProgressScreen(
     steps: List<RefreshAllStep>,
     overallError: String?,
     isFinished: Boolean,
+    failedProviders: List<AppService>,
+    onOpenProvider: (AppService) -> Unit,
     onRestartNow: () -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -910,6 +938,34 @@ private fun RefreshAllProgressScreen(
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Refresh aborted", fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
                         Text(overallError, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+            // Failed-providers shortcut — appears after the Provider
+            // key tests step has run, so the user can jump straight
+            // into AI Setup → Providers → <name> to fix the API key /
+            // model / endpoint and re-test.
+            if (failedProviders.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    "Failed provider tests (${failedProviders.size})",
+                    fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold
+                )
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        failedProviders.forEach { svc ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { onOpenProvider(svc) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("✗", fontSize = 14.sp, color = AppColors.Red, modifier = Modifier.width(20.dp))
+                                Text(svc.displayName, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                Text("Open ›", fontSize = 12.sp, color = AppColors.Blue)
+                            }
+                            HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                        }
                     }
                 }
             }
