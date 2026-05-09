@@ -1292,19 +1292,17 @@ private fun ColumnScope.FanOutDrillInView(
                         contentAlignment = Alignment.Center) {
                         when {
                             row.errorMessage != null -> Text("❌", fontSize = 16.sp)
-                            // Combined-report rows have no queued
-                            // state — they're created at the moment
-                            // the user taps "Combine reports and all
-                            // fan out responses" and run to completion
-                            // serially. The id is never added to
-                            // runningFanOutPairs (that's per-pair
-                            // factcheck plumbing only), so the prior
-                            // 🕓 fallback would stick on a row that's
-                            // actually in flight. Animated hourglass
-                            // covers the whole blank-content window.
-                            row.content.isNullOrBlank() ->
-                                com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
-                            else -> Text("✅", fontSize = 16.sp)
+                            // durationMs is stamped on every successful +
+                            // errored save (cleared by resetAndRelaunch).
+                            // A row with content set OR durationMs set is
+                            // terminal — without the durationMs check, a
+                            // successful empty-body fan-in completion
+                            // would keep spinning forever. Same classifier
+                            // shape as the L1 stats counters / the L3
+                            // detail body.
+                            !row.content.isNullOrBlank() || row.durationMs != null ->
+                                Text("✅", fontSize = 16.sp)
+                            else -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
                         }
                     }
                     val rowText = if (acLabel != null) "$acLabel · ${com.ai.ui.shared.modelLabel(acProv, row.model)}"
@@ -1640,9 +1638,10 @@ private fun OnePageView(
                             pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             pair.errorMessage != null ->
                                 Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
-                            pair.content.isNullOrBlank() ->
-                                Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
-                            else -> ContentWithThinkSections(analysis = pair.content)
+                            !pair.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pair.content)
+                            pair.durationMs != null ->
+                                Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
+                            else -> Text("(pending)", fontSize = 13.sp, color = AppColors.TextSecondary)
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         HorizontalDivider(color = AppColors.DividerDark)
@@ -1666,8 +1665,8 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
     ) {
         val statusEmoji = when {
             r.errorMessage != null -> "❌"
-            r.content.isNullOrBlank() -> "⏳"
-            else -> "✅"
+            !r.content.isNullOrBlank() || r.durationMs != null -> "✅"
+            else -> "⏳"
         }
         Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         Column(modifier = Modifier.weight(1f)) {
