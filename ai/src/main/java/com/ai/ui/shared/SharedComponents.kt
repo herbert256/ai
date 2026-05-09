@@ -376,7 +376,10 @@ private fun TitleBarActionStrip(
         // [LocalNavigateToCurrentReport] is non-null, i.e. the user
         // is on a screen that's deeper than the result page itself.
         if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = w(28.dp), scale = scale)
-        TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(28.dp), scale = scale)
+        // 🏠 Home — tightened to 22dp so the gap between it and the
+        // rightmost ❓ Help icon shrinks; both glyphs read narrower
+        // than the standard 28dp slot.
+        TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(22.dp), scale = scale)
         // Help glyph reads narrower than the other emojis, so a
         // standard 28dp slot leaves visible gaps on either side.
         // Tightening further to 14dp pulls it snug against Home on
