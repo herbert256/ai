@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,19 +45,7 @@ private fun CompactOverview() {
         "Per-screen help",
         "Every screen has its own help page. Tap ❓ in the top bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
-    HelpSection(
-        "Title bar icons",
-        "Every screen's top bar shares the same vocabulary:\n" +
-            "◀ Back — previous screen.\n" +
-            "🏠 Home — returns here from anywhere.\n" +
-            "❓ Help — opens topic-specific help for the current screen.\n" +
-            "ℹ Info — drills into model info or another details target.\n" +
-            "🗑 Trash — destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty.\n" +
-            "🐞 Trace — opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist for the scope.\n" +
-            "🔄 Reload — re-runs the screen's fetch.\n" +
-            "💬 Chat — opens a chat against the current context.\n" +
-            "Icons that aren't relevant to a screen are simply absent — there's nothing to disable."
-    )
+    HelpIconTable()
     HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +
@@ -76,6 +65,38 @@ private fun HelpSection(title: String, content: String) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
             Spacer(modifier = Modifier.height(6.dp))
             Text(content, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+        }
+    }
+}
+
+@Composable
+private fun HelpIconTable() {
+    val rows = listOf(
+        Triple("◀", "Back", "Previous screen."),
+        Triple("🏠", "Home", "Returns here from anywhere."),
+        Triple("❓", "Help", "Opens topic-specific help for the current screen."),
+        Triple("ℹ", "Info", "Drills into model info or another details target."),
+        Triple("🗑", "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
+        Triple("🐞", "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
+        Triple("🔄", "Reload", "Re-runs the screen's fetch."),
+        Triple("💬", "Chat", "Opens a chat against the current context.")
+    )
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("Title bar icons", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Spacer(modifier = Modifier.height(8.dp))
+            rows.forEach { (icon, name, desc) ->
+                Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
+                    Text(icon, fontSize = 16.sp, modifier = Modifier.width(28.dp))
+                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(72.dp))
+                    Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Icons that aren't relevant to a screen are simply absent — there's nothing to disable.",
+                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+            )
         }
     }
 }
