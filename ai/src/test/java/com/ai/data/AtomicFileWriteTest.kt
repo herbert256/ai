@@ -29,10 +29,10 @@ class AtomicFileWriteTest {
         assertThat(dest.readText()).isEqualTo("new")
     }
 
-    @Test fun write_to_nonexistent_parent_fails_cleanly() {
+    @Test fun write_creates_missing_parent_directory() {
         val dest = File(tmp.root, "missing-dir/out.json")
         val ok = dest.writeTextAtomic("payload")
-        assertThat(ok).isFalse()
-        assertThat(dest.exists()).isFalse()
+        assertThat(ok).isTrue()
+        assertThat(dest.readText()).isEqualTo("payload")
     }
 }
