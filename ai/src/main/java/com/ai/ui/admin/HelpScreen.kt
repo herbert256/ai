@@ -1106,8 +1106,9 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Export · API Keys", "Just the keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) as a flat JSON object. Toast reports the populated key count."),
             HelpCard("Export · Costs Overrides", "Manual cost overrides as CSV (provider,model,input_per_million,output_per_million). Only rows the user explicitly added through Add Manual Override or via Manual cost overrides → Import manual changed costs."),
             HelpCard("Export · providers.json / prompts.json", "Drop-in shape for the bundled assets — no API keys included. Useful when shipping a tuned catalog as new defaults."),
-            HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts } that bundles the four exports above. Round-trips through Import · All."),
-            HelpCard("Import", "Four buttons matching the four export shapes (API Keys, Costs Overrides, providers.json, prompts.json) plus a full-width All that reads the bundled JSON."),
+            HelpCard("Export · Workers", "Agents + Flocks + Swarms in one file shaped { agents, flocks, swarms }. References to parameter sets, system prompts, and provider ids stay as ids — dangling on a target where those don't exist, but the worker still loads."),
+            HelpCard("Export · All", "Single JSON file shaped { apiKeys, costs, providers, prompts, agents, flocks, swarms } that bundles every export above. Round-trips through Import · All."),
+            HelpCard("Import", "Five buttons matching the five export shapes (API Keys, Costs Overrides, providers.json, prompts.json, Workers) plus a full-width All that reads the bundled JSON. Workers and All upsert agents / flocks / swarms by id; bad rows (e.g. references to a deleted provider) are logged and skipped, the rest go through."),
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently."),
             HelpCard("Related", "Layered-costs CSV (Housekeeping → Manual cost overrides) is the bulk-edit path for overrides across every model. Backup & Restore is the all-in-one zip alternative.")
         )

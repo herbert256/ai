@@ -43,6 +43,60 @@ private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf(
     "text" to p.text
 )
 
+/** Apply Workers sections (agents / flocks / swarms) from a parsed
+ *  bundle root to [working]. Each section upserts by id — existing
+ *  entries with a matching id get replaced, missing ones append.
+ *  Per-entry deserialisation is wrapped so a single bad row (e.g.
+ *  references a deleted provider, which makes AppServiceAdapter
+ *  throw) doesn't take down the rest. Returns the new Settings plus
+ *  per-section counts for the toast. */
+private data class WorkerImportResult(
+    val settings: Settings,
+    val agents: Int,
+    val flocks: Int,
+    val swarms: Int
+) {
+    fun isEmpty() = agents == 0 && flocks == 0 && swarms == 0
+}
+
+private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResult {
+    val gson = createAppGson()
+    fun <T> readList(name: String, type: Class<T>): List<T> {
+        val arr = root.getAsJsonArray(name) ?: return emptyList()
+        val out = mutableListOf<T>()
+        arr.forEach { el ->
+            try { out.add(gson.fromJson(el, type)) }
+            catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped $name entry: ${e.message}") }
+        }
+        return out
+    }
+    val incomingAgents = readList("agents", Agent::class.java)
+    val incomingFlocks = readList("flocks", Flock::class.java)
+    val incomingSwarms = readList("swarms", Swarm::class.java)
+
+    fun <T, ID> upsert(existing: List<T>, incoming: List<T>, idOf: (T) -> ID): List<T> {
+        val incomingIds = incoming.map(idOf).toSet()
+        return existing.filterNot { idOf(it) in incomingIds } + incoming
+    }
+    val mergedAgents = upsert(working.agents, incomingAgents) { it.id }
+    val mergedFlocks = upsert(working.flocks, incomingFlocks) { it.id }
+    val mergedSwarms = upsert(working.swarms, incomingSwarms) { it.id }
+    val updated = working.copy(agents = mergedAgents, flocks = mergedFlocks, swarms = mergedSwarms)
+    return WorkerImportResult(updated, incomingAgents.size, incomingFlocks.size, incomingSwarms.size)
+}
+
+/** JSON tree of every Agent / Flock / Swarm. Same shape used by both
+ *  the standalone Workers export and the All-bundle (inlined at the
+ *  bundle root, not nested). */
+private fun buildWorkersTree(settings: Settings): JsonObject {
+    val gson = createAppGson()
+    return JsonObject().apply {
+        add("agents", gson.toJsonTree(settings.agents))
+        add("flocks", gson.toJsonTree(settings.flocks))
+        add("swarms", gson.toJsonTree(settings.swarms))
+    }
+}
+
 @Composable
 fun ImportExportScreen(
     aiSettings: Settings,
@@ -107,13 +161,29 @@ fun ImportExportScreen(
         Toast.makeText(context, "Internal prompts exported (${payload.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
+    val exportWorkersLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        // { agents: [...], flocks: [...], swarms: [...] } — same shape
+        // the All bundle inlines and the Workers import reads back.
+        val tree = buildWorkersTree(aiSettings)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(
+            context,
+            "Workers exported (${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
     // "All" bundle: single JSON file carrying every section the
     // individual buttons would have written. Structure:
-    //   { "apiKeys": {<keys-json>}, "costs": [...], "providers": [...], "prompts": [...] }
+    //   { "apiKeys": {<keys-json>}, "costs": [...], "providers": [...],
+    //     "prompts": [...], "agents": [...], "flocks": [...], "swarms": [...] }
     // Each section is the same payload the matching individual export
     // produces, so the importer can hand each one to its existing
     // handler without a separate schema. costs are converted from CSV
-    // to a JSON array since the bundle is JSON-only.
+    // to a JSON array since the bundle is JSON-only; workers are
+    // inlined (agents/flocks/swarms at the bundle root) so the same
+    // applyWorkers() helper handles both standalone and bundled.
     val exportAllLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         val gson = createAppGson(prettyPrint = true)
@@ -139,11 +209,14 @@ fun ImportExportScreen(
         bundle.add("providers", gson.toJsonTree(providers))
         val prompts = aiSettings.internalPrompts.map { promptEntry(it) }
         bundle.add("prompts", gson.toJsonTree(prompts))
+        val workers = buildWorkersTree(aiSettings)
+        workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
         writeToUri(uri, gson.toJson(bundle))
         val keysCount = bundle.getAsJsonObject("apiKeys").size()
         Toast.makeText(
             context,
-            "Bundle exported ($keysCount keys, ${manual.size} costs, ${providers.size} providers, ${prompts.size} prompts)",
+            "Bundle exported ($keysCount keys, ${manual.size} costs, ${providers.size} providers, " +
+                "${prompts.size} prompts, ${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
             Toast.LENGTH_LONG
         ).show()
     }
@@ -232,6 +305,26 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Updated $n internal prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "workers" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (root == null) {
+                    Toast.makeText(context, "Workers file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val res = applyWorkers(root, aiSettings)
+                if (res.isEmpty()) {
+                    Toast.makeText(context, "No agents / flocks / swarms found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(res.settings)
+                    Toast.makeText(
+                        context,
+                        "Imported ${res.agents} agents, ${res.flocks} flocks, ${res.swarms} swarms",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
             "all" -> {
                 // All-bundle: { apiKeys, costs, providers, prompts }.
                 // Each section is optional; missing or malformed sections
@@ -294,6 +387,16 @@ fun ImportExportScreen(
                     }
                 }
 
+                run {
+                    val w = applyWorkers(root, working)
+                    if (!w.isEmpty()) {
+                        working = w.settings
+                        if (w.agents > 0) parts.add("${w.agents} agents")
+                        if (w.flocks > 0) parts.add("${w.flocks} flocks")
+                        if (w.swarms > 0) parts.add("${w.swarms} swarms")
+                    }
+                }
+
                 if (working !== aiSettings) onSave(working)
                 Toast.makeText(
                     context,
@@ -334,7 +437,16 @@ fun ImportExportScreen(
                             exportPromptsJsonLauncher.launch("prompts.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
-                    // "All": single JSON file bundling the four sections
+                    // Agents + Flocks + Swarms in one file. Half-width
+                    // button paired with a spacer so it lines up with
+                    // the columns above.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportWorkersLauncher.launch("ai_workers-${exportTimestamp()}.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    // "All": single JSON file bundling every section
                     // above. Round-trips through the matching All import.
                     OutlinedButton(onClick = {
                         exportAllLauncher.launch("ai_bundle-${exportTimestamp()}.json")
@@ -366,6 +478,12 @@ fun ImportExportScreen(
                         OutlinedButton(onClick = {
                             importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                     OutlinedButton(onClick = {
                         importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
