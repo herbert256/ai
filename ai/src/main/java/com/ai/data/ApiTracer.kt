@@ -336,14 +336,22 @@ class TracingInterceptor : Interceptor {
     }
 }
 
-/** Retry on HTTP 429 (rate-limit) responses. Sleeps [backoffMs] before
- *  reissuing the same request, up to [maxRetries] times. Placed ahead of
- *  [TracingInterceptor] in the OkHttp chain so every attempt — including
- *  retries — gets a separate trace entry, which makes throttling visible
- *  on the Trace screen instead of hiding inside the network layer. */
+/** Retry on HTTP 429 (rate-limit) responses. Reissues the same request
+ *  after a short backoff, capped so a sustained 429 burst can't hold an
+ *  OkHttp dispatcher slot indefinitely (the dispatcher's per-host limit
+ *  is small — default 5 — and a slot held mid-sleep starves every other
+ *  request to that host). Placed ahead of [TracingInterceptor] in the
+ *  OkHttp chain so every attempt — including retries — gets a separate
+ *  trace entry, which makes throttling visible on the Trace screen.
+ *
+ *  Worst-case slot occupancy is roughly maxRetries × backoffMs plus the
+ *  upstream request time per attempt; defaults give ~3 s of in-line
+ *  retry. Caller-driven retry policies (queueing more attempts via the
+ *  suspend layer) can layer on top with kotlinx.coroutines.delay, which
+ *  doesn't block any thread. */
 class RateLimitRetryInterceptor(
-    private val maxRetries: Int = 5,
-    private val backoffMs: Long = 3_000L
+    private val maxRetries: Int = 3,
+    private val backoffMs: Long = 1_000L
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -357,6 +365,9 @@ class RateLimitRetryInterceptor(
         var current = response
         var attempt = 0
         while (current.code == 429 && attempt < maxRetries) {
+            // Bail if the caller already cancelled the call — no point
+            // sleeping if the response will be discarded anyway.
+            if (chain.call().isCanceled()) return current
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
             current.close()
