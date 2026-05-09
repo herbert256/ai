@@ -26,6 +26,8 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
+import com.ai.viewmodel.GeneralSettings
+import com.ai.viewmodel.ModelNameLayout
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -97,13 +99,169 @@ private fun buildWorkersTree(settings: Settings): JsonObject {
     }
 }
 
+/** JSON tree of [GeneralSettings] *minus* the three info-provider API
+ *  keys (huggingFaceApiKey / openRouterApiKey / artificialAnalysisApiKey).
+ *  Those three round-trip through the API Keys export so we don't
+ *  double-emit them. */
+private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObject().apply {
+    addProperty("userName", g.userName)
+    addProperty("defaultEmail", g.defaultEmail)
+    add("defaultTypePaths", JsonObject().apply {
+        g.defaultTypePaths.forEach { (k, v) -> addProperty(k, v) }
+    })
+    addProperty("tracingEnabled", g.tracingEnabled)
+    addProperty("modelNameLayout", g.modelNameLayout.name)
+    addProperty("showBackButton", g.showBackButton)
+    addProperty("subjectToTitleBar", g.subjectToTitleBar)
+}
+
+/** Apply each present field of a Settings export onto [current],
+ *  leaving fields the file omitted untouched. The three info-provider
+ *  API keys are deliberately not carried by this shape — they live in
+ *  the API Keys export. */
+private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): GeneralSettings {
+    fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+    fun bool(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+    val typePaths: Map<String, String>? = obj.getAsJsonObject("defaultTypePaths")?.let { o ->
+        val m = LinkedHashMap<String, String>()
+        o.entrySet().forEach { (k, v) -> if (v.isJsonPrimitive) m[k] = v.asString }
+        m
+    }
+    val layout = str("modelNameLayout")?.let {
+        runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
+    }
+    return current.copy(
+        userName = str("userName") ?: current.userName,
+        defaultEmail = str("defaultEmail") ?: current.defaultEmail,
+        defaultTypePaths = typePaths ?: current.defaultTypePaths,
+        tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
+        modelNameLayout = layout ?: current.modelNameLayout,
+        showBackButton = bool("showBackButton") ?: current.showBackButton,
+        subjectToTitleBar = bool("subjectToTitleBar") ?: current.subjectToTitleBar
+    )
+}
+
+/** Per-provider model lists keyed by AppService.id. Sorted by id so
+ *  successive exports diff cleanly. */
+private fun buildModelListsTree(s: Settings): JsonObject = JsonObject().apply {
+    s.providers.entries.sortedBy { it.key.id }.forEach { (svc, cfg) ->
+        val arr = JsonArray()
+        cfg.models.forEach { arr.add(it) }
+        add(svc.id, arr)
+    }
+}
+
+/** Replace each known provider's models list with the file's list.
+ *  Unknown provider ids are skipped (logged). Returns (updated, count). */
+private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, Int> {
+    var s = working
+    var n = 0
+    obj.entrySet().forEach { (key, value) ->
+        val arr = value as? JsonArray ?: return@forEach
+        val service = AppService.findById(key) ?: run {
+            android.util.Log.w("ImportExport", "Skipped model list for unknown provider $key")
+            return@forEach
+        }
+        val list = arr.mapNotNull {
+            if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+        }
+        s = s.withModels(service, list)
+        n++
+    }
+    return s to n
+}
+
+private fun buildParametersTree(s: Settings): JsonArray =
+    createAppGson().toJsonTree(s.parameters).asJsonArray
+
+/** Upsert by id. Bad rows are logged and skipped so a single corrupt
+ *  entry doesn't take down the rest. */
+private fun applyParameters(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
+    val incoming = mutableListOf<Parameters>()
+    arr.forEach { el ->
+        try { incoming.add(gson.fromJson(el, Parameters::class.java)) }
+        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped parameters entry: ${e.message}") }
+    }
+    val incomingIds = incoming.map { it.id }.toSet()
+    val merged = working.parameters.filterNot { it.id in incomingIds } + incoming
+    return working.copy(parameters = merged) to incoming.size
+}
+
+private fun buildSystemPromptsTree(s: Settings): JsonArray =
+    createAppGson().toJsonTree(s.systemPrompts).asJsonArray
+
+private fun applySystemPrompts(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
+    val incoming = mutableListOf<SystemPrompt>()
+    arr.forEach { el ->
+        try { incoming.add(gson.fromJson(el, SystemPrompt::class.java)) }
+        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped system prompt entry: ${e.message}") }
+    }
+    val incomingIds = incoming.map { it.id }.toSet()
+    val merged = working.systemPrompts.filterNot { it.id in incomingIds } + incoming
+    return working.copy(systemPrompts = merged) to incoming.size
+}
+
+/** Build the All-bundle JsonObject. [includeApiKeys] controls whether
+ *  the apiKeys section is present — every other section is always
+ *  emitted. The two Export-card "All …" buttons differ only in this
+ *  flag; the Import-card All button consumes either shape since each
+ *  section is optional on read. */
+private fun buildAllBundle(
+    aiSettings: Settings,
+    generalSettings: GeneralSettings,
+    huggingFaceApiKey: String,
+    openRouterApiKey: String,
+    artificialAnalysisApiKey: String,
+    context: Context,
+    includeApiKeys: Boolean
+): JsonObject {
+    val gson = createAppGson(prettyPrint = true)
+    val bundle = JsonObject()
+    if (includeApiKeys) {
+        bundle.add(
+            "apiKeys",
+            JsonParser.parseString(buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey))
+        )
+    }
+    val costsArr = JsonArray()
+    val manual = PricingCache.getAllManualPricing(context)
+    manual.forEach { (key, pricing) ->
+        val parts = key.split(":", limit = 2)
+        val obj = JsonObject().apply {
+            addProperty("provider", parts[0])
+            addProperty("model", parts.getOrElse(1) { "" })
+            addProperty("inputPerMillion", pricing.promptPrice * 1_000_000)
+            addProperty("outputPerMillion", pricing.completionPrice * 1_000_000)
+        }
+        costsArr.add(obj)
+    }
+    bundle.add("costs", costsArr)
+    val providers = ProviderRegistry.getCustomProviders()
+    bundle.add("providers", gson.toJsonTree(providers))
+    val prompts = aiSettings.internalPrompts.map { promptEntry(it) }
+    bundle.add("prompts", gson.toJsonTree(prompts))
+    val examples = aiSettings.examplePrompts.map { linkedMapOf("title" to it.title, "text" to it.text) }
+    bundle.add("examples", gson.toJsonTree(examples))
+    val workers = buildWorkersTree(aiSettings)
+    workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
+    bundle.add("settings", buildGeneralSettingsTree(generalSettings))
+    bundle.add("modelLists", buildModelListsTree(aiSettings))
+    bundle.add("parameters", buildParametersTree(aiSettings))
+    bundle.add("systemPrompts", buildSystemPromptsTree(aiSettings))
+    return bundle
+}
+
 @Composable
 fun ImportExportScreen(
     aiSettings: Settings,
+    generalSettings: GeneralSettings,
     huggingFaceApiKey: String,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
     onSave: (Settings) -> Unit,
+    onSaveGeneral: (GeneralSettings) -> Unit,
     onSaveHuggingFaceApiKey: (String) -> Unit,
     onSaveOpenRouterApiKey: (String) -> Unit,
     onSaveArtificialAnalysisApiKey: (String) -> Unit,
@@ -184,54 +342,84 @@ fun ImportExportScreen(
         ).show()
     }
 
+    val exportSettingsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        // GeneralSettings minus the three info-provider API keys (those
+        // already round-trip through the API Keys export).
+        val tree = buildGeneralSettingsTree(generalSettings)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Settings exported", Toast.LENGTH_SHORT).show()
+    }
+
+    val exportModelListsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val tree = buildModelListsTree(aiSettings)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        val nonEmpty = aiSettings.providers.values.count { it.models.isNotEmpty() }
+        Toast.makeText(context, "Model lists exported ($nonEmpty providers)", Toast.LENGTH_SHORT).show()
+    }
+
+    val exportParametersLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val tree = buildParametersTree(aiSettings)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Parameters exported (${aiSettings.parameters.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
+    val exportSystemPromptsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val tree = buildSystemPromptsTree(aiSettings)
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "System prompts exported (${aiSettings.systemPrompts.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
     // "All" bundle: single JSON file carrying every section the
     // individual buttons would have written. Structure:
-    //   { "apiKeys": {<keys-json>}, "costs": [...], "providers": [...],
-    //     "prompts": [...], "agents": [...], "flocks": [...], "swarms": [...] }
+    //   { "apiKeys"?: {…}, "costs": [...], "providers": [...],
+    //     "prompts": [...], "examples": [...],
+    //     "agents": [...], "flocks": [...], "swarms": [...],
+    //     "settings": {…}, "modelLists": {…},
+    //     "parameters": [...], "systemPrompts": [...] }
     // Each section is the same payload the matching individual export
     // produces, so the importer can hand each one to its existing
-    // handler without a separate schema. costs are converted from CSV
-    // to a JSON array since the bundle is JSON-only; workers are
-    // inlined (agents/flocks/swarms at the bundle root) so the same
-    // applyWorkers() helper handles both standalone and bundled.
-    val exportAllLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        val gson = createAppGson(prettyPrint = true)
-        val bundle = JsonObject()
-        bundle.add(
-            "apiKeys",
-            JsonParser.parseString(buildApiKeysJson(aiSettings, huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey))
+    // handler without a separate schema. The Export card splits this
+    // into "All including API keys" and "All excluding API keys" —
+    // identical except the latter omits the apiKeys section. The
+    // Import-card All button reads either shape since every section is
+    // optional on the way in.
+    fun launchAllExport(uri: Uri, includeApiKeys: Boolean) {
+        val bundle = buildAllBundle(
+            aiSettings, generalSettings,
+            huggingFaceApiKey, openRouterApiKey, artificialAnalysisApiKey,
+            context, includeApiKeys
         )
-        val costsArr = JsonArray()
-        val manual = PricingCache.getAllManualPricing(context)
-        manual.forEach { (key, pricing) ->
-            val parts = key.split(":", limit = 2)
-            val obj = JsonObject().apply {
-                addProperty("provider", parts[0])
-                addProperty("model", parts.getOrElse(1) { "" })
-                addProperty("inputPerMillion", pricing.promptPrice * 1_000_000)
-                addProperty("outputPerMillion", pricing.completionPrice * 1_000_000)
-            }
-            costsArr.add(obj)
-        }
-        bundle.add("costs", costsArr)
-        val providers = ProviderRegistry.getCustomProviders()
-        bundle.add("providers", gson.toJsonTree(providers))
-        val prompts = aiSettings.internalPrompts.map { promptEntry(it) }
-        bundle.add("prompts", gson.toJsonTree(prompts))
-        val examples = aiSettings.examplePrompts.map { linkedMapOf("title" to it.title, "text" to it.text) }
-        bundle.add("examples", gson.toJsonTree(examples))
-        val workers = buildWorkersTree(aiSettings)
-        workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
-        writeToUri(uri, gson.toJson(bundle))
-        val keysCount = bundle.getAsJsonObject("apiKeys").size()
+        writeToUri(uri, createAppGson(prettyPrint = true).toJson(bundle))
+        val keysPart = bundle.getAsJsonObject("apiKeys")?.size()?.let { "$it keys, " } ?: ""
+        val costs = bundle.getAsJsonArray("costs")?.size() ?: 0
+        val providers = bundle.getAsJsonArray("providers")?.size() ?: 0
+        val prompts = bundle.getAsJsonArray("prompts")?.size() ?: 0
+        val examples = bundle.getAsJsonArray("examples")?.size() ?: 0
+        val params = bundle.getAsJsonArray("parameters")?.size() ?: 0
+        val sysPrompts = bundle.getAsJsonArray("systemPrompts")?.size() ?: 0
+        val modelLists = bundle.getAsJsonObject("modelLists")?.size() ?: 0
         Toast.makeText(
             context,
-            "Bundle exported ($keysCount keys, ${manual.size} costs, ${providers.size} providers, " +
-                "${prompts.size} prompts, ${examples.size} examples, " +
-                "${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms)",
+            "Bundle exported (${keysPart}$costs costs, $providers providers, " +
+                "$prompts prompts, $examples examples, " +
+                "${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms, " +
+                "$modelLists model lists, $params parameters, $sysPrompts system prompts)",
             Toast.LENGTH_LONG
         ).show()
+    }
+
+    val exportAllWithKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        launchAllExport(uri, includeApiKeys = true)
+    }
+
+    val exportAllWithoutKeysLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        launchAllExport(uri, includeApiKeys = false)
     }
 
     val exportCostsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -350,6 +538,65 @@ fun ImportExportScreen(
                     ).show()
                 }
             }
+            "settings" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val obj = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (obj == null) {
+                    Toast.makeText(context, "Settings file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                onSaveGeneral(applyGeneralSettings(obj, generalSettings))
+                Toast.makeText(context, "Settings imported", Toast.LENGTH_SHORT).show()
+            }
+            "modelLists" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val obj = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (obj == null) {
+                    Toast.makeText(context, "Model lists file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applyModelLists(obj, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No model lists matched a known provider", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Updated model lists for $n provider${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            "parameters" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val arr = try { JsonParser.parseString(json) as? JsonArray } catch (_: Exception) { null }
+                if (arr == null) {
+                    Toast.makeText(context, "Parameters file is not a JSON array", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applyParameters(arr, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No parameter presets found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Imported $n parameter preset${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            "systemPrompts" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val arr = try { JsonParser.parseString(json) as? JsonArray } catch (_: Exception) { null }
+                if (arr == null) {
+                    Toast.makeText(context, "System prompts file is not a JSON array", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applySystemPrompts(arr, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No system prompts found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Imported $n system prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
             "all" -> {
                 // All-bundle: { apiKeys, costs, providers, prompts }.
                 // Each section is optional; missing or malformed sections
@@ -430,6 +677,26 @@ fun ImportExportScreen(
                     }
                 }
 
+                root.getAsJsonObject("settings")?.let { obj ->
+                    onSaveGeneral(applyGeneralSettings(obj, generalSettings))
+                    parts.add("settings")
+                }
+
+                root.getAsJsonObject("modelLists")?.let { obj ->
+                    val (updated, n) = applyModelLists(obj, working)
+                    if (n > 0) { working = updated; parts.add("$n model lists") }
+                }
+
+                root.getAsJsonArray("parameters")?.let { arr ->
+                    val (updated, n) = applyParameters(arr, working)
+                    if (n > 0) { working = updated; parts.add("$n parameters") }
+                }
+
+                root.getAsJsonArray("systemPrompts")?.let { arr ->
+                    val (updated, n) = applySystemPrompts(arr, working)
+                    if (n > 0) { working = updated; parts.add("$n system prompts") }
+                }
+
                 if (working !== aiSettings) onSave(working)
                 Toast.makeText(
                     context,
@@ -480,12 +747,37 @@ fun ImportExportScreen(
                             exportExamplePromptsLauncher.launch("examples.json")
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    // GeneralSettings (sans the three info-provider keys)
+                    // and per-provider model lists keyed by AppService.id.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportSettingsLauncher.launch("ai_settings-${exportTimestamp()}.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            exportModelListsLauncher.launch("ai_model_lists-${exportTimestamp()}.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            exportParametersLauncher.launch("ai_parameters-${exportTimestamp()}.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            exportSystemPromptsLauncher.launch("ai_system_prompts-${exportTimestamp()}.json")
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
                     // "All": single JSON file bundling every section
                     // above. Round-trips through the matching All import.
+                    // Two variants — with and without the apiKeys
+                    // section — for safer sharing.
                     OutlinedButton(onClick = {
-                        exportAllLauncher.launch("ai_bundle-${exportTimestamp()}.json")
+                        exportAllWithKeysLauncher.launch("ai_bundle-${exportTimestamp()}.json")
                     }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        Text("All including API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
+                    OutlinedButton(onClick = {
+                        exportAllWithoutKeysLauncher.launch("ai_bundle_no_keys-${exportTimestamp()}.json")
+                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("All excluding API keys", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -521,6 +813,25 @@ fun ImportExportScreen(
                             importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "settings"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            importType = "modelLists"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
+                            importType = "parameters"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
+                            importType = "systemPrompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    // The All importer auto-detects whether the bundle
+                    // carries an apiKeys section, so a single button
+                    // serves both Export-card variants.
                     OutlinedButton(onClick = {
                         importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                     }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {

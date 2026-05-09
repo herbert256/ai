@@ -546,9 +546,11 @@ fun SettingsScreen(
         SettingsSubScreen.AI_IMPORT_EXPORT -> {
             ImportExportScreen(
                 aiSettings = aiSettings,
+                generalSettings = generalSettings,
                 huggingFaceApiKey = generalSettings.huggingFaceApiKey, openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSave = onSaveAi,
+                onSaveGeneral = onSaveGeneral,
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome
