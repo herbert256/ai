@@ -83,7 +83,15 @@ data class SecondaryResult(
      *  screen distinguish the single combined output from the per-pair
      *  response rows even though both share `metaPromptName`. Null on
      *  every non-fan_in row. */
-    val fanInOf: String? = null
+    val fanInOf: String? = null,
+    /** Encoded [SecondaryScope] used when this row was originally
+     *  produced — see [SecondaryScope.encode]. The cascade-on-prompt-
+     *  change path reads this so a previously-narrowed run (Top-N /
+     *  Manual selection) is re-run at the same scope instead of
+     *  silently widening to AllReports. Null on legacy rows written
+     *  before this field existed; cascade defaults to AllReports
+     *  there, matching prior behaviour. */
+    val secondaryScope: String? = null
 )
 
 /**
@@ -395,6 +403,49 @@ sealed class SecondaryScope {
      *  report. When non-empty the meta run only sees those rows, the
      *  same way [TopRanked] only sees the rerank's top-N. */
     data class Manual(val agentIds: Set<String>) : SecondaryScope()
+
+    /** Persistable string form so the cascade-on-prompt-change path can
+     *  re-run a meta with the same scope it originally ran with,
+     *  instead of silently widening to AllReports and re-billing the
+     *  full agent set. Format:
+     *    "ALL"
+     *    "TOP:<rerankResultId>:<count>"
+     *    "MANUAL:<agentId1>,<agentId2>,..." */
+    fun encode(): String = when (this) {
+        is AllReports -> "ALL"
+        is TopRanked -> "TOP:$rerankResultId:$count"
+        is Manual -> "MANUAL:" + agentIds.joinToString(",")
+    }
+
+    companion object {
+        /** Inverse of [encode]. Returns [AllReports] on null, blank, or
+         *  malformed input — defensive fallback so a corrupt or legacy
+         *  row never blocks a cascade. */
+        fun decodeOrAllReports(s: String?): SecondaryScope {
+            if (s.isNullOrBlank()) return AllReports
+            return runCatching {
+                when {
+                    s == "ALL" -> AllReports
+                    s.startsWith("TOP:") -> {
+                        val rest = s.removePrefix("TOP:")
+                        val lastColon = rest.lastIndexOf(':')
+                        if (lastColon <= 0) AllReports
+                        else {
+                            val rerankId = rest.substring(0, lastColon)
+                            val count = rest.substring(lastColon + 1).toIntOrNull() ?: return AllReports
+                            TopRanked(count, rerankId)
+                        }
+                    }
+                    s.startsWith("MANUAL:") -> {
+                        val rest = s.removePrefix("MANUAL:")
+                        val ids = rest.split(",").filter { it.isNotBlank() }.toSet()
+                        if (ids.isEmpty()) AllReports else Manual(ids)
+                    }
+                    else -> AllReports
+                }
+            }.getOrDefault(AllReports)
+        }
+    }
 }
 
 /** Language filter for chat-type META multi-language fan-out. Defaults

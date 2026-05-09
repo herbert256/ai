@@ -583,12 +583,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
                 .distinct()
             if (picks.isEmpty()) continue
+            // Recover the scope the user originally ran with (persisted
+            // on the row via secondaryScope). For TopRanked, only honour
+            // it if the referenced rerank still exists on the (post-
+            // cascade) report — otherwise the rerank itself may have
+            // been wiped or be mid-rerun, and we fall back to AllReports
+            // so the cascade doesn't reference a stale id. Manual scope
+            // is keyed on agentIds which survive a prompt-only edit.
+            val sampleScope = rows.firstOrNull { !it.secondaryScope.isNullOrBlank() }?.secondaryScope
+            val decoded = SecondaryScope.decodeOrAllReports(sampleScope)
+            val safeScope: SecondaryScope = when (decoded) {
+                is SecondaryScope.TopRanked -> {
+                    val rerankStillThere = SecondaryResultStorage.get(context, reportId, decoded.rerankResultId) != null
+                    if (rerankStillThere) decoded else SecondaryScope.AllReports
+                }
+                else -> decoded
+            }
             for (m in rows) SecondaryResultStorage.delete(context, reportId, m.id)
-            // Original scope (AllReports vs TopRanked) isn't persisted on
-            // the row, so we default to AllReports — the safe answer
-            // when the rerank we'd reference might itself be in the
-            // process of being re-run.
-            runMetaPrompt(scope, context, reportId, mp, picks, SecondaryScope.AllReports)?.join()
+            runMetaPrompt(scope, context, reportId, mp, picks, safeScope)?.join()
         }
 
         val byKind = all.groupBy { it.kind }
@@ -1568,7 +1580,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     executeSecondaryTask(
                                         context, reportId, kind, metaPrompt,
                                         provider, model, resolvedPrompt, aiSettings, report,
-                                        lang, langNative, referenceLegend
+                                        lang, langNative, referenceLegend,
+                                        scopeEncoded = scopeChoice.encode()
                                     )
                                 }
                             }
@@ -1638,7 +1651,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  run starts) we run against that row instead of creating a
          *  fresh one — otherwise the placeholder duplicates and the
          *  pre-created row never gets a result. */
-        existingPlaceholder: SecondaryResult? = null
+        existingPlaceholder: SecondaryResult? = null,
+        scopeEncoded: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
@@ -1651,7 +1665,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     metaPromptId = metaPrompt.id,
                     metaPromptName = metaPrompt.name,
                     fanOutSourceAgentId = fanOutSourceAgentId,
-                    fanInOf = fanInOf
+                    fanInOf = fanInOf,
+                    secondaryScope = scopeEncoded
                 )
             SecondaryResultStorage.save(context, fresh)
             fresh
