@@ -264,12 +264,14 @@ fun KnowledgeDetailScreen(
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     // Auto-ingest the share-target queue once the KB loads. Keyed on
-    // pendingUris (and kbId, but NOT kb?.id — that flips from null
-    // to the loaded id and re-fired this whole effect once,
-    // double-importing the same URI). The lambda's own kb? null-check
-    // handles the "queue arrived before load" case by simply returning
-    // and waiting for the recomposition that brings kb non-null.
-    LaunchedEffect(kbId, pendingUris) {
+    // kb?.id so the effect re-fires when the asynchronously-loaded KB
+    // arrives — the previous "skip kb?.id, rely on recomposition"
+    // approach silently dropped the queue because LaunchedEffect with
+    // unchanged keys does NOT re-execute on recomposition. Duplicate
+    // imports are prevented by onConsumePending() clearing
+    // pendingUris in the parent: a re-fire after consume sees an
+    // empty queue and returns at the second guard.
+    LaunchedEffect(kb?.id, pendingUris) {
         val loaded = kb ?: return@LaunchedEffect
         if (pendingUris.isEmpty()) return@LaunchedEffect
         working = true
