@@ -1346,6 +1346,8 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("View selector", "5 outlined buttons: All / Req Hdr / Rsp Hdr / Req / Rsp. Active button highlights blue. Switching view resets when navigating prev/next."),
             HelpCard("Bottom action row", "< (prev trace, fixed 36dp width) — Copy — Edit — Share — > (next). Copy and Share use a redacted variant (URL query params, sensitive headers, sensitive JSON keys → [REDACTED]) so secrets don't leave the device. The on-screen tree always shows raw bytes."),
             HelpCard("Edit", "Persists the trace's request body + url + model into eval_prefs, then opens EditApiRequestScreen with that JSON loaded — fast \"replay this request\" path."),
+            HelpCard("Title bar — 🗑", "Confirm dialog → permanently deletes this trace file from disk and pops back to the trace list. Cannot be undone."),
+            HelpCard("Title bar — 🔄", "Same plumbing as the bottom-row Edit button — stages the trace's request into eval_prefs and opens EditApiRequestScreen so you can re-fire (and edit on the way)."),
             HelpCard("Tips", "Translation extraction looks for \"TEXT TO TRANSLATE:\" in the user prompt and walks OpenAI / Anthropic / Gemini response shapes to find the assistant text. Best-effort only — null hides the button."),
             HelpCard("Pitfalls", "Share writes a temp file under cacheDir/shared_traces/<filename> and grants FileProvider read access; long traces survive only as long as the cache survives.")
         )

@@ -210,6 +210,20 @@ object ApiTracer {
         cachedTraceFiles = emptyList()
     }
 
+    /** Delete one trace file by filename. Returns true on success, false
+     *  when the file is missing or the delete fails. Cached file list
+     *  drops the entry so the trace list refreshes without a re-scan. */
+    fun deleteTrace(filename: String): Boolean = lock.withLock {
+        val dir = traceDir ?: return false
+        val file = java.io.File(dir, filename)
+        if (!file.exists()) return false
+        val ok = try { file.delete() } catch (_: Exception) { false }
+        if (ok) cachedTraceFiles?.let { current ->
+            cachedTraceFiles = current.filterNot { it.filename == filename }
+        }
+        ok
+    }
+
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int = lock.withLock {
         val dir = traceDir ?: return 0
         if (!dir.exists()) return 0

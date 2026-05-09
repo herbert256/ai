@@ -614,12 +614,52 @@ fun TraceDetailScreen(
             }
         }
     }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete this trace?") },
+            text = { Text("Permanently removes the trace file from disk. Cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        if (ApiTracer.deleteTrace(currentFilename)) {
+                            Toast.makeText(context, "Trace deleted", Toast.LENGTH_SHORT).show()
+                            onBack()
+                        } else {
+                            Toast.makeText(context, "Could not delete trace", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Delete", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
             helpTopic = "trace_detail",
             title = "Trace detail", onBackClick = onBack,
             onInfo = if (infoProvider != null && infoTraceModel != null) {
                 { onNavigateToModelInfo(infoProvider, infoTraceModel) }
+            } else null,
+            // 🗑: confirm + delete this trace file, then pop back.
+            onDelete = if (t != null) { { showDeleteConfirm = true } } else null,
+            // 🔄: stage this trace's request into the API Test edit
+            // screen so the user can re-fire (and edit on the way).
+            // Same plumbing the bottom-row Edit button uses.
+            onReload = if (t != null) {
+                {
+                    val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
+                    prefs.edit().apply {
+                        putString("last_test_raw_json", t.request.body)
+                        putString("last_test_api_url", com.ai.ui.report.redactUrl(t.request.url))
+                        putString("last_test_model", t.model ?: "")
+                    }.apply()
+                    onEditRequest()
+                }
             } else null
         )
         Text(
