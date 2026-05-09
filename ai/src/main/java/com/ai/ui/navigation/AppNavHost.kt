@@ -215,14 +215,16 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) })
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) })
         }
         composable(NavRoutes.AI_SETUP) {
             SetupScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) })
+                onNavigateToProviderAdmin = { navController.navigate(NavRoutes.AI_PROVIDER_ADMIN) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) })
         }
 
         // ===== Reports =====
@@ -1050,12 +1052,14 @@ fun SetupScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onNavigateToProviderAdmin: () -> Unit = {}
+    onNavigateToProviderAdmin: () -> Unit = {},
+    onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     SettingsScreenNav(viewModel = viewModel, onNavigateBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig, onNavigateToTrace = onNavigateToTrace,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onNavigateToProviderAdmin = onNavigateToProviderAdmin,
+        onNavigateToHelpTopic = onNavigateToHelpTopic,
         initialSubScreen = SettingsSubScreen.AI_SETUP)
 }
 
