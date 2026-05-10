@@ -144,8 +144,8 @@ internal fun makeStaticForPdf(html: String): String {
             /* Hide every interactive widget and selector row. */
             .view-picker, .layout-toggle, .agent-buttons,
             .think-btn, .section-btn,
-            .cat-list, .trace-list, .trace-part-tabs,
-            .view-btn, .layout-btn, .item-btn, .cat-btn, .trace-btn, .trace-part-btn { display: none !important; }
+            .cat-list, .trace-list, .trace-part-tabs, .cost-scope-list,
+            .view-btn, .layout-btn, .item-btn, .cat-btn, .trace-btn, .trace-part-btn, .cost-scope-btn { display: none !important; }
             /* Force every view-block visible at once: Reports, every
                per-Meta-prompt section, Reranks, Moderations,
                Translations, Prompt, Costs, JSON. */

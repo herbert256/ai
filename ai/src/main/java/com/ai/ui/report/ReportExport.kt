@@ -78,7 +78,14 @@ internal data class HtmlSecondaryData(
      *  [SecondaryResult]. Drives every section heading / bucket in
      *  the exports. Null on TRANSLATE rows and on rows persisted
      *  before the Meta-prompt CRUD existed. */
-    val metaPromptName: String? = null
+    val metaPromptName: String? = null,
+    /** Set when this row is a fan-out per-pair response. Lets the
+     *  cost view's row-type label group fan-out rows as `"fan-out"`
+     *  instead of falling through to the metaPromptName / kind
+     *  fallback — same rules the in-app cost table uses. */
+    val fanOutSourceAgentId: String? = null,
+    /** Set when this row is a fan-in combine-reports follow-up. */
+    val fanInOf: String? = null
 )
 
 /** A "view" of [HtmlReportData] under one language — Original or one of
@@ -269,7 +276,9 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             targetLanguage = s.targetLanguage,
             targetLanguageNative = s.targetLanguageNative,
             translatedFromSecondaryId = s.translatedFromSecondaryId,
-            metaPromptName = s.metaPromptName
+            metaPromptName = s.metaPromptName,
+            fanOutSourceAgentId = s.fanOutSourceAgentId,
+            fanInOf = s.fanInOf
         )
     }
 
@@ -691,33 +700,115 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
  *  AND every secondary kind (rerank/summarize/compare/moderation/
  *  translate) as separate rows. */
 private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
-    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
-    sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
     data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
     val agentRows = data.agents.filter { it.inputCost != null }.map {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-        val type = it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
-            ?: when (it.kind) {
+        // Match the in-app cost table's row-type label rules: fan-out
+        // / fan-in rows always read "fan-out" / "fan-in" so the
+        // grouping reflects scope-of-the-call. Other secondaries
+        // fall back to the user-given Meta prompt name; rerank /
+        // moderation / translate keep their fixed labels.
+        val type = when {
+            it.fanOutSourceAgentId != null -> "fan-out"
+            it.fanInOf != null -> "fan-in"
+            !it.metaPromptName.isNullOrBlank() -> it.metaPromptName.lowercase()
+            else -> when (it.kind) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.META -> "meta"
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
             }
+        }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
-    var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
-    sorted.forEach { r ->
-        tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
-        val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-        sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+
+    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
+
+    if (sorted.isEmpty()) {
+        sb.append("</div>")
+        return
     }
-    sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
-    sb.append("</table></div>")
+
+    // Sub-picker — three sub-panes the reader can flip between in
+    // the browser. Distinct CSS classes (.cost-scope-btn / .cost-pane)
+    // so the JSON view's showCat() — which queries the whole
+    // document for .cat-block / .cat-btn — doesn't accidentally
+    // hide / unstyle the cost panes when the user taps a JSON
+    // category. Same visual styling as .cat-btn, declared in the
+    // CSS block.
+    sb.append("<div class='cost-scope-list'>")
+    sb.append("<button id='cost-btn-all' class='cost-scope-btn active' onclick=\"showCostsScope('all')\">All</button>")
+    sb.append("<button id='cost-btn-types' class='cost-scope-btn' onclick=\"showCostsScope('types')\">Types</button>")
+    sb.append("<button id='cost-btn-models' class='cost-scope-btn' onclick=\"showCostsScope('models')\">Models</button>")
+    sb.append("</div>")
+
+    // Group totals — same projection used twice (by type, by model).
+    data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+    fun groupTotals(grouper: (Row) -> String): List<GroupTotal> =
+        sorted.groupBy(grouper).map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
+            GroupTotal(k, iT, oT, iC, oC)
+        }.sortedByDescending { it.inCents + it.outCents }
+
+    fun appendSummary(keyHeader: String, groups: List<GroupTotal>) {
+        if (groups.isEmpty()) return
+        sb.append("<table class='cost-table'><tr><th>${esc(keyHeader)}</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        groups.forEach { g ->
+            iT += g.inputTokens; oT += g.outputTokens; iC += g.inCents; oC += g.outCents
+            sb.append("<tr><td>${esc(g.key)}</td><td class='num'>${g.inputTokens}</td><td class='num'>${g.outputTokens}</td><td class='num'>${"%.2f".format(g.inCents)}</td><td class='num'>${"%.2f".format(g.outCents)}</td><td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td>Total</td><td class='num'>$iT</td><td class='num'>$oT</td><td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td><td class='num'>${"%.2f".format(iC + oC)}</td></tr>")
+        sb.append("</table>")
+    }
+
+    fun appendAllCalls() {
+        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+        sorted.forEach { r ->
+            tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
+            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+        sb.append("</table>")
+    }
+
+    val byType = groupTotals { it.type }
+    val byModel = groupTotals { "${it.providerDisplay} · ${it.model}" }
+
+    // Pane 1 — All. Both summaries + the per-call detail. Default
+    // visible (display:block); the other two panes start hidden.
+    sb.append("<div id='cost-pane-all' class='cost-pane' style='display:block'>")
+    if (byType.isNotEmpty()) {
+        sb.append("<div style='margin-top:12px;font-weight:600'>By type</div>")
+        appendSummary("Type", byType)
+    }
+    if (byModel.isNotEmpty()) {
+        sb.append("<div style='margin-top:12px;font-weight:600'>By model</div>")
+        appendSummary("Model", byModel)
+    }
+    sb.append("<div style='margin-top:12px;font-weight:600'>All calls</div>")
+    appendAllCalls()
+    sb.append("</div>")
+
+    // Pane 2 — Types only.
+    sb.append("<div id='cost-pane-types' class='cost-pane' style='display:none'>")
+    appendSummary("Type", byType)
+    sb.append("</div>")
+
+    // Pane 3 — Models only.
+    sb.append("<div id='cost-pane-models' class='cost-pane' style='display:none'>")
+    appendSummary("Model", byModel)
+    sb.append("</div>")
+
+    sb.append("</div>")
 }
 
 /** JSON view — every captured API trace this report knows about, with
@@ -992,6 +1083,10 @@ ul{padding-left:20px}li{margin:4px 0}
 .cat-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:bold}
 .cat-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
 .cat-block{margin-bottom:8px}
+.cost-scope-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cost-scope-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:bold}
+.cost-scope-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.cost-pane{margin-bottom:8px}
 .trace-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .trace-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:monospace}
 .trace-btn.active{background:#64B5F6;color:#1a1a1a;border-color:#64B5F6}
@@ -1024,6 +1119,7 @@ function showLayout(btn,mode){var scope=btn.closest('.view-block');if(!scope)ret
 function showAgent(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.agent-result').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.agent-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.agent-result[data-agent="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
 function showItem(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.item-content').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.item-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.item-content[data-item="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
 function showCat(cid){document.querySelectorAll('.cat-block').forEach(e=>e.style.display='none');document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('cat-'+cid);var btn=document.getElementById('cat-btn-'+cid);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showCostsScope(scope){var ids=['all','types','models'];ids.forEach(function(s){var pane=document.getElementById('cost-pane-'+s);var btn=document.getElementById('cost-btn-'+s);if(pane)pane.style.display=(s===scope)?'block':'none';if(btn){if(s===scope){btn.classList.add('active')}else{btn.classList.remove('active')}}});}
 function showTrace(cid,id){document.querySelectorAll('.trace-pane[data-cat="'+cid+'"]').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn[data-cat="'+cid+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
 function showTracePart(traceId,part){document.querySelectorAll('.trace-part[data-trace="'+traceId+'"]').forEach(e=>e.classList.remove('trace-part-active'));document.querySelectorAll('.trace-part-btn[data-trace="'+traceId+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('part-'+traceId+'-'+part);var btn=document.getElementById('part-btn-'+traceId+'-'+part);if(el)el.classList.add('trace-part-active');if(btn)btn.classList.add('active')}
 function toggleThink(id){var el=document.getElementById('think-'+id);var btn=document.getElementById('think-btn-'+id);if(el.style.display==='block'){el.style.display='none';btn.textContent='Think'}else{el.style.display='block';btn.textContent='Hide Think'}}
