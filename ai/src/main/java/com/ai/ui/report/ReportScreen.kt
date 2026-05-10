@@ -624,6 +624,7 @@ fun ReportsScreen(
     // multi-agent ReportsViewerScreen reached via View → Results.
     var singleResultAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     var showExport by rememberSaveable { mutableStateOf(false) }
+    var showHtmlPreview by rememberSaveable { mutableStateOf(false) }
     var showEditPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditTitle by rememberSaveable { mutableStateOf(false) }
     var showEditParameters by rememberSaveable { mutableStateOf(false) }
@@ -1555,6 +1556,16 @@ fun ReportsScreen(
         return
     }
 
+    if (showHtmlPreview && currentReportId != null) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showHtmlPreview = false }) {
+            HtmlPreviewScreen(
+                reportId = currentReportId,
+                onBack = { showHtmlPreview = false }
+            )
+        }
+        return
+    }
+
     if (showEditParameters) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showEditParameters = false }) {
             ReportAdvancedParametersScreen(
@@ -1868,6 +1879,7 @@ fun ReportsScreen(
                 onOpenMetaPicker = { showMetaPicker = true },
                 onOpenFanOutPicker = { showFanOutPicker = true },
                 onOpenRerankPicker = { showRerankPicker = true },
+                onOpenHtmlPreview = { showHtmlPreview = true },
                 secondaryCounts = secondaryCounts,
                 costsFromDeletedItems = costsFromDeletedItems,
                 secondaryRuns = secondaryRuns,
@@ -2073,6 +2085,7 @@ private fun ColumnScope.GenerationPhase(
     onOpenMetaPicker: () -> Unit = {},
     onOpenFanOutPicker: () -> Unit = {},
     onOpenRerankPicker: () -> Unit = {},
+    onOpenHtmlPreview: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     /** Sum of costs the user dropped from this report via Delete actions
      *  on agents / secondaries / fan-out pairs / translations. Surfaces
@@ -2151,6 +2164,7 @@ private fun ColumnScope.GenerationPhase(
         CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
         // 'Export' button is gone — the title-bar 📤 share icon now
         // routes to the same showExport flow.
+        CompactButton(onClick = onOpenHtmlPreview, color = AppColors.Purple, text = "HTML")
         CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
         CompactButton(
             onClick = { onTogglePin(); pinTick++ },
