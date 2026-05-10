@@ -450,6 +450,25 @@ fun ReportsScreen(
     // fan-out pairs, secondaries, translations). Surfaces as its own
     // line above the Total footer when non-zero.
     var costsFromDeletedItems by remember { mutableStateOf(0.0) }
+    // Mirrored from Report.icon / Report.iconErrorMessage on disk so
+    // the inline 'icon' row can render ⏳ / emoji / ❌ without the
+    // composable having to subscribe to the whole Report object.
+    // Re-fetched on every uiState.iconRefreshTick bump (fired by
+    // ReportViewModel.kickOffIconGeneration when it writes either
+    // field) so a mid-flight resolution flips the row in real time.
+    var reportIcon by remember { mutableStateOf<String?>(null) }
+    var reportIconError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
+        val rid = currentReportId
+        if (rid == null) {
+            reportIcon = null
+            reportIconError = null
+        } else {
+            val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
+            reportIcon = r?.icon
+            reportIconError = r?.iconErrorMessage
+        }
+    }
     // Bumped from every overlay-driven delete so the parent screen's
     // counts / row list re-read from disk on the way back. Without
     // this the LaunchedEffect below has no reason to refire (the user
@@ -1674,11 +1693,17 @@ fun ReportsScreen(
         // bar slot and the green line drops out below.
         val barTitle = run {
             val promptTitle = uiState.genericPromptTitle
-            when {
+            val base = when {
                 !isGenerating -> "AI Report — Models"
                 foldSubject && promptTitle.isNotBlank() -> promptTitle
                 else -> "AI Report"
             }
+            // Prepend the resolved icon emoji once kickOffIconGeneration
+            // finishes — visible on the result-screen title bar so the
+            // user sees the same icon they'll see in the hub / history
+            // list. Falls through cleanly when the icon hasn't resolved
+            // yet (or icon-gen wasn't configured).
+            if (!reportIcon.isNullOrEmpty()) "$reportIcon $base" else base
         }
         TitleBar(
             helpTopic = "report_result_generation",
@@ -1801,7 +1826,9 @@ fun ReportsScreen(
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
                 fanOutPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered
+                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
+                reportIcon = reportIcon,
+                reportIconError = reportIconError
             )
         }
     }
@@ -2012,7 +2039,14 @@ private fun ColumnScope.GenerationPhase(
     /** Open the trace list filtered to (reportId, category). Wired to
      *  the per-row 🐞 on translation runs which collapse multiple
      *  per-call traces into a single category-scoped list. */
-    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> }
+    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
+    /** Report.icon mirrored from disk, populated by the parent's
+     *  iconRefreshTick-keyed effect. Null while the icon-gen call is
+     *  in flight or when the prompt isn't configured. */
+    reportIcon: String? = null,
+    /** Report.iconErrorMessage mirrored from disk. Set when icon-gen
+     *  errored; the inline 'icon' row flips to ❌ when non-null. */
+    reportIconError: String? = null
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -2470,6 +2504,55 @@ private fun ColumnScope.GenerationPhase(
                     // icon in its title bar.
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+        }
+
+        // Icon row — surfaces the background `internal/icon` LLM call
+        // kicked off at report start (kickOffIconGeneration). Hidden
+        // when the prompt isn't configured or its pinned agent has
+        // been deleted / renamed, so the row never shows up empty.
+        // Spinner while the call is in flight, the resolved emoji on
+        // success, ❌ on failure. Status mirrors the disk fields
+        // Report.icon / Report.iconErrorMessage.
+        run {
+            val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+                it.category == "internal" && it.name == "icon"
+            }
+            val iconAgent = iconPrompt?.let { p ->
+                aiSettings.agents.firstOrNull { it.name == p.agent }
+            }
+            if (iconPrompt != null && iconAgent != null) {
+                item(key = "row-icon") {
+                    val running = reportIcon == null && reportIconError == null
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        when {
+                            reportIconError != null -> Text("❌", fontSize = 16.sp,
+                                modifier = Modifier.width(24.dp))
+                            running -> {
+                                val transition = rememberInfiniteTransition(label = "icon-hourglass")
+                                val angle by transition.animateFloat(
+                                    initialValue = 0f, targetValue = 360f,
+                                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                                    label = "icon-hourglass-rot"
+                                )
+                                Text("⏳", fontSize = 16.sp,
+                                    modifier = Modifier.width(24.dp).rotate(angle))
+                            }
+                            else -> Text(reportIcon!!, fontSize = 16.sp,
+                                modifier = Modifier.width(24.dp))
+                        }
+                        RowTypeCell("icon")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                com.ai.ui.shared.modelLabel(iconAgent.provider.id, iconAgent.model),
+                                fontSize = 13.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
             }
         }
 

@@ -312,11 +312,11 @@ private fun ExistingReportsCard(
                 color = AppColors.TextSecondary,
                 modifier = Modifier.padding(bottom = 4.dp))
             recent.forEach { r ->
-                SearchHubItem(icon = "🕘", title = r.title.ifBlank { "(untitled)" },
+                SearchHubItem(icon = r.icon ?: "🕘", title = r.title.ifBlank { "(untitled)" },
                     enabled = true, onClick = { onOpenReport(r.id) })
             }
             pinned.forEach { r ->
-                SearchHubItem(icon = "📌", title = r.title.ifBlank { "(untitled)" },
+                SearchHubItem(icon = r.icon ?: "📌", title = r.title.ifBlank { "(untitled)" },
                     enabled = true, onClick = { onOpenReport(r.id) })
             }
             SearchHubItem(icon = "📚", title = "All AI reports", enabled = true, onClick = onHeaderClick)

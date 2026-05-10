@@ -98,6 +98,10 @@ fun QuickLocalSearchScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        hit.icon?.let {
+                            Text(it, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -110,7 +114,7 @@ fun QuickLocalSearchScreen(
     }
 }
 
-private data class QuickHit(val reportId: String, val title: String, val timestamp: String)
+private data class QuickHit(val reportId: String, val title: String, val timestamp: String, val icon: String?)
 
 private fun runQuickSearch(context: android.content.Context, word: String): List<QuickHit> {
     val needle = word.lowercase(java.util.Locale.ROOT)
@@ -123,6 +127,6 @@ private fun runQuickSearch(context: android.content.Context, word: String): List
             a.responseBody?.contains(needle, ignoreCase = true) == true
         }
         if (!matchesPrompt && !matchesAnyResponse) null
-        else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)))
+        else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.icon)
     }.sortedByDescending { it.timestamp }
 }

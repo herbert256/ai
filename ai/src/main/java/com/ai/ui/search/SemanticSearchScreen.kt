@@ -158,6 +158,10 @@ fun SemanticSearchScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        hit.icon?.let {
+                            Text(it, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -180,7 +184,7 @@ internal fun supportedEmbeddingChoices(aiSettings: Settings): List<Pair<AppServi
     }
 }
 
-private data class SearchHit(val reportId: String, val title: String, val timestamp: String, val score: Double)
+private data class SearchHit(val reportId: String, val title: String, val timestamp: String, val score: Double, val icon: String?)
 
 /** Embed [query], embed each report's representative text (cached), score by
  *  cosine similarity, return top 10 sorted descending. */
@@ -195,6 +199,7 @@ private suspend fun runEmbeddingSearch(
 ): List<SearchHit> {
     val queryVec = repository.embed(service, apiKey, model, listOf(query))?.firstOrNull() ?: return emptyList()
     val reports: List<Report> = ReportStorage.getAllReports(context)
+    val iconById = reports.associate { it.id to it.icon }
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val toEmbed = mutableListOf<Triple<String, String, String>>() // (reportId, repText, displayTitle)
     val cached = mutableListOf<Triple<String, List<Double>, String>>() // already-embedded: id, vec, title
@@ -222,6 +227,7 @@ private suspend fun runEmbeddingSearch(
     }
 
     return cached.map { (id, vec, title) ->
-        SearchHit(id, title.substringBefore(" — "), title.substringAfter(" — ", ""), EmbeddingsStore.cosine(queryVec, vec))
+        SearchHit(id, title.substringBefore(" — "), title.substringAfter(" — ", ""),
+            EmbeddingsStore.cosine(queryVec, vec), iconById[id])
     }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
 }

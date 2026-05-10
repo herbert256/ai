@@ -170,6 +170,12 @@ data class UiState(
     // kicks off the new run, or when the report is dismissed.
     val hasPendingPromptChange: Boolean = false,
     val hasPendingParametersChange: Boolean = false,
+    /** Incremented every time the icon-gen helper writes a new emoji
+     *  (or error) onto a Report. Screens that render Report.icon key
+     *  their disk-reload effect on this so a mid-flight resolution
+     *  recomposes immediately rather than waiting for the next
+     *  ON_RESUME refresh. */
+    val iconRefreshTick: Int = 0,
     val externalIntent: ExternalIntent = ExternalIntent(),
     // Number of Rerank/Summarize/Compare batches currently running.
     // Each runSecondary() launch increments this on entry and decrements

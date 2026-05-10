@@ -79,7 +79,20 @@ data class Report(
      *  the total when non-zero. Lets the user see what the API
      *  actually billed for the run even after they've trimmed the
      *  visible rows. */
-    var costsFromDeletedItems: Double = 0.0
+    var costsFromDeletedItems: Double = 0.0,
+    /** Resolved emoji for this report. Filled by a background LLM
+     *  call kicked off at the start of generation that runs the
+     *  bundled `internal/icon` prompt against its pinned agent. Null
+     *  while the call is in flight, while no `internal/icon` prompt
+     *  is configured, on call failure (see [iconErrorMessage]), or
+     *  on legacy reports created before the feature shipped.
+     *  Surfaces everywhere a report is shown — hub Existing reports,
+     *  History rows, search hits, the result-screen title bar. */
+    var icon: String? = null,
+    /** Failure reason from the icon-gen call. Null while running, on
+     *  success, or when the call was never kicked off. Set instead of
+     *  [icon] when the LLM returned an error or an empty body. */
+    var iconErrorMessage: String? = null
 )
 
 /**
@@ -346,6 +359,46 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return
             report.pinned = pinned
             saveReport(report)
+        }
+    }
+
+    /** Persist the resolved emoji from the icon-gen call. Clears any
+     *  prior [Report.iconErrorMessage] so a successful retry overwrites
+     *  a previous failure. Bumps the timestamp so screens that key on
+     *  it pick up the change on the next refresh. */
+    fun updateReportIcon(context: Context, reportId: String, icon: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(icon = icon, iconErrorMessage = null,
+                timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Persist a failure reason for the icon-gen call. Leaves
+     *  [Report.icon] alone (so a previously-resolved icon survives a
+     *  retry that errored). */
+    fun updateReportIconError(context: Context, reportId: String, error: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(iconErrorMessage = error,
+                timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Wipe both icon fields so a regenerate-with-prompt-change run
+     *  starts fresh on ⏳. Used by [regenerateReport] when the prompt
+     *  was edited. */
+    fun clearReportIcon(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(icon = null, iconErrorMessage = null,
+                timestamp = System.currentTimeMillis()))
+            true
         }
     }
 

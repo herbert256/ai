@@ -99,6 +99,10 @@ fun LocalSearchScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        hit.icon?.let {
+                            Text(it, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -113,7 +117,7 @@ fun LocalSearchScreen(
     }
 }
 
-private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val score: Int)
+private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val score: Int, val icon: String?)
 
 private fun runLocalSearch(context: android.content.Context, query: String): List<LocalSearchHit> {
     val tokens = query.lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
@@ -136,6 +140,6 @@ private fun runLocalSearch(context: android.content.Context, query: String): Lis
             }
         }
         if (score == 0) null
-        else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), score)
+        else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), score, r.icon)
     }.sortedWith(compareByDescending<LocalSearchHit> { it.score }.thenByDescending { it.timestamp }).take(25)
 }

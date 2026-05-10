@@ -210,6 +210,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
+                kickOffIconGeneration(scope, context, reportId, aiPrompt, aiSettings)
+
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 try {
                     coroutineScope {
@@ -239,6 +241,57 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private fun resolveSystemPromptText(aiSettings: Settings, agentSpId: String?, groupSpId: String?): String? {
         return (groupSpId ?: agentSpId)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+    }
+
+    /** Background helper that runs the bundled `internal/icon` prompt
+     *  against its pinned agent and writes the resolved emoji onto the
+     *  Report. Best-effort: silently no-ops when the prompt is missing,
+     *  the pinned agent has been deleted / renamed, or the agent isn't
+     *  resolvable via [Settings.agents] by name. The call is launched
+     *  on [Dispatchers.IO] from [scope] so it runs in parallel with
+     *  per-agent dispatch and survives the user navigating away from
+     *  the result screen. Failures are persisted to
+     *  [Report.iconErrorMessage] so the result-page row can render ❌. */
+    private fun kickOffIconGeneration(
+        scope: kotlinx.coroutines.CoroutineScope,
+        context: Context,
+        reportId: String,
+        promptText: String,
+        aiSettings: Settings
+    ) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        } ?: return
+        val agent = aiSettings.agents.firstOrNull { it.name == iconPrompt.agent } ?: return
+        val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
+        scope.launch(Dispatchers.IO) {
+            withTracerTags(reportId = reportId, category = "Report icon") {
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(),
+                        null, context, baseUrl
+                    )
+                    val emoji = response.analysis?.trim().orEmpty().take(8)
+                    if (response.error == null && emoji.isNotEmpty()) {
+                        ReportStorage.updateReportIcon(context, reportId, emoji)
+                    } else {
+                        ReportStorage.updateReportIconError(
+                            context, reportId,
+                            response.error ?: "empty response"
+                        )
+                    }
+                }.onFailure {
+                    ReportStorage.updateReportIconError(
+                        context, reportId,
+                        it.message ?: "icon-gen failed"
+                    )
+                }
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
+        }
     }
 
     private fun findFlockSystemPromptIdForAgent(aiSettings: Settings, agentId: String): String? {
@@ -494,6 +547,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (tasksToRun.isEmpty() && removedIds.isEmpty() && !cascadeAll) return@launch
 
             withTracerTags(reportId = reportId, category = "Report regenerate") {
+                // Re-run icon-gen only when the user edited the prompt.
+                // A pure model-list / parameters regenerate keeps the
+                // existing icon — the report's content didn't change.
+                if (state.hasPendingPromptChange) {
+                    ReportStorage.clearReportIcon(context, reportId)
+                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                    kickOffIconGeneration(scope, context, reportId, report.prompt, ai)
+                }
                 for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
                 if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newTasks.map { it.reportAgent })
                 // Reset existing-but-rerunning agents to PENDING so the

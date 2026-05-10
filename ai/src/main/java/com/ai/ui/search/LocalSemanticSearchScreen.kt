@@ -161,6 +161,10 @@ fun LocalSemanticSearchScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        hit.icon?.let {
+                            Text(it, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -175,7 +179,7 @@ fun LocalSemanticSearchScreen(
     }
 }
 
-private data class LocalSemanticHit(val reportId: String, val title: String, val timestamp: String, val score: Double)
+private data class LocalSemanticHit(val reportId: String, val title: String, val timestamp: String, val score: Double, val icon: String?)
 
 private suspend fun runLocalEmbedSearch(
     context: Context,
@@ -185,6 +189,7 @@ private suspend fun runLocalEmbedSearch(
 ): List<LocalSemanticHit> = withTracerTags(category = "Local semantic search") {
     val queryVec = LocalEmbedder.embed(context, modelName, listOf(query))?.firstOrNull() ?: return@withTracerTags emptyList()
     val reports: List<Report> = ReportStorage.getAllReports(context)
+    val iconById = reports.associate { it.id to it.icon }
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val toEmbed = mutableListOf<Triple<String, String, String>>()
     val cached = mutableListOf<Triple<String, List<Double>, String>>()
@@ -214,6 +219,6 @@ private suspend fun runLocalEmbedSearch(
 
     cached.map { (id, vec, title) ->
         LocalSemanticHit(id, title.substringBefore(" — "), title.substringAfter(" — ", ""),
-            EmbeddingsStore.cosine(queryVec, vec))
+            EmbeddingsStore.cosine(queryVec, vec), iconById[id])
     }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
 }

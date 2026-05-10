@@ -56,6 +56,14 @@
     "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation \u2014 output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
   },
   {
+    "name": "icon",
+    "title": "Find a fitting title for a report",
+    "reference": false,
+    "category": "internal",
+    "agent": "Deepseek",
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
+  },
+  {
     "name": "response",
     "title": "Just the response",
     "reference": false,
