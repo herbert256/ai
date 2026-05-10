@@ -824,9 +824,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun refreshAllModelLists(settings: Settings, forceRefresh: Boolean = false, onProgress: ((String) -> Unit)? = null): Map<String, Int> {
         return withContext(Dispatchers.IO) {
             val toRefresh = AppService.entries.filter { service ->
-                settings.getProviderState(service) != "inactive" &&
+                // Only refresh model lists for active working providers.
+                // isProviderActive == state == "ok", which implies the
+                // saved API key already passed a live test — model-list
+                // refreshes against an unkeyed / errored / inactive
+                // provider would just hit a 401 and pollute the trace
+                // log with no diagnostic gain.
+                settings.isProviderActive(service) &&
                     settings.getModelSource(service) == ModelSource.API &&
-                    settings.getApiKey(service).isNotBlank() &&
                     (forceRefresh || !settingsPrefs.isModelListCacheValid(service))
             }
             if (toRefresh.isEmpty()) return@withContext emptyMap()
