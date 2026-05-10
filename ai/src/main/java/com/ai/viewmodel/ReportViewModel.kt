@@ -262,7 +262,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "icon"
         } ?: return
-        val agent = aiSettings.agents.firstOrNull { it.name == iconPrompt.agent } ?: return
+        // Case-insensitive match so a user who has the agent registered
+        // as "DeepSeek" still resolves the bundled prompt's
+        // (lowercase-tail) "Deepseek" pin without manual editing. Same
+        // safety against future bundled-vs-user casing drift.
+        val agent = aiSettings.agents.firstOrNull {
+            it.name.equals(iconPrompt.agent, ignoreCase = true)
+        } ?: return
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
         scope.launch(Dispatchers.IO) {
             withTracerTags(reportId = reportId, category = "Report icon") {

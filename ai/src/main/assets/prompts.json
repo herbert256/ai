@@ -60,7 +60,7 @@
     "title": "Find a fitting title for a report",
     "reference": false,
     "category": "internal",
-    "agent": "Deepseek",
+    "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
   },
   {

@@ -2519,7 +2519,7 @@ private fun ColumnScope.GenerationPhase(
                 it.category == "internal" && it.name == "icon"
             }
             val iconAgent = iconPrompt?.let { p ->
-                aiSettings.agents.firstOrNull { it.name == p.agent }
+                aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
             }
             if (iconPrompt != null && iconAgent != null) {
                 item(key = "row-icon") {
