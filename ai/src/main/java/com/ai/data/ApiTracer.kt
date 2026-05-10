@@ -4,12 +4,16 @@ import android.content.Context
 import okhttp3.Headers
 import okhttp3.Interceptor
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.asResponseBody
 import okio.Buffer
+import okio.ForwardingSource
+import okio.buffer
 import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -259,8 +263,21 @@ object ApiTracer {
 
 /**
  * OkHttp Interceptor that traces API requests and responses when tracing is enabled.
+ *
+ * Non-streaming responses get fully buffered and saved synchronously inside
+ * [intercept]. Streaming responses (SSE / chunked-JSON) are wrapped in a
+ * [TeeingSource] so reads flow through to the application unchanged while
+ * the bytes are accumulated for the trace. The trace is saved when the
+ * source reports EOF or is closed — whichever comes first. Both paths cap
+ * the captured body at 8 MiB so a runaway response can't OOM us; above the
+ * cap a `[trace truncated …]` marker is appended.
  */
 class TracingInterceptor : Interceptor {
+
+    private companion object {
+        const val BODY_CAP_BYTES = 8L * 1024 * 1024
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         if (!ApiTracer.isTracingEnabled) return chain.proceed(request)
@@ -278,25 +295,6 @@ class TracingInterceptor : Interceptor {
         val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||
             (response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true)
         val responseHeaders = headersToMap(response.headers)
-        val responseBody = if (isStreaming) "[streaming response - not captured]" else {
-            response.body?.let { body ->
-                try {
-                    val source = body.source()
-                    // Cap the buffered read at 8 MB. Trace files are
-                    // primarily used for debugging — a 50 MB OpenRouter
-                    // model-list response captured verbatim doubles
-                    // process memory pressure for no diagnostic gain.
-                    // Above the cap we keep the prefix (which contains
-                    // headers / IDs / first chunks of content) and
-                    // append a marker so the user knows it's clipped.
-                    val cap = 8L * 1024 * 1024
-                    source.request(cap)
-                    val buffered = source.buffer.size
-                    val text = source.buffer.clone().readUtf8(minOf(buffered, cap))
-                    if (buffered >= cap) "$text\n…[trace truncated at ${cap / (1024 * 1024)} MiB]" else text
-                } catch (_: Exception) { null }
-            }
-        }
 
         val modelFromBody = rawRequestBody?.let { body ->
             try {
@@ -316,10 +314,76 @@ class TracingInterceptor : Interceptor {
         }
         val model = modelFromBody ?: modelFromUrl
 
-        ApiTracer.saveTrace(ApiTrace(timestamp, hostname, ApiTracer.currentReportId, model,
-            ApiTracer.currentCategory, traceRequest,
-            TraceResponse(response.code, responseHeaders, responseBody)))
-        return response
+        // Capture the call-site tags now, on the originating thread —
+        // OkHttp may finish the body read on a different worker thread,
+        // by which time the thread-local would carry someone else's
+        // (or no) tags.
+        val capturedReportId = ApiTracer.currentReportId
+        val capturedCategory = ApiTracer.currentCategory
+
+        fun saveWith(body: String?) {
+            ApiTracer.saveTrace(ApiTrace(
+                timestamp, hostname, capturedReportId, model, capturedCategory,
+                traceRequest, TraceResponse(response.code, responseHeaders, body)
+            ))
+        }
+
+        if (!isStreaming) {
+            // Non-streaming: pre-buffer up to the cap and save synchronously.
+            // This was the previous behaviour and is the safest path for
+            // small JSON responses (model lists, chat completions without
+            // stream=true, error bodies).
+            val responseBody = response.body?.let { body ->
+                try {
+                    val source = body.source()
+                    source.request(BODY_CAP_BYTES)
+                    val buffered = source.buffer.size
+                    val text = source.buffer.clone().readUtf8(minOf(buffered, BODY_CAP_BYTES))
+                    if (buffered >= BODY_CAP_BYTES) "$text\n…[trace truncated at ${BODY_CAP_BYTES / (1024 * 1024)} MiB]" else text
+                } catch (_: Exception) { null }
+            }
+            saveWith(responseBody)
+            return response
+        }
+
+        // Streaming: wrap the source in a tee. The application reads as
+        // normal (SSE parser in ApiStreaming, etc.); reads also flow into
+        // [captured]. The trace is saved when the source signals EOF or
+        // is closed — whichever fires first wins via [saved] CAS, so a
+        // half-consumed cancelled stream still produces a partial trace.
+        val originalBody = response.body ?: run { saveWith(null); return response }
+        val captured = Buffer()
+        val saved = AtomicBoolean(false)
+        fun finishOnce() {
+            if (!saved.compareAndSet(false, true)) return
+            val body = try {
+                val text = captured.clone().readUtf8(minOf(captured.size, BODY_CAP_BYTES))
+                if (captured.size >= BODY_CAP_BYTES) "$text\n…[trace truncated at ${BODY_CAP_BYTES / (1024 * 1024)} MiB]" else text
+            } catch (_: Exception) { null }
+            saveWith(body)
+        }
+        val teedSource = object : ForwardingSource(originalBody.source()) {
+            override fun read(sink: Buffer, byteCount: Long): Long {
+                val n = super.read(sink, byteCount)
+                if (n == -1L) {
+                    finishOnce()
+                } else if (captured.size < BODY_CAP_BYTES) {
+                    val toCopy = minOf(n, BODY_CAP_BYTES - captured.size)
+                    if (toCopy > 0) {
+                        // sink received `n` new bytes at offset (sink.size - n);
+                        // copy that window into our capture buffer.
+                        sink.copyTo(captured, sink.size - n, toCopy)
+                    }
+                }
+                return n
+            }
+            override fun close() {
+                super.close()
+                finishOnce()
+            }
+        }
+        val wrappedBody = teedSource.buffer().asResponseBody(originalBody.contentType(), originalBody.contentLength())
+        return response.newBuilder().body(wrappedBody).build()
     }
 
     private fun headersToMap(headers: Headers): Map<String, String> {
