@@ -1016,7 +1016,11 @@ fun ProviderSettingsScreen(
             // assets/setup.json on first launch — so every field that ships in the
             // bundled catalog is editable.
 
-            CollapsibleCard(title = "Definition · Basics", summary = null) {
+            CollapsibleCard(
+                title = "Basics",
+                summary = null,
+                helpText = "Base URL is the root of every API call to this provider — paths declared on the API card append to it. Admin URL points at the provider's web dashboard (where the user gets / rotates an API key); rendered as a tappable link on the per-provider help page. The provider id (= its display label) lives in the title bar above and can't be edited in place — pre-unification builds carried a separate 'Display name' field here, but id, display name and prefs key collapsed into one in the unification refactor, so a rename is a delete-and-add operation."
+            ) {
                 // The provider id (which is also its display label) is
                 // shown in the screen's title bar above; this card edits
                 // only the catalog values that aren't the identity. Pre-
@@ -1037,7 +1041,11 @@ fun ProviderSettingsScreen(
                 )
             }
 
-            CollapsibleCard(title = "Definition · API", summary = defApiFormat.name) {
+            CollapsibleCard(
+                title = "API",
+                summary = defApiFormat.name,
+                helpText = "Format selects the dispatch path: OPENAI_COMPATIBLE (the default — Bearer auth, /v1/chat/completions shape), ANTHROPIC (x-api-key + anthropic-version header, /v1/messages, mandatory max_tokens), or GOOGLE (?key= query param, generateContent path). Type paths override the global per-type defaults from AI Setup → Model Types — leave blank to inherit the user / hardcoded fallback (the placeholder shows what you'd inherit). Models path is the /models endpoint (defaults to v1/models). Model list format flips between 'object' (provider returns {data: [...]}) and 'array' (returns the list directly) — wrong choice yields zero models on fetch. Seed field name is what the request body calls the determinism seed (most providers: 'seed'; Mistral: 'random_seed')."
+            ) {
                 Text("Format", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     ApiFormat.entries.forEach { fmt ->
@@ -1078,7 +1086,11 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
-            CollapsibleCard(title = "Definition · Models", summary = defDefaultModelSource) {
+            CollapsibleCard(
+                title = "Models",
+                summary = defDefaultModelSource,
+                helpText = "Default source decides where the per-provider Models screen seeds its list from. API hits the provider's /models endpoint on every refresh (live catalog). MANUAL hands you an empty list to populate by hand from Hardcoded models — useful for providers whose /models shape isn't supported, or when you want to lock the picker down to a curated subset. Model filter regex (Java syntax) trims the live or hardcoded list to entries whose id matches — e.g. 'gpt|o1|o3|o4' on OpenAI hides the Whisper / DALL·E / TTS rows. Hardcoded models is the asset-shipped fallback list, applied verbatim in MANUAL mode and unioned into the API list when the provider config has mergeHardcodedModels enabled (see Capability flags)."
+            ) {
                 Text("Default source", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("API", "MANUAL").forEach {
@@ -1094,7 +1106,11 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
-            CollapsibleCard(title = "Definition · Pricing & cost", summary = null) {
+            CollapsibleCard(
+                title = "Pricing & cost",
+                summary = null,
+                helpText = "OpenRouter name maps this provider into OpenRouter's catalog so cross-provider pricing fan out works (e.g. Anthropic openRouterName='anthropic' lets the layered lookup find anthropic/claude-3-5-sonnet pricing on OpenRouter when no native source has it). Required for layered-pricing pickup; harmless when blank for fully self-priced providers. LiteLLM prefix is the slug used as the lookup key in the LiteLLM catalog (per-provider override over the lowercased provider id fallback, e.g. 'together_ai' for Together). Cost ticks divisor — providers that report cost in fractional ticks (xAI's $/1e10 scale) divide their per-call usage cost by this factor; leave blank for providers that bill in plain USD. Extract API cost — when ON, the dispatcher reads the cost figure straight off the response body (OpenRouter ships per-call cost; most others don't). When OFF, cost is computed locally from token counts × the layered ModelPricing rate."
+            ) {
                 OutlinedTextField(value = defOpenRouterName, onValueChange = { defOpenRouterName = it },
                     label = { Text("OpenRouter name") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
@@ -1110,7 +1126,11 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            CollapsibleCard(title = "Definition · Features", summary = null) {
+            CollapsibleCard(
+                title = "Features",
+                summary = null,
+                helpText = "Supports citations — when ON, the response parser pulls the Perplexity-style `citations` array out of the response and surfaces it inline on the per-agent result. Only Perplexity sets this today; OpenAI's Responses-API web search uses a different shape and is gated separately by the Responses API patterns. Supports search recency — when ON, the dispatcher attaches Perplexity's `search_recency_filter` request param when the user picks 'Today / Week / Month / Year' on the report's web-search dropdown; providers without this flag get the toggle hidden. Both are simple Boolean gates on the dispatch path, NOT model-name patterns — they apply provider-wide."
+            ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Supports citations", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = defSupportsCitations, onCheckedChange = { defSupportsCitations = it })
@@ -1123,7 +1143,11 @@ fun ProviderSettingsScreen(
 
             // ===== New flag fields — explained inline =====
 
-            CollapsibleCard(title = "Definition · Native APIs", summary = null) {
+            CollapsibleCard(
+                title = "Native APIs",
+                summary = null,
+                helpText = "Optional dedicated endpoints exposed by some providers alongside the OpenAI-compat shim. When set, the dispatcher routes the corresponding action through that URL; when blank the user gets an explanatory error. Aux hosts is a comma list of alternate hostnames the provider's traffic lands on besides its baseUrl host (e.g. api.cohere.com for Cohere) so the trace-list Provider filter still attributes those calls correctly. Native rerank URL — Cohere v2/rerank-shaped POST body. Native moderation URL — Mistral v1/moderations-shaped POST body. Native capability URL — Cohere-shaped /v1/models listing (with `endpoints` / `supports_vision` / `context_length`); set on providers whose OpenAI-compat shim strips that data but a separate native host returns it."
+            ) {
                 Text(
                     "Optional dedicated endpoints exposed by some providers alongside the OpenAI-compat shim. " +
                         "Leave blank when the provider has no such endpoint — the dispatcher will return an explanatory error to the user instead of routing the call.",
@@ -1174,7 +1198,11 @@ fun ProviderSettingsScreen(
                 )
             }
 
-            CollapsibleCard(title = "Definition · Capability flags", summary = null) {
+            CollapsibleCard(
+                title = "Capability flags",
+                summary = null,
+                helpText = "Pricing from /models — provider's /v1/models response carries authoritative pricing (input/output per million tokens) which the fetcher harvests as a self-report tier. Together AI is the canonical example. Cross-provider model list — provider's /models response drives pricing + type fan-out into every OTHER provider via the openRouterName prefix (only OpenRouter has this today; exactly one provider should). Merge hardcoded models — fetcher unions the persisted Hardcoded Models list with the API list (useful when /models silently omits valid endpoints, e.g. OpenAI's TTS / image / moderation). External reasoning signal untrusted — ignore the provider's `reasoning: true` field on /models metadata; capability is decided purely by Reasoning model patterns + Reasoning effort accept patterns. xAI uses this because some always-on reasoning variants reject the reasoning_effort parameter."
+            ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Pricing from /models", color = Color.White)
@@ -1217,7 +1245,11 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            CollapsibleCard(title = "Definition · Model patterns", summary = null) {
+            CollapsibleCard(
+                title = "Model patterns",
+                summary = null,
+                helpText = "Each pattern is a JSON object with any combination of `exact` / `prefix` / `contains` / `suffix`, matched against modelId.lowercase() — every non-null part must match (intersection). Empty list = the feature is OFF for this provider. Responses API patterns route a model to OpenAI's /v1/responses instead of /v1/chat/completions (gpt-5, o-series, gpt-4.1). Reasoning model patterns gate the 🧠 badge AND the thinking dispatch path (Anthropic claude-3.7+, opus-4 / sonnet-4 / haiku-4; OpenAI gpt-5 / o1-o4; xAI grok-3 / grok-4 / grok-code; Moonshot kimi-k1.5 / kimi-k2; DeepSeek r1 / reasoner; Mistral magistral; Google gemini-2.5). Reasoning effort accept patterns optionally narrows the previous list to the subset that actually accepts the `reasoning_effort` request param — leave BLANK to fall back to Reasoning model patterns; set when always-on variants reject the param (xAI). Web-search model patterns gate the 🌐 web_search tool descriptor. Adaptive thinking patterns (Anthropic-only) opts a model into the newer `thinking.type:adaptive` request shape (Claude Opus 4.7+); older 3.7 / 4.x models keep the budget_tokens shape. Max-tokens defaults — list of {pattern, maxTokens} rules evaluated top-down for Anthropic's mandatory max_tokens (opus-4 → 32000, sonnet-4 / haiku-4 / claude-3-5 → 8192); fallback 4096 when no rule matches."
+            ) {
                 Text(
                     "Each pattern matches against modelId.lowercase(). Set any combination of `exact`, `prefix`, `contains`, `suffix` — match succeeds when EVERY non-null part matches. Empty list = feature off for this provider; the field stays blank in the asset bundle.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1296,7 +1328,11 @@ fun ProviderSettingsScreen(
                 )
             }
 
-            CollapsibleCard(title = "Definition · Built-in endpoints", summary = null) {
+            CollapsibleCard(
+                title = "Built-in endpoints",
+                summary = null,
+                helpText = "Endpoints the user can pick between for this provider when assigning a model to an Agent or sending a Test request. Each entry is `{id, name, url, isDefault}` — the first `isDefault: true` shows up first in the picker. OpenAI ships Chat Completions + Responses API; Mistral ships Chat Completions + Codestral; DeepSeek ships Chat + Beta (FIM); Z.AI ships Chat + Coding. Empty list = a single synthesised default is used (built from the API card's Base URL + chat type path). Edits round-trip through providers.json on Export / Import."
+            ) {
                 Text(
                     "Endpoints the user can pick between for this provider (e.g. OpenAI's Chat Completions vs Responses API). Empty list → a single synthesised default is used. Each entry is `{id, name, url, isDefault}` — the first `isDefault: true` shows up first in the picker. Example: [{\"id\":\"openai-chat\",\"name\":\"Chat Completions\",\"url\":\"https://api.openai.com/v1/chat/completions\",\"isDefault\":true},{\"id\":\"openai-responses\",\"name\":\"Responses API\",\"url\":\"https://api.openai.com/v1/responses\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1307,17 +1343,6 @@ fun ProviderSettingsScreen(
                     minLines = 3, maxLines = 12,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
-            }
-
-            CollapsibleCard(title = "Definition · Storage", summary = "id=${service.id}") {
-                Text("ID and prefs key are immutable — changing them would orphan stored API keys, models, and usage statistics.",
-                    fontSize = 11.sp, color = AppColors.TextTertiary)
-                OutlinedTextField(value = service.id, onValueChange = {},
-                    label = { Text("ID") }, singleLine = true, readOnly = true, enabled = false,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
-                OutlinedTextField(value = service.id, onValueChange = {},
-                    label = { Text("Prefs key") }, singleLine = true, readOnly = true, enabled = false,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
             // Parameters — same blue-card pattern as Default Model / Models so a long
