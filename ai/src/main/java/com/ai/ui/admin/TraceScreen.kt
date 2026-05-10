@@ -710,6 +710,12 @@ fun TraceDetailScreen(
             // two affordances stay byte-identical.
             onCopy = if (t != null) {
                 { com.ai.ui.shared.copyToClipboard(context, redactedContentFor(currentView, t), "trace") }
+            } else null,
+            // 📤: share the same redacted bytes via Android share
+            // sheet. Preserves the API-key / Authorization / cookie
+            // redaction guarantee.
+            onShare = if (t != null) {
+                { com.ai.ui.shared.shareText(context, redactedContentFor(currentView, t), "Trace ${t.response.statusCode}") }
             } else null
         )
         // First line: HTTP status code + path (no query params — they

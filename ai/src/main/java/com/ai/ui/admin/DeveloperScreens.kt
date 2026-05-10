@@ -326,6 +326,9 @@ fun EditApiRequestScreen(
             helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick,
             onCopy = editableJson.takeIf { it.isNotBlank() }?.let {
                 { com.ai.ui.shared.copyToClipboard(context, editableJson, "request") }
+            },
+            onShare = editableJson.takeIf { it.isNotBlank() }?.let {
+                { com.ai.ui.shared.shareText(context, editableJson, "Request — ${provider.id} / $model") }
             }
         )
 

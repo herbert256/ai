@@ -1125,6 +1125,9 @@ private fun ModelRawInfoScreen(
             } else null,
             onCopy = body.takeIf { it.isNotBlank() }?.let {
                 { com.ai.ui.shared.copyToClipboard(context, body, "raw catalog JSON") }
+            },
+            onShare = body.takeIf { it.isNotBlank() }?.let {
+                { com.ai.ui.shared.shareText(context, body, "Model info — ${provider?.displayName ?: title}") }
             }
         )
         if (provider != null && !foldSubject) {

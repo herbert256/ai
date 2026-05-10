@@ -149,6 +149,22 @@ fun copyToClipboard(context: android.content.Context, text: String, label: Strin
     android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
 }
 
+/** Fire the standard Android Share sheet (ACTION_SEND) with [text] as
+ *  the plain-text payload. Optional [subject] becomes EXTRA_SUBJECT
+ *  (used by Email / Drive / a few other targets). Empty text no-ops
+ *  so callers don't need to pre-check. Distinct from the file-
+ *  attachment shareExport / shareReportAsHtml helpers — this one
+ *  ships text only via EXTRA_TEXT. */
+fun shareText(context: android.content.Context, text: String, subject: String? = null) {
+    if (text.isBlank()) return
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(android.content.Intent.EXTRA_TEXT, text)
+        if (subject != null) putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Share"))
+}
+
 /** Captured icon state from a TitleBar — what BottomIconBar needs to
  *  render the same strip the top bar would have rendered. */
 data class TitleBarIcons(
@@ -158,6 +174,7 @@ data class TitleBarIcons(
     val onChat: (() -> Unit)?,
     val onInfo: (() -> Unit)?,
     val onCopy: (() -> Unit)?,
+    val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
     val onDelete: (() -> Unit)?,
     val onTrace: (() -> Unit)?,
@@ -298,6 +315,12 @@ fun TitleBar(
      *  icon hidden. Use the top-level [copyToClipboard] helper inside
      *  the lambda for the standard "set ClipData + Toast" behaviour. */
     onCopy: (() -> Unit)? = null,
+    /** Optional 📤 share-as hook. Most screens use the top-level
+     *  [shareText] helper to fire the Android share sheet with the
+     *  same body the copy icon uses. The main AI Report screen reuses
+     *  this slot for the export-format-picker flow — the previous
+     *  in-action-row Export button is gone. Null → icon hidden. */
+    onShare: (() -> Unit)? = null,
     /** Resolved per-report emoji (e.g. 📊). When non-null the icon
      *  renders as the absolute leftmost element of the bar — before
      *  the back arrow — on every report-scoped screen. Tap navigates
@@ -365,6 +388,7 @@ fun TitleBar(
             onChat = onChat,
             onInfo = onInfo,
             onCopy = onCopy,
+            onShare = onShare,
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
@@ -533,6 +557,7 @@ fun TitleBar(
                 onChat = onChat,
                 onInfo = onInfo,
                 onCopy = onCopy,
+                onShare = onShare,
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
@@ -569,6 +594,7 @@ private fun TitleBarActionStrip(
     onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
     onCopy: (() -> Unit)?,
+    onShare: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
     onHelp: () -> Unit,
@@ -597,6 +623,10 @@ private fun TitleBarActionStrip(
         // alongside 💬 and ℹ. Hidden when the screen has nothing
         // copyable (callsites pass a null callback in that case).
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = w(28.dp), scale = scale)
+        // 📤 Share — fires the Android share sheet with the same body
+        // the Copy icon writes to the clipboard. Sits next to 📋 so
+        // the two outbound-content actions cluster together.
+        if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = w(28.dp), scale = scale)
         // 🔄 sits immediately to the left of 🗑 — the reload-vs-
         // discard pair lives together so a user reaching for one
         // doesn't accidentally hit the other from across the strip.
@@ -709,6 +739,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onChat = icons?.onChat,
             onInfo = icons?.onInfo,
             onCopy = icons?.onCopy,
+            onShare = icons?.onShare,
             onDelete = icons?.onDelete,
             onTrace = icons?.onTrace,
             onHelp = { navigateHelp(icons?.helpTopic) },

@@ -1761,6 +1761,13 @@ fun ReportsScreen(
             // only when the prompt text is non-blank.
             onChat = if (isGenerating && uiState.genericPromptText.isNotBlank()) {
                 { onChatWithReportPrompt(uiState.genericPromptText) }
+            } else null,
+            // 📤: opens the existing format-picker export sheet (HTML
+            // / PDF / Word / OpenDocument / JSON / Zipped HTML). The
+            // in-action-row Export button used to do this — the icon
+            // replaces it.
+            onShare = if (isGenerating && currentReportId != null && isComplete) {
+                { showExport = true }
             } else null
         )
         if (showRegenerateConfirm && currentReportId != null) {
@@ -2125,7 +2132,8 @@ private fun ColumnScope.GenerationPhase(
     ActionRow {
         CompactButton(onClick = onOpenViewPicker, color = AppColors.Purple, text = "View")
         CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
-        CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
+        // 'Export' button is gone — the title-bar 📤 share icon now
+        // routes to the same showExport flow.
         CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
         CompactButton(
             onClick = { onTogglePin(); pinTick++ },

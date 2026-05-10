@@ -2035,6 +2035,9 @@ internal fun SecondaryResultDetailScreen(
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
             onCopy = result.content?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "secondary result") }
+            },
+            onShare = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
             }
         )
         if (!foldSubject) {

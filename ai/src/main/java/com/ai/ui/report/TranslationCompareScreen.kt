@@ -51,6 +51,9 @@ internal fun TranslationCompareScreen(
             onCopy = translatedContent.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
             },
+            onShare = translatedContent.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.shareText(context, body, "Translation — $title") }
+            },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         if (!foldSubject) {

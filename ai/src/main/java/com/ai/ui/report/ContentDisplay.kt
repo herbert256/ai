@@ -209,6 +209,11 @@ private fun ReportsViewerScreenLoaded(
                         { com.ai.ui.shared.copyToClipboard(context, displayPrompt, "prompt") }
                     }
                 } else null,
+                onShare = if (initialSection == "prompt") {
+                    displayPrompt.takeIf { it.isNotBlank() }?.let {
+                        { com.ai.ui.shared.shareText(context, displayPrompt, "Prompt — ${report.title}") }
+                    }
+                } else null,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the

@@ -134,6 +134,9 @@ internal fun TranslationCallDetailScreen(
                 } else null,
                 onCopy = result.content?.takeIf { it.isNotBlank() }?.let { body ->
                     { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
+                },
+                onShare = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+                    { com.ai.ui.shared.shareText(context, body, "Translation $titleLang") }
                 }
             )
             if (!foldSubject) {

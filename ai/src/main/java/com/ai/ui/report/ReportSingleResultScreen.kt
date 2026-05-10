@@ -170,6 +170,9 @@ fun ReportSingleResultScreen(
             onCopy = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "agent response") }
             },
+            onShare = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.shareText(context, body, "Agent result — $agentLabel") }
+            },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
