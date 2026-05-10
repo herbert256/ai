@@ -33,9 +33,19 @@ Same request/response shape as `OpenAiRequest` / `OpenAiResponse` in
   buffered per W3C spec — multi-line `data:` chunks are concatenated
   before the blank-line dispatch.
 - **Tool descriptors**: provider-specific; the dispatch layer attaches
-  `web_search_preview` for OpenAI Responses-API models, falls back to
-  no-tool on a 400 tool-rejection. The fallback trigger covers more
-  variant tool-rejection error shapes than earlier versions.
+  `web_search_preview` for OpenAI Responses-API models (gated by
+  `provider.webSearchModelPatterns`), falls back to no-tool on a 400
+  tool-rejection. The fallback trigger covers more variant
+  tool-rejection error shapes than earlier versions.
+- **Reasoning effort**: when the agent's parameters set
+  `reasoningEffort` (`"low"` / `"medium"` / `"high"`), the dispatch
+  layer attaches `reasoning_effort` to the request when
+  `inferAcceptsReasoningEffortParam(provider, model)` is true.
+  Chat Completions silently ignores it on older models; the
+  Responses API takes it natively. xAI's always-on reasoning
+  variants are filtered out via
+  `provider.reasoningEffortAcceptPatterns` so the parameter isn't
+  attached even though the 🧠 badge is set.
 
 ### OpenAI's dual API split
 
@@ -47,12 +57,18 @@ OpenAI uses two separate endpoints depending on the model family:
   `o4*`, `gpt-4.1*`. Different request shape (`OpenAiResponsesRequest`),
   different response shape (`OpenAiResponsesApiResponse`).
 
-Routing is done by `usesResponsesApi()` and the `endpointRules`
-attached to OpenAI in `providers.json`. Other providers don't share
-this split — only OpenAI. Multi-text Responses-API output blocks are
-**concatenated** by the dispatch layer rather than only the first
-block being surfaced. The Chat path forwards image content blocks
-unchanged.
+Routing is done by `usesResponsesApi()` against the provider's
+`responsesApiPatterns` from `providers.json`. Other providers don't
+share this split — only OpenAI. Multi-text Responses-API output
+blocks are **concatenated** by the dispatch layer rather than only
+the first block being surfaced. The Chat path forwards image content
+blocks unchanged.
+
+The Responses API also surfaces `OpenAiResponsesAnnotation`
+(`url_citation` annotations the dispatch layer maps onto
+`AnalysisResponse.citations`) and `OpenAiResponsesAction`
+(`web_search_call` queries) — see `ApiModels.kt` for the wire
+shapes.
 
 ### Quirks worth knowing
 
@@ -89,10 +105,23 @@ Claude's `/v1/messages` API has its own request/response shape.
   endpoints have their body drained and surfaced rather than left
   half-consumed.
 - **Web search tool**: `web_search_20250305` injected when the user
-  toggles 🌐 and the model is Claude 3.5+ / 4.x.
+  toggles 🌐 and the model matches `provider.webSearchModelPatterns`
+  (Claude 3.5+ / 4.x).
+- **Thinking / reasoning**: when the agent's parameters set
+  `reasoningEffort` and the model matches
+  `provider.reasoningModelPatterns`, the dispatch layer attaches a
+  `thinking` block with `budget_tokens` translated from the effort
+  level. Anthropic's adaptive-thinking opt-in shape (claude-opus-4.6
+  / 4.7) is gated by `provider.adaptiveThinkingPatterns`.
+- **Native PDF input**: `ModelCapabilities.supportsPdfInput` (from
+  Anthropic `capabilities.pdf_input.supported`) lets a chat session
+  attach a PDF as a `document` content block instead of relying on
+  client-side OCR.
 
 Models list at `v1/models`. Hardcoded fallback ships in
-`providers.json`.
+`providers.json`. The provider's per-family `maxTokensDefaults`
+list determines the default `max_tokens` when the user hasn't
+pinned one (first match wins, default 4096).
 
 ## GOOGLE (Gemini — 1 provider)
 
@@ -111,7 +140,11 @@ Gemini's `:generateContent` path-style API.
 - **Streaming**: chunked-JSON (each line is a complete JSON object).
   Parsed by `ApiStreaming.streamGoogle`.
 - **Web search tool**: `google_search` tool descriptor for Gemini 1.5+
-  and 2.x.
+  and 2.x (gated by `provider.webSearchModelPatterns`).
+- **Thinking / reasoning**: Gemini exposes a `thinkingConfig` field
+  with `thinkingBudget` (the dispatcher translates `reasoningEffort`
+  → budget) and `includeThoughts`. The provider's
+  `reasoningModelPatterns` gates whether the field is sent.
 
 Models list at `v1beta/models` with `modelListFormat=array`.
 Path-encoded model ids mean the trace file shows the model in the
@@ -134,6 +167,29 @@ If you ever need a fourth format:
 The 40-of-42 ratio of `OPENAI_COMPATIBLE` providers means you almost
 never need to do this — it's worth pushing back on the third party
 to add an OpenAI-compatible endpoint before reaching for a new format.
+
+## Native non-chat endpoints
+
+A handful of providers ship dedicated non-chat endpoints the
+dispatch layer routes to instead of building a chat-prompt
+fallback:
+
+- **`AppService.nativeRerankUrl`** — Cohere `/v2/rerank`. The Rerank
+  flow POSTs `{model, query, documents}` and converts the response
+  into the `[{id, rank, score, reason}, ...]` JSON shape the chat
+  rerank flow already produces. See
+  [secondary-results.md](secondary-results.md).
+- **`AppService.nativeModerationUrl`** — Mistral `/v1/moderations`.
+  The Moderate flow POSTs `{model, input: [...]}` and lifts
+  `tokenUsage` from the response so cost attribution matches
+  chat-driven Meta runs.
+- **`AppService.nativeCapabilityUrl`** — Cohere-style `/v1/models`
+  capability listing. Drives the per-model context-length / vision
+  flags during a refresh.
+
+Providers without these URLs fall through to chat-prompt rerank /
+moderation with an explanatory error if the picked model isn't
+chat-capable.
 
 ## A note on OpenAI moderation models
 

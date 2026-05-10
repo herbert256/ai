@@ -11,12 +11,25 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
 JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease
 ```
 
-Toolchain: Kotlin 2.2.10, AGP 9.2.0, Gradle 9.5, Java 17, Compose
-BOM 2026.04.01. minSdk 26, targetSdk 36, namespace `com.ai`.
-Release builds require `local.properties` to define
-`KEYSTORE_FILE` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`
-— the build fails loudly otherwise rather than emitting an unsigned
-APK.
+Toolchain: Kotlin 2.2.10, AGP 9.2.0, Gradle 9.5, Java 17 (JVM
+target 17, source/target compatibility 17), Compose BOM 2026.04.01.
+`compileSdk = 36`, `buildToolsVersion = "36.1.0"`, `minSdk = 26`,
+`targetSdk = 36`, namespace `com.ai`. Release builds enable
+`isMinifyEnabled` and `isShrinkResources` and require
+`local.properties` to define `KEYSTORE_FILE` /
+`KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` — the build
+fails loudly otherwise rather than emitting an unsigned APK.
+
+Network timeouts ship as `BuildConfig.NETWORK_*_TIMEOUT_SEC` so the
+OkHttp client can read them at construction time without a prefs
+round-trip:
+
+| BuildConfig field | Value | Used for |
+|---|---|---|
+| `NETWORK_CONNECT_TIMEOUT_SEC` | 30 | TCP / TLS handshake |
+| `NETWORK_READ_TIMEOUT_SEC` | 600 | Streaming reads (10 min cap on long SSE) |
+| `NETWORK_WRITE_TIMEOUT_SEC` | 30 | Request body upload |
+| `TEST_CONNECTION_READ_TIMEOUT_SEC` | 120 | Per-provider Test API Key call |
 
 The `versionName` is computed at build time as `YY.DDD.MIN` (year
 % 100 + day-of-year + minutes-of-day) so two builds the same minute
@@ -25,15 +38,19 @@ share a version.
 A few notable runtime dependencies (full list in `ai/build.gradle.kts`):
 - **MediaPipe Tasks GenAI 0.10.35** — on-device LLM (`LocalLlm`).
   Pinned at 0.10.35 for 16 KB page-size compliance on Android 15+.
-- **MediaPipe Tasks Text 0.10.35** — on-device text embedder (`LocalEmbedder`)
-- **ML Kit Latin Text Recognition** — bundled OCR for image-only
-  PDFs and standalone images in the Knowledge ingest path. (Was
-  MediaPipe Text Recognition; switched for offline + bundled-model
-  guarantees.)
+- **MediaPipe Tasks Text 0.10.35** — on-device text embedder
+  (`LocalEmbedder`). Wraps a LiteRT runtime so the app can run
+  `.tflite` text-embedder models for on-device semantic search.
+- **ML Kit Text Recognition 16.0.1** — Latin model bundled, so OCR
+  works offline without Google Play Services. Used as the fallback
+  in the Knowledge ingestion path for image-only PDFs / standalone
+  images. (Was MediaPipe Text Recognition; switched for offline +
+  bundled-model guarantees.)
 - **PDFBox-Android 2.0.27.0** — PDF text extraction
 - **Jsoup 1.18.1** — HTML extraction for URL-type Knowledge sources
-- **Apache Commons Compress 1.27.1** — `.tar.gz` extraction in the
-  Local LLM archive importer
+- **Apache Commons Compress 1.27.1** — `.zip` / `.tar` / `.tar.gz` /
+  `.tgz` extraction in the Local LLM archive importer (Kaggle ships
+  some Gemma bundles as `.tgz`)
 
 A `constraints { implementation("com.google.guava:guava:33.4.3-android") }`
 override pins Guava away from MediaPipe's transitive 27.0.1, which
@@ -115,7 +132,7 @@ ai/src/main/java/com/ai/
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **111 Kotlin files, ~48,500 LOC** total.
+Roughly **112 Kotlin files, ~52,300 LOC** total.
 
 ## Adding things
 
@@ -222,6 +239,16 @@ title / prompt template. Walk the resulting compile errors:
 
 The same pattern documents itself; lean on the compiler.
 
+> Note: model-scoped fan-in adds a parallel surface — three
+> Internal Prompt categories (`initiator`, `requester`, `model`)
+> drive runs whose row carries `scopeProviderId` / `scopeModel`
+> so the L2 page surfaces them under their own (provider, model)
+> bucket distinct from the legacy total `fan_in`. The resolver is
+> `resolveModelFanInPrompt` (separate from `resolveFanInPrompt`)
+> with placeholders `@INITIATOR@`, `@RESPONDERS@`,
+> `@RESPONDER_PAIRS@`. Adding a new SecondaryKind that needs a
+> similar model-scoped flavour means walking those sites too.
+
 ### A new Knowledge source type
 
 1. Add an enum value to `KnowledgeSourceType` in
@@ -291,11 +318,28 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew test                         # 
 JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew connectedDebugAndroidTest    # instrumented (~40s on emulator)
 ```
 
-Unit tests use Truth; instrumented tests do too. Coverage areas
-include `ApiTracer`, `ChatHistoryManager`, `PricingCache`,
-`SecondaryResultStorage`, the export builders (DocxOdt, ZippedHtml),
-the `BackupManager` validate-then-write restore, plus Compose UI
-smoke tests under `ai/src/androidTest/java/com/ai/compose/`.
+Unit tests use Truth; instrumented tests do too. Roughly **26
+unit-test files** under `ai/src/test/java/com/ai/` covering
+`ApiDispatchHelpers`, `BuildChatUrl`, `ResponsesUrl`,
+`TracerTags`, `DefaultClaudeMaxTokens`, `ModelType`,
+`EmbeddingsStore`, `SecondaryResultHelpers`, `ApiModelsUsage`,
+`BackupManagerRestore`, `AtomicFileWrite`, `SettingsGraph`,
+`ProviderDefinition`, `DualChatParameters`,
+`SettingsPreferencesUsageStats`, `UiFormatting`,
+`TraceTranslationExtraction`, `TraceSharePath`, …; and roughly
+**22 instrumented tests** under `ai/src/androidTest/java/com/ai/`
+covering the Compose UI (`ChatsHubScreenTest`,
+`ReportsHubScreenTest`, `ContentDisplayTest`,
+`SharedComponentsTest`, `TitleBarTest`, `HelpScreenTest`,
+`HousekeepingScreenTest`, `ReportExportScreenTest`,
+`TranslationCompareScreenTest`) and on-device data plumbing
+(`ChatHistoryManagerInstrumentedTest`,
+`ProviderRegistryInstrumentedTest`,
+`ReportStorageInstrumentedTest`,
+`SecondaryResultStorageInstrumentedTest`,
+`ApiTracerInstrumentedTest`, `PricingCacheInstrumentedTest`,
+plus the export builders `ZippedHtmlBuildInstrumentedTest`,
+`DocxOdtBuildInstrumentedTest`, `BulkExportInstrumentedTest`).
 
 > **Important:** AGP's `connectedDebugAndroidTest` **uninstalls
 > `com.ai`** after running, deleting the data dir. If the emulator

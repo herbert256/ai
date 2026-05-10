@@ -109,6 +109,45 @@ A few non-default fields warrant explanation:
   in `Settings.withModels`).
 - **`defaultModelSource`**: `API` or `MANUAL`. Determines whether the
   app fetches a live list or shows the hardcoded fallback.
+- **`nativeRerankUrl` / `nativeModerationUrl` / `nativeCapabilityUrl`**:
+  full URLs the rerank / moderation / capability dispatchers POST
+  to instead of building a chat fallback. Cohere ships
+  `nativeRerankUrl=https://api.cohere.com/v2/rerank` and
+  `nativeCapabilityUrl=https://api.cohere.com/v1/models`; Mistral
+  ships `nativeModerationUrl=https://api.mistral.ai/v1/moderations`.
+  Providers without these fall through to a chat-prompt fallback.
+- **`pricingFromModelList`** (Together): provider's `/v1/models`
+  block carries authoritative pricing — harvested into the
+  `TOGETHER` tier on every refresh.
+- **`crossProviderModelList`** (OpenRouter): provider's `/v1/models`
+  drives pricing + type fan-out across other providers — the
+  OpenRouter tier is the final cross-provider fallback in
+  `PricingCache.getPricing` for non-OpenRouter callers.
+- **`mergeHardcodedModels`**: union persisted `hardcodedModels`
+  with the API list when the fetcher refreshes — used so OpenAI
+  moderation / TTS / image models survive a `/v1/models` call
+  that doesn't enumerate them.
+- **`externalReasoningSignalUntrusted`** (xAI): ignore the
+  LiteLLM / models.dev "is reasoning" signal because xAI's
+  always-on reasoning variants reject the `reasoning_effort`
+  parameter even though they reason internally. The 🧠 badge
+  still renders; only the parameter is suppressed.
+- **`responsesApiPatterns` / `reasoningModelPatterns` /
+  `reasoningEffortAcceptPatterns` / `webSearchModelPatterns` /
+  `adaptiveThinkingPatterns`** (lists of `ModelPattern`): per-id
+  pattern matchers that gate dispatch routing (Responses API),
+  feature badges (🧠, 🌐), the `reasoning_effort` parameter, and
+  Anthropic's adaptive-thinking shape. Patterns take `prefix`,
+  `contains`, or `regex`.
+- **`maxTokensDefaults`** (Anthropic): `[{ match: <ModelPattern>,
+  value: <Int> }]` — per-family default `max_tokens` when the
+  user hasn't pinned one. First match wins; falls back to 4096.
+- **`builtInEndpoints`**: bundled alternate endpoints (DeepSeek
+  main + reasoner, Mistral chat + Codestral, Z.AI mainland +
+  international). User picks one on the provider edit screen.
+- **`auxHosts`**: alternate API hostnames besides the `baseUrl`
+  host. The rate-limit-retry interceptor and tracer use this to
+  keep aux-host calls grouped under the same logical provider.
 
 ## Activation gating
 

@@ -36,7 +36,10 @@ The home screen has these big cards:
   fan-out / moderate / translate.
 - **AI Chat** — single-model conversation.
 - **AI Knowledge** — knowledge bases for retrieval-augmented
-  generation. Attach to Reports / Chats.
+  generation. Attach to Reports / Chats. (Hidden by default on
+  fresh installs — flip **Settings → Show AI Knowledge card on
+  home page** to surface it. The Knowledge flows themselves stay
+  fully functional whether the card is visible or not.)
 - **AI Models** — search every model across all your providers.
 - **AI Usage** — running token / cost statistics.
 - **AI API Traces** — every recent API call (cloud or local) as a
@@ -456,17 +459,33 @@ disappears from result screens.
 
 ## Settings
 
-The **Settings** main screen carries six per-card preferences (each
-in its own card):
+The **Settings** main screen carries per-card preferences (each in
+its own card):
 
 - **Identity** — name + email (one card; the email pre-fills the
   export sheet).
 - **API tracing** — master switch.
 - **Model name layout** — model only / provider and model.
-- **Subject to title bar** — fold detail-screen subjects into the
-  TitleBar and drop the green sub-header line.
+- **Subject to title bar mode** — tri-state. **HARDCODED** keeps the
+  legacy fixed label + green sub-header; **SUBJECT** folds the
+  dynamic subject into the TitleBar and drops the green line;
+  **BOTH** joins them with `/` and drops the green line.
 - **Show < Back** — when off the visible Back button hides; system
   / gesture back still works.
+- **Icon bar at bottom** — when on, the action icons + back arrow
+  move into a bar pinned at the bottom of the screen; the top bar
+  shows only the title. The bar lives at AppNavHost scope so it
+  survives nav transitions.
+- **Icon-gen** — master switch for the per-report emoji-generation
+  feature. When on (default) every new report kicks off a
+  background LLM call that picks a fitting emoji; the icon row
+  appears on the result page and the dynamic emoji shows in title
+  bars / hub list / history / search hits, with a 📝 memo icon
+  mirroring it. When off, the call is skipped and per-row icons
+  fall back to the static 🕘 / 📌. Existing icons stay on disk
+  for re-enable.
+- **Show AI Knowledge card on home page** — gates the Knowledge
+  card on the Hub. Default off; toggle on once you start using KBs.
 
 Edits debounce 400 ms and flush on screen leave so a quick back
 doesn't lose typed changes.

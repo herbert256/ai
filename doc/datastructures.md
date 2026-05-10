@@ -124,13 +124,15 @@ translate, rerank, moderation).
 | reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
 | category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
-| text | `String` | template body with `@QUESTION@` / `@RESULTS@` / `@COUNT@` / `@TITLE@` / `@DATE@` / `@RESPONSE@` / `@LANGUAGE@` / `@TEXT@` / `@FAN_OUT_COUNT@` / `***Report*** @REPORT@@RESPONSES@` placeholders |
+| text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report). Model-scoped fan-in (`category` of `initiator` / `requester` / `model`) adds `@INITIATOR@` (active model's own report response), `@RESPONDERS@` (block of fan-out responses where the active model is the source), `@RESPONDER_PAIRS@` (iterable list of `***Report*** {body} ***Response*** {body}` pairs where the active model is the answerer) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
 
 > The legacy `type` field is gone — routing is now derived from
 > `category`. `category="meta"` plus a `name` matching `"rerank"`,
 > `"moderation"`, etc. drives `metaTypeToKind` resolution at
-> runtime.
+> runtime. Categories `initiator` / `requester` / `model` drive
+> the model-scoped fan-in flow (`resolveModelFanInPrompt` produces
+> their text; rows carry `scopeProviderId` / `scopeModel`).
 
 ### `ExamplePrompt`
 Stand-alone (title, text) pair the user curates as a starter library
@@ -173,10 +175,25 @@ A per-(provider, model, kind) aggregate.
 | kind | `String` | `report`, `rerank`, `meta`, `moderate`, or `translate`. (Fan-out rows tag as `meta` since they share the META kind; the Type column reads the prompt name on display.) |
 
 ### `ModelCapabilities`
-| supportsVision | `Boolean?` |
-| supportsFunctionCalling | `Boolean?` |
-| contextLength | `Int?` |
-| maxOutputTokens | `Int?` |
+Per-model capability bundle derived from a provider's own `/models`
+endpoint. Authoritative when populated since it's the provider's
+self-report; empty fields fall through to LiteLLM / models.dev /
+heuristic in the lookup chain.
+
+| Field | Type | Notes |
+|---|---|---|
+| supportsVision | `Boolean?` | provider self-report on image input |
+| supportsFunctionCalling | `Boolean?` | tool / function calling |
+| contextLength | `Int?` | input context window |
+| maxOutputTokens | `Int?` | per-call output cap |
+| supportsReasoning | `Boolean?` | "this model exposes a thinking / reasoning_effort parameter". Surfaces from each provider's `/models` response — Anthropic `capabilities.thinking.supported`, Gemini top-level `thinking`, Mistral `capabilities.reasoning`, xAI / OpenRouter `supported_parameters` containing "reasoning". Null falls through to the `inferReasoning` heuristic |
+| reasoningEffortLevels | `List<String>?` | subset of "low" / "medium" / "high" / "max" the model accepts on `reasoning_effort`. Currently from Anthropic `capabilities.effort.{low,medium,high,max}` — Claude 3.7 / 4.x report different sets per tier |
+| supportsPdfInput | `Boolean?` | native PDF document blocks (Anthropic `capabilities.pdf_input.supported`). Distinct from vision because Anthropic parses page text + embedded images server-side |
+| aliases | `List<String>?` | friendly version-alias ids (Mistral `aliases: [...]`). The picker search filter matches against these so a query for "latest" finds the dated model |
+| deprecationDate | `String?` | ISO-8601 deprecation date (Mistral). Pickers can render a ⚠ badge when set |
+| deprecationReplacement | `String?` | provider-recommended successor (Mistral `deprecation_replacement_model`) |
+| defaultTemperature | `Float?` | provider-recommended default temperature (Mistral `default_model_temperature`). Surfaced on Model Info |
+| defaultStopSequences | `List<String>?` | Together's `config.stop` — typically the tokeniser's eos / bos markers |
 
 ### `FetchedModels`
 Result of a single provider model-list fetch.
@@ -251,6 +268,7 @@ translation, fan-out per-pair row, or fan-in combined-report row.
 | targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
 | translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
 | translatedFromSecondaryId | `String?` | Legacy field from the old "translation creates a copy" flow — preserved on disk so old reports still load |
+| scopeProviderId, scopeModel | `String?` | Set on a model-scoped fan-in row (Internal Prompt categories `initiator` / `requester` / `model`). Identifies which (provider, model) pair the L2 page should surface this row under so the per-model drill-in can filter to its own. Null on every other row including the legacy "total" `fan_in` (which combines the whole report and shows on L1's combinedRows section) |
 
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.
@@ -414,9 +432,9 @@ per-provider table.
 |---|---|---|
 | id | `String` | identifier AND human-readable label. The id-unification refactor collapsed three name-like fields (`id` / `displayName` / `prefsKey`) into one. SharedPreferences key prefixes use `id` directly |
 | baseUrl, adminUrl, defaultModel | `String` | |
-| openRouterName | `String?` | |
+| openRouterName | `String?` | composite-key prefix for the OpenRouter tier |
 | apiFormat | `ApiFormat` | (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`) |
-| typePaths | `Map<String, String>` | per-type API paths overriding the global default |
+| typePaths | `Map<String, String>` | per-type API paths overriding the global default; `chatPath` and `responsesPath` are computed views |
 | modelsPath | `String?` | default `"v1/models"` |
 | seedFieldName | `String` | default `"seed"`, Mistral uses `"random_seed"` |
 | supportsCitations, supportsSearchRecency, extractApiCost | `Boolean` | |
@@ -426,6 +444,21 @@ per-provider table.
 | litellmPrefix | `String?` | composite-key prefix for the LiteLLM tier |
 | hardcodedModels | `List<String>?` | fallback list |
 | defaultModelSource | `String?` | `"API"` or `"MANUAL"` |
+| auxHosts | `List<String>` | alternate API hostnames besides `baseUrl`'s host. The rate-limit-retry interceptor and tracer use this so a Mistral request that lands on `codestral.mistral.ai` is matched as the same logical provider |
+| nativeRerankUrl | `String?` | full URL the rerank dispatcher POSTs to. Cohere `/v2/rerank`. Null → no native rerank API; rerank flow falls back to a chat-model JSON prompt |
+| nativeModerationUrl | `String?` | full URL the moderation dispatcher POSTs to. Mistral `/v1/moderations`. Null → no native moderation API |
+| nativeCapabilityUrl | `String?` | full URL of a Cohere-shaped `/v1/models` capability listing. Drives the per-model context-length / vision flags when populated |
+| pricingFromModelList | `Boolean` | provider's `/v1/models` response carries authoritative pricing; harvest into `PricingCache.TOGETHER` tier (currently Together AI only) |
+| crossProviderModelList | `Boolean` | provider's `/v1/models` response drives pricing + type fan-out across other providers (currently OpenRouter only) |
+| mergeHardcodedModels | `Boolean` | union persisted `hardcodedModels` with the API list when the fetcher refreshes (so OpenAI moderation / TTS / image models survive a refresh that doesn't list them) |
+| externalReasoningSignalUntrusted | `Boolean` | ignore the LiteLLM / models.dev "is reasoning" signal — xAI's always-on reasoning models reject the `reasoning_effort` parameter. The 🧠 badge still renders; the dispatcher just skips the parameter |
+| responsesApiPatterns | `List<ModelPattern>` | model-id patterns routing dispatch to the OpenAI Responses API (`gpt-5*`, `o3*`, `o4*`, `gpt-4.1*`) |
+| reasoningModelPatterns | `List<ModelPattern>` | gates the 🧠 reasoning badge + thinking dispatch |
+| reasoningEffortAcceptPatterns | `List<ModelPattern>?` | narrower subset that actually accepts `reasoning_effort`. Null = use `reasoningModelPatterns`; xAI sets a narrower list because its always-on variants reject the parameter |
+| webSearchModelPatterns | `List<ModelPattern>` | gates the 🌐 web-search tool descriptor |
+| adaptiveThinkingPatterns | `List<ModelPattern>` | opts in to Anthropic's adaptive-thinking shape (claude-opus-4.6 / 4.7) |
+| maxTokensDefaults | `List<MaxTokensRule>` | per-family default `max_tokens` (Anthropic). First match wins, default 4096 |
+| builtInEndpoints | `List<Endpoint>` | bundled alternate endpoints (DeepSeek main + reasoner; Mistral chat + Codestral; Z.AI mainland + international). User can pick between them on the provider edit screen |
 
 There is also a synthetic singleton `AppService.LOCAL` (`id =
 "Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
@@ -434,6 +467,24 @@ legacy `"LOCAL"` string in persisted data still resolves) and routes
 chat / report / RAG / Fan-out calls through `LocalLlm` /
 `LocalEmbedder`.
 
+#### `ModelPattern`
+Shared by every `*Patterns` field on `AppService`. Wire format is a
+JSON object with one or more of three string fields (matched against
+the model id, lowercased): `prefix`, `contains`, `regex`. The first
+non-null field wins; an empty pattern matches nothing. `anyMatches`
+walks the list and returns true on the first hit.
+
+#### `MaxTokensRule`
+Per-family override for Anthropic's required `max_tokens`. Wire
+format is `{ "match": <ModelPattern>, "value": <Int> }`. Used when
+the user hasn't pinned an explicit `max_tokens` on the agent's
+parameters.
+
+#### `Endpoint`
+Bundled alternate endpoint. See `Endpoint` under "Settings &
+Configuration" — same shape, just preloaded from `providers.json`
+instead of created by the user.
+
 ### `ApiFormat` (enum)
 `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All cloud dispatch keys
 off this — provider identity is never used for routing. The on-device
@@ -441,9 +492,17 @@ runtime dispatches off `provider.id == "Local"` instead.
 
 ### `ModelType` (constants)
 `CHAT`, `RESPONSES`, `EMBEDDING`, `RERANK`, `IMAGE`, `TTS`, `STT`,
-`MODERATION`, `CLASSIFY`, `UNKNOWN`. `inferWebSearch` mirrors
-`infer` for OpenAI so the heuristic surfaces web-search-capable
-GPT models.
+`MODERATION`, `CLASSIFY`, `OCR`, `UNKNOWN`. `OCR` is Mistral-specific
+(its `mistral-ocr-*` capability flag); `UNKNOWN` is the runtime
+fallback when no source identifies the type. `ModelType.ALL` lists
+every type the user can configure paths for in display order — `CHAT`,
+`RESPONSES`, `EMBEDDING`, `RERANK`, `IMAGE`, `TTS`, `STT`,
+`MODERATION`, `CLASSIFY`, `OCR` — `UNKNOWN` is excluded.
+
+`inferReasoning` and the narrower `inferAcceptsReasoningEffortParam`
+are split so the 🧠 badge can fire on always-on reasoning models
+(xAI grok-4.x) that reject the parameter at dispatch time.
+`inferWebSearch` consults `provider.webSearchModelPatterns`.
 
 ---
 
@@ -564,7 +623,10 @@ Computed:
 | tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
 | showBackButton | `Boolean` (default true) | when false hides the visible `< Back` button on every TitleBar; system back still works |
-| subjectToTitleBar | `Boolean` (default false) | folds detail-screen subjects into the TitleBar; drops the green sub-header line |
+| subjectToTitleBarMode | `SubjectToTitleBarMode` (default `HARDCODED`) | tri-state: `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` folds the dynamic subject into the title bar and drops the green line; `BOTH` joins them with `/` and drops the green line |
+| iconBarAtBottom | `Boolean` (default false) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen and the top bar shows only the title. Bar lives at AppNavHost scope so it survives nav transitions |
+| iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background LLM call that generates a fitting emoji, the icon row appears on the result page, the dynamic emoji shows in title bars / hub list / history / search hits, and the 📝 memo icon mirrors. When false the call is skipped and per-row icons fall back to the static 🕘 / 📌 |
+| showKnowledgeCard | `Boolean` (default false) | gates the AI Knowledge card on the home Hub. Default off keeps the Hub approachable on a fresh install; the Knowledge subsystem itself stays fully functional whether or not the card is visible |
 
 > The intro / model_info / translate / rerank / moderation prompt
 > templates that used to live as `GeneralSettings` fields now live
@@ -575,6 +637,10 @@ Computed:
 ### `ModelNameLayout` (enum)
 `MODEL_ONLY`, `PROVIDER_AND_MODEL`. Provided to the composition
 tree via `LocalModelNameLayout` in `AppNavHost`.
+
+### `SubjectToTitleBarMode` (enum)
+`HARDCODED`, `SUBJECT`, `BOTH`. See `GeneralSettings`. Provided to
+the composition tree via `LocalSubjectToTitleBarMode`.
 
 ### `FetchModelsError`
 | message | `String` |
@@ -599,11 +665,17 @@ The single immutable bag the entire UI subscribes to. See
   `reportReasoningEffort`, `reportAdvancedParameters`,
   `attachedKnowledgeBaseIds`
 - Share-target staging: `chatStarterText: String?`,
-  `chatStarterImageBase64/Mime: String?`,
+  `chatStarterImageBase64/Mime: String?` (also fed by the AI Chat
+  hub's "📸 Start with photo" entry),
   `pendingKnowledgeUris: List<String>`,
   `pendingReportKnowledgeUris: List<String>`
 - `activeSecondaryBatches: Int` — count of in-flight secondary
   batches; the Meta button's hourglass / poll loop key off this
+- `iconRefreshTick: Int` — incremented every time the icon-gen
+  helper writes a new emoji onto a Report. Screens that render
+  `Report.icon` key their disk-reload effect on this so a
+  mid-flight resolution recomposes immediately rather than waiting
+  for the next ON_RESUME refresh
 - `externalIntent: ExternalIntent`
 - Chat: `chatParameters: ChatParameters`,
   `dualChatConfig: DualChatConfig?`

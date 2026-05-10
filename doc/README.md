@@ -8,7 +8,7 @@ base, and running everything offline against an on-device model
 when you want to.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~48,500 LOC across ~111 Kotlin files, MVVM with three view models,
+~52,300 LOC across 112 Kotlin files, MVVM with three view models,
 42 cloud providers across three API formats plus a synthetic
 on-device `Local` provider, seven external metadata repositories
 layered into one resolved view per `(provider, model)` pair, and a
@@ -90,6 +90,14 @@ If you're new to the codebase, the recommended path is:
 Pull up a subsystem doc (knowledge, local-runtime, translation,
 share-target, secondary-results, help) when a specific question
 lands in your lap.
+
+## Internal QA notes
+
+The repo also carries an `audit/` directory at the root (six
+markdown files: `00_summary.md`, `bugs_chat.md`, `bugs_data.md`,
+`bugs_reports.md`, `bugs_settings.md`, plus a `README.md`) with a
+running list of internal findings — not part of the user-facing
+documentation, but useful when picking up where someone left off.
 
 ## Authoritative sources
 

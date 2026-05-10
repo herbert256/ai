@@ -89,16 +89,16 @@ stats, pricing tier blobs).
 
 ## Codebase shape
 
-~48,500 LOC across 111 Kotlin files:
+~52,300 LOC across 112 Kotlin files:
 - `data/` — 30 files (HTTP, dispatch, streaming, tracer, registry,
   pricing, storage, RAG, on-device runtime, atomic-write helpers,
   bundled-asset seeds)
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
 - `viewmodel/` — 3 files (`AppViewModel`, `ChatViewModel`,
   `ReportViewModel`)
-- `ui/` — 75 files across 13 sub-domains (`hub`, `report` × 21,
+- `ui/` — 76 files across 13 sub-domains (`hub`, `report` × 21,
   `chat` × 5, `knowledge`, `models`, `search` × 4, `history` × 3,
-  `settings` × 18, `admin` × 10, `share`, `shared` × 7, `theme`,
+  `settings` × 18, `admin` × 10, `share`, `shared` × 8, `theme`,
   `navigation` × 2)
 - `MainActivity.kt`
 
@@ -112,6 +112,21 @@ keys off the format, never off provider identity, so 40 of 42 default
 providers share unified code paths. Adding an OpenAI-compatible
 provider is a one-line entry in `assets/providers.json` (see
 [development.md](development.md)).
+
+The `AppService` runtime class carries far more than just the format
+field — model-routing patterns
+(`responsesApiPatterns`, `reasoningModelPatterns`,
+`reasoningEffortAcceptPatterns`, `webSearchModelPatterns`,
+`adaptiveThinkingPatterns`), native non-chat endpoints
+(`nativeRerankUrl` for Cohere `/v2/rerank`, `nativeModerationUrl` for
+Mistral `/v1/moderations`, `nativeCapabilityUrl` for Cohere-style
+capability listings), pricing/list-fetch flags
+(`pricingFromModelList`, `crossProviderModelList`,
+`mergeHardcodedModels`, `externalReasoningSignalUntrusted`),
+per-family `max_tokens` defaults (`maxTokensDefaults`), and one or
+more `builtInEndpoints` (DeepSeek, Mistral, Z.AI all ship more than
+one endpoint out of the box). The full field list is in
+[datastructures.md](datastructures.md) under `AppService`.
 
 The id-unification refactor collapsed three name-like fields
 (`id` / `displayName` / `prefsKey`) into one. UI shows `id` directly;
@@ -162,20 +177,34 @@ picker as a normal "Local" provider.
 ### Two-tier navigation
 
 Top-level navigation uses Jetpack Navigation. Inside `SettingsScreen`,
-sub-screens are routed via the `SettingsSubScreen` enum and a `when`
-block — this keeps deep links into a single Settings overlay simple
-and lets back-navigation be a single state mutation.
+sub-screens are routed via the `SettingsSubScreen` enum (~32 entries
+covering AI Setup hubs, providers, models, model-types, agents,
+flocks, swarms, parameters, system prompts, internal-prompt hubs by
+category, example prompts, external services, local LiteRT models,
+local LLMs, import/export, refresh) and a `when` block — this keeps
+deep links into a single Settings overlay simple and lets
+back-navigation be a single state mutation.
 
 ### TitleBar action strip
 
-Every screen's `TitleBar` is a standardised six-icon action strip
-(`< Back`, plus context-specific icons like ❓ Help, ℹ Info, 🐞
-Trace, 💬 Chat, 🗑 Delete, 🔄 Refresh, 🏠 Home — Home is rightmost,
-inactive icons hide). The `< Back` button can be hidden via Settings
-(the system back / gesture back still works). The "Subject to title
-bar" preference folds long subject sub-headers into the title bar
-and drops the green sub-header line, with icons kept at 1× scale so
-the action strip stays usable when the title is long.
+Every screen's `TitleBar` is a standardised action strip — `< Back`
+plus a context-specific subset from {💬 Chat, ℹ Info, 📋 Copy,
+📤 Share, 🔄 Refresh, 🗑 Delete, 🐞 Trace, 📝 Memo, 🏠 Home,
+❓ Help}. Inactive icons hide; Home and Help are always last. The
+`< Back` button can be hidden via Settings (the system back /
+gesture back still works). `subjectToTitleBarMode` (tri-state:
+HARDCODED / SUBJECT / BOTH) folds the dynamic subject into the
+title bar in two flavours — SUBJECT replaces the static label,
+BOTH joins them with `/` — and drops the green sub-header line in
+both cases. `iconBarAtBottom` moves the action icons + back arrow
+into a bar pinned at the bottom of the screen so the top bar shows
+only the title; the bar lives at AppNavHost scope so it survives
+nav transitions. `iconGenEnabled` (default true) enables a
+background emoji-generation call on every new report whose result
+populates `Report.icon` — the Report Result screen, the AI Reports
+hub, history rows, and the title bar's leftmost icon all key off
+this. Toggling it off hides the icon row and the 📝 memo it
+mirrors; existing icons stay on disk for re-enable.
 
 ### Layered lookups
 
@@ -183,17 +212,19 @@ Two of the most important data flows are layered in fixed order:
 
 - **Pricing** for `(provider, model)`, in `PricingCache.getPricing`:
   provider-self-report (OpenRouter when caller is OpenRouter,
-  Together when caller is Together) → LiteLLM → models.dev →
-  llm-prices → Artificial Analysis → manual override → OpenRouter
+  Together when caller is Together) → manual override → LiteLLM →
+  models.dev → llm-prices → Artificial Analysis → OpenRouter
   cross-provider fallback → Helicone → default. The large tier
   blobs live as files under `filesDir/pricing/` (one per tier);
   only timestamps and the small manual-override map stay in
-  `pricing_cache.xml`. Manual user overrides win over LITELLM and
-  every other source. `ensureLoaded` short-circuits on the main
-  thread before the preload completes — UI callers get
-  `DEFAULT_PRICING` during the cold window and pick up real values
-  on the next state-driven recompose, instead of blocking Compose
-  on the synchronized 1.2 MB LiteLLM parse.
+  `pricing_cache.xml`. Manual user overrides win over every
+  curated source — putting them after LITELLM would silently
+  ignore corrections users add specifically because LITELLM has
+  stale data. `ensureLoaded` short-circuits on the main thread
+  before the preload completes — UI callers get `DEFAULT_PRICING`
+  during the cold window and pick up real values on the next
+  state-driven recompose, instead of blocking Compose on the
+  synchronized 1.2 MB LiteLLM parse.
 - **Capabilities** (`isVisionCapable`, `isWebSearchCapable`,
   `isReasoningCapable`):
   user override (per-provider visionModels / webSearchModels /

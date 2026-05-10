@@ -28,7 +28,7 @@ entry is independently viewable and deletable.
 Every chat-type meta / fan-out / fan-in / fixed-internal prompt
 lives as an `InternalPrompt` row, keyed by `category` + `name`.
 Settings → AI Setup → **Prompt management** is the CRUD surface,
-broken into four category buckets:
+broken into category buckets:
 
 - **Meta prompts** (`category = "meta"`) — runs on the full report
   (or a SecondaryScope). `Compare`, `Critique`, `Synthesize`, etc.
@@ -36,6 +36,15 @@ broken into four category buckets:
   every (answerer × source) pair.
 - **Fan-in prompts** (`category = "fan_in"`) — combines fan-out
   responses back into a single combined-report row.
+- **Model-scoped fan-in prompts** (`category = "initiator"` /
+  `"requester"` / `"model"`) — produces per-(provider, model)
+  rows that the Fan-out L2 page surfaces under each model's own
+  bucket. Distinct from the legacy total `fan_in` (which combines
+  the whole report and shows on L1's combined-rows section).
+  Resolver is `resolveModelFanInPrompt` with placeholders
+  `@INITIATOR@`, `@RESPONDERS@`, `@RESPONDER_PAIRS@`. Rows carry
+  `scopeProviderId` / `scopeModel` so the L2 page can filter to
+  the active model.
 - **Other internal** (`category = "internal"`) — fixed list of
   five fixed-name templates: `intro`, `model_info`, `translate`,
   `rerank`, `moderation`. No Add / Delete in this bucket.
@@ -143,6 +152,9 @@ Templates substitute these variables:
 | `@RESPONSE@` | Fan-out only — the source agent's response body |
 | `@FAN_OUT_COUNT@` | Fan-in only — the number of fan-out source agents |
 | `***Report*** @REPORT@@RESPONSES@` | Fan-in only — iterable block; expands once per source agent, with `@RESPONSES@` populated by every fan-out response for that source |
+| `@INITIATOR@` | Model-scoped fan-in only — active model's own report response. Used by `initiator` / `model` categories; empty for `requester` (where the active model is the answerer, not the source) |
+| `@RESPONDERS@` | Model-scoped fan-in only — block of fan-out responses where the active model is the source (other models responded TO active's report). One `***Response*** {body}` line per responder. Used by `initiator` / `model` |
+| `@RESPONDER_PAIRS@` | Model-scoped fan-in only — iterable list of pairs where the active model is the answerer. Each pair renders as `***Report*** {other's report body}\n\n***Response*** {active's fan-out response}`. Used by `requester` / `model` |
 
 ## The @RESULTS@ block
 
@@ -351,6 +363,30 @@ points at the right captured API trace.
   next click on the same Meta button pre-checks the same models.
 - runFanOutPrompt / runFanInPrompt **dedupes against an in-flight
   job key** so a fast double-tap doesn't fork two batches.
+
+## Native rerank / moderation endpoints
+
+Providers that declare `nativeRerankUrl` (Cohere `/v2/rerank`)
+take rerank dispatches through `callRerankApi` instead of building
+a chat prompt. The provider's `(index, relevance_score)` array is
+re-shaped into the same `[{id, rank, score, reason}, ...]` JSON
+the chat-rerank flow produces — score rescaled to 0-100 — so the
+rest of the pipeline (HTML export, Top-Ranked scope, anchor links)
+needs no second code path. `RerankApiResult.billedSearchUnits`
+captures Cohere's per-call billing units.
+
+Providers that declare `nativeModerationUrl` (Mistral
+`/v1/moderations`) take moderation dispatches through
+`callModerationApi`. The structured per-input result list is
+re-encoded into the `[{id, flagged, categories, scores}, ...]`
+JSON the detail screen parses. Mistral's response includes
+`prompt_tokens` / `completion_tokens` / `total_tokens` on the
+moderation call; `callNativeModeration` lifts these into
+`TokenUsage` so cost attribution matches chat-driven Meta runs.
+
+Both fall through with an explanatory error when the provider
+doesn't declare the URL — the user is told which provider to pick
+instead.
 
 ## Adding a fifth kind
 

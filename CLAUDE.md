@@ -9,8 +9,8 @@ having in the prompt window from the first turn.
 
 Android multi-provider AI app — reports, chat, dual chat, RAG
 knowledge bases, on-device LLM and embedder, share-target ingest.
-**39 cloud providers** across three API formats
-(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`); 37 share unified
+**42 cloud providers** across three API formats
+(`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`); 40 share unified
 code paths via the format dispatch, only Anthropic and Google
 have format-specific code.
 
@@ -23,7 +23,7 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~36,800 LOC across 103 Kotlin files (28 data, 68 ui, 3 viewmodel, 3 model, 1 entry) |
+| Size | ~52,300 LOC across 112 Kotlin files (30 data, 76 ui, 3 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
@@ -154,10 +154,12 @@ Two non-obvious conventions:
   bug appears in vision regen.
 - **Pricing layered lookup precedence** (in `PricingCache.getPricing`):
   provider self-report (OpenRouter when caller is OpenRouter,
-  Together when caller is Together) → LiteLLM → models.dev →
-  llm-prices → Artificial Analysis → manual override →
-  OpenRouter cross-provider fallback → Helicone → DEFAULT.
-  Manual override comes **after** the curated tiers.
+  Together when caller is Together) → manual override → LiteLLM →
+  models.dev → llm-prices → Artificial Analysis → OpenRouter
+  cross-provider fallback → Helicone → DEFAULT. Manual override
+  comes **before** the curated tiers — a user adding a manual
+  override specifically to correct a stale catalog entry would
+  otherwise be silently ignored.
 - **`PricingCache.ensureLoaded` short-circuits on the main
   thread** when called before `preloadCompleted`. UI callers
   get `DEFAULT_PRICING` during the cold window — recomposition

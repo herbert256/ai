@@ -24,7 +24,10 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
 | `show_back_button` | Boolean (default true) | when false hides the visible Back button |
-| `subject_to_title_bar` | Boolean (default false) | folds detail-screen subjects into the TitleBar |
+| `subject_to_title_bar_mode` | String (default `HARDCODED`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
+| `icon_bar_at_bottom` | Boolean (default false) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen |
+| `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background emoji-generation call on every new report) |
+| `show_knowledge_card` | Boolean (default false) | gates the AI Knowledge card on the home Hub. The Knowledge subsystem itself stays fully functional whether the card is visible or not |
 | `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed |
 
 > The intro / model_info / translate / rerank / moderation prompt

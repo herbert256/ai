@@ -9,23 +9,26 @@ The lookup precedence in `PricingCache.getPricing` for a
 `(provider, model)` pair is (top → bottom — first hit wins):
 
 ```
-1. Manual override (user-set per (provider, model)) — wins outright
-2. Provider self-report:
-   - OpenRouter native (only when caller's provider is OpenRouter)
-   - Together AI native (only when caller's provider is Together)
+1. Provider self-report (only checked when caller's own provider matches):
+   - OpenRouter native (when caller's provider is OpenRouter)
+   - Together AI native (when caller's provider is Together)
+2. Manual override (user-set per (provider, model))
 3. LiteLLM (curated bulk)
 4. models.dev (curated bulk)
 5. llm-prices.com (curated bulk)
 6. Artificial Analysis (curated bulk)
-7. OpenRouter cross-provider fallback
+7. OpenRouter cross-provider fallback (only for non-OpenRouter callers)
 8. Helicone (last resort — known data-quality issues, kept only
    so we have *some* answer before falling to default)
 9. DEFAULT ($0 / $0)
 ```
 
-User manual overrides used to sit between Artificial Analysis and
-OpenRouter cross-provider; they were promoted to the top of the
-chain so a deliberate user override always wins.
+Provider self-report wins outright when the caller is the
+authoritative source. After that, user manual overrides win over
+every curated source — they used to sit between Artificial
+Analysis and OpenRouter cross-provider, and were promoted because
+a deliberate override added specifically to correct stale catalog
+data was being silently ignored.
 `getPricingWithoutOverride` mirrors the same precedence (minus the
 override) for the Costs page's "what would the layered price be
 without your override?" view.
