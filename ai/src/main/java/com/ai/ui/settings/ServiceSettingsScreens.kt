@@ -887,7 +887,25 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            // API Key
+            // Models — link to the dedicated per-provider Models screen (AI Setup → Models → this provider)
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToModels() },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                    if (modelsCount > 0) {
+                        Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
+            }
+
+            // API Key + Default Model — folded into one card so the
+            // bound model sits next to the key it authenticates.
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("API Key", fontWeight = FontWeight.Bold, color = Color.White)
@@ -956,69 +974,24 @@ fun ProviderSettingsScreen(
                                     .clickable { onNavigateToTrace(tf) })
                         }
                     }
-                }
-            }
 
-            // Default Model — opens the shared SelectModelScreen overlay.
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showModelSelector = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = defaultModel.ifBlank { "Tap to select a model" },
-                            fontSize = 12.sp,
-                            color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.Blue,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
+                    // Default Model — opens the shared SelectModelScreen overlay.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { showModelSelector = true }
+                            .padding(top = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                text = defaultModel.ifBlank { "Tap to select a model" },
+                                fontSize = 12.sp,
+                                color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.Blue,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
                     }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                }
-            }
-
-            // Parameters — same blue-card pattern as Default Model / Models so a long
-            // list of selected presets wraps onto a second line instead of overflowing
-            // the row width.
-            val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showParamsDialog = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
-                            fontSize = 12.sp,
-                            color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
-                        )
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                }
-            }
-
-            // Models — link to the dedicated per-provider Models screen (AI Setup → Models → this provider)
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { onNavigateToModels() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                    if (modelsCount > 0) {
-                        Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
                 }
             }
 
@@ -1328,6 +1301,31 @@ fun ProviderSettingsScreen(
                 OutlinedTextField(value = service.id, onValueChange = {},
                     label = { Text("Prefs key") }, singleLine = true, readOnly = true, enabled = false,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+            }
+
+            // Parameters — same blue-card pattern as Default Model / Models so a long
+            // list of selected presets wraps onto a second line instead of overflowing
+            // the row width. Sits at the bottom because it's a power-user preset
+            // (not part of the basic API-key + model setup flow).
+            val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { showParamsDialog = true },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
+                            fontSize = 12.sp,
+                            color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
+                        )
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
             }
         }
     }
