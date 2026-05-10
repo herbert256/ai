@@ -799,24 +799,35 @@ private fun SettingCard(
     description: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // Cards start collapsed so the Settings screen lands on a compact
+    // title-only list. Tap the header row to expand description + body.
+    var expanded by remember { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, color = Color.White)
-            if (description != null) {
-                Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
-            content()
+            if (expanded) {
+                if (description != null) {
+                    Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+                }
+                content()
+            }
         }
     }
 }
 
 /** Switch on the same row as the title, description below — denser
  *  than [SettingCard] for the boolean preferences that don't need a
- *  full-width control beneath them. The whole card is clickable so
- *  the tap target isn't limited to the small Switch thumb. */
+ *  full-width control beneath them. Starts collapsed; tap the header
+ *  to expand and reveal the Switch + description. */
 @Composable
 private fun ToggleSettingCard(
     title: String,
@@ -824,17 +835,29 @@ private fun ToggleSettingCard(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    var expanded by remember { mutableStateOf(false) }
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                Switch(checked = checked, onCheckedChange = onCheckedChange)
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
-            if (description != null) {
-                Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+            if (expanded) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (checked) "On" else "Off",
+                        fontSize = 12.sp, color = AppColors.TextTertiary,
+                        modifier = Modifier.weight(1f))
+                    Switch(checked = checked, onCheckedChange = onCheckedChange)
+                }
+                if (description != null) {
+                    Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+                }
             }
         }
     }
