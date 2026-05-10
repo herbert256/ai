@@ -1102,16 +1102,15 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Models",
-                summary = defDefaultModelSource,
+                summary = null,
                 helpTopic = "provider_card_models"
             ) {
-                Text("Default source", fontSize = 12.sp, color = AppColors.TextTertiary)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf("API", "MANUAL").forEach {
-                        FilterChip(selected = defDefaultModelSource == it,
-                            onClick = { defDefaultModelSource = it }, label = { Text(it) })
-                    }
-                }
+                // The API / MANUAL source picker lives on the per-provider
+                // Models screen reached from the API Key card's Models
+                // row — having it here as well was the same single
+                // catalog field surfaced twice. Filter regex + hardcoded
+                // list are catalog metadata that don't have a home on
+                // the per-provider Models screen, so they stay here.
                 OutlinedTextField(value = defModelFilter, onValueChange = { defModelFilter = it },
                     label = { Text("Model filter regex (optional)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
