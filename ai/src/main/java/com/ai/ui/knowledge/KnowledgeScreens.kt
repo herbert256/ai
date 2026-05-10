@@ -335,13 +335,13 @@ fun KnowledgeDetailScreen(
         }
     }
 
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val kbForTitle = kb
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "knowledge_detail",
-            title = com.ai.ui.shared.titleBarLabel(mode, "Knowledge base", kbForTitle?.name ?: ""),
+            title = "Knowledge base",
+            subject = kbForTitle?.name,
             onBackClick = onBack,
             onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
         )

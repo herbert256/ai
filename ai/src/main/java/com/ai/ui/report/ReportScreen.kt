@@ -1693,28 +1693,25 @@ fun ReportsScreen(
     }
 
     // Main UI
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Static page title in the menu bar by default; the dynamic
         // prompt title surfaces as a green sub-header inside the body.
-        // SUBJECT folds the prompt title into the bar; BOTH puts both
-        // ("AI Report / <prompt title>") in the bar; HARDCODED keeps
-        // just the static label and shows the green line below.
-        val barTitle = run {
-            val promptTitle = uiState.genericPromptTitle
-            val base = if (!isGenerating) "AI Report — Models"
-                else com.ai.ui.shared.titleBarLabel(mode, "AI Report", promptTitle)
-            // Prepend the resolved icon emoji once kickOffIconGeneration
-            // finishes — visible on the result-screen title bar so the
-            // user sees the same icon they'll see in the hub / history
-            // list. Falls through cleanly when the icon hasn't resolved
-            // yet (or icon-gen wasn't configured).
-            if (!reportIcon.isNullOrEmpty()) "$reportIcon $base" else base
-        }
+        // SUBJECT folds the prompt title into the bar; BOTH renders
+        // subject left + "AI Report" right (no separator); HARDCODED
+        // keeps just the static label and shows the green line below.
+        val promptTitle = uiState.genericPromptTitle
+        val barFixed = if (!isGenerating) "AI Report — Models" else "AI Report"
+        // Prepend the resolved icon emoji once kickOffIconGeneration
+        // finishes — visible on the result-screen title bar so the
+        // user sees the same icon they'll see in the hub / history
+        // list. Falls through cleanly when the icon hasn't resolved
+        // yet (or icon-gen wasn't configured).
+        val barTitle = if (!reportIcon.isNullOrEmpty()) "$reportIcon $barFixed" else barFixed
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,
+            subject = if (isGenerating) promptTitle else null,
             onBackClick = onDismiss,
             onReload = if (isGenerating && currentReportId != null && isComplete) {
                 { showRegenerateConfirm = true }

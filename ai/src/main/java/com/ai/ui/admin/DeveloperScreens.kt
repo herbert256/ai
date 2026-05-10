@@ -80,12 +80,12 @@ fun ApiTestScreen(
             else availableModels.filter { it.lowercase().contains(search.lowercase()) }
         }
         BackHandler { showModelDialog = false }
-        val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-        val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_model",
-                title = com.ai.ui.shared.titleBarLabel(mode, "Select Model", selectedProvider.id),
+                title = "Select Model",
+                subject = selectedProvider.id,
                 onBackClick = { showModelDialog = false }
             )
             if (!foldSubject) {
@@ -150,12 +150,12 @@ fun ApiTestScreen(
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
-        val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-        val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_endpoint",
-                title = com.ai.ui.shared.titleBarLabel(mode, "Select Endpoint", selectedProvider.id),
+                title = "Select Endpoint",
+                subject = selectedProvider.id,
                 onBackClick = { showEndpointDialog = false }
             )
             if (!foldSubject) {

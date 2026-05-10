@@ -389,12 +389,12 @@ fun ModelInfoScreen(
         }
     }
 
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "model_info",
-            title = com.ai.ui.shared.titleBarLabel(mode, "Model Info", modelName),
+            title = "Model Info",
+            subject = modelName,
             onBackClick = onNavigateBack,
             onTrace = if (ApiTracer.isTracingEnabled && traceCount > 0) {
                 { onNavigateToTracesForModel(provider, modelName) }
@@ -1107,8 +1107,7 @@ private fun ModelRawInfoScreen(
 ) {
     BackHandler { onBack() }
     val annotated = remember(body) { colorizeJson(body) }
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
@@ -1116,7 +1115,8 @@ private fun ModelRawInfoScreen(
             // legend: ❓ = help for the current screen, ℹ = drill
             // into a details target (here, the per-provider help).
             helpTopic = "model_raw",
-            title = if (provider != null) com.ai.ui.shared.titleBarLabel(mode, "Info provider", provider.displayName) else title,
+            title = if (provider != null) "Info provider" else title,
+            subject = provider?.displayName,
             onBackClick = onBack,
             // ℹ → per-provider help page (LiteLLM, OpenRouter, …).
             onInfo = if (provider != null) {

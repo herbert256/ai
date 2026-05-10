@@ -254,16 +254,15 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
                 helpTopic = "secondary_list",
-                title = com.ai.ui.shared.reportIconTitle(parentReport,
-                    com.ai.ui.shared.titleBarLabel(mode, "Secondary results", baseTitle)),
+                title = com.ai.ui.shared.reportIconTitle(parentReport, "Secondary results"),
+                subject = baseTitle,
                 onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
@@ -1730,8 +1729,7 @@ private fun OnePageView(
     val context = LocalContext.current
     val provName = AppService.findById(activePid)?.id ?: activePid
     val activeProviderService = AppService.findById(activePid)
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
@@ -1807,8 +1805,8 @@ private fun OnePageView(
         // model, mirroring the L2 page's TitleBar slot.
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = com.ai.ui.shared.reportIconTitle(parentReport,
-                com.ai.ui.shared.titleBarLabel(mode, "One page view", modelLabel)),
+            title = com.ai.ui.shared.reportIconTitle(parentReport, "One page view"),
+            subject = modelLabel,
             onBackClick = onBack,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -2018,14 +2016,13 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
-            title = com.ai.ui.shared.reportIconTitle(parentReport,
-                com.ai.ui.shared.titleBarLabel(mode, "Secondary detail", title)),
+            title = com.ai.ui.shared.reportIconTitle(parentReport, "Secondary detail"),
+            subject = title,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },

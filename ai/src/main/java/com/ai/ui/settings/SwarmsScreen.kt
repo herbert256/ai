@@ -125,15 +125,14 @@ fun SwarmEditScreen(
             onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
     }
 
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "swarm_edit",
-            title = if (!isEditing) "Add Swarm"
-                else com.ai.ui.shared.titleBarLabel(mode, "Edit Swarm", name),
+            title = if (!isEditing) "Add Swarm" else "Edit Swarm",
+            subject = name,
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))

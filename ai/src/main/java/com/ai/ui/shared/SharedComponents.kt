@@ -89,21 +89,6 @@ val LocalShowBackButton = compositionLocalOf { true }
  *  GeneralSettings.subjectToTitleBarMode. */
 val LocalSubjectToTitleBarMode = compositionLocalOf { com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED }
 
-/** Composes the title shown in the top bar based on the user's
- *  Settings → "Subject to title bar" choice. HARDCODED → fixed;
- *  SUBJECT → subject (falls back to fixed when blank); BOTH →
- *  "<fixed> / <subject>" (falls back to fixed when subject is blank). */
-fun titleBarLabel(
-    mode: com.ai.viewmodel.SubjectToTitleBarMode,
-    fixed: String,
-    subject: String
-): String = when (mode) {
-    com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED -> fixed
-    com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT -> subject.ifBlank { fixed }
-    com.ai.viewmodel.SubjectToTitleBarMode.BOTH ->
-        if (subject.isBlank()) fixed else "$fixed / $subject"
-}
-
 /** Provided by AppNavHost so the title-bar Help icon can navigate
  *  to a help page without prop-drilling a callback. The argument is
  *  the screen-specific topic ID (e.g., "agents", "report_result");
@@ -268,6 +253,17 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
 @Composable
 fun TitleBar(
     title: String? = null,
+    /** Optional dynamic subject — model id, KB name, agent name, …
+     *  When [LocalSubjectToTitleBarMode] is SUBJECT or BOTH, the bar
+     *  uses [subject] in its title slot:
+     *  - SUBJECT: replace [title] with [subject] (falls back to [title]
+     *    when [subject] is null/blank).
+     *  - BOTH: render [subject] left-aligned and [title] right-aligned
+     *    in the title slot, no separator (also falls back to a single
+     *    centred [title] when [subject] is null/blank).
+     *  HARDCODED ignores [subject] entirely — the subject still renders
+     *  as the green sub-header below the bar at each consumer site. */
+    subject: String? = null,
     onBackClick: (() -> Unit)? = null,
     backText: String = "< Back",
     leftContent: (@Composable RowScope.() -> Unit)? = null,
@@ -394,14 +390,50 @@ fun TitleBar(
                     Text(backText, color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
                 }
             }
-            if (title != null) {
-                Text(
-                    text = title, style = titleStyle, color = Color.White,
-                    fontSize = titleStyle.fontSize * scale,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                    textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
+            // Title slot — three layouts depending on
+            // LocalSubjectToTitleBarMode:
+            //  HARDCODED: render only [title].
+            //  SUBJECT  : render [subject] (fall back to [title] when
+            //             subject is null/blank).
+            //  BOTH     : when [subject] is non-blank, render two
+            //             Texts side-by-side: subject on the left,
+            //             title on the right, with no separator. Falls
+            //             back to single [title] when subject is blank.
+            val mode = LocalSubjectToTitleBarMode.current
+            val subjectNonBlank = !subject.isNullOrBlank()
+            if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = subject!!, style = titleStyle, color = Color.White,
+                        fontSize = titleStyle.fontSize * scale,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Start,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = title, style = titleStyle, color = Color.White,
+                        fontSize = titleStyle.fontSize * scale,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.End,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+            } else {
+                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) subject!! else title
+                if (effective != null) {
+                    Text(
+                        text = effective, style = titleStyle, color = Color.White,
+                        fontSize = titleStyle.fontSize * scale,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                        textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
             TitleBarActionStrip(
                 onHome = navigateHome,

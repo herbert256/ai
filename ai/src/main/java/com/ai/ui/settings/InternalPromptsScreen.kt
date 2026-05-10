@@ -142,16 +142,15 @@ fun InternalPromptEditScreen(
 
     var agentMenuOpen by remember { mutableStateOf(false) }
 
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         val singular = categoryDisplayName(fixedCategory).removeSuffix("s")
         TitleBar(
             helpTopic = "internal_prompt_edit",
-            title = if (!isEditing) "Add $singular"
-                else com.ai.ui.shared.titleBarLabel(mode, "Edit $singular", name),
+            title = if (!isEditing) "Add $singular" else "Edit $singular",
+            subject = name,
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))

@@ -414,14 +414,13 @@ private fun OnePageReportView(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
-    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val titleText = report.title.ifBlank { "Report" }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "content_view",
-            title = com.ai.ui.shared.reportIconTitle(report,
-                com.ai.ui.shared.titleBarLabel(mode, "View in one page", titleText)),
+            title = com.ai.ui.shared.reportIconTitle(report, "View in one page"),
+            subject = titleText,
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
