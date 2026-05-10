@@ -1019,8 +1019,12 @@ fun ProviderSettingsScreen(
                 OutlinedTextField(value = defAdminUrl, onValueChange = { defAdminUrl = it },
                     label = { Text("Admin URL") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                Text(
+                    "Catalog fallback used to seed a fresh install (or when no per-user model is persisted yet). The user's active model lives on the API Key card above and is independent of this value.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
                 OutlinedTextField(value = defDefaultModel, onValueChange = { defDefaultModel = it },
-                    label = { Text("Default model") }, singleLine = true,
+                    label = { Text("Catalog default model") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
