@@ -185,8 +185,13 @@
         { "id": "deepseek-chat", "name": "Chat Completions", "url": "https://api.deepseek.com/chat/completions", "isDefault": true },
         { "id": "deepseek-beta", "name": "Beta (FIM)", "url": "https://api.deepseek.com/beta/completions" }
       ],
+      "hardcodedModels": [
+        "deepseek-chat",
+        "deepseek-reasoner"
+      ],
       "id": "DeepSeek",
       "litellmPrefix": "deepseek",
+      "mergeHardcodedModels": true,
       "modelFilter": "deepseek",
       "modelListFormat": "object",
       "modelsPath": "models",
