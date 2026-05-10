@@ -615,6 +615,7 @@ fun ReportsScreen(
     var openTranslationRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
     var showViewer by rememberSaveable { mutableStateOf(false) }
+    var showIconDetail by rememberSaveable { mutableStateOf(false) }
     var selectedAgentForViewer by rememberSaveable { mutableStateOf<String?>(null) }
     var viewerSection by rememberSaveable { mutableStateOf<String?>(null) }
     // Per-row click → focused single-model viewer. Distinct from the
@@ -801,6 +802,31 @@ fun ReportsScreen(
     }
 
     // Full-screen overlays
+    if (showIconDetail && currentReportId != null) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        }
+        val iconAgent = iconPrompt?.let { p ->
+            aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+        }
+        if (iconPrompt != null && iconAgent != null) {
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
+                ReportIconDetailScreen(
+                    aiSettings = aiSettings,
+                    iconPrompt = iconPrompt,
+                    iconAgent = iconAgent,
+                    promptText = uiState.genericPromptText,
+                    icon = reportIcon,
+                    errorMessage = reportIconError,
+                    cost = reportIconCost,
+                    onBack = { showIconDetail = false }
+                )
+            }
+            return
+        }
+        // Icon prompt / agent missing — nothing to show. Fall through.
+        showIconDetail = false
+    }
     if (showViewer && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
             ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
@@ -1836,7 +1862,8 @@ fun ReportsScreen(
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
                 reportIcon = reportIcon,
                 reportIconError = reportIconError,
-                reportIconCost = reportIconCost
+                reportIconCost = reportIconCost,
+                onOpenIconDetail = { showIconDetail = true }
             )
         }
     }
@@ -2055,7 +2082,10 @@ private fun ColumnScope.GenerationPhase(
     reportIconError: String? = null,
     /** Report.iconCost mirrored from disk. Rendered on the right of
      *  the inline 'icon' row + summed into the report total. */
-    reportIconCost: Double = 0.0
+    reportIconCost: Double = 0.0,
+    /** Tap-handler for the inline 'icon' row — opens the icon-gen
+     *  detail overlay (model + prompt + response). */
+    onOpenIconDetail: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -2520,7 +2550,8 @@ private fun ColumnScope.GenerationPhase(
             if (iconPrompt != null && iconAgent != null) {
                 item(key = "row-icon") {
                     val running = reportIcon == null && reportIconError == null
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        .clickable { onOpenIconDetail() },
                         verticalAlignment = Alignment.CenterVertically) {
                         when {
                             reportIconError != null -> Text("❌", fontSize = 16.sp,
@@ -2857,4 +2888,81 @@ internal fun AnimatedHourglass(fontSize: androidx.compose.ui.unit.TextUnit = 12.
         label = "secondary-hourglass-rotation"
     )
     Text(text = "⏳", fontSize = fontSize, modifier = Modifier.rotate(angle))
+}
+
+/** Detail overlay reached by tapping the inline 'icon' row on the
+ *  AI Report result page. Renders the model name used for the
+ *  icon-gen call, the resolved prompt sent to that model, and the
+ *  response (the emoji on success, the error string on failure). */
+@Composable
+private fun ReportIconDetailScreen(
+    aiSettings: Settings,
+    iconPrompt: InternalPrompt,
+    iconAgent: Agent,
+    promptText: String,
+    icon: String?,
+    errorMessage: String?,
+    cost: Double,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val effectiveModel = aiSettings.getEffectiveModelForAgent(iconAgent)
+    val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
+    val running = icon == null && errorMessage == null
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "report_icon_detail",
+            title = "Icon",
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold)
+                    Text(com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel),
+                        fontSize = 14.sp, color = Color.White)
+                    if (cost > 0.0) {
+                        Text("Cost: ${formatCents(cost)} ¢",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    Text(resolvedPrompt, fontSize = 13.sp, color = Color.White,
+                        lineHeight = 18.sp)
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Response", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    when {
+                        errorMessage != null -> Text(errorMessage,
+                            fontSize = 13.sp, color = AppColors.Red, lineHeight = 18.sp)
+                        running -> Text("(running…)",
+                            fontSize = 13.sp, color = AppColors.TextTertiary)
+                        icon != null -> Text(icon, fontSize = 36.sp, color = Color.White)
+                        else -> Text("(no response)",
+                            fontSize = 13.sp, color = AppColors.TextTertiary)
+                    }
+                }
+            }
+        }
+    }
 }
