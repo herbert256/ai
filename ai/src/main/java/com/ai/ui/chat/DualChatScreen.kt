@@ -274,8 +274,8 @@ private fun ModelSelectionCard(
     systemPromptId: String?,
     onSystemPromptIdChange: (String?) -> Unit
 ) {
-    var showSystemPromptDialog by remember { mutableStateOf(false) }
-    var showParamsDialog by remember { mutableStateOf(false) }
+    var showSystemPromptDialog by rememberSaveable { mutableStateOf(false) }
+    var showParamsDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showSystemPromptDialog) {
         SystemPromptSelectorDialog(

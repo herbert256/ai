@@ -165,7 +165,7 @@ private fun ReportsViewerScreenLoaded(
     }
     val translates = translatesState.value
     val langTabs = remember(translates) { buildLangTabs(translates) }
-    var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    var selectedLangKey by rememberSaveable { mutableStateOf(LangTab.ORIGINAL_KEY) }
     // Keep the selection valid if translations finish loading after
     // first composition — if the previously chosen key dropped off the
     // list (e.g. a translation was deleted) snap back to Original.
@@ -232,7 +232,7 @@ private fun ReportsViewerScreenLoaded(
     val agentsWithResults = remember(report) {
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.sortedBy { it.agentName.lowercase() }
     }
-    var selectedAgentId by remember { mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.agentId) }
+    var selectedAgentId by rememberSaveable { mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.agentId) }
     var showOnePage by rememberSaveable { mutableStateOf(false) }
     if (showOnePage) {
         OnePageReportView(

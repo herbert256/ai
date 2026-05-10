@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,6 +41,64 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+// ===== rememberSaveable savers =====
+//
+// These are needed so the multi-step picker / scope / overlay state
+// in ReportScreen survives the back-pop hop through the Help screen
+// (and any other Compose Navigation destination that removes the
+// AI_REPORTS Composable from the composition while it's painted).
+// Without these the user lands back at the report root mid-flow.
+
+private val InternalPromptSaver: Saver<InternalPrompt?, Any> = listSaver(
+    save = { p ->
+        if (p == null) emptyList()
+        else listOf(p.id, p.name, p.reference, p.category, p.agent, p.text, p.title)
+    },
+    restore = { l ->
+        if (l.isEmpty()) null
+        else InternalPrompt(
+            id = l[0] as String,
+            name = l[1] as String,
+            reference = l[2] as Boolean,
+            category = l[3] as String,
+            agent = l[4] as String,
+            text = l[5] as String,
+            title = l[6] as String
+        )
+    }
+)
+
+private val TargetLanguageSaver: Saver<TargetLanguage?, Any> = listSaver(
+    save = { tl -> if (tl == null) emptyList() else listOf(tl.name, tl.native) },
+    restore = { l -> if (l.isEmpty()) null else TargetLanguage(l[0] as String, l[1] as String) }
+)
+
+private val SecondaryScopeSaver: Saver<SecondaryScope, String> = Saver(
+    save = { it.encode() },
+    restore = { SecondaryScope.decodeOrAllReports(it) }
+)
+
+private val SecondaryLanguageScopeSaver: Saver<SecondaryLanguageScope, Any> = listSaver(
+    save = { sls ->
+        when (sls) {
+            is SecondaryLanguageScope.AllPresent -> listOf("ALL")
+            is SecondaryLanguageScope.Selected -> listOf("SEL") + sls.languages.toList()
+        }
+    },
+    restore = { l ->
+        when {
+            l.isEmpty() -> SecondaryLanguageScope.AllPresent
+            l[0] == "SEL" -> SecondaryLanguageScope.Selected(l.drop(1).filterIsInstance<String>().toSet())
+            else -> SecondaryLanguageScope.AllPresent
+        }
+    }
+)
+
+private val AppServiceSaver: Saver<AppService?, String> = Saver(
+    save = { it?.id ?: "" },
+    restore = { s -> if (s.isBlank()) null else AppService.findById(s) }
+)
 
 // ===== Navigation Wrapper =====
 
@@ -520,33 +580,33 @@ fun ReportsScreen(
     var openMetaResultId by rememberSaveable { mutableStateOf<String?>(null) }
     var openTranslationRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
-    var showViewer by remember { mutableStateOf(false) }
-    var selectedAgentForViewer by remember { mutableStateOf<String?>(null) }
-    var viewerSection by remember { mutableStateOf<String?>(null) }
+    var showViewer by rememberSaveable { mutableStateOf(false) }
+    var selectedAgentForViewer by rememberSaveable { mutableStateOf<String?>(null) }
+    var viewerSection by rememberSaveable { mutableStateOf<String?>(null) }
     // Per-row click → focused single-model viewer. Distinct from the
     // multi-agent ReportsViewerScreen reached via View → Results.
-    var singleResultAgentId by remember { mutableStateOf<String?>(null) }
-    var showExport by remember { mutableStateOf(false) }
-    var showEditPrompt by remember { mutableStateOf(false) }
-    var showEditTitle by remember { mutableStateOf(false) }
-    var showEditParameters by remember { mutableStateOf(false) }
-    var showAdvancedParameters by remember { mutableStateOf(false) }
+    var singleResultAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showExport by rememberSaveable { mutableStateOf(false) }
+    var showEditPrompt by rememberSaveable { mutableStateOf(false) }
+    var showEditTitle by rememberSaveable { mutableStateOf(false) }
+    var showEditParameters by rememberSaveable { mutableStateOf(false) }
+    var showAdvancedParameters by rememberSaveable { mutableStateOf(false) }
     // Translate flow state.
-    var showTranslateLanguagePicker by remember { mutableStateOf(false) }
-    var showTranslateModelPicker by remember { mutableStateOf<TargetLanguage?>(null) }
+    var showTranslateLanguagePicker by rememberSaveable { mutableStateOf(false) }
+    var showTranslateModelPicker by rememberSaveable(stateSaver = TargetLanguageSaver) { mutableStateOf<TargetLanguage?>(null) }
     var models by remember { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
-    var showInfoPicker by remember { mutableStateOf(false) }
+    var showInfoPicker by rememberSaveable { mutableStateOf(false) }
     // Action-row pickers — hoisted up here so they render as proper
     // full-screen overlays. When they lived inside GenerationPhase the
     // parent TitleBar + ActionRow had already painted above them, so
     // the picker visibly stacked on top of a half-drawn screen.
-    var showViewPicker by remember { mutableStateOf(false) }
-    var showEditPicker by remember { mutableStateOf(false) }
-    var showMetaPicker by remember { mutableStateOf(false) }
-    var showFanOutPicker by remember { mutableStateOf(false) }
-    var showRerankPicker by remember { mutableStateOf(false) }
+    var showViewPicker by rememberSaveable { mutableStateOf(false) }
+    var showEditPicker by rememberSaveable { mutableStateOf(false) }
+    var showMetaPicker by rememberSaveable { mutableStateOf(false) }
+    var showFanOutPicker by rememberSaveable { mutableStateOf(false) }
+    var showRerankPicker by rememberSaveable { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -557,33 +617,33 @@ fun ReportsScreen(
             onConsumePendingModels()
         }
     }
-    var showSelectFlock by remember { mutableStateOf(false) }
-    var showSelectAgent by remember { mutableStateOf(false) }
-    var showSelectSwarm by remember { mutableStateOf(false) }
-    var showSelectProvider by remember { mutableStateOf(false) }
-    var pendingProvider by remember { mutableStateOf<AppService?>(null) }
-    var showSelectAllModels by remember { mutableStateOf(false) }
-    var showSelectFromReport by remember { mutableStateOf(false) }
-    var selectedParametersIds by remember { mutableStateOf<List<String>>(emptyList()) }
-    var externalAutoGenerated by remember { mutableStateOf(false) }
+    var showSelectFlock by rememberSaveable { mutableStateOf(false) }
+    var showSelectAgent by rememberSaveable { mutableStateOf(false) }
+    var showSelectSwarm by rememberSaveable { mutableStateOf(false) }
+    var showSelectProvider by rememberSaveable { mutableStateOf(false) }
+    var pendingProvider by rememberSaveable(stateSaver = AppServiceSaver) { mutableStateOf<AppService?>(null) }
+    var showSelectAllModels by rememberSaveable { mutableStateOf(false) }
+    var showSelectFromReport by rememberSaveable { mutableStateOf(false) }
+    var selectedParametersIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var externalAutoGenerated by rememberSaveable { mutableStateOf(false) }
     // Meta prompt state — replaces the old kind-specific state. The
     // user picks one Meta prompt at a time from the new Meta card or
     // the unified Meta hub; type=chat goes through the scope screen
     // first, type=rerank/moderation skips it.
-    var secondaryPickerMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
-    var secondaryScopeMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
-    var pendingSecondaryScope by remember { mutableStateOf<com.ai.data.SecondaryScope>(com.ai.data.SecondaryScope.AllReports) }
-    var pendingLanguageScope by remember { mutableStateOf<com.ai.data.SecondaryLanguageScope>(com.ai.data.SecondaryLanguageScope.AllPresent) }
+    var secondaryPickerMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    var secondaryScopeMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    var pendingSecondaryScope by rememberSaveable(stateSaver = SecondaryScopeSaver) { mutableStateOf<SecondaryScope>(SecondaryScope.AllReports) }
+    var pendingLanguageScope by rememberSaveable(stateSaver = SecondaryLanguageScopeSaver) { mutableStateOf<SecondaryLanguageScope>(SecondaryLanguageScope.AllPresent) }
     // Fan-out confirm dialog: shown after the scope screen, before
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
-    var fanOutConfirmMetaPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    var fanOutConfirmMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     // Fan_in run model picker. Triggered from the fan out detail
     // screen's "Combine reports and all fan out responses" button.
-    var fanInPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    var fanInPickerPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     // First step of the fan_in flow: pick which fan_in prompt
     // to run. Once chosen we hand off to fanInPickerPrompt above.
-    var showFanInPromptPicker by remember { mutableStateOf(false) }
+    var showFanInPromptPicker by rememberSaveable { mutableStateOf(false) }
     // Model-scoped fan-in (categories initiator / requester /
     // model) flow state. Triggered from L2's "Create a model fan
     // in report" expandable. The active provider/model identify the
@@ -591,11 +651,11 @@ fun ReportsScreen(
     // they're stored here so the picker → model picker chain can
     // reach all the way to ReportViewModel.runModelFanInPrompt
     // without re-deriving them.
-    var modelFanInActivePid by remember { mutableStateOf<String?>(null) }
-    var modelFanInActiveMdl by remember { mutableStateOf<String?>(null) }
-    var modelFanInPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
+    var modelFanInActivePid by rememberSaveable { mutableStateOf<String?>(null) }
+    var modelFanInActiveMdl by rememberSaveable { mutableStateOf<String?>(null) }
+    var modelFanInPickerPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     // Unified Meta screen overlay reached from the Actions card.
-    var showMetaScreen by remember { mutableStateOf(false) }
+    var showMetaScreen by rememberSaveable { mutableStateOf(false) }
     // Per-name (or per-legacy-kind) list overlay reached from the View
     // card buttons. The kind is still useful for routing through
     // SecondaryResultsScreen (rendering picks the chat-type META path
