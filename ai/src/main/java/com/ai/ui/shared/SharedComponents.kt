@@ -364,7 +364,7 @@ private fun TitleBarActionStrip(
         // touching the diagnostic bug icon as one chunk. Only fires
         // when both are shown.
         if (onDelete != null && onTrace != null) {
-            Spacer(modifier = Modifier.width(4.dp * scale))
+            Spacer(modifier = Modifier.width(2.dp * scale))
         }
         // Trace's 🐞 glyph reads narrower than its trailing space in
         // a 28dp slot, leaving a visible gap before the next icon.
