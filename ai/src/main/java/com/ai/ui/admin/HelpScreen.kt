@@ -730,14 +730,22 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_edit_prompt" to HelpContent(
-        title = "Edit prompt / title",
+        title = "Edit prompt",
         cards = listOf(
-            HelpCard("Overview", "Modify the report's prompt (or just its title). Saving stamps hasPendingPromptChange so the result screen surfaces a yellow 'Changes pending: prompt' banner — the existing rows aren't re-rendered until you tap Regenerate."),
+            HelpCard("Overview", "Modify the report's prompt. Saving stamps hasPendingPromptChange so the result screen surfaces a yellow 'Changes pending: prompt' banner — the existing rows aren't re-rendered until you tap Regenerate."),
             HelpCard("Prompt field", "Multi-line, fills the screen. Update prompt is disabled when the body trims to blank."),
-            HelpCard("Title field (Edit title variant)", "Single-line, no pending-changes flag — title is metadata only and doesn't affect any outbound API call."),
-            HelpCard("Saver scoping", "rememberSaveable is keyed on initialPrompt / initialTitle so re-opening the overlay with a fresh seed value doesn't restore a stale draft from the SaveableStateRegistry."),
-            HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate. Edit title is in-place: no banner, no regenerate prompt."),
-            HelpCard("Related", "Action row → Edit → Models routes to the selection phase in 'Update model list' mode for stripping/adding agents.")
+            HelpCard("Saver scoping", "rememberSaveable is keyed on initialPrompt so re-opening the overlay with a fresh seed value doesn't restore a stale draft from the SaveableStateRegistry."),
+            HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate."),
+            HelpCard("Related", "Action row → Edit → Title is a separate overlay; Edit → Models routes to the selection phase in 'Update model list' mode for stripping/adding agents.")
+        )
+    ),
+    "report_edit_title" to HelpContent(
+        title = "Edit title",
+        cards = listOf(
+            HelpCard("Overview", "Rename the report. Title is metadata only — no outbound API call references it, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
+            HelpCard("Title field", "Single-line. Update title is disabled when the body trims to blank."),
+            HelpCard("Saver scoping", "rememberSaveable is keyed on initialTitle so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
+            HelpCard("Related", "Edit prompt is a separate overlay (with the pending-changes banner); this screen is in-place editing.")
         )
     ),
     "report_parameters" to HelpContent(
@@ -849,16 +857,22 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_agent" to HelpContent(
-        title = "Pick an agent / previous report",
+        title = "Pick an agent",
         cards = listOf(
-            HelpCard("Overview", "Two flows share this help topic: the agent dialog reached by +Agent, and the full-screen 'Pick previous report' picker reached by +Report on the selection phase."),
-            HelpCard("Agent dialog", "Lists every saved agent with name + provider · model + per-million-token pricing. Search filters by name or provider name. Tap a row to add it to the report."),
+            HelpCard("Overview", "Agent dialog reached by +Agent on the selection phase. Lists every saved agent with name + provider · model + per-million-token pricing. Search filters by name or provider name. Tap a row to add the agent to the report."),
             HelpCard("Pricing badge", "Red when the model has real pricing data; grey-on-grey when the row fell through to DEFAULT_PRICING. Updates as PricingCache loads tier blobs in the background."),
-            HelpCard("Pick previous report", "Single-select picker over saved reports — newest first by Report.timestamp. Tap to copy that report's model list into the current selection."),
-            HelpCard("Search (previous report)", "Filters by title or prompt. Search results count line shows '<filtered> of <total> reports'."),
-            HelpCard("Empty state", "When there are no agents / reports yet, the body is empty (agent dialog) or shows 'No previous reports yet.' (report picker)."),
+            HelpCard("Empty state", "When there are no agents yet, the body is empty — set up agents first under AI Setup → Agents."),
+            HelpCard("Title bar / dismiss", "Dialog dismisses via a Back TextButton at the bottom-right.")
+        )
+    ),
+    "report_pick_previous" to HelpContent(
+        title = "Pick previous report",
+        cards = listOf(
+            HelpCard("Overview", "Single-select picker over saved reports, reached by +Report on the selection phase. Newest first by Report.timestamp. Tap to copy that report's model list into the current selection."),
+            HelpCard("Search", "Filters by title or prompt. The count line above the list reads '<filtered> of <total> reports'."),
+            HelpCard("Empty state", "When no reports exist yet, the body shows 'No previous reports yet.'"),
             HelpCard("Pitfalls", "Reports list is loaded off the UI thread because getAllReports re-parses every report JSON, including image-attached ones."),
-            HelpCard("Title bar / dismiss", "Agent dialog dismisses via a Back TextButton at the bottom-right; the previous-report picker has a normal back arrow.")
+            HelpCard("Title bar", "Standard back arrow — popping back returns you to the New AI Report selection phase.")
         )
     ),
     "report_pick_swarm" to HelpContent(
@@ -926,16 +940,25 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Search for native script directly works — typing '中文' jumps to Mandarin without remembering the English name."),
         )
     ),
-    "content_view" to HelpContent(
-        title = "View report content",
+    "content_model_response" to HelpContent(
+        title = "Model response",
         cards = listOf(
-            HelpCard("Overview", "Full-screen viewer for a saved report's content. Three modes share this screen: per-agent body picker (default), prompt-only ('Prompt' title), or the cost table ('Cost summary' title)."),
+            HelpCard("Overview", "Full-screen viewer for one agent's response on a saved report. The agent picker dropdown sits below the title bar; the active model's body fills the rest of the screen. Other content modes — Prompt, Cost summary, View on one page — have their own help pages."),
             HelpCard("Loading state", "Reports are loaded on Dispatchers.IO via produceState — a Loading sentinel keeps the empty-state text from flashing while the JSON parse runs."),
-            HelpCard("Language picker row", "When the report has TRANSLATE rows, a FlowRow of buttons (Original + one per distinct targetLanguage) sits below the title bar. Selecting a non-Original key overlays translated content onto the matching agent / prompt rows."),
-            HelpCard("Agent buttons", "Per-agent FlowRow built from successful (SUCCESS-status) agents sorted alphabetically. The active row is highlighted purple. Each button rebuilds the label from agent.provider + agent.model so the Model name layout setting wins."),
-            HelpCard("Active model header", "Provider — model in blue under the buttons, with a 🐞 next to it when tracing is on and a matching trace exists for (reportId, agent.model, max-by-timestamp)."),
+            HelpCard("Language picker row", "When the report has TRANSLATE rows, a FlowRow of buttons (Original + one per distinct targetLanguage) sits below the title bar. Selecting a non-Original key overlays the translated body onto the active agent's response."),
+            HelpCard("Agent picker", "Dropdown over the FlowRow of agents — built from successful (SUCCESS-status) agents sorted alphabetically. The button label rebuilds from agent.provider + agent.model so the Model name layout setting wins."),
+            HelpCard("Active model header", "Provider — model in blue under the picker, with a 🐞 next to it when tracing is on and a matching trace exists for (reportId, agent.model, max-by-timestamp)."),
             HelpCard("Body rendering", "ContentWithThinkSections handles <think> collapsibles, citations, related-questions blocks, and search results — so models that emit any of those render structured rather than raw."),
-            HelpCard("Cost summary mode", "Shows ReportCostTable when at least one agent or secondary has tokenUsage. Empty state shows '(no usage recorded)'. Costs aggregate translation calls too — language picker is hidden in this mode."),
+        )
+    ),
+    "content_one_page" to HelpContent(
+        title = "View on one page",
+        cards = listOf(
+            HelpCard("Overview", "Concatenates the prompt and every successful agent's response onto one scrollable page so you can scan the entire report without flipping through the agent picker."),
+            HelpCard("Layout", "Title at the top (or folded into the title bar in Subject mode), then the prompt block, then one section per agent with the agent label as a sub-header and the response body underneath."),
+            HelpCard("Translations", "When the report has TRANSLATE rows the page honours the active language picker on the parent screen — translated bodies overlay onto the matching agents."),
+            HelpCard("Pitfalls", "Long reports render many MB of text; scrolling can be slow on dense reports. Use the per-agent picker on the Model response screen when you only need one section."),
+            HelpCard("Related", "Reachable from Model response → 'View on one page' button. Cost summary is its own screen.")
         )
     ),
     "cost_view" to HelpContent(
@@ -1206,20 +1229,36 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "OpenRouter id matching normalises '.' and '-' to handle anthropic/claude-opus-4.6 vs claude-opus-4-6 mismatches. HuggingFace lookups try every dash/dot variant of the candidate path and cache the result (including misses) for a week.")
         )
     ),
-    "model_picker" to HelpContent(
-        title = "Select Provider / Model / Agent",
+    "model_pick_provider" to HelpContent(
+        title = "Select Provider",
         cards = listOf(
-            HelpCard("Overview", "Three full-screen pickers share this help topic: Select Provider, Select Model, and Select Agent. Same layout — search box, count line, scrollable list — different content."),
-            HelpCard("Select Provider", "Lists every AppService (or only active services when activeOnly is set). Each row shows the display name plus a small state emoji: 🔑 ok, ❌ error, 💤 inactive, ⭕ untested. Tap to confirm; back exits without choosing."),
-            HelpCard("Select Model", "After picking a provider. Pricing columns on the right (In $/M, Out $/M) read from settings overrides first, then PricingCache. Vision / web / reasoning badges sit between the model name and the price columns."),
+            HelpCard("Overview", "Full-screen provider picker. Lists every AppService (or only active services when activeOnly is set). Tap to confirm; back exits without choosing."),
+            HelpCard("State emoji", "Each row shows the display name plus a small state emoji: 🔑 ok, ❌ error, 💤 inactive, ⭕ untested."),
+            HelpCard("Search", "Filters by display name. Result count line shows '<filtered> of <total> providers'."),
+            HelpCard("Pitfalls", "Inactive providers are hidden when activeOnly is set (the chat / dual-chat flows). To pick from an inactive provider you have to activate it first in AI Setup."),
+            HelpCard("Related", "Picking a provider here typically routes to the Model picker for that provider next.")
+        )
+    ),
+    "model_pick_model" to HelpContent(
+        title = "Select Model",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen model picker for a chosen provider. Pricing columns on the right (In $/M, Out $/M) read from settings overrides first, then PricingCache. Vision / web / reasoning badges sit between the model name and the price columns."),
             HelpCard("Initial refresh", "For API-mode providers with onRefresh wired, the screen kicks a fetch on entry, waits up to 15 s for it to complete, then reveals the list. Stalled fetches unveil whatever was previously cached so you're never stuck staring at a spinner."),
             HelpCard("Default option", "When showDefaultOption is on (per-provider settings reuse), the list starts with a \"Default (use provider setting)\" row that selects the empty-string sentinel."),
             HelpCard("Open Models button", "Visible when onNavigateToProviderModels was wired (typically inside provider edit). Jumps into the rich Models browser with this provider preselected."),
-            HelpCard("Select Agent", "Reads aiSettings.agents directly. Search matches name, provider name, or effective model. Each row shows agent name + provider/model line + per-million-token pricing."),
             HelpCard("Fetch error row", "When the provider's last fetch failed, a red error line appears under the search box with a 🐞 link to the captured trace (when API tracing is on)."),
-            HelpCard("Title-bar icons", "Help and Home only on every variant. Refresh is automatic; manual refresh is on the per-provider settings screen."),
-            HelpCard("Tips", "Local LLM models come from filesDir/local_llms/ via LocalLlm.availableLlms — the synthetic LOCAL provider's model list isn't stored in ProviderConfig.models."),
-            HelpCard("Pitfalls", "Inactive providers are hidden when activeOnly is set (the chat / dual-chat flows). To pick from an inactive provider you have to activate it first in AI Setup.")
+            HelpCard("Title-bar icons", "Help and Home only. Refresh is automatic; manual refresh is on the per-provider settings screen."),
+            HelpCard("Tips", "Local LLM models come from filesDir/local_llms/ via LocalLlm.availableLlms — the synthetic LOCAL provider's model list isn't stored in ProviderConfig.models.")
+        )
+    ),
+    "model_pick_agent" to HelpContent(
+        title = "Select Agent",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen agent picker. Reads aiSettings.agents directly — every saved agent appears as a row."),
+            HelpCard("Result rows", "Agent name + provider/model line + per-million-token pricing. Pricing badge is red on real source data, grey on DEFAULT_PRICING fallback."),
+            HelpCard("Search", "Matches agent name, provider name, or effective model. Result count line shows '<filtered> of <total> agents'."),
+            HelpCard("Empty state", "When no agents are configured yet, the body is empty. Add agents under AI Setup → Agents."),
+            HelpCard("Title-bar icons", "Help and Home only.")
         )
     ),
     "model_raw" to HelpContent(
@@ -1607,7 +1646,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Refresh",
         cards = listOf(
             HelpCard("Overview", "Bulk refresh hub. Each card has a button + helper text. \"Refresh all\" at the top runs every action below in sequence — catalogs first (so capability data is fresh before per-provider tests fire), then provider tests, model lists, default agents, and finally an automatic process restart."),
-            HelpCard("Refresh all (auto-restart)", "Sequence: OpenRouter (if key) → LiteLLM → models.dev → Helicone → llm-prices.com → Artificial Analysis (if key) → Providers → Models → Default agents → kill+relaunch via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK. Saves you from a manual kill/relaunch."),
+            HelpCard("Refresh all (auto-restart)", "Sequence: OpenRouter (if key) → LiteLLM → models.dev → Helicone → llm-prices.com → Artificial Analysis (if key) → Providers → Models → Default agents → kill+relaunch via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK. Saves you from a manual kill/relaunch. Tapping the button routes to the Refresh-all progress screen."),
             HelpCard("Catalog refreshes", "OpenRouter (needs key), LiteLLM (BerriAI/litellm GitHub), models.dev (LiteLLM fallback), Helicone (helicone.ai/api/llm-costs — pricing-only), llm-prices.com (Simon Willison's curated 10-vendor tables), Artificial Analysis (needs key)."),
             HelpCard("Providers", "Tests every provider's saved key with a small live model call. Marks each as ok / error / inactive (already disabled) / not-used (no key). Live progress dialog with per-provider rows updating from \"pending\" to ok/error."),
             HelpCard("Models", "Calls every active provider's model-list endpoint (forceRefresh=true). Replaces the cached lists used by every model picker. Result dialog shows per-provider counts."),
@@ -1615,6 +1654,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision/web-search precomputed sets pick up the new state. Helicone is pricing-only — no recompute."),
             HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons disable themselves until you set their keys under External Services."),
             HelpCard("Related", "Reachable both from AI Setup → Refresh and from Housekeeping → Refresh.")
+        )
+    ),
+    "refresh_all_progress" to HelpContent(
+        title = "Refresh all — progress",
+        cards = listOf(
+            HelpCard("Overview", "Live progress for the orchestrated 'Refresh all' run. One row per step in the sequence: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Providers, Models, Default agents, then a final auto-restart."),
+            HelpCard("Step rows", "Each row shows ⏳ pending, 🔄 running (with a live counter for sub-steps when applicable), ✅ done, or ❌ failed. The previous step's outcome is visible while the next runs."),
+            HelpCard("Failed providers", "On completion, providers that errored during the Providers step list at the bottom with a tap-target that opens that provider's settings page so you can fix the key / endpoint and retry."),
+            HelpCard("Auto-restart", "When every step finished, an automatic kill+relaunch fires via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK so freshly-loaded catalogs and capabilities take effect cleanly. The 'Restart now' button forces it earlier."),
+            HelpCard("Cancel", "System back / ‹ pops back to the Refresh hub. The in-flight step finishes (it's already running on Dispatchers.IO); no rollback. Subsequent steps are skipped."),
+            HelpCard("Pitfalls", "If a catalog step errors (e.g. network), subsequent steps still run with the previous catalog. The 'overall error' line at the top surfaces the message.")
         )
     ),
     "import_export" to HelpContent(

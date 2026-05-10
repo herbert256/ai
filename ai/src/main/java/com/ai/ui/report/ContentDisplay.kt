@@ -55,14 +55,14 @@ fun ReportsViewerScreen(
     when (val s = reportState.value) {
         ReportLoadState.Loading -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss,
+                TitleBar(helpTopic = "content_model_response", title = "View Reports", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             }
             return
         }
         ReportLoadState.NotFound -> {
             Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                TitleBar(helpTopic = "content_view", title = "View Reports", onBackClick = onDismiss,
+                TitleBar(helpTopic = "content_model_response", title = "View Reports", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Report not found", color = AppColors.TextSecondary, fontSize = 16.sp)
@@ -289,7 +289,7 @@ private fun ReportsViewerScreenLoaded(
         // the active model. ℹ on the title bar opens Model Info for
         // the selected agent's model.
         TitleBar(
-            helpTopic = "content_view",
+            helpTopic = "content_model_response",
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onDismiss,
@@ -434,7 +434,7 @@ private fun OnePageReportView(
     val titleText = report.title.ifBlank { "Report" }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
-            helpTopic = "content_view",
+            helpTopic = "content_one_page",
             title = "View in one page",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = titleText,

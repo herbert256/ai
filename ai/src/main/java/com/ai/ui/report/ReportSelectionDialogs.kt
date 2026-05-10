@@ -890,7 +890,7 @@ internal fun ReportSelectFromReportScreen(
         }
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "report_pick_agent", title = "Pick previous report", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),

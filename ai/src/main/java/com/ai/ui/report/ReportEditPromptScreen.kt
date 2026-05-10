@@ -73,7 +73,7 @@ fun ReportEditTitleScreen(
     val canUpdate = title.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "report_edit_prompt", title = "Edit title", onBackClick = onBack)
+        TitleBar(helpTopic = "report_edit_title", title = "Edit title", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(

@@ -923,7 +923,7 @@ private fun RefreshAllProgressScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "refresh", title = "Refresh all", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_all_progress", title = "Refresh all", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         val done = steps.count { it.status is StepStatus.Done || it.status is StepStatus.Skipped || it.status is StepStatus.Failed }
         Text(
