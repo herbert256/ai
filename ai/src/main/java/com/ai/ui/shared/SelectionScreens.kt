@@ -96,9 +96,25 @@ fun SelectModelScreen(
         if (provider.id == AppService.LOCAL.id) com.ai.data.LocalLlm.availableLlms(context)
         else aiSettings.getModels(provider)
     }
-    val filteredModels = remember(searchQuery, allModels) {
-        if (searchQuery.isBlank()) allModels
-        else { val lq = searchQuery.lowercase(java.util.Locale.ROOT); allModels.filter { it.lowercase(java.util.Locale.ROOT).contains(lq) } }
+    // Sort by output-token cost (cheapest first). Models with no
+    // resolved pricing — i.e. PricingCache hands back the DEFAULT
+    // sentinel — sink to the end so the user picks from priced
+    // entries first; alphabetical name is the final tiebreaker.
+    val sortedModels = remember(allModels, aiSettings, provider) {
+        fun pricingFor(name: String) =
+            aiSettings.getModelPricing(provider, name)
+                ?: PricingCache.getPricing(context, provider, name)
+        allModels.sortedWith(
+            compareBy<String> {
+                if (pricingFor(it).source.equals("DEFAULT", ignoreCase = true)) 1 else 0
+            }
+                .thenBy { pricingFor(it).completionPrice }
+                .thenBy { it.lowercase(java.util.Locale.ROOT) }
+        )
+    }
+    val filteredModels = remember(searchQuery, sortedModels) {
+        if (searchQuery.isBlank()) sortedModels
+        else { val lq = searchQuery.lowercase(java.util.Locale.ROOT); sortedModels.filter { it.lowercase(java.util.Locale.ROOT).contains(lq) } }
     }
 
     Column(
