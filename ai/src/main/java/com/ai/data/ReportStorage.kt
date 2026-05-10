@@ -93,13 +93,17 @@ data class Report(
      *  success, or when the call was never kicked off. Set instead of
      *  [icon] when the LLM returned an error or an empty body. */
     var iconErrorMessage: String? = null,
-    /** USD cost of the icon-gen call, computed at write time from the
-     *  call's token usage × the (provider, model) pricing tier.
-     *  Surfaced inline on the result-page 'icon' row and rolled into
-     *  the report total so the user sees the icon's contribution to
-     *  spend. 0.0 while running, on missing pricing, or on legacy
-     *  reports created before the feature shipped. */
-    var iconCost: Double = 0.0
+    /** Token usage + USD cost of the icon-gen call, split input vs
+     *  output so the call surfaces as a proper row in the per-call
+     *  cost tables (in-app View → Costs and the HTML export).
+     *  Computed at write time from the call's token usage × the
+     *  (provider, model) pricing tier; rolled into the report total
+     *  alongside agent and secondary spend. All zero while running,
+     *  on missing pricing, or on legacy reports. */
+    var iconInputTokens: Int = 0,
+    var iconOutputTokens: Int = 0,
+    var iconInputCost: Double = 0.0,
+    var iconOutputCost: Double = 0.0
 )
 
 /**
@@ -369,16 +373,24 @@ object ReportStorage {
         }
     }
 
-    /** Persist the resolved emoji + the USD cost from the icon-gen
-     *  call. Clears any prior [Report.iconErrorMessage] so a successful
-     *  retry overwrites a previous failure. Bumps the timestamp so
-     *  screens that key on it pick up the change on the next refresh. */
-    fun updateReportIcon(context: Context, reportId: String, icon: String, cost: Double): Boolean {
+    /** Persist the resolved emoji + token usage + split cost from the
+     *  icon-gen call. Clears any prior [Report.iconErrorMessage] so a
+     *  successful retry overwrites a previous failure. Bumps the
+     *  timestamp so screens that key on it pick up the change. */
+    fun updateReportIcon(
+        context: Context, reportId: String, icon: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(icon = icon, iconErrorMessage = null,
-                iconCost = cost, timestamp = System.currentTimeMillis()))
+            saveReport(report.copy(
+                icon = icon, iconErrorMessage = null,
+                iconInputTokens = inputTokens, iconOutputTokens = outputTokens,
+                iconInputCost = inputCost, iconOutputCost = outputCost,
+                timestamp = System.currentTimeMillis()
+            ))
             true
         }
     }
@@ -396,15 +408,19 @@ object ReportStorage {
         }
     }
 
-    /** Wipe icon + error + cost so a regenerate-with-prompt-change run
-     *  starts fresh on ⏳. Used by [regenerateReport] when the prompt
-     *  was edited. */
+    /** Wipe icon + error + tokens + cost so a regenerate-with-prompt-
+     *  change run starts fresh on ⏳. Used by [regenerateReport] when
+     *  the prompt was edited. */
     fun clearReportIcon(context: Context, reportId: String): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(icon = null, iconErrorMessage = null,
-                iconCost = 0.0, timestamp = System.currentTimeMillis()))
+            saveReport(report.copy(
+                icon = null, iconErrorMessage = null,
+                iconInputTokens = 0, iconOutputTokens = 0,
+                iconInputCost = 0.0, iconOutputCost = 0.0,
+                timestamp = System.currentTimeMillis()
+            ))
             true
         }
     }

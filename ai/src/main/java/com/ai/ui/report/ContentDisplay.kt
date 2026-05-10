@@ -495,7 +495,8 @@ fun ReportCostTable(report: Report) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, report.id) }
     }
     val secondary = secondaryState.value
-    if (agentsWithCosts.isEmpty() && secondary.isEmpty()) return
+    val hasIconCost = report.iconInputCost > 0.0 || report.iconOutputCost > 0.0
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost) return
 
     data class CostRow(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
 
@@ -507,6 +508,33 @@ fun ReportCostTable(report: Report) {
         val outCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
         CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
+    // Icon-gen call surfaces as its own row so the cost table totals
+    // match the report total. Hidden when icon-gen wasn't run or the
+    // call didn't return token usage. The pinned agent on
+    // internal/icon supplies the (provider, model) pair.
+    val iconRow: CostRow? = if (report.iconInputCost > 0.0 || report.iconOutputCost > 0.0) {
+        val ai = com.ai.model.SettingsHolder.current
+        val iconPrompt = ai?.internalPrompts?.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        }
+        val iconAgent = iconPrompt?.let { p ->
+            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+        }
+        val provider = iconAgent?.provider
+        val model = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
+        val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
+        CostRow(
+            type = "icon",
+            providerDisplay = provider?.id ?: "",
+            model = model,
+            tier = pricing?.source ?: "",
+            durationMs = null,
+            inputTokens = report.iconInputTokens,
+            outputTokens = report.iconOutputTokens,
+            inputCents = report.iconInputCost * 100,
+            outputCents = report.iconOutputCost * 100
+        )
+    } else null
     // Rerank / summarize call costs end up alongside the report rows so the
     // user sees one consolidated breakdown \u2014 distinguished by the new Type
     // column.
@@ -541,7 +569,7 @@ fun ReportCostTable(report: Report) {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
-    val rows = (agentRows + secondaryRows).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow)).sortedByDescending { it.inputCents + it.outputCents }
 
     data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
     fun groupTotals(grouper: (CostRow) -> String): List<GroupTotal> =

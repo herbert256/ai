@@ -475,7 +475,7 @@ fun ReportsScreen(
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
             reportIconError = r?.iconErrorMessage
-            reportIconCost = r?.iconCost ?: 0.0
+            reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
         }
     }
     // Bumped from every overlay-driven delete so the parent screen's

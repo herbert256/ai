@@ -288,10 +288,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                     val emoji = response.analysis?.trim().orEmpty().take(8)
                     if (response.error == null && emoji.isNotEmpty()) {
-                        val cost = response.tokenUsage?.let { tu ->
-                            PricingCache.computeCost(tu, PricingCache.getPricing(context, agent.provider, agent.model))
-                        } ?: 0.0
-                        ReportStorage.updateReportIcon(context, reportId, emoji, cost)
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
+                        ReportStorage.updateReportIcon(
+                            context, reportId, emoji,
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inC, outputCost = outC
+                        )
                     } else {
                         ReportStorage.updateReportIconError(
                             context, reportId,

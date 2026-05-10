@@ -23,7 +23,19 @@ internal data class HtmlReportData(
      *  actions. Surfaces as a dedicated row above the Total in every
      *  cost table on the result page + the export. Carried straight
      *  from [Report.costsFromDeletedItems]. */
-    val costsFromDeletedItems: Double = 0.0
+    val costsFromDeletedItems: Double = 0.0,
+    /** Icon-gen call's contribution to spend, surfaced as its own
+     *  row in the cost view. Provider + model identify the agent the
+     *  internal/icon prompt was pinned to at run time. All zero on
+     *  reports where icon-gen wasn't run, or never resolved (and the
+     *  row is omitted). */
+    val iconProviderDisplay: String = "",
+    val iconModel: String = "",
+    val iconPricingTier: String = "",
+    val iconInputTokens: Int = 0,
+    val iconOutputTokens: Int = 0,
+    val iconInputCost: Double = 0.0,
+    val iconOutputCost: Double = 0.0
 )
 
 /** One captured API trace surfaced in the JSON view. [origin] is "this"
@@ -323,13 +335,35 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             )
         }
 
+    // Resolve the icon-gen agent + pricing tier so the export's cost
+    // table can show a fully-attributed icon row. The pinned agent on
+    // internal/icon supplies the (provider, model) pair; PricingCache
+    // looks up the tier the cost was billed against.
+    val ai = com.ai.model.SettingsHolder.current
+    val iconPrompt = ai?.internalPrompts?.firstOrNull {
+        it.category == "internal" && it.name == "icon"
+    }
+    val iconAgent = iconPrompt?.let { p ->
+        ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+    }
+    val iconProvider = iconAgent?.provider
+    val iconModel = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
+    val iconPricing = iconProvider?.let { PricingCache.getPricing(context, it, iconModel) }
+
     return HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
         rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType, secondary = secondary,
         traces = traces,
-        costsFromDeletedItems = report.costsFromDeletedItems
+        costsFromDeletedItems = report.costsFromDeletedItems,
+        iconProviderDisplay = iconProvider?.id ?: "",
+        iconModel = iconModel,
+        iconPricingTier = iconPricing?.source ?: "",
+        iconInputTokens = report.iconInputTokens,
+        iconOutputTokens = report.iconOutputTokens,
+        iconInputCost = report.iconInputCost,
+        iconOutputCost = report.iconOutputCost
     )
 }
 
@@ -731,7 +765,16 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
-    val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
+    // Icon-gen call as its own row so the export's cost totals match
+    // the in-app totals. Hidden when icon-gen wasn't run / didn't
+    // resolve token usage.
+    val iconRow = if (data.iconInputCost > 0.0 || data.iconOutputCost > 0.0) {
+        Row("icon", data.iconProviderDisplay, data.iconModel, data.iconPricingTier,
+            null, data.iconInputTokens, data.iconOutputTokens,
+            data.iconInputCost * 100, data.iconOutputCost * 100)
+    } else null
+    val sorted = (agentRows + secondaryRows + listOfNotNull(iconRow))
+        .sortedByDescending { it.inCents + it.outCents }
     val deletedCents = data.costsFromDeletedItems * 100
 
     sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
