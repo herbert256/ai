@@ -457,6 +457,7 @@ fun TitleBar(
                         text = effective, style = titleStyle, color = Color.White,
                         fontSize = barFontSize, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.End,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
@@ -550,11 +551,15 @@ fun TitleBar(
             } else {
                 val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) subject!! else title
                 if (effective != null) {
+                    // Always right-align the title — keeps it flush
+                    // against the action strip, matches the right-side
+                    // placement that BOTH-mode's title gets when a
+                    // subject is present.
                     Text(
                         text = effective, style = titleStyle, color = Color.White,
                         fontSize = titleStyle.fontSize * scale,
                         fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                        textAlign = if (hasLeftSlot) TextAlign.Center else TextAlign.Start,
+                        textAlign = TextAlign.End,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
