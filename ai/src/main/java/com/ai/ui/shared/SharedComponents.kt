@@ -521,19 +521,25 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left side: back-arrow icon when the active TitleBar passed
-        // an onBackClick. Bigger than the right-strip glyphs (2.5×
-        // vs 1.5×) so it reads as the primary navigation affordance
-        // from peripheral vision.
+        // Left side: back-arrow rendered inline (not via
+        // TitleBarIcon) so it can hug the screen's left edge with
+        // CenterStart alignment and cap its slot height at the
+        // right-strip's intrinsic height — keeps the bar short and
+        // the glyph flush left.
         val onBack = icons?.onBack
         if (onBack != null) {
-            TitleBarIcon("←", Color.White, onBack, width = 36.dp, scale = 2.5f)
+            Box(
+                modifier = Modifier.size(width = 56.dp, height = 48.dp).clickable(onClick = onBack),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text("←", color = Color.White, fontSize = 32.sp,
+                    modifier = Modifier.padding(start = 4.dp))
+            }
         }
         Spacer(modifier = Modifier.weight(1f))
         // Right side: same TitleBarActionStrip the top bar would
         // render, with the same Home / Help wiring and per-icon
-        // null-check rules. extraSpacing = 6.dp pushes icons apart
-        // so adjacent glyphs don't read as one chunk.
+        // null-check rules.
         TitleBarActionStrip(
             onHome = navigateHome,
             onReload = icons?.onReload,
@@ -545,7 +551,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
             scale = 1.5f,
             compactSpacing = false,
-            extraSpacing = 6.dp
+            extraSpacing = 2.dp
         )
     }
 }
