@@ -5,10 +5,18 @@
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.openai.com/",
       "builtInEndpoints": [
-        { "id": "openai-chat", "name": "Chat Completions", "url": "https://api.openai.com/v1/chat/completions", "isDefault": true },
-        { "id": "openai-responses", "name": "Responses API", "url": "https://api.openai.com/v1/responses" }
+        {
+          "id": "openai-chat",
+          "name": "Chat Completions",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "isDefault": true
+        },
+        {
+          "id": "openai-responses",
+          "name": "Responses API",
+          "url": "https://api.openai.com/v1/responses"
+        }
       ],
-      "defaultModel": "gpt-4o-mini",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "OpenAI",
@@ -17,17 +25,35 @@
       "modelListFormat": "object",
       "openRouterName": "openai",
       "reasoningModelPatterns": [
-        { "prefix": "gpt-5" },
-        { "prefix": "o1" },
-        { "prefix": "o3" },
-        { "prefix": "o4" }
+        {
+          "prefix": "gpt-5"
+        },
+        {
+          "prefix": "o1"
+        },
+        {
+          "prefix": "o3"
+        },
+        {
+          "prefix": "o4"
+        }
       ],
       "responsesApiPatterns": [
-        { "prefix": "gpt-5" },
-        { "prefix": "o1" },
-        { "prefix": "o3" },
-        { "prefix": "o4" },
-        { "prefix": "gpt-4.1" }
+        {
+          "prefix": "gpt-5"
+        },
+        {
+          "prefix": "o1"
+        },
+        {
+          "prefix": "o3"
+        },
+        {
+          "prefix": "o4"
+        },
+        {
+          "prefix": "gpt-4.1"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -36,16 +62,21 @@
         "chat": "v1/chat/completions"
       },
       "webSearchModelPatterns": [
-        { "prefix": "gpt-5" },
-        { "prefix": "o3" },
-        { "prefix": "o4" }
+        {
+          "prefix": "gpt-5"
+        },
+        {
+          "prefix": "o3"
+        },
+        {
+          "prefix": "o4"
+        }
       ]
     },
     {
       "adminUrl": "https://console.anthropic.com/settings/keys",
       "apiFormat": "ANTHROPIC",
       "baseUrl": "https://api.anthropic.com/",
-      "defaultModel": "claude-sonnet-4-20250514",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -59,27 +90,66 @@
         "claude-3-haiku-20240307"
       ],
       "adaptiveThinkingPatterns": [
-        { "contains": "claude-opus-4-7" },
-        { "contains": "opus-4-7" }
+        {
+          "contains": "claude-opus-4-7"
+        },
+        {
+          "contains": "opus-4-7"
+        }
       ],
       "id": "Anthropic",
       "maxTokensDefaults": [
-        { "pattern": { "contains": "opus-4" }, "maxTokens": 32000 },
-        { "pattern": { "contains": "sonnet-4" }, "maxTokens": 8192 },
-        { "pattern": { "contains": "haiku-4" }, "maxTokens": 8192 },
-        { "pattern": { "contains": "claude-3-5" }, "maxTokens": 8192 },
-        { "pattern": { "contains": "claude-3.5" }, "maxTokens": 8192 }
+        {
+          "pattern": {
+            "contains": "opus-4"
+          },
+          "maxTokens": 32000
+        },
+        {
+          "pattern": {
+            "contains": "sonnet-4"
+          },
+          "maxTokens": 8192
+        },
+        {
+          "pattern": {
+            "contains": "haiku-4"
+          },
+          "maxTokens": 8192
+        },
+        {
+          "pattern": {
+            "contains": "claude-3-5"
+          },
+          "maxTokens": 8192
+        },
+        {
+          "pattern": {
+            "contains": "claude-3.5"
+          },
+          "maxTokens": 8192
+        }
       ],
       "modelFilter": "claude",
       "modelListFormat": "object",
       "modelsPath": "v1/models",
       "openRouterName": "anthropic",
       "reasoningModelPatterns": [
-        { "contains": "claude-3-7" },
-        { "contains": "claude-3.7" },
-        { "contains": "opus-4" },
-        { "contains": "sonnet-4" },
-        { "contains": "haiku-4" }
+        {
+          "contains": "claude-3-7"
+        },
+        {
+          "contains": "claude-3.7"
+        },
+        {
+          "contains": "opus-4"
+        },
+        {
+          "contains": "sonnet-4"
+        },
+        {
+          "contains": "haiku-4"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -88,20 +158,33 @@
         "chat": "v1/messages"
       },
       "webSearchModelPatterns": [
-        { "contains": "claude-3-5" },
-        { "contains": "claude-3.5" },
-        { "contains": "claude-3-7" },
-        { "contains": "claude-3.7" },
-        { "contains": "opus-4" },
-        { "contains": "sonnet-4" },
-        { "contains": "haiku-4" }
+        {
+          "contains": "claude-3-5"
+        },
+        {
+          "contains": "claude-3.5"
+        },
+        {
+          "contains": "claude-3-7"
+        },
+        {
+          "contains": "claude-3.7"
+        },
+        {
+          "contains": "opus-4"
+        },
+        {
+          "contains": "sonnet-4"
+        },
+        {
+          "contains": "haiku-4"
+        }
       ]
     },
     {
       "adminUrl": "https://aistudio.google.com/app/apikey",
       "apiFormat": "GOOGLE",
       "baseUrl": "https://generativelanguage.googleapis.com/",
-      "defaultModel": "gemini-2.0-flash",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Google",
@@ -110,8 +193,12 @@
       "modelsPath": "v1beta/models",
       "openRouterName": "google",
       "reasoningModelPatterns": [
-        { "prefix": "gemini-2.5" },
-        { "contains": "-2.5" }
+        {
+          "prefix": "gemini-2.5"
+        },
+        {
+          "contains": "-2.5"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -120,9 +207,15 @@
         "chat": "v1beta/models/{model}:generateContent"
       },
       "webSearchModelPatterns": [
-        { "contains": "gemini-1.5" },
-        { "contains": "gemini-2" },
-        { "contains": "gemini-pro" }
+        {
+          "contains": "gemini-1.5"
+        },
+        {
+          "contains": "gemini-2"
+        },
+        {
+          "contains": "gemini-pro"
+        }
       ]
     },
     {
@@ -130,7 +223,6 @@
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.x.ai/",
       "costTicksDivisor": 10000000000.0,
-      "defaultModel": "grok-3-mini",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "externalReasoningSignalUntrusted": true,
@@ -140,15 +232,29 @@
       "modelListFormat": "object",
       "openRouterName": "x-ai",
       "reasoningEffortAcceptPatterns": [
-        { "prefix": "grok-3" },
-        { "exact": "grok-4" },
-        { "prefix": "grok-4-0" },
-        { "suffix": "-reasoning" }
+        {
+          "prefix": "grok-3"
+        },
+        {
+          "exact": "grok-4"
+        },
+        {
+          "prefix": "grok-4-0"
+        },
+        {
+          "suffix": "-reasoning"
+        }
       ],
       "reasoningModelPatterns": [
-        { "prefix": "grok-3" },
-        { "prefix": "grok-4" },
-        { "prefix": "grok-code" }
+        {
+          "prefix": "grok-3"
+        },
+        {
+          "prefix": "grok-4"
+        },
+        {
+          "prefix": "grok-code"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -161,7 +267,6 @@
       "adminUrl": "https://console.groq.com/keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.groq.com/openai/",
-      "defaultModel": "llama-3.3-70b-versatile",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Groq",
@@ -178,12 +283,20 @@
       "adminUrl": "https://platform.deepseek.com/api_keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.deepseek.com/",
-      "defaultModel": "deepseek-chat",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "builtInEndpoints": [
-        { "id": "deepseek-chat", "name": "Chat Completions", "url": "https://api.deepseek.com/chat/completions", "isDefault": true },
-        { "id": "deepseek-beta", "name": "Beta (FIM)", "url": "https://api.deepseek.com/beta/completions" }
+        {
+          "id": "deepseek-chat",
+          "name": "Chat Completions",
+          "url": "https://api.deepseek.com/chat/completions",
+          "isDefault": true
+        },
+        {
+          "id": "deepseek-beta",
+          "name": "Beta (FIM)",
+          "url": "https://api.deepseek.com/beta/completions"
+        }
       ],
       "id": "DeepSeek",
       "litellmPrefix": "deepseek",
@@ -192,8 +305,12 @@
       "modelsPath": "models",
       "openRouterName": "deepseek",
       "reasoningModelPatterns": [
-        { "contains": "r1" },
-        { "contains": "reasoner" }
+        {
+          "contains": "r1"
+        },
+        {
+          "contains": "reasoner"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -206,12 +323,20 @@
       "adminUrl": "https://console.mistral.ai/api-keys/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.mistral.ai/",
-      "defaultModel": "mistral-small-latest",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "builtInEndpoints": [
-        { "id": "mistral-chat", "name": "Chat Completions", "url": "https://api.mistral.ai/v1/chat/completions", "isDefault": true },
-        { "id": "mistral-codestral", "name": "Codestral", "url": "https://codestral.mistral.ai/v1/chat/completions" }
+        {
+          "id": "mistral-chat",
+          "name": "Chat Completions",
+          "url": "https://api.mistral.ai/v1/chat/completions",
+          "isDefault": true
+        },
+        {
+          "id": "mistral-codestral",
+          "name": "Codestral",
+          "url": "https://codestral.mistral.ai/v1/chat/completions"
+        }
       ],
       "id": "Mistral",
       "modelFilter": "mistral|open-mistral|codestral|pixtral",
@@ -219,7 +344,9 @@
       "nativeModerationUrl": "https://api.mistral.ai/v1/moderations",
       "openRouterName": "mistralai",
       "reasoningModelPatterns": [
-        { "contains": "magistral" }
+        {
+          "contains": "magistral"
+        }
       ],
       "seedFieldName": "random_seed",
       "supportsCitations": false,
@@ -232,7 +359,6 @@
       "adminUrl": "https://www.perplexity.ai/settings/api",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.perplexity.ai/",
-      "defaultModel": "sonar",
       "extractApiCost": false,
       "hardcodedModels": [
         "sonar",
@@ -256,7 +382,6 @@
       "adminUrl": "https://api.together.xyz/settings/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.together.xyz/",
-      "defaultModel": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Together",
@@ -275,7 +400,6 @@
       "adminUrl": "https://openrouter.ai/keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://openrouter.ai/api/",
-      "defaultModel": "anthropic/claude-3.5-sonnet",
       "defaultModelSource": "API",
       "crossProviderModelList": true,
       "extractApiCost": true,
@@ -292,7 +416,6 @@
       "adminUrl": "https://cloud.siliconflow.com/account/ak",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.siliconflow.com/",
-      "defaultModel": "Qwen/Qwen2.5-7B-Instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -319,7 +442,6 @@
       "adminUrl": "https://open.bigmodel.cn/usercenter/apikeys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.z.ai/api/paas/v4/",
-      "defaultModel": "glm-4.7-flash",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -332,8 +454,17 @@
         "glm-4-flash"
       ],
       "builtInEndpoints": [
-        { "id": "zai-chat", "name": "Chat Completions", "url": "https://api.z.ai/api/paas/v4/chat/completions", "isDefault": true },
-        { "id": "zai-coding", "name": "Coding", "url": "https://api.z.ai/api/coding/paas/v4/chat/completions" }
+        {
+          "id": "zai-chat",
+          "name": "Chat Completions",
+          "url": "https://api.z.ai/api/paas/v4/chat/completions",
+          "isDefault": true
+        },
+        {
+          "id": "zai-coding",
+          "name": "Coding",
+          "url": "https://api.z.ai/api/coding/paas/v4/chat/completions"
+        }
       ],
       "id": "Z.AI",
       "modelFilter": "glm|codegeex|charglm",
@@ -351,7 +482,6 @@
       "adminUrl": "https://platform.moonshot.ai/console/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.moonshot.ai/",
-      "defaultModel": "kimi-latest",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -364,9 +494,15 @@
       "modelListFormat": "object",
       "openRouterName": "moonshot",
       "reasoningModelPatterns": [
-        { "prefix": "kimi-k1.5" },
-        { "prefix": "kimi-k2" },
-        { "contains": "thinking" }
+        {
+          "prefix": "kimi-k1.5"
+        },
+        {
+          "prefix": "kimi-k2"
+        },
+        {
+          "contains": "thinking"
+        }
       ],
       "seedFieldName": "seed",
       "supportsCitations": false,
@@ -378,9 +514,10 @@
     {
       "adminUrl": "https://dashboard.cohere.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
-      "auxHosts": ["api.cohere.com"],
+      "auxHosts": [
+        "api.cohere.com"
+      ],
       "baseUrl": "https://api.cohere.ai/compatibility/",
-      "defaultModel": "command-a-03-2025",
       "extractApiCost": false,
       "hardcodedModels": [
         "command-a-03-2025",
@@ -404,7 +541,6 @@
       "adminUrl": "https://studio.ai21.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.ai21.com/",
-      "defaultModel": "jamba-mini",
       "extractApiCost": false,
       "hardcodedModels": [
         "jamba-mini",
@@ -426,7 +562,6 @@
       "adminUrl": "https://dashscope.console.aliyun.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/",
-      "defaultModel": "qwen-plus",
       "extractApiCost": false,
       "hardcodedModels": [
         "qwen-plus",
@@ -449,7 +584,6 @@
       "adminUrl": "https://app.fireworks.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.fireworks.ai/inference/",
-      "defaultModel": "accounts/fireworks/models/llama-v3p3-70b-instruct",
       "extractApiCost": false,
       "hardcodedModels": [
         "accounts/fireworks/models/llama-v3p3-70b-instruct",
@@ -470,7 +604,6 @@
       "adminUrl": "https://cloud.cerebras.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.cerebras.ai/",
-      "defaultModel": "llama-3.3-70b",
       "extractApiCost": false,
       "hardcodedModels": [
         "llama-3.3-70b",
@@ -492,7 +625,6 @@
       "adminUrl": "https://cloud.sambanova.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.sambanova.ai/",
-      "defaultModel": "Meta-Llama-3.3-70B-Instruct",
       "extractApiCost": false,
       "hardcodedModels": [
         "Meta-Llama-3.3-70B-Instruct",
@@ -514,7 +646,6 @@
       "adminUrl": "https://platform.baichuan-ai.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.baichuan-ai.com/",
-      "defaultModel": "Baichuan4-Turbo",
       "extractApiCost": false,
       "hardcodedModels": [
         "Baichuan4-Turbo",
@@ -536,7 +667,6 @@
       "adminUrl": "https://platform.stepfun.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.stepfun.com/",
-      "defaultModel": "step-2-16k",
       "extractApiCost": false,
       "hardcodedModels": [
         "step-3",
@@ -559,7 +689,6 @@
       "adminUrl": "https://platform.minimax.io/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.minimax.io/",
-      "defaultModel": "MiniMax-M2.1",
       "extractApiCost": false,
       "hardcodedModels": [
         "MiniMax-M2.1",
@@ -581,7 +710,6 @@
       "adminUrl": "https://build.nvidia.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://integrate.api.nvidia.com/",
-      "defaultModel": "nvidia/llama-3.1-nemotron-70b-instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "NVIDIA",
@@ -597,7 +725,6 @@
       "adminUrl": "https://replicate.com/account/api-tokens",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.replicate.com/v1/",
-      "defaultModel": "meta/meta-llama-3-70b-instruct",
       "extractApiCost": false,
       "hardcodedModels": [
         "meta/meta-llama-3-70b-instruct",
@@ -617,7 +744,6 @@
       "adminUrl": "https://huggingface.co/settings/tokens",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api-inference.huggingface.co/",
-      "defaultModel": "meta-llama/Llama-3.1-70B-Instruct",
       "extractApiCost": false,
       "hardcodedModels": [
         "meta-llama/Llama-3.1-70B-Instruct",
@@ -638,7 +764,6 @@
       "adminUrl": "https://cloud.lambdalabs.com/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.lambdalabs.com/",
-      "defaultModel": "hermes-3-llama-3.1-405b-fp8",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Lambda",
@@ -654,7 +779,6 @@
       "adminUrl": "https://dashboard.lepton.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.lepton.ai/",
-      "defaultModel": "llama3-1-70b",
       "extractApiCost": false,
       "hardcodedModels": [
         "llama3-1-70b",
@@ -675,7 +799,6 @@
       "adminUrl": "https://platform.01.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.01.ai/",
-      "defaultModel": "yi-lightning",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -697,7 +820,6 @@
       "adminUrl": "https://console.volcengine.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://ark.cn-beijing.volces.com/api/",
-      "defaultModel": "doubao-pro-32k",
       "extractApiCost": false,
       "hardcodedModels": [
         "doubao-pro-32k",
@@ -718,7 +840,6 @@
       "adminUrl": "https://platform.reka.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.reka.ai/",
-      "defaultModel": "reka-flash",
       "extractApiCost": false,
       "hardcodedModels": [
         "reka-core",
@@ -738,7 +859,6 @@
       "adminUrl": "https://app.writer.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.writer.com/",
-      "defaultModel": "palmyra-x-004",
       "extractApiCost": false,
       "hardcodedModels": [
         "palmyra-x-004",
@@ -757,7 +877,6 @@
       "adminUrl": "https://dash.cloudflare.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/",
-      "defaultModel": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "CloudflareWorkersAI",
@@ -770,7 +889,6 @@
       "adminUrl": "https://deepinfra.com/dash/api_keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.deepinfra.com/v1/openai/",
-      "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "DeepInfra",
@@ -787,7 +905,6 @@
       "adminUrl": "https://app.hyperbolic.xyz/settings",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.hyperbolic.xyz/",
-      "defaultModel": "deepseek-ai/DeepSeek-V3",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Hyperbolic",
@@ -800,7 +917,6 @@
       "adminUrl": "https://novita.ai/settings/key-management",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.novita.ai/v3/openai/",
-      "defaultModel": "meta-llama/llama-3.1-70b-instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Novita.ai",
@@ -817,7 +933,6 @@
       "adminUrl": "https://featherless.ai/account/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.featherless.ai/",
-      "defaultModel": "meta-llama/Meta-Llama-3.1-8B-Instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Featherless.ai",
@@ -830,7 +945,6 @@
       "adminUrl": "https://platform.liquid.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://inference-1.liquid.ai/",
-      "defaultModel": "lfm-7b",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "LiquidAI",
@@ -843,7 +957,6 @@
       "adminUrl": "https://llama.developer.meta.com/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.llama.com/compat/",
-      "defaultModel": "Llama-4-Maverick-17B-128E-Instruct-FP8",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "LlamaAPI",
@@ -856,7 +969,6 @@
       "adminUrl": "https://cloud.olakrutrim.com/console",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://cloud.olakrutrim.com/",
-      "defaultModel": "Meta-Llama-3.1-70B-Instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Krutrim",
@@ -869,7 +981,6 @@
       "adminUrl": "https://studio.nebius.com/settings/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.studio.nebius.com/",
-      "defaultModel": "meta-llama/Meta-Llama-3.1-70B-Instruct",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "NebiusAIStudio",
@@ -882,7 +993,6 @@
       "adminUrl": "https://chutes.ai/app/api",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://llm.chutes.ai/",
-      "defaultModel": "deepseek-ai/DeepSeek-V3",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Chutes",
@@ -895,7 +1005,6 @@
       "adminUrl": "https://inference.net/dashboard/api-keys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.inference.net/",
-      "defaultModel": "meta-llama/llama-3.3-70b-instruct/fp-8",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Inference.net",

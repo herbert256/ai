@@ -1963,7 +1963,7 @@ private fun ColumnScope.GenerationPhase(
     fun resolveModelForResult(agentId: String, result: AnalysisResponse): String {
         return aiSettings.getAgentById(agentId)?.let { aiSettings.getEffectiveModelForAgent(it) }
             ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringAfter(':')
-            ?: result.service.defaultModel
+            ?: ""
     }
 
     // ===== Action row (lives at the top of the page) =====

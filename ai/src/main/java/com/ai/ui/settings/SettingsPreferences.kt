@@ -141,7 +141,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
-                model = prefs.getString("${key}_model", service.defaultModel) ?: service.defaultModel,
+                model = prefs.getString("${key}_model", "") ?: "",
                 modelSource = modelSource, models = models, modelTypes = types,
                 visionModels = visionModels, webSearchModels = webSearchModels,
                 reasoningModels = reasoningModels,

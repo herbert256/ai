@@ -270,7 +270,6 @@ data class ProviderDefinition(
     val id: String,
     val baseUrl: String,
     val adminUrl: String? = "",
-    val defaultModel: String,
     val openRouterName: String? = null,
     val apiFormat: String? = "OPENAI_COMPATIBLE",
     /** Canonical per-type path map. */
@@ -365,7 +364,7 @@ data class ProviderDefinition(
         responsesPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.RESPONSES, it) }
         return AppService(
             id = id, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
-            defaultModel = defaultModel, openRouterName = openRouterName,
+            openRouterName = openRouterName,
             apiFormat = try { ApiFormat.valueOf(apiFormat ?: "OPENAI_COMPATIBLE") } catch (_: Exception) { ApiFormat.OPENAI_COMPATIBLE },
             typePaths = paths,
             modelsPath = modelsPath,
@@ -396,7 +395,7 @@ data class ProviderDefinition(
     companion object {
         fun fromAppService(s: AppService) = ProviderDefinition(
             id = s.id, baseUrl = s.baseUrl, adminUrl = s.adminUrl,
-            defaultModel = s.defaultModel, openRouterName = s.openRouterName,
+            openRouterName = s.openRouterName,
             apiFormat = s.apiFormat.name,
             typePaths = s.typePaths.takeIf { it.isNotEmpty() },
             // Legacy fields no longer written — typePaths is canonical now.

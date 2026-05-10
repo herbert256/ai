@@ -49,7 +49,7 @@ fun ApiTestScreen(
     ) }
     var apiUrl by remember { mutableStateOf(prefs.getString("last_test_api_url", selectedProvider.baseUrl) ?: selectedProvider.baseUrl) }
     var apiKey by remember { mutableStateOf(prefs.getString("last_test_api_key", "") ?: "") }
-    var model by remember { mutableStateOf(prefs.getString("last_test_model", selectedProvider.defaultModel) ?: selectedProvider.defaultModel) }
+    var model by remember { mutableStateOf(prefs.getString("last_test_model", "") ?: "") }
     var prompt by remember { mutableStateOf(prefs.getString("last_test_prompt", "Hello, how are you?") ?: "Hello, how are you?") }
     var systemPrompt by remember { mutableStateOf(prefs.getString("last_test_system_prompt", "") ?: "") }
     var temperature by remember { mutableStateOf(prefs.getString("last_test_temperature", "") ?: "") }
