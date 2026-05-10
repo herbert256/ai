@@ -1443,11 +1443,11 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Fan out/in prompts (hub)",
         cards = listOf(
             HelpCard("Overview", "Sub-sub-hub two levels deep under AI Setup → Prompt management → Internal prompts → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
-            HelpCard("Manage Fan Out prompts", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
-            HelpCard("Manage Fan in, total, prompts", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
-            HelpCard("Manage Fan in, model, Initiator prompts", "category=\"initiator\". Per-model initiator template."),
-            HelpCard("Manage Fan in, model, Responder prompts", "category=\"requester\". Per-model responder template."),
-            HelpCard("Manage Fan in, model, Initiator & Responder prompts", "category=\"model\". Combined initiator + responder template."),
+            HelpCard("Fan Out", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
+            HelpCard("Fan in, total", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
+            HelpCard("Fan in, model, Initiator", "category=\"initiator\". Per-model initiator template."),
+            HelpCard("Fan in, model, Responder", "category=\"requester\". Per-model responder template."),
+            HelpCard("Fan in, model, Initiator & Responder", "category=\"model\". Combined initiator + responder template."),
             HelpCard("Tips", "All five fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — same name can exist in fan_out and initiator without collision."),
             HelpCard("Related", "Settings → AI Setup → Prompt management → Internal prompts → Fan out/in prompts. Each card opens the same list screen pinned to one category — counts show how many entries are in each bucket.")
         )

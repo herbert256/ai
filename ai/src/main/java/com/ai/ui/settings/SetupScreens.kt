@@ -394,15 +394,15 @@ fun FanInOutPromptsHubScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🔀", "Manage Fan Out prompts", "Run across every pair of report-models", "${countByCategory("fan_out")}",
+            ModelsSetupNavCard("🔀", "Fan Out", "Run across every pair of report-models", "${countByCategory("fan_out")}",
                 onClick = { onOpenInternalPrompts("fan_out") })
-            ModelsSetupNavCard("🪢", "Manage Fan in, total, prompts", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
+            ModelsSetupNavCard("🪢", "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
                 onClick = { onOpenInternalPrompts("fan_in") })
-            ModelsSetupNavCard("🎬", "Manage Fan in, model, Initiator prompts", "Per-model initiator template (category initiator)", "${countByCategory("initiator")}",
+            ModelsSetupNavCard("🎬", "Fan in, model, Initiator", "Per-model initiator template (category initiator)", "${countByCategory("initiator")}",
                 onClick = { onOpenInternalPrompts("initiator") })
-            ModelsSetupNavCard("💬", "Manage Fan in, model, Responder prompts", "Per-model responder template (category requester)", "${countByCategory("requester")}",
+            ModelsSetupNavCard("💬", "Fan in, model, Responder", "Per-model responder template (category requester)", "${countByCategory("requester")}",
                 onClick = { onOpenInternalPrompts("requester") })
-            ModelsSetupNavCard("🧬", "Manage Fan in, model, Initiator & Responder prompts", "Combined initiator + responder template (category model)", "${countByCategory("model")}",
+            ModelsSetupNavCard("🧬", "Fan in, model, Initiator & Responder", "Combined initiator + responder template (category model)", "${countByCategory("model")}",
                 onClick = { onOpenInternalPrompts("model") })
         }
     }
