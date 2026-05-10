@@ -509,22 +509,22 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHelp = LocalNavigateToHelp.current
     val navigateToCurrentReport = LocalNavigateToCurrentReport.current
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-            // Left side: back-arrow icon when the active TitleBar
-            // passed an onBackClick. Sized at the same 1.5× scale as
-            // the right-strip icons so the bar reads as one continuous
-            // row of glyphs.
-            val onBack = icons?.onBack
-            if (onBack != null) {
-                TitleBarIcon("←", Color.White, onBack, width = 22.dp, scale = 1.5f)
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            // Right side: same TitleBarActionStrip the top bar would
-            // render, with the same Home / Help wiring and per-icon
-            // null-check rules. onMemo is non-null only when the active
-            // screen is "deeper" than the report-result page.
+        // Left side: back-arrow icon when the active TitleBar passed
+        // an onBackClick. Sized noticeably larger than the right-strip
+        // glyphs (2× vs 1.5×) so it reads as the primary navigation
+        // affordance from peripheral vision.
+        val onBack = icons?.onBack
+        if (onBack != null) {
+            TitleBarIcon("←", Color.White, onBack, width = 28.dp, scale = 2.0f)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        // Right side: same TitleBarActionStrip the top bar would
+        // render, with the same Home / Help wiring and per-icon
+        // null-check rules. compactSpacing = false so the slots
+        // stay roomy and adjacent icons don't read as one chunk.
         TitleBarActionStrip(
             onHome = navigateHome,
             onReload = icons?.onReload,
@@ -535,7 +535,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onHelp = { navigateHelp(icons?.helpTopic) },
             onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
             scale = 1.5f,
-            compactSpacing = true
+            compactSpacing = false
         )
     }
 }
