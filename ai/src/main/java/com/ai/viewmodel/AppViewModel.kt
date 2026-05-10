@@ -301,16 +301,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (providersAdded < 0) {
                     android.util.Log.w("AppViewModel", "First-run providers.json import failed")
                 }
-                val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
-                if (bundled.isNotEmpty()) {
-                    val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
-                    if (merged.size != ai.internalPrompts.size) {
-                        ai = ai.copy(internalPrompts = merged)
-                    }
-                }
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
         }
+
+        // Every-start delta-merge of bundled prompts. Appends any
+        // (category, name) pair not already present; never overwrites
+        // existing rows. New prompts shipped in an APK upgrade get
+        // picked up here without the user having to tap 'Read new
+        // prompts' in Settings. Already on Dispatchers.IO via the
+        // viewModelScope.launch wrapping this bootstrap call.
+        runCatching {
+            val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
+            if (bundled.isNotEmpty()) {
+                val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
+                if (merged.size != ai.internalPrompts.size) {
+                    ai = ai.copy(internalPrompts = merged)
+                    settingsPrefs.saveSettings(ai)
+                }
+            }
+        }.onFailure { android.util.Log.w("AppViewModel", "prompts.json delta merge failed", it) }
 
         return gs to ai
     }
