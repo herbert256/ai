@@ -266,9 +266,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // as "DeepSeek" still resolves the bundled prompt's
         // (lowercase-tail) "Deepseek" pin without manual editing. Same
         // safety against future bundled-vs-user casing drift.
-        val agent = aiSettings.agents.firstOrNull {
+        val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(iconPrompt.agent, ignoreCase = true)
         } ?: return
+        // The Agent stored in aiSettings.agents carries an empty apiKey
+        // field — keys live on the Provider. Resolve the same way
+        // buildReportTasks does so the dispatch sees a real key (and a
+        // real model when the agent is pinned to a default-model alias).
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
         scope.launch(Dispatchers.IO) {
             withTracerTags(reportId = reportId, category = "Report icon") {
