@@ -514,18 +514,16 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         tonalElevation = 4.dp
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left side: back arrow when the active TitleBar passed an
-            // onBackClick. Stays compact at 1× to avoid eating
-            // horizontal room from the right-aligned strip.
+            // Left side: back-arrow icon when the active TitleBar
+            // passed an onBackClick. Sized at the same 1.5× scale as
+            // the right-strip icons so the bar reads as one continuous
+            // row of glyphs.
             val onBack = icons?.onBack
             if (onBack != null) {
-                TextButton(onClick = onBack) {
-                    Text(icons.backText, color = Color.White, fontSize = 16.sp,
-                        maxLines = 1, softWrap = false)
-                }
+                TitleBarIcon("←", Color.White, onBack, width = 22.dp, scale = 1.5f)
             }
             Spacer(modifier = Modifier.weight(1f))
             // Right side: same TitleBarActionStrip the top bar would
