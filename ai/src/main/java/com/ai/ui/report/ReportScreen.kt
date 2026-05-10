@@ -1701,17 +1701,16 @@ fun ReportsScreen(
         // subject left + "AI Report" right (no separator); HARDCODED
         // keeps just the static label and shows the green line below.
         val promptTitle = uiState.genericPromptTitle
-        val barFixed = if (!isGenerating) "AI Report — Models" else "AI Report"
-        // Prepend the resolved icon emoji once kickOffIconGeneration
-        // finishes — visible on the result-screen title bar so the
-        // user sees the same icon they'll see in the hub / history
-        // list. Falls through cleanly when the icon hasn't resolved
-        // yet (or icon-gen wasn't configured).
-        val barTitle = if (!reportIcon.isNullOrEmpty()) "$reportIcon $barFixed" else barFixed
+        val barTitle = if (!isGenerating) "AI Report — Models" else "AI Report"
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,
             subject = if (isGenerating) promptTitle else null,
+            // Resolved emoji renders as the absolute leftmost icon
+            // when present; falls back to 📝 while icon-gen is in
+            // flight or after it errored. Hidden during the selection
+            // phase (no report yet).
+            reportIcon = if (isGenerating) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null,
             onBackClick = onDismiss,
             onReload = if (isGenerating && currentReportId != null && isComplete) {
                 { showRegenerateConfirm = true }

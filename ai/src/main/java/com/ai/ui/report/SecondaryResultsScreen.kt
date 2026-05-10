@@ -261,7 +261,8 @@ internal fun SecondaryResultsScreen(
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
                 helpTopic = "secondary_list",
-                title = com.ai.ui.shared.reportIconTitle(parentReport, "Secondary results"),
+                title = "Secondary results",
+                reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
                 subject = baseTitle,
                 onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
@@ -798,7 +799,8 @@ private fun ColumnScope.FanOutDrillInView(
         val srcTrace = srcTraceState.value
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = com.ai.ui.shared.reportIconTitle(report, "Fan out - pair"),
+            title = "Fan out - pair",
+            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
@@ -983,7 +985,8 @@ private fun ColumnScope.FanOutDrillInView(
         val l2Trace = activeModelTrace
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = com.ai.ui.shared.reportIconTitle(report, "Fan out - model"),
+            title = "Fan out - model",
+            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -1328,7 +1331,8 @@ private fun ColumnScope.FanOutDrillInView(
     // without losing the screen identity.
     TitleBar(
         helpTopic = "secondary_fan_out",
-        title = com.ai.ui.shared.reportIconTitle(report, "Fan out"),
+        title = "Fan out",
+        reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
         onBackClick = onBack,
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
@@ -1805,7 +1809,8 @@ private fun OnePageView(
         // model, mirroring the L2 page's TitleBar slot.
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = com.ai.ui.shared.reportIconTitle(parentReport, "One page view"),
+            title = "One page view",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = modelLabel,
             onBackClick = onBack,
             onInfo = if (activeProviderService != null) {
@@ -2021,7 +2026,8 @@ internal fun SecondaryResultDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
-            title = com.ai.ui.shared.reportIconTitle(parentReport, "Secondary detail"),
+            title = "Secondary detail",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = title,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,

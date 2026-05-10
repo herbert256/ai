@@ -201,7 +201,8 @@ private fun ReportsViewerScreenLoaded(
             // table, not a copyable string.
             val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
             TitleBar(helpTopic = sectionHelpTopic,
-                title = com.ai.ui.shared.reportIconTitle(report, title),
+                title = title,
+                reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
                 onBackClick = onDismiss,
                 onCopy = if (initialSection == "prompt") {
                     displayPrompt.takeIf { it.isNotBlank() }?.let {
@@ -284,7 +285,8 @@ private fun ReportsViewerScreenLoaded(
         // the selected agent's model.
         TitleBar(
             helpTopic = "content_view",
-            title = com.ai.ui.shared.reportIconTitle(report, "Model response"),
+            title = "Model response",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onDismiss,
             onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
                 { onNavigateToTraceFile(headerTraceFilename) }
@@ -428,7 +430,8 @@ private fun OnePageReportView(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "content_view",
-            title = com.ai.ui.shared.reportIconTitle(report, "View in one page"),
+            title = "View in one page",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = titleText,
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)

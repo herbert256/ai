@@ -184,7 +184,8 @@ internal fun TranslationRunDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
             helpTopic = "translation_run",
-            title = com.ai.ui.shared.reportIconTitle(parentReport, "Translation run"),
+            title = "Translation run",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = targetLang,
             onBackClick = onBack,
             // 🔄 combines "restart failed" + "start missing" — fires

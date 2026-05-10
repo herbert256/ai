@@ -139,15 +139,6 @@ fun copyToClipboard(context: android.content.Context, text: String, label: Strin
     android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
 }
 
-/** Prepend the report's resolved emoji to the given title, separated
- *  by a space. Used by every screen that's scoped to a single report
- *  so the report's icon shows in the title bar (View flow, per-result
- *  screen, secondary results, Meta, Translate compare / detail, etc.).
- *  Returns the title unchanged when [report] is null or its icon is
- *  empty — so legacy reports without an icon still render cleanly. */
-fun reportIconTitle(report: com.ai.data.Report?, title: String): String =
-    report?.icon?.takeIf { it.isNotBlank() }?.let { "$it $title" } ?: title
-
 /** Captured icon state from a TitleBar — what BottomIconBar needs to
  *  render the same strip the top bar would have rendered. */
 data class TitleBarIcons(
@@ -297,6 +288,16 @@ fun TitleBar(
      *  icon hidden. Use the top-level [copyToClipboard] helper inside
      *  the lambda for the standard "set ClipData + Toast" behaviour. */
     onCopy: (() -> Unit)? = null,
+    /** Resolved per-report emoji (e.g. 📊). When non-null the icon
+     *  renders as the absolute leftmost element of the bar — before
+     *  the back arrow — on every report-scoped screen. Tap navigates
+     *  back to the main report (via [LocalNavigateToCurrentReport])
+     *  when one is provided; otherwise the icon is decorative.
+     *  Suppresses the 📝 memo icon in the action strip since the
+     *  leftmost report icon serves the same "back to report" role.
+     *  Callsites should pass `report.icon ?: "📝"` so the slot is
+     *  filled while icon-gen is in flight or after it errored. */
+    reportIcon: String? = null,
     /** Applied to the bar's outer Row. Default no-op preserves the
      *  existing convention (most screens wrap the bar in a parent
      *  Column with `.padding(16.dp)` and pay zero pad here).
@@ -352,7 +353,9 @@ fun TitleBar(
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
-            onMemo = LocalNavigateToCurrentReport.current
+            // Suppress 📝 memo when the leftmost report icon is shown
+            // — the report icon itself is the back-to-report tap target.
+            onMemo = if (reportIcon != null) null else LocalNavigateToCurrentReport.current
         )
         if (state != null) {
             SideEffect { state.value = captured }
@@ -368,10 +371,19 @@ fun TitleBar(
         val mode = LocalSubjectToTitleBarMode.current
         val subjectNonBlank = !subject.isNullOrBlank()
         val barFontSize = titleStyle.fontSize * 1.25f
+        val reportIconTap = LocalNavigateToCurrentReport.current
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Leftmost slot: per-report emoji (with 📝 fallback at the
+            // callsite). Same slot the top-bar branch renders below.
+            if (reportIcon != null) {
+                TitleBarIcon(reportIcon, Color.Unspecified,
+                    onClick = reportIconTap ?: {},
+                    width = 22.dp, scale = 1.5f)
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
                 Text(
                     text = subject!!, style = titleStyle, color = Color.White,
@@ -423,11 +435,25 @@ fun TitleBar(
         val scale = if (showBackButton) 1f else 1.25f
         val iconScale = if (showBackButton || foldSubject) 1f else 1.5f
         val titleStyle = MaterialTheme.typography.titleLarge
+        // Tap target for the leftmost report icon. Goes back to the
+        // main report when the active screen is a sub-screen (memo
+        // semantics) — null on the report screen itself.
+        val reportIconTap = LocalNavigateToCurrentReport.current
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Leftmost slot (before back / leftContent): the per-report
+            // emoji when this screen is report-scoped. Always renders
+            // when [reportIcon] is non-null — callers should pass
+            // `report.icon ?: "📝"` so the slot is filled even while
+            // the icon-gen call is in flight.
+            if (reportIcon != null) {
+                TitleBarIcon(reportIcon, Color.Unspecified,
+                    onClick = reportIconTap ?: {},
+                    width = 22.dp, scale = iconScale)
+            }
             if (leftContent != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     leftContent()
@@ -491,7 +517,10 @@ fun TitleBar(
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
-                onMemo = navigateToCurrentReport,
+                // Suppress 📝 memo when the leftmost report icon is
+                // shown — that icon already provides the back-to-
+                // report tap target.
+                onMemo = if (reportIcon != null) null else navigateToCurrentReport,
                 scale = iconScale,
                 // Tight inter-icon spacing in the 1.5× mode. Without
                 // this, scaled-up slots leave 1.5× the air too —

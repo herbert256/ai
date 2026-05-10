@@ -113,7 +113,8 @@ internal fun ReportMetaScreen(
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_meta",
-            title = com.ai.ui.shared.reportIconTitle(parentReport, "Meta"),
+            title = "Meta",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 

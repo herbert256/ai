@@ -158,7 +158,8 @@ fun ReportSingleResultScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
-            title = com.ai.ui.shared.reportIconTitle(report, "Agent result"),
+            title = "Agent result",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = agentLabel,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
