@@ -86,7 +86,13 @@ data class ChatSession(
      *  message and prepends a context block to the system message
      *  (see KnowledgeService.retrieve / formatContextBlock). Empty
      *  when RAG isn't wired for this session. */
-    val knowledgeBaseIds: List<String> = emptyList()
+    val knowledgeBaseIds: List<String> = emptyList(),
+    /** Display title. Seeded with the first 10 words of the first
+     *  user message on send; replaced asynchronously by the AI
+     *  `chat_title` internal prompt after the first assistant
+     *  response. Blank for sessions saved before this field
+     *  existed — display sites fall back to [preview]. */
+    val title: String = ""
 ) {
     val preview: String
         get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"

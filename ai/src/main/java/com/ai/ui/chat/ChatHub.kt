@@ -161,7 +161,7 @@ private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.dat
             }
             sessions.forEach { s ->
                 Text(
-                    text = s.preview,
+                    text = s.title.ifBlank { s.preview },
                     fontSize = 13.sp, color = Color.White,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier

@@ -88,7 +88,8 @@ fun ChatHistoryScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = session.preview.let { if (it.length > 50) "${it.take(50)}..." else it },
+                                        text = session.title.ifBlank { session.preview }
+                                            .let { if (it.length > 50) "${it.take(50)}..." else it },
                                         fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
@@ -167,7 +168,7 @@ private suspend fun searchInChats(query: String): List<ChatSearchResult> = withC
                 results.add(
                     ChatSearchResult(
                         sessionId = session.id,
-                        sessionTitle = session.preview.ifBlank { "Chat with ${session.provider.id}" },
+                        sessionTitle = session.title.ifBlank { session.preview }.ifBlank { "Chat with ${session.provider.id}" },
                         messageRole = message.role,
                         messagePreview = preview,
                         messageTimestamp = message.timestamp

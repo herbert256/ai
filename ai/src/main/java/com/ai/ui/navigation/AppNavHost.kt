@@ -602,6 +602,7 @@ fun AppNavHost(
                     onSendMessageStream = { messages, webSearch, reasoning, kbs -> chatViewModel.sendChatMessageStream(agent.provider, effectiveApiKey, effectiveModel, messages, sessionParams = chatParams, baseUrl = customBaseUrl, webSearchTool = webSearch, reasoningEffort = reasoning, context = agentChatContext, knowledgeBaseIds = kbs) },
                     onRecordStatistics = { inp, out -> chatViewModel.recordChatStatistics(agent.provider, effectiveModel, inp, out) },
                     aiSettings = uiState.aiSettings,
+                    repository = appViewModel.repository,
                     isVisionCapable = uiState.aiSettings.isVisionCapable(agent.provider, effectiveModel),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                     initialUserInput = uiState.chatStarterText,
@@ -727,6 +728,7 @@ fun AppNavHost(
                         { inp, out -> chatViewModel.recordChatStatistics(provider, model, inp, out) }
                     },
                     aiSettings = uiState.aiSettings,
+                    repository = appViewModel.repository,
                     isVisionCapable = !isLocal && uiState.aiSettings.isVisionCapable(provider, model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                     initialUserInput = uiState.chatStarterText,
@@ -777,6 +779,7 @@ fun AppNavHost(
                         { inp, out -> chatViewModel.recordChatStatistics(session.provider, session.model, inp, out) }
                     },
                     aiSettings = uiState.aiSettings,
+                    repository = appViewModel.repository,
                     isVisionCapable = !isLocalSession && uiState.aiSettings.isVisionCapable(session.provider, session.model),
                     onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
                 )

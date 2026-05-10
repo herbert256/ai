@@ -64,6 +64,14 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
   },
   {
+    "name": "chat_title",
+    "title": "Decide the chat title",
+    "reference": false,
+    "category": "internal",
+    "agent": "DeepSeek",
+    "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
+  },
+  {
     "name": "response",
     "title": "Just the response",
     "reference": false,

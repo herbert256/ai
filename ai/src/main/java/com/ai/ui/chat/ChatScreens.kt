@@ -252,6 +252,11 @@ fun ChatSessionScreen(
     onSendMessageStream: (List<ChatMessage>, Boolean, String?, List<String>) -> Flow<String>,
     onRecordStatistics: suspend (Int, Int) -> Unit,
     aiSettings: Settings,
+    /** Repository used for the background `chat_title` AI call. Threaded
+     *  through from AppNavHost so the screen can fire a single-shot
+     *  `analyzeWithAgent` after the first assistant response without
+     *  pulling in an entire AppViewModel reference. */
+    repository: AnalysisRepository,
     initialMessages: List<ChatMessage> = emptyList(),
     sessionId: String? = null,
     isVisionCapable: Boolean = false,
@@ -405,6 +410,15 @@ fun ChatSessionScreen(
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
     val availableKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(context) }
 
+    // Display title. Seeded from a previously persisted value so a
+    // resumed session keeps whatever title the AI generated last
+    // time. Blank for fresh sessions; populated on first send with
+    // the first 10 words of the user's prompt and then replaced
+    // asynchronously by the chat_title internal prompt.
+    var sessionTitle by rememberSaveable(currentSessionId) {
+        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.title.orEmpty())
+    }
+
     fun saveSession(msgs: List<ChatMessage>) {
         // Persist the current chip state alongside the original
         // params object — the screen's local useWebSearch and
@@ -417,7 +431,7 @@ fun ChatSessionScreen(
             reasoningEffort = reasoningEffort.ifBlank { null }
         )
         ChatHistoryManager.saveSession(
-            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds)
+            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
         )
     }
 
@@ -483,6 +497,17 @@ fun ChatSessionScreen(
         messages = messages + userMessage
         userInput = ""; error = null
         attachedImage = null
+        // Seed a sensible default title from the first 10 words of
+        // the first user message. The chat_title internal prompt
+        // (kicked off after the first assistant response) replaces
+        // this with a short AI-generated title shortly after.
+        if (sessionTitle.isBlank()) {
+            sessionTitle = input.trim()
+                .split(Regex("\\s+"))
+                .filter { it.isNotEmpty() }
+                .take(10)
+                .joinToString(" ")
+        }
         saveSession(messages)
 
         // Add LiteLLM-reported tool_use overhead when web-search is on so
@@ -510,11 +535,32 @@ fun ChatSessionScreen(
                     onSendMessageStream(sentMessages, sentWebSearch, sentReasoning, sentKbIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 }
                 val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
+                val isFirstAssistantTurn = messages.none { it.role == "assistant" }
                 messages = messages + assistantMsg
                 saveSession(messages)
                 val outputTokens = AppViewModel.estimateTokens(streamingContentState.value)
                 totalCost += inputTokens * pricing.promptPrice * 100 + outputTokens * pricing.completionPrice * 100
                 onRecordStatistics(inputTokens, outputTokens)
+                // After the very first assistant response, kick off a
+                // background DeepSeek call (chat_title internal prompt)
+                // to replace the 10-word default with a short
+                // AI-generated title. Silent on failure — the default
+                // stays. Subsequent turns don't re-trigger.
+                if (isFirstAssistantTurn) {
+                    val firstUser = sentMessages.firstOrNull { it.role == "user" }?.content.orEmpty()
+                    kickOffChatTitleGeneration(
+                        context = context,
+                        scope = scope,
+                        repository = repository,
+                        aiSettings = aiSettings,
+                        userPrompt = firstUser,
+                        assistantResponse = assistantMsg.content,
+                        onTitleResolved = { newTitle ->
+                            sessionTitle = newTitle
+                            saveSession(messages)
+                        }
+                    )
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // User left the screen / closed the app. Don't persist a
                 // "[Stream interrupted]" line into the saved session — the
@@ -1150,6 +1196,61 @@ internal fun ParametersSelectorDialog(
                     TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
                     Spacer(modifier = Modifier.width(8.dp))
                     TextButton(onClick = { onConfirm(current.toList()) }) { Text("OK", maxLines = 1, softWrap = false) }
+                }
+            }
+        }
+    }
+}
+
+/** Fire-and-forget call to the `chat_title` internal prompt. Mirrors
+ *  [com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]: looks up
+ *  the bundled prompt, resolves the pinned agent (DeepSeek by
+ *  default), substitutes `@PROMPT@` / `@RESPONSE@`, dispatches via
+ *  [AnalysisRepository.analyzeWithAgent], and on success calls
+ *  [onTitleResolved] back on the main thread. Silent on every
+ *  failure path — the 10-word default seeded at send time stays. */
+private fun kickOffChatTitleGeneration(
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    repository: AnalysisRepository,
+    aiSettings: Settings,
+    userPrompt: String,
+    assistantResponse: String,
+    onTitleResolved: (String) -> Unit
+) {
+    val prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "internal" && it.name.equals("chat_title", ignoreCase = true)
+    } ?: return
+    val rawAgent = aiSettings.agents.firstOrNull {
+        it.name.equals(prompt.agent, ignoreCase = true)
+    } ?: return
+    val agent = rawAgent.copy(
+        apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+        model = aiSettings.getEffectiveModelForAgent(rawAgent)
+    )
+    val resolved = prompt.text
+        .replace("@PROMPT@", userPrompt)
+        .replace("@RESPONSE@", assistantResponse)
+    scope.launch(Dispatchers.IO) {
+        com.ai.data.withTraceCategory("Chat title") {
+            runCatching {
+                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val response = repository.analyzeWithAgent(
+                    agent, "", resolved, AgentParameters(),
+                    null, context, baseUrl
+                )
+                val raw = response.analysis?.trim().orEmpty()
+                if (response.error != null || raw.isEmpty()) return@runCatching
+                // Strip surrounding quotes / trailing period that some
+                // models add despite "no other text" instruction.
+                val cleaned = raw
+                    .removeSurrounding("\"")
+                    .removeSurrounding("'")
+                    .trim()
+                    .trimEnd('.')
+                    .trim()
+                if (cleaned.isNotEmpty()) {
+                    withContext(Dispatchers.Main) { onTitleResolved(cleaned) }
                 }
             }
         }
