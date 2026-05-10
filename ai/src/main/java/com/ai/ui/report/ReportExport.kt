@@ -78,7 +78,15 @@ internal data class HtmlSecondaryData(
      *  [SecondaryResult]. Drives every section heading / bucket in
      *  the exports. Null on TRANSLATE rows and on rows persisted
      *  before the Meta-prompt CRUD existed. */
-    val metaPromptName: String? = null
+    val metaPromptName: String? = null,
+    /** Set when this row is a fan-out per-pair response — the
+     *  agentId of the source whose report this row was responding
+     *  to. Lets the cost view's "By type" rollup label fan-out
+     *  rows as `"fan-out"` instead of falling through to the
+     *  metaPromptName / kind fallback. */
+    val fanOutSourceAgentId: String? = null,
+    /** Set when this row is a fan-in combine-reports follow-up. */
+    val fanInOf: String? = null
 )
 
 /** A "view" of [HtmlReportData] under one language — Original or one of
@@ -212,8 +220,13 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 
 // ===== HTML Conversion =====
 
-internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
-    return renderHtmlReport(buildHtmlReportData(context, report), appVersion)
+internal fun convertReportToHtml(
+    context: android.content.Context,
+    report: Report,
+    appVersion: String,
+    costsScope: ReportExportCostsScope = ReportExportCostsScope.ALL
+): String {
+    return renderHtmlReport(buildHtmlReportData(context, report), appVersion, costsScope)
 }
 
 /** Build the unified data shape every Medium-equivalent export consumes:
@@ -269,7 +282,9 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             targetLanguage = s.targetLanguage,
             targetLanguageNative = s.targetLanguageNative,
             translatedFromSecondaryId = s.translatedFromSecondaryId,
-            metaPromptName = s.metaPromptName
+            metaPromptName = s.metaPromptName,
+            fanOutSourceAgentId = s.fanOutSourceAgentId,
+            fanInOf = s.fanInOf
         )
     }
 
@@ -436,7 +451,7 @@ private fun ApiTrace.toRedactedExportJson(): String {
 // rather than IDs, so identical button/card markup in different
 // language blocks doesn't collide.
 
-private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
+private fun renderHtmlReport(data: HtmlReportData, appVersion: String, costsScope: ReportExportCostsScope = ReportExportCostsScope.ALL): String {
     val sb = StringBuilder()
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
@@ -461,7 +476,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     languages.forEachIndexed { i, lv ->
         val display = if (i == 0) "block" else "none"
         sb.append("<div class='lang-block' data-lang='${lv.key}' style='display:$display'>")
-        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"))
+        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"), costsScope = costsScope)
         sb.append("</div>")
     }
 
@@ -477,7 +492,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
  *  the views whose content is shared across languages (Costs, JSON) or
  *  doesn't have meaningful translations (Reranks, Moderations) — those
  *  appear only in the Original block. */
-private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOriginal: Boolean) {
+private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOriginal: Boolean, costsScope: ReportExportCostsScope) {
     val data = lv.data
     val defaultAllTogether = data.reportType == ReportType.TABLE
     val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
@@ -528,7 +543,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     if (hasPrompt) views += View("prompt", "Prompt") {
         sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
     }
-    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data) }
+    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data, costsScope) }
     if (hasJson) views += View("json", "JSON") { renderJsonView(sb, data.traces) }
 
     if (views.isEmpty()) return
@@ -686,38 +701,90 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
     sb.append("</div>")
 }
 
-/** Costs view — the per-call cost table. Sorted by total cents desc so
- *  the most expensive call is always at the top. Includes report agents
- *  AND every secondary kind (rerank/summarize/compare/moderation/
- *  translate) as separate rows. */
-private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
-    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
-    sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+/** Costs view — mirrors the in-app View → Costs page. Renders up to
+ *  three sections per the [costsScope] picker on ReportExportScreen:
+ *  - TYPES: only the "By type" summary table.
+ *  - MODELS: only the "By model" summary table.
+ *  - ALL: both summaries + the per-call "All calls" detail table.
+ *
+ *  Includes report agents AND every secondary kind (rerank /
+ *  summarize / compare / moderation / translate / fan-out / fan-in)
+ *  as separate rows. */
+private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, costsScope: ReportExportCostsScope) {
     data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
     val agentRows = data.agents.filter { it.inputCost != null }.map {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-        val type = it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
-            ?: when (it.kind) {
+        // Match the in-app cost table's row-type label rules: fan-out
+        // / fan-in rows always read "fan-out" / "fan-in" so the
+        // grouping reflects the scope-of-the-call, not the meta
+        // prompt name. Other secondaries fall back to the
+        // user-given Meta prompt name; rerank / moderation /
+        // translate keep their fixed labels.
+        val type = when {
+            it.fanOutSourceAgentId != null -> "fan-out"
+            it.fanInOf != null -> "fan-in"
+            !it.metaPromptName.isNullOrBlank() -> it.metaPromptName.lowercase()
+            else -> when (it.kind) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.META -> "meta"
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
             }
+        }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
-    var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
-    sorted.forEach { r ->
-        tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
-        val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-        sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+    if (sorted.isEmpty()) return
+
+    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
+
+    // Group totals — same projection used twice (by type, by model).
+    data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+    fun groupTotals(grouper: (Row) -> String): List<GroupTotal> =
+        sorted.groupBy(grouper).map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
+            GroupTotal(k, iT, oT, iC, oC)
+        }.sortedByDescending { it.inCents + it.outCents }
+
+    fun appendSummary(label: String, keyHeader: String, groups: List<GroupTotal>) {
+        if (groups.isEmpty()) return
+        sb.append("<div class='cost-summary-label' style='margin-top:12px;font-weight:600'>${esc(label)}</div>")
+        sb.append("<table class='cost-table'><tr><th>${esc(keyHeader)}</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        groups.forEach { g ->
+            iT += g.inputTokens; oT += g.outputTokens; iC += g.inCents; oC += g.outCents
+            sb.append("<tr><td>${esc(g.key)}</td><td class='num'>${g.inputTokens}</td><td class='num'>${g.outputTokens}</td><td class='num'>${"%.2f".format(g.inCents)}</td><td class='num'>${"%.2f".format(g.outCents)}</td><td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td>Total</td><td class='num'>$iT</td><td class='num'>$oT</td><td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td><td class='num'>${"%.2f".format(iC + oC)}</td></tr>")
+        sb.append("</table>")
     }
-    sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
-    sb.append("</table></div>")
+
+    val showByType = costsScope == ReportExportCostsScope.TYPES || costsScope == ReportExportCostsScope.ALL
+    val showByModel = costsScope == ReportExportCostsScope.MODELS || costsScope == ReportExportCostsScope.ALL
+    val showAllCalls = costsScope == ReportExportCostsScope.ALL
+
+    if (showByType) appendSummary("By type", "Type", groupTotals { it.type })
+    if (showByModel) appendSummary("By model", "Model", groupTotals { "${it.providerDisplay} · ${it.model}" })
+
+    if (showAllCalls) {
+        sb.append("<div class='cost-summary-label' style='margin-top:12px;font-weight:600'>All calls</div>")
+        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+        sorted.forEach { r ->
+            tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
+            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+        sb.append("</table>")
+    }
+
+    sb.append("</div>")
 }
 
 /** JSON view — every captured API trace this report knows about, with
