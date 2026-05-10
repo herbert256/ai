@@ -127,6 +127,39 @@ internal fun LanguagePickerRow(
     }
 }
 
+/** Two-segment toggle for the model picker style on the Reports
+ *  viewer: "Buttons" (a button per model) vs "Pulldown" (the
+ *  collapsed dropdown). Mirrors the LanguagePickerRow look. */
+@Composable
+private fun PickerStyleSwitch(
+    selected: String,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        listOf("buttons" to "Buttons", "dropdown" to "Pulldown").forEach { (key, label) ->
+            val isSelected = key == selected
+            Button(
+                onClick = { onSelect(key) },
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Indigo else Color(0xFF3A3A4A)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 32.dp)
+            ) {
+                Text(
+                    label,
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+    }
+}
+
 /** Group TRANSLATE secondaries by language and produce the picker
  *  list. "Original" is always first. */
 internal fun buildLangTabs(translates: List<SecondaryResult>): List<LangTab> {
@@ -304,49 +337,84 @@ private fun ReportsViewerScreenLoaded(
 
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
 
-        // Agent picker — single dropdown over the FlowRow of buttons.
-        // The FlowRow used to wrap into multiple lines on dense
-        // reports, eating vertical space; the dropdown collapses to
-        // one row whose label IS the active model.
+        // Agent picker — user-toggled between a FlowRow of buttons
+        // (one per model, click to view) and a single dropdown whose
+        // label IS the active model. The dropdown collapses to one
+        // row on dense reports; buttons keep every model one tap
+        // away.
         if (agentsWithResults.isNotEmpty()) {
-            var pickerOpen by remember { mutableStateOf(false) }
-            val selectedLabel = selectedReportAgent?.let { agent ->
-                val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
-                com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
-            } ?: "Pick a model"
-            Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
-                OutlinedButton(
-                    onClick = { pickerOpen = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
-                ) {
-                    Text(
-                        selectedLabel,
-                        modifier = Modifier.weight(1f),
-                        fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    Text(" ▾", fontSize = 14.sp, color = AppColors.TextTertiary)
-                }
-                DropdownMenu(
-                    expanded = pickerOpen, onDismissRequest = { pickerOpen = false },
-                    modifier = Modifier.fillMaxWidth(0.85f)
+            var pickerStyle by rememberSaveable { mutableStateOf("dropdown") }
+            PickerStyleSwitch(
+                selected = pickerStyle,
+                onSelect = { pickerStyle = it },
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+            )
+            if (pickerStyle == "buttons") {
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     agentsWithResults.forEach { agent ->
                         val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
                         val label = com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
                         val isSelected = agent.agentId == selectedAgentId
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    label,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) AppColors.Purple else Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            onClick = { selectedAgentId = agent.agentId; pickerOpen = false }
+                        Button(
+                            onClick = { selectedAgentId = agent.agentId },
+                            colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Purple else Color(0xFF3A3A4A)),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.heightIn(min = 36.dp)
+                        ) {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1, softWrap = false
+                            )
+                        }
+                    }
+                }
+            } else {
+                var pickerOpen by remember { mutableStateOf(false) }
+                val selectedLabel = selectedReportAgent?.let { agent ->
+                    val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
+                    com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
+                } ?: "Pick a model"
+                Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)) {
+                    OutlinedButton(
+                        onClick = { pickerOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                    ) {
+                        Text(
+                            selectedLabel,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
+                        Text(" ▾", fontSize = 14.sp, color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(
+                        expanded = pickerOpen, onDismissRequest = { pickerOpen = false },
+                        modifier = Modifier.fillMaxWidth(0.85f)
+                    ) {
+                        agentsWithResults.forEach { agent ->
+                            val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
+                            val label = com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " / ")
+                            val isSelected = agent.agentId == selectedAgentId
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        label,
+                                        fontSize = 13.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) AppColors.Purple else Color.White,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                onClick = { selectedAgentId = agent.agentId; pickerOpen = false }
+                            )
+                        }
                     }
                 }
             }
