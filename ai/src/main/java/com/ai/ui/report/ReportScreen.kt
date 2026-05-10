@@ -2177,61 +2177,46 @@ private fun ColumnScope.GenerationPhase(
     when (activeBar) {
         "view" -> {
             Spacer(modifier = Modifier.height(4.dp))
-            ActionRow {
-                CompactButton(onClick = { close(); onViewPrompt() }, color = viewColor, text = "Prompt")
-                CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
-                CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
-                CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("every:", fontSize = 11.sp, color = AppColors.TextDim,
-                modifier = Modifier.padding(start = 4.dp))
-            Spacer(modifier = Modifier.height(2.dp))
-            // "every:" buttons: 0 items → disabled; 1 item → tap opens
-            // that item's detail directly; 2+ items → tap toggles Row 3
-            // showing one button per item (label may repeat across
-            // multiple runs of the same prompt).
+            // Per-kind tap: 1 item → open that item's detail directly;
+            // 2+ items → toggle Row 3 listing one button per item.
+            // Buttons for kinds with 0 items are omitted entirely, so
+            // the row only shows what the user can actually open.
             fun onEveryClick(key: String) {
                 val items = everyItems[key].orEmpty()
                 when (items.size) {
-                    0 -> { /* unreachable: enabled=false */ }
+                    0 -> { /* unreachable: button not rendered */ }
                     1 -> { close(); items[0].open() }
                     else -> { activeEveryKind = if (activeEveryKind == key) null else key }
                 }
             }
             ActionRow {
-                CompactButton(
-                    onClick = { onEveryClick("meta") },
-                    color = viewColor, text = "Meta",
-                    enabled = everyItems["meta"].orEmpty().isNotEmpty()
-                )
-                CompactButton(
-                    onClick = { onEveryClick("rerank") },
-                    color = viewColor, text = "Rerank",
-                    enabled = everyItems["rerank"].orEmpty().isNotEmpty()
-                )
-                CompactButton(
-                    onClick = { onEveryClick("fan_out") },
-                    color = viewColor, text = "Fan-out",
-                    enabled = everyItems["fan_out"].orEmpty().isNotEmpty()
-                )
-                CompactButton(
-                    onClick = { onEveryClick("fan_in") },
-                    color = viewColor, text = "Fan-in",
-                    enabled = everyItems["fan_in"].orEmpty().isNotEmpty()
-                )
-                CompactButton(
-                    onClick = { onEveryClick("fan-in-model") },
-                    color = viewColor, text = "Fan-in-model",
-                    enabled = everyItems["fan-in-model"].orEmpty().isNotEmpty()
-                )
-                CompactButton(
-                    onClick = { onEveryClick("translate") },
-                    color = viewColor, text = "Translate",
-                    enabled = everyItems["translate"].orEmpty().isNotEmpty()
-                )
+                CompactButton(onClick = { close(); onViewPrompt() }, color = viewColor, text = "Prompt")
+                CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
+                CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
+                CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
+                // Conditional per-kind buttons. Order matches the user's
+                // mental list (Meta / Rerank / Fan-out / Fan-in /
+                // Fan-in-model / Translate); FlowRow wraps as needed.
+                if (everyItems["meta"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("meta") }, color = viewColor, text = "Meta")
+                }
+                if (everyItems["rerank"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("rerank") }, color = viewColor, text = "Rerank")
+                }
+                if (everyItems["fan_out"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("fan_out") }, color = viewColor, text = "Fan-out")
+                }
+                if (everyItems["fan_in"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("fan_in") }, color = viewColor, text = "Fan-in")
+                }
+                if (everyItems["fan-in-model"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("fan-in-model") }, color = viewColor, text = "Fan-in-model")
+                }
+                if (everyItems["translate"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("translate") }, color = viewColor, text = "Translate")
+                }
             }
-            // ----- Row 3: per-item buttons for the active "every:" kind -----
+            // ----- Row 3: per-item buttons for the active kind -----
             val row3Items = activeEveryKind?.let { everyItems[it].orEmpty() }
             if (row3Items != null && row3Items.size >= 2) {
                 Spacer(modifier = Modifier.height(2.dp))
