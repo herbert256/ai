@@ -37,23 +37,27 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HtmlPreviewScreen(
     reportId: String,
+    detail: ReportExportDetail = ReportExportDetail.COMPLETE,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val state = produceState<PreviewState>(initialValue = PreviewState.Loading, reportId) {
+    val state = produceState<PreviewState>(initialValue = PreviewState.Loading, reportId, detail) {
         value = withContext(Dispatchers.IO) {
             val report: Report? = ReportStorage.getReport(context, reportId)
             if (report == null) PreviewState.NotFound
             else {
-                val raw = convertReportToHtml(context, report, getAppVersionForPreview(context))
-                // The exported document opens with `<h1>title</h1>`
-                // immediately after `<div class='container'>`. The
-                // title bar already shows the title, so strip the
-                // first <h1> in the preview only — the export path
-                // is untouched. Title text is HTML-escaped server
-                // side (`esc(...)`) so it never contains a literal
-                // `<`, making `[^<]*` a safe inner match.
+                val raw = when (detail) {
+                    ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersionForPreview(context))
+                    ReportExportDetail.SHORT -> buildShortHtml(context, report)
+                }
+                // Both exporters open with `<h1>title</h1>`
+                // immediately after the body wrapper. The title bar
+                // already shows the title, so strip the first <h1>
+                // in the preview only — the export paths are
+                // untouched. Title text is HTML-escaped server side
+                // (`esc(...)`) so it never contains a literal `<`,
+                // making `[^<]*` a safe inner match.
                 val html = raw.replaceFirst(Regex("<h1>[^<]*</h1>"), "")
                 PreviewState.Ready(report, html)
             }
@@ -65,7 +69,7 @@ fun HtmlPreviewScreen(
         val reportIcon = (state.value as? PreviewState.Ready)?.report?.icon?.takeIf { it.isNotBlank() } ?: "📝"
         TitleBar(
             helpTopic = "report_html_preview",
-            title = "HTML preview",
+            title = if (detail == ReportExportDetail.SHORT) "HTML preview (short)" else "HTML preview",
             reportIcon = reportIcon,
             subject = titleSubject,
             onBackClick = onBack,

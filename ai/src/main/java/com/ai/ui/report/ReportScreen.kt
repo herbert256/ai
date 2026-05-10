@@ -624,7 +624,11 @@ fun ReportsScreen(
     // multi-agent ReportsViewerScreen reached via View → Results.
     var singleResultAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     var showExport by rememberSaveable { mutableStateOf(false) }
-    var showHtmlPreview by rememberSaveable { mutableStateOf(false) }
+    // Tracks the in-app HTML preview's selected detail level. Null →
+    // not shown. Default-COMPLETE when the action-row HTML button
+    // opens it; the Export screen's "View in app" pipes its own
+    // detail picker through.
+    var htmlPreviewDetail by rememberSaveable { mutableStateOf<ReportExportDetail?>(null) }
     var showEditPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditTitle by rememberSaveable { mutableStateOf(false) }
     var showEditParameters by rememberSaveable { mutableStateOf(false) }
@@ -1551,17 +1555,19 @@ fun ReportsScreen(
                 onNavigateHome = onNavigateHome,
                 onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
                 onExportAll = { onProgress -> onExportAll(rid, onProgress) },
-                onViewInApp = { showExport = false; showHtmlPreview = true }
+                onViewInApp = { det -> showExport = false; htmlPreviewDetail = det }
             )
         }
         return
     }
 
-    if (showHtmlPreview && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showHtmlPreview = false }) {
+    if (htmlPreviewDetail != null && currentReportId != null) {
+        val previewDetail = htmlPreviewDetail!!
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null }) {
             HtmlPreviewScreen(
                 reportId = currentReportId,
-                onBack = { showHtmlPreview = false }
+                detail = previewDetail,
+                onBack = { htmlPreviewDetail = null }
             )
         }
         return
@@ -1880,7 +1886,7 @@ fun ReportsScreen(
                 onOpenMetaPicker = { showMetaPicker = true },
                 onOpenFanOutPicker = { showFanOutPicker = true },
                 onOpenRerankPicker = { showRerankPicker = true },
-                onOpenHtmlPreview = { showHtmlPreview = true },
+                onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
                 secondaryCounts = secondaryCounts,
                 costsFromDeletedItems = costsFromDeletedItems,
                 secondaryRuns = secondaryRuns,
