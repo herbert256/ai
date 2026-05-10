@@ -67,7 +67,15 @@ internal fun TranslationRunDetailScreen(
      *  user sees what's queued in addition to what's already landed
      *  as a persisted SecondaryResult. Null after the run finishes —
      *  the screen falls back to showing only persisted rows. */
-    liveRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null
+    liveRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
+    /** Cancel the in-flight Job for this runId — used by the Delete
+     *  flow so PENDING / RUNNING items abort instead of continuing
+     *  in the background after the user wipes the persisted results. */
+    onCancelRun: (String) -> Unit = {},
+    /** Drop the runId from the live translationRuns map so the
+     *  result page's live row disappears alongside the now-deleted
+     *  persisted rows. */
+    onConsumeRun: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -364,23 +372,36 @@ internal fun TranslationRunDetailScreen(
     }
 
     if (confirmDelete) {
+        val pendingCount = liveRun?.items.orEmpty().count { item ->
+            item.status == com.ai.viewmodel.ReportViewModel.TranslationStatus.PENDING ||
+                item.status == com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING
+        }
+        val pendingNote = if (pendingCount > 0)
+            " Also cancels $pendingCount in-flight / queued call${if (pendingCount == 1) "" else "s"}."
+        else ""
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this translation run?") },
             text = {
                 Text(
                     "Drops every translation call (${results.size}) for " +
-                        (first?.targetLanguage ?: "this run") + " from the report. Can't be undone."
+                        (first?.targetLanguage ?: "this run") + " from the report.$pendingNote Can't be undone."
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    // Delete every TRANSLATE row in this run. The
-                    // produceState reload below picks up the empty
-                    // list and the screen pops back via onBack.
+                    // 1. Cancel the in-flight Job so RUNNING items
+                    //    abort and PENDING items don't fire. Safe to
+                    //    call when the run has already finished.
+                    onCancelRun(runId)
+                    // 2. Delete every persisted TRANSLATE row.
                     val ids = results.map { it.id }
                     ids.forEach { onDelete(it) }
+                    // 3. Drop the run from the live map so the
+                    //    result page's live row disappears alongside
+                    //    the now-deleted persisted rows.
+                    onConsumeRun(runId)
                     refreshTick++
                     onBack()
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }

@@ -1226,7 +1226,11 @@ fun ReportsScreen(
                 // whatever's already persisted as a SecondaryResult.
                 // Null after the run finishes; the screen falls back
                 // to its persisted-only path.
-                liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished }
+                liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished },
+                // Delete = cancel the Job + drop persisted rows + consume
+                // the live map entry so nothing about this run lingers.
+                onCancelRun = { id -> onCancelTranslation(id) },
+                onConsumeRun = { id -> onConsumeTranslation(id) }
             )
         }
         return
