@@ -157,7 +157,6 @@ fun ReportSingleResultScreen(
 
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
-    val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
@@ -169,7 +168,7 @@ fun ReportSingleResultScreen(
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = agentLabel,
             onBackClick = onBack,
-            onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
+            onTrace = traceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
             onDelete = { confirmRemove = true },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
