@@ -1,5 +1,6 @@
 package com.ai.ui.shared
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -59,6 +60,7 @@ fun <T> CrudListScreen(
      *  "Load new prompts from assets/prompts.json" action. */
     headerContent: @Composable ColumnScope.() -> Unit = {}
 ) {
+    BackHandler { onBack() }
     var showDeleteDialog by remember { mutableStateOf<T?>(null) }
 
     Column(

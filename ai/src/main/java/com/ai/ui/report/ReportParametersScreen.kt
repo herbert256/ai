@@ -1,5 +1,6 @@
 package com.ai.ui.report
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -18,6 +19,7 @@ fun ReportAdvancedParametersScreen(
     onApply: (AgentParameters?) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
     var temperature by remember { mutableStateOf(currentParameters?.temperature?.toString() ?: "") }
     var maxTokens by remember { mutableStateOf(currentParameters?.maxTokens?.toString() ?: "") }
     var topP by remember { mutableStateOf(currentParameters?.topP?.toString() ?: "") }
