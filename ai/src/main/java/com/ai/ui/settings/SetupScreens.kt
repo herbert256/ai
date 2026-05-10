@@ -590,20 +590,35 @@ fun ProvidersScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
-    onAddProvider: () -> Unit = {},
-    activeOnly: Boolean = true,
-    onActiveOnlyChange: (Boolean) -> Unit = {}
+    onAddProvider: (String) -> Unit = {}
 ) {
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
-    // "Active" = providers that have been tested and have a working API key (state == "ok").
-    // The filter choice is hoisted into the parent SettingsScreen so it survives a
-    // navigation hop into a provider's detail screen and back.
-    val activeCount = remember(aiSettings) { allProviders.count { aiSettings.getProviderState(it) == "ok" } }
 
-    val visibleProviders = remember(activeOnly, aiSettings) {
-        (if (activeOnly) allProviders.filter { aiSettings.getProviderState(it) == "ok" } else allProviders)
-            .sortedBy { it.id }
+    // Sort by state bucket (ok → error → inactive → other), then by id
+    // case-insensitively within each bucket. Working providers surface
+    // first so they're one tap away; broken / dormant / never-configured
+    // ones sink to the bottom.
+    val visibleProviders = remember(aiSettings, allProviders) {
+        allProviders.sortedWith(
+            compareBy<AppService> { p ->
+                when (aiSettings.getProviderState(p)) {
+                    "ok" -> 0
+                    "error" -> 1
+                    "inactive" -> 2
+                    else -> 3
+                }
+            }.thenBy { it.id.lowercase(java.util.Locale.ROOT) }
+        )
+    }
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    if (showAddDialog) {
+        AddProviderNameDialog(
+            existingIds = remember(allProviders) { allProviders.map { it.id }.toSet() },
+            onConfirm = { name -> showAddDialog = false; onAddProvider(name) },
+            onDismiss = { showAddDialog = false }
+        )
     }
 
     Column(
@@ -612,30 +627,7 @@ fun ProvidersScreen(
         TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup)
         Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            FilterChip(
-                selected = activeOnly,
-                onClick = { onActiveOnlyChange(true) },
-                label = { Text("Active ($activeCount)") }
-            )
-            FilterChip(
-                selected = !activeOnly,
-                onClick = { onActiveOnlyChange(false) },
-                label = { Text("All (${allProviders.size})") }
-            )
-        }
-
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (visibleProviders.isEmpty()) {
-                Text(
-                    "No active providers yet. Switch to All and set an API key.",
-                    fontSize = 13.sp, color = AppColors.TextTertiary
-                )
-            }
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {
@@ -663,17 +655,64 @@ fun ProvidersScreen(
             // Add sits at the bottom — the typical flow is "scroll the
             // list to confirm what you want isn't already there, then
             // add a new entry", so the action lands under the user's
-            // thumb after the scan. Shown in both filter modes so a
-            // fresh install (no Active providers yet) still has a
-            // working entry point on the default Active view.
+            // thumb after the scan.
             Spacer(modifier = Modifier.height(4.dp))
             Button(
-                onClick = onAddProvider,
+                onClick = { showAddDialog = true },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
     }
+}
+
+/** Tiny single-field dialog for the "+ Add provider" entry. The full
+ *  provider definition (base URL, paths, format, etc.) is filled in
+ *  on the existing edit screen the caller jumps to once this dialog
+ *  confirms. */
+@Composable
+private fun AddProviderNameDialog(
+    existingIds: Set<String>,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    val normalized = name.trim().replace(" ", "")
+    // Spaces would break SharedPreferences key prefixes (`<id>_api_key`,
+    // `<id>_model`, …); "Local" / "LOCAL" is the synthetic on-device
+    // sentinel that AppService.findById short-circuits — both rejected.
+    val reserved = normalized.equals("Local", ignoreCase = true)
+    val taken = normalized.isNotBlank() &&
+        existingIds.any { it.equals(normalized, ignoreCase = true) }
+    val canSave = normalized.isNotBlank() && !reserved && !taken
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add provider") },
+        text = {
+            OutlinedTextField(
+                value = name, onValueChange = { name = it },
+                label = { Text("Provider name") },
+                singleLine = true, modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedFieldColors(),
+                supportingText = {
+                    when {
+                        reserved -> Text("Local is reserved for the on-device provider", color = AppColors.Red, fontSize = 11.sp)
+                        taken -> Text("Already in use", color = AppColors.Red, fontSize = 11.sp)
+                        name.contains(" ") -> Text("Spaces will be stripped — saved as \"$normalized\"", color = AppColors.TextTertiary, fontSize = 11.sp)
+                    }
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(normalized) }, enabled = canSave) {
+                Text("Add")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 // ===== External Services =====

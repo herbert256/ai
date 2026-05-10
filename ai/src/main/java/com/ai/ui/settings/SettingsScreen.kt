@@ -19,7 +19,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
-    MAIN, AI_PROVIDER_EDIT, AI_PROVIDER_ADD, AI_SETUP,
+    MAIN, AI_PROVIDER_EDIT, AI_SETUP,
     AI_PROVIDERS_SETUP, AI_PROVIDERS,
     AI_MODELS_SETUP,
     AI_MODELS, AI_MODEL_EDIT,
@@ -146,7 +146,6 @@ fun SettingsScreen(
     // rememberSaveable inside ProvidersScreen) because the sub-screen `when` block
     // destroys ProvidersScreen's composition entirely on navigation, which throws
     // its rememberSaveable state away.
-    var providersActiveOnly by remember { mutableStateOf(true) }
 
     val goBack: () -> Unit = goBack@ {
         // If the user landed directly on a deep-linked sub-screen (e.g. opened
@@ -159,7 +158,6 @@ fun SettingsScreen(
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            SettingsSubScreen.AI_PROVIDER_ADD -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
             SettingsSubScreen.AI_PROVIDERS -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS_SETUP
             SettingsSubScreen.AI_MODEL_EDIT -> {
                 val from = modelEditFromProvider
@@ -235,18 +233,19 @@ fun SettingsScreen(
         SettingsSubScreen.AI_PROVIDERS -> {
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                activeOnly = providersActiveOnly,
-                onActiveOnlyChange = { providersActiveOnly = it },
                 onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
-                onAddProvider = { currentSubScreen = SettingsSubScreen.AI_PROVIDER_ADD }
-            )
-        }
-        SettingsSubScreen.AI_PROVIDER_ADD -> {
-            ProviderAddScreen(
-                onBack = goBack, onNavigateHome = onNavigateHome,
-                onSaved = { service ->
-                    selectedProviderId = service.id
-                    currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+                onAddProvider = { name ->
+                    // Stub provider — every other field is empty / default;
+                    // the user fills the rest in on the existing edit
+                    // screen (single source of truth, including the
+                    // SelectModelScreen entry for default model).
+                    val service = com.ai.data.AppService(
+                        id = name, baseUrl = "", adminUrl = "", defaultModel = ""
+                    )
+                    if (com.ai.data.ProviderRegistry.add(service)) {
+                        selectedProviderId = name
+                        currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
+                    }
                 }
             )
         }

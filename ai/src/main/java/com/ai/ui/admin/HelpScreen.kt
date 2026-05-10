@@ -1541,14 +1541,12 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "providers" to HelpContent(
         title = "Providers",
         cards = listOf(
-            HelpCard("Overview", "List of every registered provider. Filter chips at the top split between Active (state == \"ok\") and All (39 by default plus user-added). The state of each row is shown by an emoji."),
+            HelpCard("Overview", "List of every registered provider (42 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
-            HelpCard("Active filter", "Default view. Empty state hint suggests switching to All to set a key."),
-            HelpCard("All filter", "Shows every provider plus a green \"+ Add provider\" button at the top — opens ProviderAddScreen."),
-            HelpCard("Item rows", "Provider display name in white plus the configured default model in dim text (only shown when state == ok). Tap a row to edit."),
-            HelpCard("Tips", "The active/all toggle is hoisted into the parent SettingsScreen so navigating to a detail and back preserves it."),
-            HelpCard("Pitfalls", "Active count drops to 0 if every provider's key is invalid — you'll need to switch to All to fix one."),
-            HelpCard("Related", "Provider configuration card on AI Setup → Providers also leads here. ProviderAddScreen creates new ones; ProviderAdminScreen is the deep-link to each provider's web console.")
+            HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
+            HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen."),
+            HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped; \"Local\" reserved). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
+            HelpCard("Related", "Provider configuration card on AI Setup → Providers also leads here. ProviderAdminScreen is the deep-link to each provider's web console.")
         )
     ),
     "provider_edit" to HelpContent(
@@ -1563,20 +1561,6 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Advanced (per-config overrides)", "Custom model list URL + Admin URL override — these stay attached to your runtime ProviderConfig, not the catalog."),
             HelpCard("Definition cards", "Basics / API / Models / Pricing & cost / Features / Storage. Edits push through ProviderRegistry.update — same store loaded from assets/setup.json on first launch. ID and prefs key are read-only (changing them would orphan stored keys, models, statistics)."),
             HelpCard("Pitfalls", "If you change apiFormat, the captured `service` may go stale — Test re-resolves through AppService.findById to use the fresh registry entry. Don't rely on the old reference if you tweak apiFormat then test in the same session.")
-        )
-    ),
-    "provider_add" to HelpContent(
-        title = "Provider add",
-        cards = listOf(
-            HelpCard("Overview", "Form to register a brand-new provider. Mirrors every field on ProviderDefinition so the result behaves identically to the providers shipped in assets/setup.json."),
-            HelpCard("Basics", "ID (uppercase, unique — typed input is auto-uppercased and non-alphanumeric chars become _; existing ids show \"Already in use\"), Display name, Base URL, Default model, Admin URL."),
-            HelpCard("API", "API format chips (OPENAI_COMPATIBLE / ANTHROPIC / GOOGLE — only the dispatch format that matters), Chat path (default v1/chat/completions), Models path (default v1/models), Model list format (object/array), Seed field name (default \"seed\")."),
-            HelpCard("Models", "Default source (API / MANUAL), Model filter regex, Hardcoded models comma-separated."),
-            HelpCard("Pricing & cost", "OpenRouter name (for fan out-provider price lookup), LiteLLM prefix, Cost ticks divisor, Extract API cost switch."),
-            HelpCard("Features", "Supports citations, Supports search recency. Honored only when sending requests."),
-            HelpCard("Storage (collapsible)", "Prefs key — leave blank to use id.lowercase(). Once saved you cannot rename it."),
-            HelpCard("Save", "Add provider button at bottom. Disabled until ID + Display name + Base URL + Default model are populated and the ID is unique. Saves via ProviderRegistry.add and pops to the new provider's Edit screen."),
-            HelpCard("Pitfalls", "ID format is enforced — A-Z / 0-9 / _ only; lowercase typing is uppercased on input.")
         )
     ),
     "models" to HelpContent(
