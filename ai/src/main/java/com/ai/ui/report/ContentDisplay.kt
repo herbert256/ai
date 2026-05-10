@@ -555,6 +555,10 @@ fun ReportCostTable(report: Report) {
 
     var totalIn = 0; var totalOut = 0; var totalInC = 0.0; var totalOutC = 0.0
     rows.forEach { totalIn += it.inputTokens; totalOut += it.outputTokens; totalInC += it.inputCents; totalOutC += it.outputCents }
+    // Costs the user dropped from the report via Delete actions —
+    // surfaces as its own row above each Total, same pattern as
+    // the result-page footer + the HTML export's cost view.
+    val deletedCents = report.costsFromDeletedItems * 100
 
     fun fmtC(v: Double) = "%.2f".format(v)
     fun fmtS(ms: Long?) = if (ms != null) "%.1f".format(ms / 1000.0) else ""
@@ -643,13 +647,33 @@ fun ReportCostTable(report: Report) {
                             fontFamily = FontFamily.Monospace)
                     }
                 }
+                // Deleted-items row — sits above the Total when the
+                // report has any. All numeric cells stay blank
+                // except the Total ¢ column on the left, which
+                // shows the deleted spend on its own. The Total
+                // row's Total ¢ then includes it.
+                if (deletedCents > 0.0) {
+                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                        Text(fmtC(deletedCents), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            fontFamily = FontFamily.Monospace)
+                        Text("deleted", fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(keyWidth).padding(start = 8.dp),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            fontFamily = FontFamily.Monospace)
+                        Text("", modifier = Modifier.width(64.dp))
+                        Text("", modifier = Modifier.width(64.dp))
+                        Text("", modifier = Modifier.width(56.dp))
+                        Text("", modifier = Modifier.width(56.dp))
+                    }
+                }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(totalsWidth))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     val gIn = groups.sumOf { it.inputTokens }
                     val gOut = groups.sumOf { it.outputTokens }
                     val gInC = groups.sumOf { it.inputCents }
                     val gOutC = groups.sumOf { it.outputCents }
-                    Text(fmtC(gInC + gOutC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                    Text(fmtC(gInC + gOutC + deletedCents), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         fontFamily = FontFamily.Monospace)
                     Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
@@ -755,9 +779,24 @@ fun ReportCostTable(report: Report) {
                         Text(fmtC(r.outputCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                     }
                 }
+                // Deleted-items row — sits above the Total when the
+                // report has any. Only the Total ¢ cell on the left
+                // carries a value; everything else stays blank to
+                // signal "no per-call data, just a lump sum".
+                if (deletedCents > 0.0) {
+                    Row(modifier = Modifier.padding(vertical = 2.dp)) {
+                        Text(fmtC(deletedCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
+                        Text("deleted", fontSize = vSize, color = vColor, modifier = Modifier.width(360.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+                        Text("", modifier = Modifier.width(48.dp))
+                        Text("", modifier = Modifier.width(64.dp))
+                        Text("", modifier = Modifier.width(64.dp))
+                        Text("", modifier = Modifier.width(56.dp))
+                        Text("", modifier = Modifier.width(56.dp))
+                    }
+                }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(704.dp))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
-                    Text(fmtC(totalInC + totalOutC), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
+                    Text(fmtC(totalInC + totalOutC + deletedCents), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(360.dp).padding(start = 8.dp))
                     Text("", fontSize = vSize, modifier = Modifier.width(48.dp))
                     Text(fmtT(totalIn), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)

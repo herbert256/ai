@@ -18,7 +18,12 @@ internal data class HtmlReportData(
     val rapportText: String?, val closeText: String?,
     val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC,
     val secondary: List<HtmlSecondaryData> = emptyList(),
-    val traces: List<HtmlTraceData> = emptyList()
+    val traces: List<HtmlTraceData> = emptyList(),
+    /** Sum of API spend the user dropped from this report via Delete
+     *  actions. Surfaces as a dedicated row above the Total in every
+     *  cost table on the result page + the export. Carried straight
+     *  from [Report.costsFromDeletedItems]. */
+    val costsFromDeletedItems: Double = 0.0
 )
 
 /** One captured API trace surfaced in the JSON view. [origin] is "this"
@@ -323,7 +328,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
         rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType, secondary = secondary,
-        traces = traces
+        traces = traces,
+        costsFromDeletedItems = report.costsFromDeletedItems
     )
 }
 
@@ -726,10 +732,11 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val sorted = (agentRows + secondaryRows).sortedByDescending { it.inCents + it.outCents }
+    val deletedCents = data.costsFromDeletedItems * 100
 
     sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
 
-    if (sorted.isEmpty()) {
+    if (sorted.isEmpty() && deletedCents <= 0.0) {
         sb.append("</div>")
         return
     }
@@ -757,14 +764,17 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         }.sortedByDescending { it.inCents + it.outCents }
 
     fun appendSummary(keyHeader: String, groups: List<GroupTotal>) {
-        if (groups.isEmpty()) return
+        if (groups.isEmpty() && deletedCents <= 0.0) return
         sb.append("<table class='cost-table'><tr><th>${esc(keyHeader)}</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
         var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
         groups.forEach { g ->
             iT += g.inputTokens; oT += g.outputTokens; iC += g.inCents; oC += g.outCents
             sb.append("<tr><td>${esc(g.key)}</td><td class='num'>${g.inputTokens}</td><td class='num'>${g.outputTokens}</td><td class='num'>${"%.2f".format(g.inCents)}</td><td class='num'>${"%.2f".format(g.outCents)}</td><td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td></tr>")
         }
-        sb.append("<tr class='total-row'><td>Total</td><td class='num'>$iT</td><td class='num'>$oT</td><td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td><td class='num'>${"%.2f".format(iC + oC)}</td></tr>")
+        if (deletedCents > 0.0) {
+            sb.append("<tr><td>deleted</td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td>Total</td><td class='num'>$iT</td><td class='num'>$oT</td><td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td><td class='num'>${"%.2f".format(iC + oC + deletedCents)}</td></tr>")
         sb.append("</table>")
     }
 
@@ -776,7 +786,10 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
             val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
             sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
         }
-        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC)}</td></tr>")
+        if (deletedCents > 0.0) {
+            sb.append("<tr><td>deleted</td><td></td><td></td><td></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC + deletedCents)}</td></tr>")
         sb.append("</table>")
     }
 
