@@ -197,7 +197,7 @@ fun ReportsHubScreen(
     }
     val allReports = remember(refreshTick) { ReportStorage.getAllReports(context) }
     val hasPreviousReports = allReports.isNotEmpty()
-    val pinnedReports = remember(allReports) { allReports.filter { it.pinned } }
+    val pinnedReports = remember(allReports) { allReports.filter { it.pinned }.take(3) }
     val recentReports = remember(allReports) { allReports.filter { !it.pinned }.take(3) }
     // A report is "in flight" when it hasn't been marked completed AND
     // at least one of its agents is still PENDING / RUNNING. Reports
@@ -244,15 +244,12 @@ fun ReportsHubScreen(
         )
         if (hasPreviousReports) {
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCDA", title = "View previous reports", onClick = onNavigateToHistory)
-        }
-        if (pinnedReports.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
-            ReportListCard(title = "Pinned", icon = "\uD83D\uDCCC", reports = pinnedReports, onOpen = onOpenReport)
-        }
-        if (recentReports.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(12.dp))
-            ReportListCard(title = "Recent", icon = "\uD83D\uDD58", reports = recentReports, onOpen = onOpenReport)
+            ExistingReportsCard(
+                recent = recentReports,
+                pinned = pinnedReports,
+                onHeaderClick = onNavigateToHistory,
+                onOpenReport = onOpenReport
+            )
         }
         Spacer(modifier = Modifier.height(12.dp))
         SearchHubGroup(
@@ -294,34 +291,60 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
     }
 }
 
-/** Card listing a small set of reports — used by both the Recent
- *  rows and the Pinned section. Each row opens the report on tap. */
+/** Combined card under the AI Reports hub: a tappable header that
+ *  routes to the full History screen, plus up to 3 most-recent
+ *  unpinned reports (🕘) followed by up to 3 most-recent pinned
+ *  reports (📌). Each row opens that report; tapping the header opens
+ *  the full History list. */
 @Composable
-private fun ReportListCard(title: String, icon: String?, reports: List<com.ai.data.Report>, onOpen: (String) -> Unit) {
+private fun ExistingReportsCard(
+    recent: List<com.ai.data.Report>,
+    pinned: List<com.ai.data.Report>,
+    onHeaderClick: () -> Unit,
+    onOpenReport: (String) -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
-                if (icon != null) {
-                    Text(icon, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onHeaderClick() }
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+            ) {
+                Text("📚", fontSize = 26.sp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Existing reports", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
             }
-            reports.forEach { r ->
-                Text(
-                    text = r.title.ifBlank { "(untitled)" },
-                    fontSize = 13.sp, color = Color.White,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpen(r.id) }
-                        .padding(vertical = 3.dp)
-                )
+            if (recent.isNotEmpty() || pinned.isNotEmpty()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
+                    recent.forEach { ReportRow(icon = "🕘", report = it, onOpen = onOpenReport) }
+                    pinned.forEach { ReportRow(icon = "📌", report = it, onOpen = onOpenReport) }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun ReportRow(icon: String, report: com.ai.data.Report, onOpen: (String) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpen(report.id) }
+            .padding(vertical = 3.dp)
+    ) {
+        Text(icon, fontSize = 13.sp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = report.title.ifBlank { "(untitled)" },
+            fontSize = 13.sp, color = Color.White,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
     }
 }
 
