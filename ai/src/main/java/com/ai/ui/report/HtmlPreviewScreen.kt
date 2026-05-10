@@ -46,7 +46,15 @@ fun HtmlPreviewScreen(
             val report: Report? = ReportStorage.getReport(context, reportId)
             if (report == null) PreviewState.NotFound
             else {
-                val html = convertReportToHtml(context, report, getAppVersionForPreview(context))
+                val raw = convertReportToHtml(context, report, getAppVersionForPreview(context))
+                // The exported document opens with `<h1>title</h1>`
+                // immediately after `<div class='container'>`. The
+                // title bar already shows the title, so strip the
+                // first <h1> in the preview only — the export path
+                // is untouched. Title text is HTML-escaped server
+                // side (`esc(...)`) so it never contains a literal
+                // `<`, making `[^<]*` a safe inner match.
+                val html = raw.replaceFirst(Regex("<h1>[^<]*</h1>"), "")
                 PreviewState.Ready(report, html)
             }
         }
