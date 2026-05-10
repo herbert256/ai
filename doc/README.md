@@ -78,6 +78,12 @@ against any provider's `/v1/embeddings`.
   `local_llms/`, `embeddings/`, `secondary/`, `pricing/` and
   `trace/` trees.
 
+### Backlog
+- **[TODO.md](TODO.md)** — Future work discussed but not scheduled.
+  Currently: a foreground-Service plan so AI Report API calls can
+  truly survive process kill (today's `viewModelScope` setup
+  survives navigation but not Recents-swipe / OS memory pressure).
+
 ## Reading order
 
 If you're new to the codebase, the recommended path is:

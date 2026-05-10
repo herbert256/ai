@@ -102,6 +102,7 @@ order:
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: per-screen topics, per-provider pages, icon legend |
+| [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
 
 [doc/README.md](doc/README.md) is the index with the same list and a
 bit more orientation.
