@@ -359,6 +359,13 @@ private fun TitleBarActionStrip(
         // a visible gap before it; tighten to 22dp to bring it
         // closer to the neighbour on its left.
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = w(22.dp), scale = scale)
+        // Visual gap between 🗑 Delete and 🐞 Trace — the two 22dp
+        // slots butt flush, leaving the destructive trash icon
+        // touching the diagnostic bug icon as one chunk. Only fires
+        // when both are shown.
+        if (onDelete != null && onTrace != null) {
+            Spacer(modifier = Modifier.width(4.dp * scale))
+        }
         // Trace's 🐞 glyph reads narrower than its trailing space in
         // a 28dp slot, leaving a visible gap before the next icon.
         // Tighten to 22dp so it sits closer to its right neighbour
@@ -377,7 +384,7 @@ private fun TitleBarActionStrip(
         // difference. Only fires when 📝 Memo is absent (otherwise
         // Memo sits between them and the gap doesn't apply).
         if (onTrace != null && onMemo == null) {
-            Spacer(modifier = Modifier.width(8.dp * scale))
+            Spacer(modifier = Modifier.width(4.dp * scale))
         }
         // 📝 Memo — "back to the current AI Report's result page".
         // Sits to the left of Home / Help; only renders when
