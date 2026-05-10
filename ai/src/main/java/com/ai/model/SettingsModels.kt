@@ -7,7 +7,11 @@ enum class ModelSource { API, MANUAL }
 
 data class ProviderConfig(
     val apiKey: String = "",
-    val model: String = "",
+    // The previously per-user `model` field was dropped — the
+    // provider's default model is now the single field
+    // [AppService.defaultModel], loaded from assets/providers.json on
+    // first install and edited via the API Key card's Default Model
+    // picker (writes through ProviderRegistry.update).
     val modelSource: ModelSource = ModelSource.API,
     val models: List<String> = emptyList(),
     /** Type classification per model id ("chat", "embedding", "rerank", ...). Sidecar
@@ -68,7 +72,7 @@ fun defaultProviderConfig(service: AppService): ProviderConfig {
     val defaultModelSource = service.defaultModelSource?.let {
         try { ModelSource.valueOf(it) } catch (_: IllegalArgumentException) { null }
     } ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
-    return ProviderConfig(model = service.defaultModel, modelSource = defaultModelSource, models = defaultModels)
+    return ProviderConfig(modelSource = defaultModelSource, models = defaultModels)
 }
 
 fun defaultProvidersMap(): Map<AppService, ProviderConfig> = AppService.entries.associateWith { defaultProviderConfig(it) }
@@ -218,8 +222,45 @@ data class Settings(
     fun withProvider(service: AppService, config: ProviderConfig) = copy(providers = providers + (service to config))
     fun getApiKey(service: AppService) = getProvider(service).apiKey
     fun withApiKey(service: AppService, apiKey: String) = withProvider(service, getProvider(service).copy(apiKey = apiKey))
-    fun getModel(service: AppService) = getProvider(service).model
-    fun withModel(service: AppService, model: String) = withProvider(service, getProvider(service).copy(model = model))
+    fun getModel(service: AppService) = service.defaultModel
+    /** Persist a new default model for [service] — writes to the
+     *  [ProviderRegistry] (single source of truth) and returns this
+     *  Settings unchanged. Provider state lookups go through
+     *  AppService.findById which reads the registry, so the updated
+     *  value is picked up on the next read. */
+    fun withModel(service: AppService, model: String): Settings {
+        val updated = AppService(
+            id = service.id, baseUrl = service.baseUrl, adminUrl = service.adminUrl,
+            defaultModel = model,
+            openRouterName = service.openRouterName, apiFormat = service.apiFormat,
+            typePaths = service.typePaths, modelsPath = service.modelsPath,
+            seedFieldName = service.seedFieldName,
+            supportsCitations = service.supportsCitations,
+            supportsSearchRecency = service.supportsSearchRecency,
+            extractApiCost = service.extractApiCost,
+            costTicksDivisor = service.costTicksDivisor,
+            modelListFormat = service.modelListFormat, modelFilter = service.modelFilter,
+            litellmPrefix = service.litellmPrefix, hardcodedModels = service.hardcodedModels,
+            defaultModelSource = service.defaultModelSource,
+            auxHosts = service.auxHosts,
+            nativeRerankUrl = service.nativeRerankUrl,
+            nativeModerationUrl = service.nativeModerationUrl,
+            nativeCapabilityUrl = service.nativeCapabilityUrl,
+            pricingFromModelList = service.pricingFromModelList,
+            crossProviderModelList = service.crossProviderModelList,
+            mergeHardcodedModels = service.mergeHardcodedModels,
+            externalReasoningSignalUntrusted = service.externalReasoningSignalUntrusted,
+            responsesApiPatterns = service.responsesApiPatterns,
+            reasoningModelPatterns = service.reasoningModelPatterns,
+            reasoningEffortAcceptPatterns = service.reasoningEffortAcceptPatterns,
+            webSearchModelPatterns = service.webSearchModelPatterns,
+            adaptiveThinkingPatterns = service.adaptiveThinkingPatterns,
+            maxTokensDefaults = service.maxTokensDefaults,
+            builtInEndpoints = service.builtInEndpoints
+        )
+        com.ai.data.ProviderRegistry.update(updated)
+        return this
+    }
     fun getModelSource(service: AppService) = getProvider(service).modelSource
     fun getModels(service: AppService) = getProvider(service).models
     fun withModels(service: AppService, models: List<String>) =

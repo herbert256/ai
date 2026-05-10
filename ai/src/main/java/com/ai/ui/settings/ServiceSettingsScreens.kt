@@ -183,7 +183,7 @@ fun ModelsListScreen(
             }
             activeProviders.forEach { provider ->
                 val config = aiSettings.getProvider(provider)
-                val model = config.model
+                val model = provider.defaultModel
                 val count = config.models.size
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onProviderSelected(provider) },
@@ -602,7 +602,11 @@ fun ProviderSettingsScreen(
 
     val config = aiSettings.getProvider(service)
     var apiKey by remember { mutableStateOf(config.apiKey) }
-    var defaultModel by remember { mutableStateOf(config.model) }
+    // Default model lives on AppService (single source of truth, loaded
+    // from assets/providers.json and edited via the picker below). The
+    // local var mirrors it; auto-save flows through ProviderRegistry.update
+    // in the Definition LaunchedEffect.
+    var defaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
     var selectedParametersIds by remember { mutableStateOf(config.parametersIds) }
     var isInactive by remember { mutableStateOf(aiSettings.getProviderState(service) == "inactive") }
     var isTesting by remember { mutableStateOf(false) }
@@ -619,7 +623,9 @@ fun ProviderSettingsScreen(
     // catalog entry that ships in setup.json. Auto-saves via ProviderRegistry.update().
     var defBaseUrl by remember(service.id) { mutableStateOf(service.baseUrl) }
     var defAdminUrl by remember(service.id) { mutableStateOf(service.adminUrl) }
-    var defDefaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
+    // The catalog default model is the same `defaultModel` var that
+    // backs the API Key card's Default Model picker — single source
+    // of truth, no shadow state.
     var defOpenRouterName by remember(service.id) { mutableStateOf(service.openRouterName ?: "") }
     var defApiFormat by remember(service.id) { mutableStateOf(service.apiFormat) }
     // One path-state entry per ModelType — provider-level overrides for the global
@@ -663,7 +669,7 @@ fun ProviderSettingsScreen(
     var defBuiltInEndpointsJson by remember(service.id) { mutableStateOf(endpointsToJson(service.builtInEndpoints)) }
 
     LaunchedEffect(
-        defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
+        defBaseUrl, defAdminUrl, defaultModel, defOpenRouterName, defApiFormat,
         defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
         defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText,
@@ -677,7 +683,7 @@ fun ProviderSettingsScreen(
         // actually changed something — i.e. a field differs from its catalog source value.
         val same = defBaseUrl == service.baseUrl &&
             defAdminUrl == service.adminUrl &&
-            defDefaultModel == service.defaultModel &&
+            defaultModel == service.defaultModel &&
             defOpenRouterName == (service.openRouterName ?: "") &&
             defApiFormat == service.apiFormat &&
             defTypePaths.filterValues { it.isNotBlank() } == service.typePaths &&
@@ -708,7 +714,7 @@ fun ProviderSettingsScreen(
             defMaxTokensDefaultsJson == maxTokensRulesToJson(service.maxTokensDefaults) &&
             defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints)
         if (same) return@LaunchedEffect
-        if (defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
+        if (defBaseUrl.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
         val auxHosts = defAuxHostsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
         // For the JSON-shaped fields, fall back to the existing service value
@@ -727,7 +733,7 @@ fun ProviderSettingsScreen(
             id = service.id,
             baseUrl = defBaseUrl.trim(),
             adminUrl = defAdminUrl.trim(),
-            defaultModel = defDefaultModel.trim(),
+            defaultModel = defaultModel.trim(),
             openRouterName = defOpenRouterName.trim().ifBlank { null },
             apiFormat = defApiFormat,
             typePaths = defTypePaths.mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
@@ -774,14 +780,14 @@ fun ProviderSettingsScreen(
     // made on the Models sub-screen.
     val modelsCount = aiSettings.getProvider(service).models.size
 
-    // Auto-save — only the fields this screen edits; modelSource / models are owned by the
-    // Models sub-screen and preserved via copy() of the current config. The default agent
-    // named after the provider is now managed by the explicit activate / deactivate /
-    // change-default-model flows, not from this auto-save.
-    LaunchedEffect(apiKey, defaultModel, selectedParametersIds) {
+    // Auto-save the per-user fields this screen edits (apiKey,
+    // parametersIds). The default model is part of the catalog now —
+    // its writeback runs in the Definition LaunchedEffect above via
+    // ProviderRegistry.update.
+    LaunchedEffect(apiKey, selectedParametersIds) {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
-            apiKey = apiKey, model = defaultModel,
+            apiKey = apiKey,
             parametersIds = selectedParametersIds
         )
         if (updated == current) return@LaunchedEffect
@@ -1020,12 +1026,9 @@ fun ProviderSettingsScreen(
                     label = { Text("Admin URL") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 Text(
-                    "Catalog fallback used to seed a fresh install (or when no per-user model is persisted yet). The user's active model lives on the API Key card above and is independent of this value.",
+                    "Default model is set on the API Key card above — it's the same single field the catalog ships and the user edits.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
-                OutlinedTextField(value = defDefaultModel, onValueChange = { defDefaultModel = it },
-                    label = { Text("Catalog default model") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
             CollapsibleCard(title = "Definition · API", summary = defApiFormat.name) {
