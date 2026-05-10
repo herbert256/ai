@@ -44,15 +44,6 @@ internal fun SecondaryResultsScreen(
     reportId: String,
     kind: SecondaryKind,
     nameFilter: String? = null,
-    /** When non-null, additionally filter rows whose [SecondaryResult.metaPromptName]
-     *  resolves to an internal prompt of this category. Used by the
-     *  report screen's per-category "every:" buttons (Meta / Fan-out /
-     *  Fan-in / Fan-in-model). Layered on top of [nameFilter] when both
-     *  are set; either alone works too. */
-    categoryFilter: String? = null,
-    /** Needed only when [categoryFilter] is set — used to look up each
-     *  row's prompt by name and check its category. */
-    aiSettings: com.ai.model.Settings? = null,
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
@@ -138,25 +129,14 @@ internal fun SecondaryResultsScreen(
     val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
-    val results = remember(allRows, kind, nameFilter, categoryFilter, aiSettings) {
-        var rows = allRows.filter { it.kind == kind }
-        if (nameFilter != null) {
-            rows = rows.filter {
-                val rowName = it.metaPromptName?.takeIf { n -> n.isNotBlank() }
-                    ?: com.ai.data.legacyKindDisplayName(it.kind)
-                rowName == nameFilter
-            }
+    val results = remember(allRows, kind, nameFilter) {
+        val sameKind = allRows.filter { it.kind == kind }
+        if (nameFilter == null) sameKind
+        else sameKind.filter {
+            val rowName = it.metaPromptName?.takeIf { n -> n.isNotBlank() }
+                ?: com.ai.data.legacyKindDisplayName(it.kind)
+            rowName == nameFilter
         }
-        if (categoryFilter != null && aiSettings != null) {
-            val namesInCategory = aiSettings.internalPrompts
-                .filter { it.category.equals(categoryFilter, ignoreCase = true) }
-                .mapTo(HashSet()) { it.name }
-            rows = rows.filter { r ->
-                val rowName = r.metaPromptName?.takeIf { it.isNotBlank() } ?: return@filter false
-                rowName in namesInCategory
-            }
-        }
-        rows
     }
     // Fan_in rows on this report regardless of nameFilter — the
     // filter targets the fan out prompt's name, but fan_in rows

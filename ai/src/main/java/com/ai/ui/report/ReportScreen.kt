@@ -707,12 +707,6 @@ fun ReportsScreen(
     // not the top of the report screen.
     var listKind by rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     var listFilterByName by rememberSaveable { mutableStateOf<String?>(null) }
-    /** Category filter for the secondary results list. Set by the
-     *  "every: meta / fan-out / fan-in / fan-in-model" buttons in the
-     *  new action bar's View row. Layered on top of [listKind] (which
-     *  these all set to META). Null when the user opened the list via
-     *  a name-based bucket or directly. */
-    var listFilterByCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
@@ -1394,7 +1388,7 @@ fun ReportsScreen(
         // previous AlertDialog. Rendered as an overlay on top of the
         // secondary list via the early-return pattern.
         if (showFanInPromptPicker && fanInList.isNotEmpty()) {
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null; listFilterByCategory = null }) {
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
                 ReportSelectInternalPromptScreen(
                     titleText = "Run an fan-in prompt",
                     category = "fan_in",
@@ -1412,13 +1406,11 @@ fun ReportsScreen(
             }
             return
         }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null; listFilterByCategory = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
             nameFilter = listFilterByName,
-            categoryFilter = listFilterByCategory,
-            aiSettings = aiSettings,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
             fanInPrompts = fanInList,
@@ -1443,7 +1435,7 @@ fun ReportsScreen(
                 // currentReportId — otherwise the new report would
                 // briefly render its (empty) META L2 view instead of
                 // the result page.
-                listKind = null; listFilterByName = null; listFilterByCategory = null
+                listKind = null; listFilterByName = null
                 onCreateReportFromFanOut(rid, activePid, activeMdl)
             },
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
@@ -1456,7 +1448,7 @@ fun ReportsScreen(
                 // navigated away mid-sweep.
                 onBulkDeleteSecondaries(rid, ids) { secondaryRefreshTick++ }
             },
-            onBack = { listKind = null; listFilterByName = null; listFilterByCategory = null },
+            onBack = { listKind = null; listFilterByName = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
@@ -1805,11 +1797,6 @@ fun ReportsScreen(
                 onViewCosts = {
                     selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
                 },
-                onViewSecondaryByKind = { kind, category ->
-                    listKind = kind
-                    listFilterByName = null
-                    listFilterByCategory = category
-                },
                 onEditTitle = { showEditTitle = true },
                 onEditPromptInline = { showEditPrompt = true },
                 onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
@@ -2026,11 +2013,6 @@ private fun ColumnScope.GenerationPhase(
     onViewReports: () -> Unit = {},
     onViewPrompt: () -> Unit = {},
     onViewCosts: () -> Unit = {},
-    /** Opens the secondary results list filtered to the given
-     *  [SecondaryKind] plus optionally a category-name filter (used to
-     *  distinguish META-stored fan_out / fan_in / fan-in-model runs
-     *  from regular meta runs). */
-    onViewSecondaryByKind: (SecondaryKind, String?) -> Unit = { _, _ -> },
     /** Direct sub-actions for the Edit row. */
     onEditTitle: () -> Unit = {},
     onEditPromptInline: () -> Unit = {},
@@ -2114,8 +2096,16 @@ private fun ColumnScope.GenerationPhase(
     // rememberSaveable so a rotation doesn't collapse the sub-row in
     // the middle of the user reading it.
     var activeBar by rememberSaveable { mutableStateOf<String?>(null) }
-    fun toggleBar(name: String) { activeBar = if (activeBar == name) null else name }
-    fun close() { activeBar = null }
+    // Row 3 active "every:" kind under View. Possible values: "meta" /
+    // "rerank" / "fan_out" / "fan_in" / "fan-in-model" / "translate" /
+    // null. Only meaningful when activeBar == "view".
+    var activeEveryKind by rememberSaveable { mutableStateOf<String?>(null) }
+    fun toggleBar(name: String) {
+        activeBar = if (activeBar == name) null else name
+        // Switching Row 1 group → drop any Row 3 selection.
+        activeEveryKind = null
+    }
+    fun close() { activeBar = null; activeEveryKind = null }
 
     // Per-group colour. Active button uses the full colour; inactive
     // Row-1 buttons fall back to a dim tint so the open group is
@@ -2127,25 +2117,53 @@ private fun ColumnScope.GenerationPhase(
     fun rowOneColor(name: String, active: Color): Color =
         if (activeBar == name) active else active.copy(alpha = 0.32f)
 
-    // Per-kind / per-category run counts for the View row's "every:"
-    // buttons. Computed each composition off [secondaryRuns] — cheap,
-    // and avoids stale counts after a delete / new run.
-    val rerankCount = secondaryRuns.count { it.kind == SecondaryKind.RERANK }
-    val translateCount = secondaryRuns.count { it.kind == SecondaryKind.TRANSLATE }
-    val metaByCategory: Map<String, Int> = remember(secondaryRuns, aiSettings) {
+    // Per-kind / per-category item lists driving the View row's
+    // "every:" buttons + Row 3 picker. Each item knows how to open
+    // its detail directly.
+    data class EveryItem(val label: String, val open: () -> Unit)
+    val everyItems = remember(secondaryRuns, aiSettings) {
         val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
-        val tally = HashMap<String, Int>()
-        secondaryRuns.forEach { r ->
-            if (r.kind != SecondaryKind.META) return@forEach
-            val cat = r.metaPromptName?.let { nameToCat[it] } ?: return@forEach
-            tally[cat] = (tally[cat] ?: 0) + 1
-        }
-        tally
+        fun categoryOf(row: com.ai.data.SecondaryResult): String? =
+            row.metaPromptName?.let { nameToCat[it] }
+
+        val meta = secondaryRuns
+            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
+            .map { row -> EveryItem(row.metaPromptName ?: "Meta") { onOpenSecondaryRun(row.id) } }
+        val rerank = secondaryRuns
+            .filter { it.kind == SecondaryKind.RERANK }
+            .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }
+        val fanIn = secondaryRuns
+            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
+            .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { onOpenSecondaryRun(row.id) } }
+        val fanInModel = secondaryRuns
+            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
+            .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { onOpenSecondaryRun(row.id) } }
+        // Fan-out: one item per distinct prompt name. Tap opens the
+        // SecondaryResultsScreen with nameFilter set; the screen
+        // auto-renders the L2 fan-out drill-in.
+        val fanOut = secondaryRuns
+            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
+            .mapNotNull { it.metaPromptName }
+            .distinct()
+            .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
+        // Translate: one item per translationRunId.
+        val translate = secondaryRuns
+            .filter { it.kind == SecondaryKind.TRANSLATE }
+            .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
+            .map { (runId, rows) ->
+                val first = rows.first()
+                val label = first.targetLanguageNative ?: first.targetLanguage ?: "(language)"
+                EveryItem(label) { onOpenTranslationRun(runId) }
+            }
+        mapOf(
+            "meta" to meta,
+            "rerank" to rerank,
+            "fan_out" to fanOut,
+            "fan_in" to fanIn,
+            "fan-in-model" to fanInModel,
+            "translate" to translate
+        )
     }
-    val metaCount = metaByCategory["meta"] ?: 0
-    val fanOutCount = metaByCategory["fan_out"] ?: 0
-    val fanInCount = metaByCategory["fan_in"] ?: 0
-    val fanInModelCount = metaByCategory["fan-in-model"] ?: 0
 
     // ----- Row 1 -----
     ActionRow {
@@ -2169,31 +2187,63 @@ private fun ColumnScope.GenerationPhase(
             Text("every:", fontSize = 11.sp, color = AppColors.TextDim,
                 modifier = Modifier.padding(start = 4.dp))
             Spacer(modifier = Modifier.height(2.dp))
+            // "every:" buttons: 0 items → disabled; 1 item → tap opens
+            // that item's detail directly; 2+ items → tap toggles Row 3
+            // showing one button per item (label may repeat across
+            // multiple runs of the same prompt).
+            fun onEveryClick(key: String) {
+                val items = everyItems[key].orEmpty()
+                when (items.size) {
+                    0 -> { /* unreachable: enabled=false */ }
+                    1 -> { close(); items[0].open() }
+                    else -> { activeEveryKind = if (activeEveryKind == key) null else key }
+                }
+            }
             ActionRow {
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "meta") },
-                    color = viewColor, text = "Meta", enabled = metaCount > 0
+                    onClick = { onEveryClick("meta") },
+                    color = viewColor, text = "Meta",
+                    enabled = everyItems["meta"].orEmpty().isNotEmpty()
                 )
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.RERANK, null) },
-                    color = viewColor, text = "Rerank", enabled = rerankCount > 0
+                    onClick = { onEveryClick("rerank") },
+                    color = viewColor, text = "Rerank",
+                    enabled = everyItems["rerank"].orEmpty().isNotEmpty()
                 )
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan_out") },
-                    color = viewColor, text = "Fan-out", enabled = fanOutCount > 0
+                    onClick = { onEveryClick("fan_out") },
+                    color = viewColor, text = "Fan-out",
+                    enabled = everyItems["fan_out"].orEmpty().isNotEmpty()
                 )
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan_in") },
-                    color = viewColor, text = "Fan-in", enabled = fanInCount > 0
+                    onClick = { onEveryClick("fan_in") },
+                    color = viewColor, text = "Fan-in",
+                    enabled = everyItems["fan_in"].orEmpty().isNotEmpty()
                 )
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan-in-model") },
-                    color = viewColor, text = "Fan-in-model", enabled = fanInModelCount > 0
+                    onClick = { onEveryClick("fan-in-model") },
+                    color = viewColor, text = "Fan-in-model",
+                    enabled = everyItems["fan-in-model"].orEmpty().isNotEmpty()
                 )
                 CompactButton(
-                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.TRANSLATE, null) },
-                    color = viewColor, text = "Translate", enabled = translateCount > 0
+                    onClick = { onEveryClick("translate") },
+                    color = viewColor, text = "Translate",
+                    enabled = everyItems["translate"].orEmpty().isNotEmpty()
                 )
+            }
+            // ----- Row 3: per-item buttons for the active "every:" kind -----
+            val row3Items = activeEveryKind?.let { everyItems[it].orEmpty() }
+            if (row3Items != null && row3Items.size >= 2) {
+                Spacer(modifier = Modifier.height(2.dp))
+                ActionRow {
+                    row3Items.forEach { item ->
+                        CompactButton(
+                            onClick = { close(); item.open() },
+                            color = viewColor,
+                            text = item.label
+                        )
+                    }
+                }
             }
         }
         "edit" -> {
