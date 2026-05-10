@@ -2495,7 +2495,7 @@ private fun ColumnScope.GenerationPhase(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Σ", fontSize = 16.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                    Text("💰", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     RowTypeCell("total")
                     Text(
                         "$totalInputTokens / $totalOutputTokens tok",
