@@ -160,7 +160,11 @@ data class TitleBarIcons(
     val onReload: (() -> Unit)?,
     val onDelete: (() -> Unit)?,
     val onTrace: (() -> Unit)?,
-    val showMemo: Boolean
+    /** Captured from [LocalNavigateToCurrentReport] at TitleBar render
+     *  time. Cannot be re-read from the local inside BottomIconBar
+     *  itself — the bar lives at AppNavHost scope where the per-screen
+     *  CompositionLocalProvider override isn't visible. */
+    val onMemo: (() -> Unit)?
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -338,7 +342,6 @@ fun TitleBar(
         // identity check so a racing nav transition doesn't clobber
         // the next screen's just-published state).
         val state = LocalBottomIconState.current
-        val showMemo = LocalNavigateToCurrentReport.current != null
         val captured = TitleBarIcons(
             helpTopic = helpTopic,
             onBack = onBackClick,
@@ -349,7 +352,7 @@ fun TitleBar(
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
-            showMemo = showMemo
+            onMemo = LocalNavigateToCurrentReport.current
         )
         if (state != null) {
             SideEffect { state.value = captured }
@@ -624,7 +627,6 @@ private fun TitleBarIcon(
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
-    val navigateToCurrentReport = LocalNavigateToCurrentReport.current
     Row(
         modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -657,7 +659,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onDelete = icons?.onDelete,
             onTrace = icons?.onTrace,
             onHelp = { navigateHelp(icons?.helpTopic) },
-            onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
+            onMemo = icons?.onMemo,
             scale = 1.5f,
             compactSpacing = false,
             extraSpacing = 2.dp
