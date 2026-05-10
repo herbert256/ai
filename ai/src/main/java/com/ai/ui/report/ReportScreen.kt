@@ -2533,9 +2533,17 @@ private fun ColumnScope.GenerationPhase(
                         }
                         RowTypeCell("icon")
                         Column(modifier = Modifier.weight(1f)) {
+                            // On failure surface the recorded reason so
+                            // the user sees *why* it errored (rate limit /
+                            // 401 / etc.) instead of the harmless model
+                            // label that would otherwise appear next to
+                            // the ❌. Running and success keep the model
+                            // label.
+                            val text = reportIconError
+                                ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, iconAgent.model)
+                            val color = if (reportIconError != null) AppColors.Red else Color.White
                             Text(
-                                com.ai.ui.shared.modelLabel(iconAgent.provider.id, iconAgent.model),
-                                fontSize = 13.sp, color = Color.White,
+                                text, fontSize = 13.sp, color = color,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
