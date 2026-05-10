@@ -366,9 +366,7 @@ private fun ReportsViewerScreenLoaded(
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onDismiss,
-            onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
-                { onNavigateToTraceFile(headerTraceFilename) }
-            } else null,
+            onTrace = headerTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
             onInfo = if (selectedReportAgent != null && selectedProviderService != null) {
                 { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
             } else null,
