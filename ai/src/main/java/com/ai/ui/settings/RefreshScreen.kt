@@ -777,14 +777,14 @@ fun RefreshScreen(
                 onClick = { startRefreshChain(includeCatalogs = true, includeProviders = true, includeModels = true, includeAgents = true) }
             )
 
-            // ===== AI Providers group =====
+            // ===== AI Info Providers group =====
             // Catalog-source refreshes: the six external metadata feeds
             // that drive pricing / capability flags. Independent
             // network fetches with no per-app-provider state, so the
-            // group's "All providers" button runs them in parallel.
-            SectionHeader("AI Providers")
+            // group's "All info providers" button runs them in parallel.
+            SectionHeader("AI Info Providers")
             RefreshAction(
-                label = "All providers",
+                label = "All info providers",
                 description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
                 enabled = !isAnyRunning,
                 onClick = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) }
@@ -838,16 +838,16 @@ fun RefreshScreen(
                 onNavigateToHelpTopic = onNavigateToHelpTopic
             )
 
-            // ===== AI Models group =====
+            // ===== AI Runtime workers group =====
             // Per-app-provider work that depends on the catalogs above:
             // test each provider's saved API key, fetch its model list
             // from /models, and (re)create its default agent. Inactive
             // and unkeyed providers are filtered out at runtime — the
             // popup only ever shows providers that could actually be
             // tested.
-            SectionHeader("AI Models")
+            SectionHeader("AI Runtime workers")
             RefreshAction(
-                label = "All models",
+                label = "All runtime workers",
                 description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
                 enabled = !isAnyRunning,
                 onClick = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) }
