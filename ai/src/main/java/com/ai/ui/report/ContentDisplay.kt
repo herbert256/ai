@@ -39,7 +39,10 @@ fun ReportsViewerScreen(
     initialSection: String? = null,  // "prompt" / "costs" — driven from the Report Result View buttons
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
-    onNavigateToTraceFile: (String) -> Unit = {}
+    onNavigateToTraceFile: (String) -> Unit = {},
+    onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
+    onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onDismiss() }
     val context = LocalContext.current
@@ -72,7 +75,8 @@ fun ReportsViewerScreen(
         }
         is ReportLoadState.Loaded -> {
             ReportsViewerScreenLoaded(s.report, initialSelectedAgentId, initialSection,
-                onDismiss, onNavigateHome, onNavigateToTraceFile)
+                onDismiss, onNavigateHome, onNavigateToTraceFile,
+                onContinueWithCurrent, onContinueWithAgentPicker, onContinueWithOnTheFly)
         }
     }
 }
@@ -183,9 +187,13 @@ private fun ReportsViewerScreenLoaded(
     initialSection: String?,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToTraceFile: (String) -> Unit
+    onNavigateToTraceFile: (String) -> Unit,
+    onContinueWithCurrent: (String, String) -> Unit,
+    onContinueWithAgentPicker: (String, String) -> Unit,
+    onContinueWithOnTheFly: (String, String) -> Unit
 ) {
     val context = LocalContext.current
+    var showContinuePicker by remember { mutableStateOf(false) }
 
     // Load TRANSLATE secondaries up front; the picker / overlay both
     // key on this list. Empty list → no picker shown, viewer behaves
@@ -296,6 +304,17 @@ private fun ReportsViewerScreenLoaded(
         )
         return
     }
+    val activeChatAgentId = selectedAgentId
+    if (showContinuePicker && activeChatAgentId != null) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = { showContinuePicker = false; onContinueWithCurrent(report.id, activeChatAgentId) },
+            onPickAgentPicker = { showContinuePicker = false; onContinueWithAgentPicker(report.id, activeChatAgentId) },
+            onPickOnTheFly = { showContinuePicker = false; onContinueWithOnTheFly(report.id, activeChatAgentId) },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
     val selectedReportAgent = selectedAgentId?.let { id -> report.agents.find { it.agentId == id } }
     val scrollState = rememberScrollState()
     LaunchedEffect(selectedAgentId) { scrollState.scrollTo(0) }
@@ -317,6 +336,20 @@ private fun ReportsViewerScreenLoaded(
     val headerTraceFilename = headerTraceFilenameState.value
     val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
     val selectedProviderService = selectedReportAgent?.let { AppService.findById(it.provider) }
+    // Display body for the selected agent — translated copy when a
+    // language is active, otherwise the original response. Hoisted
+    // here so the title-bar 📋 / 💬 actions and the body renderer
+    // share one definition.
+    val selectedDisplayBody = selectedReportAgent?.let {
+        translationByTarget["AGENT:${it.agentId}"] ?: it.responseBody
+    }
+    val selectedAgentLabel = selectedReportAgent?.let { agent ->
+        val agentProv = AppService.findById(agent.provider)?.id ?: agent.provider
+        com.ai.ui.shared.modelLabel(agentProv, agent.model, separator = " — ")
+    }
+    val canContinueInChat = selectedReportAgent != null
+        && !selectedReportAgent.responseBody.isNullOrBlank()
+        && selectedReportAgent.errorMessage.isNullOrBlank()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Static page title; the agent picker dropdown below shows
         // the active model. ℹ on the title bar opens Model Info for
@@ -332,6 +365,14 @@ private fun ReportsViewerScreenLoaded(
             onInfo = if (selectedReportAgent != null && selectedProviderService != null) {
                 { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
             } else null,
+            onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onCopy = selectedDisplayBody?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.copyToClipboard(context, body, "model response") }
+            },
+            onShare = selectedDisplayBody?.takeIf { it.isNotBlank() }?.let { body ->
+                val shareSubject = selectedAgentLabel?.let { "Model response — $it" } ?: "Model response"
+                { com.ai.ui.shared.shareText(context, body, shareSubject) }
+            },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 

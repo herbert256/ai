@@ -831,7 +831,17 @@ fun ReportsScreen(
     }
     if (showViewer && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
-            ReportsViewerScreen(reportId = currentReportId, initialSelectedAgentId = selectedAgentForViewer, initialSection = viewerSection, onDismiss = { showViewer = false; viewerSection = null }, onNavigateHome = onNavigateHome, onNavigateToTraceFile = onNavigateToTraceFile)
+            ReportsViewerScreen(
+                reportId = currentReportId,
+                initialSelectedAgentId = selectedAgentForViewer,
+                initialSection = viewerSection,
+                onDismiss = { showViewer = false; viewerSection = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly
+            )
         }
         return
     }

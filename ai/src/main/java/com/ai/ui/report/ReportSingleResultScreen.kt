@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -61,20 +62,26 @@ fun ReportSingleResultScreen(
      *  (provider → model → params → session). */
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
 ) {
+    // Track which agent is currently shown locally so the Previous /
+    // Next buttons at the bottom can step through report.agents
+    // without going back to the report screen. Resets if the parent
+    // re-enters this screen with a different agentId param.
+    var currentAgentId by rememberSaveable(reportId, agentId) { mutableStateOf(agentId) }
+
     var showContinuePicker by remember { mutableStateOf(false) }
     if (showContinuePicker) {
         ContinueInChatPickerScreen(
             onPickCurrent = {
                 showContinuePicker = false
-                onContinueWithCurrent(reportId, agentId)
+                onContinueWithCurrent(reportId, currentAgentId)
             },
             onPickAgentPicker = {
                 showContinuePicker = false
-                onContinueWithAgentPicker(reportId, agentId)
+                onContinueWithAgentPicker(reportId, currentAgentId)
             },
             onPickOnTheFly = {
                 showContinuePicker = false
-                onContinueWithOnTheFly(reportId, agentId)
+                onContinueWithOnTheFly(reportId, currentAgentId)
             },
             onBack = { showContinuePicker = false },
             onNavigateHome = onNavigateHome
@@ -90,19 +97,19 @@ fun ReportSingleResultScreen(
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }
     val report = reportState.value
-    val agent = report?.agents?.find { it.agentId == agentId }
+    val agent = report?.agents?.find { it.agentId == currentAgentId }
     val provider = agent?.let { AppService.findById(it.provider) }
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack,
+            TitleBar(helpTopic = "report_single_result", title = "Model response", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         }
         return
     }
     if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "View result", onBackClick = onBack,
+            TitleBar(helpTopic = "report_single_result", title = "Model response", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Result not found", color = AppColors.TextSecondary, fontSize = 16.sp)
@@ -124,11 +131,11 @@ fun ReportSingleResultScreen(
     // "Translation info" button can pop a split-screen original-vs-
     // translation viewer. The translated copy preserves agentId, so a
     // direct match by agentId works.
-    val sourceAgentBodyState = produceState<String?>(initialValue = null, report.sourceReportId, agentId) {
+    val sourceAgentBodyState = produceState<String?>(initialValue = null, report.sourceReportId, currentAgentId) {
         val sid = report.sourceReportId ?: return@produceState
         value = withContext(Dispatchers.IO) {
             ReportStorage.getReport(context, sid)?.agents
-                ?.firstOrNull { it.agentId == agentId }?.responseBody
+                ?.firstOrNull { it.agentId == currentAgentId }?.responseBody
         }
     }
     val sourceAgentBody = sourceAgentBodyState.value
@@ -158,7 +165,7 @@ fun ReportSingleResultScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
-            title = "Agent result",
+            title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = agentLabel,
             onBackClick = onBack,
@@ -168,10 +175,10 @@ fun ReportSingleResultScreen(
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
             onCopy = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
-                { com.ai.ui.shared.copyToClipboard(context, body, "agent response") }
+                { com.ai.ui.shared.copyToClipboard(context, body, "model response") }
             },
             onShare = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
-                { com.ai.ui.shared.shareText(context, body, "Agent result — $agentLabel") }
+                { com.ai.ui.shared.shareText(context, body, "Model response — $agentLabel") }
             },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
@@ -239,6 +246,33 @@ fun ReportSingleResultScreen(
             }
         }
 
+        // Previous / Next — step through every agent on this report
+        // (success and error rows alike, in stored order). Disabled at
+        // the ends. Updating currentAgentId rekeys the trace lookup
+        // and the source-agent body produceState so they re-fetch.
+        val agentIdx = report.agents.indexOfFirst { it.agentId == currentAgentId }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    report.agents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
+                },
+                enabled = agentIdx > 0,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Previous", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    report.agents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
+                },
+                enabled = agentIdx >= 0 && agentIdx < report.agents.size - 1,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Next", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        }
+
         if (canShowTranslation) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -258,7 +292,7 @@ fun ReportSingleResultScreen(
             target = "${provider.id} / ${agent.model}",
             onConfirm = {
                 confirmReload = false
-                onRegenerateAgent(reportId, agentId)
+                onRegenerateAgent(reportId, currentAgentId)
                 onBack()
             },
             onDismiss = { confirmReload = false }
@@ -278,7 +312,7 @@ fun ReportSingleResultScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemove = false
-                    onRemoveAgent(reportId, agentId)
+                    onRemoveAgent(reportId, currentAgentId)
                     onBack()
                 }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
@@ -299,7 +333,7 @@ fun ReportSingleResultScreen(
  *  from the parent via early-return so the parent's remember state
  *  survives the round-trip. */
 @Composable
-private fun ContinueInChatPickerScreen(
+internal fun ContinueInChatPickerScreen(
     onPickCurrent: () -> Unit,
     onPickAgentPicker: () -> Unit,
     onPickOnTheFly: () -> Unit,
