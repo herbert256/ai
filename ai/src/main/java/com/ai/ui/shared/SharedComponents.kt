@@ -374,9 +374,9 @@ private fun TitleBarActionStrip(
         // Safety gap: when 🐞 is hidden, 🗑 lands directly next to
         // 📝 (Memo) or 🏠 (Home). Fat-finger-prevention spacer so the
         // destructive trash icon doesn't sit flush against a
-        // navigation icon.
+        // navigation icon. 2dp matches the Trash↔Trace gap above.
         if (onDelete != null && onTrace == null) {
-            Spacer(modifier = Modifier.width(8.dp * scale))
+            Spacer(modifier = Modifier.width(2.dp * scale))
         }
         // Visual gap between 🐞 Trace and 🏠 Home — the user asked
         // for the pairing specifically. The two 22dp slots butt flush
