@@ -1270,7 +1270,15 @@ private fun ColumnScope.FanOutDrillInView(
             .toList()
     }
     val modelKeys = remember(successful, orphanKeys) {
-        successful.map { "${it.provider}|${it.model}" }.distinct() + orphanKeys
+        // Sort by model name (case-insensitive) — the dominant
+        // column the user scans. Provider id is the tiebreaker for
+        // models shared across providers (e.g. llama-3.3-70b on
+        // both Groq and Together).
+        (successful.map { "${it.provider}|${it.model}" }.distinct() + orphanKeys)
+            .sortedWith(compareBy(
+                { it.substringAfter('|').lowercase(java.util.Locale.ROOT) },
+                { it.substringBefore('|').lowercase(java.util.Locale.ROOT) }
+            ))
     }
 
     // Stats — derived from the fan out rows + running set. A row counts
