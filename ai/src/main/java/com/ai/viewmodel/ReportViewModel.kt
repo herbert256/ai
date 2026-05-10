@@ -93,7 +93,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun generateGenericReports(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         selectedAgentIds: Set<String>,
         selectedSwarmIds: Set<String> = emptySet(),
@@ -103,7 +102,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportType: ReportType = ReportType.CLASSIC
     ) {
         reportGenerationJob?.cancel()
-        reportGenerationJob = scope.launch(Dispatchers.IO) {
+        // Outer launch on viewModelScope so navigating away from the
+        // result screen doesn't cancel the in-flight OkHttp calls.
+        // A screen-scoped scope here previously turned every
+        // still-running agent into ERROR on disk: the cancellation
+        // surfaced as IOException("Canceled"), executeReportTask's
+        // catch (Exception) converted it to a real error response,
+        // and the NonCancellable terminal write persisted that error.
+        // continueReportInBackground() only sets a flag — without
+        // viewModelScope here, "background" can't actually happen.
+        reportGenerationJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val prompt = state.genericPromptText
@@ -210,7 +218,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
-                kickOffIconGeneration(scope, context, reportId, aiPrompt, aiSettings)
+                kickOffIconGeneration(appViewModel.viewModelScope, context, reportId, aiPrompt, aiSettings)
 
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 try {

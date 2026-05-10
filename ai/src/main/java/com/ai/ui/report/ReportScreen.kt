@@ -214,7 +214,7 @@ fun ReportsScreenNav(
             viewModel.saveReportAgents(agentIds)
             viewModel.saveReportModels(models.map(::encodeSavedReportModelSelection).toSet())
             reportViewModel.generateGenericReports(
-                scope = scope, context = context, selectedAgentIds = agentIds, selectedSwarmIds = swarmIds,
+                context = context, selectedAgentIds = agentIds, selectedSwarmIds = swarmIds,
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType
             )
         },
