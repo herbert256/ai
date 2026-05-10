@@ -903,9 +903,16 @@ fun ProviderSettingsScreen(
             // rows, then Test. Putting the catalog + bound-model rows
             // BETWEEN the key and the Test button keeps the
             // typing → picking → testing flow on one card, top to bottom.
+            var showApiKeyHelp by remember { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("API Key", fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                        Text(
+                            text = "❓", fontSize = 22.sp, color = AppColors.Blue,
+                            modifier = Modifier.clickable { showApiKeyHelp = true }
+                        )
+                    }
                     var showApiKey by remember { mutableStateOf(false) }
                     OutlinedTextField(
                         value = apiKey, onValueChange = { apiKey = it; testResult = null },
@@ -1009,6 +1016,25 @@ fun ProviderSettingsScreen(
                         }
                     }
                 }
+            }
+            if (showApiKeyHelp) {
+                AlertDialog(
+                    onDismissRequest = { showApiKeyHelp = false },
+                    title = { Text("API Key") },
+                    text = {
+                        Text(
+                            "Where the user's authentication for this provider lives. The key is stored in the per-provider SharedPreferences slot " +
+                                "(${service.id}_api_key) — masked by the eye toggle, never shipped through any export bundle that's marked 'no keys', " +
+                                "and never logged to the trace files. Tap Test to fire one round-trip request against the model picked below using " +
+                                "this key — on success the provider state flips to 🔑 and a default agent is auto-created for the report flow; on " +
+                                "failure the state goes ❌ and the captured trace is one tap away via the bug icon. Models opens the dedicated " +
+                                "per-provider Models screen (live API list or the manual / hardcoded subset, depending on the Models card setting). " +
+                                "Default Model writes the picked model into AppService.defaultModel — the single source of truth for what every " +
+                                "API call uses by default; sorted by output-token cost ascending so the cheap end of the catalog lands on top."
+                        )
+                    },
+                    confirmButton = { TextButton(onClick = { showApiKeyHelp = false }) { Text("OK") } }
+                )
             }
 
             // ===== Provider definition (catalog) =====
