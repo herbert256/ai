@@ -368,9 +368,13 @@ fun TitleBar(
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
-            // Suppress 📝 memo when the leftmost report icon is shown
-            // — the report icon itself is the back-to-report tap target.
-            onMemo = if (resolvedReportIcon != null) null else LocalNavigateToCurrentReport.current
+            // Memo 📝 tracks the dynamic report icon's visibility — both
+            // appear together on report-scoped screens, both hide on
+            // non-report screens. On the main result page (where
+            // LocalNavigateToCurrentReport is null) the icon is a
+            // decorative no-op; on inline overlays it's the back-to-
+            // report navigation, same as the dynamic icon's tap.
+            onMemo = if (resolvedReportIcon != null) (LocalNavigateToCurrentReport.current ?: {}) else null
         )
         if (state != null) {
             SideEffect { state.value = captured }
@@ -535,7 +539,12 @@ fun TitleBar(
                 // Suppress 📝 memo when the leftmost report icon is
                 // shown — that icon already provides the back-to-
                 // report tap target.
-                onMemo = if (resolvedReportIcon != null) null else navigateToCurrentReport,
+                // Memo 📝 visibility tracks the dynamic top-left icon —
+                // both shown on report-scoped screens, both hidden
+                // otherwise. Tap delegates to the same navigate-back
+                // callback the dynamic icon uses (no-op on the main
+                // result page).
+                onMemo = if (resolvedReportIcon != null) (navigateToCurrentReport ?: {}) else null,
                 scale = iconScale,
                 // Tight inter-icon spacing in the 1.5× mode. Without
                 // this, scaled-up slots leave 1.5× the air too —
