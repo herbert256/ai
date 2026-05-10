@@ -158,9 +158,11 @@ fun SemanticSearchScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        hit.icon?.let {
-                            Text(it, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                        if (com.ai.ui.shared.LocalIconGenEnabled.current) {
+                            hit.icon?.let {
+                                Text(it, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -311,12 +311,15 @@ private fun ExistingReportsCard(
             Text("Existing reports", fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 color = AppColors.TextSecondary,
                 modifier = Modifier.padding(bottom = 4.dp))
+            val iconGenEnabled = com.ai.ui.shared.LocalIconGenEnabled.current
             recent.forEach { r ->
-                SearchHubItem(icon = r.icon ?: "🕘", title = r.title.ifBlank { "(untitled)" },
+                SearchHubItem(icon = (if (iconGenEnabled) r.icon else null) ?: "🕘",
+                    title = r.title.ifBlank { "(untitled)" },
                     enabled = true, onClick = { onOpenReport(r.id) })
             }
             pinned.forEach { r ->
-                SearchHubItem(icon = r.icon ?: "📌", title = r.title.ifBlank { "(untitled)" },
+                SearchHubItem(icon = (if (iconGenEnabled) r.icon else null) ?: "📌",
+                    title = r.title.ifBlank { "(untitled)" },
                     enabled = true, onClick = { onOpenReport(r.id) })
             }
             SearchHubItem(icon = "📚", title = "All AI reports", enabled = true, onClick = onHeaderClick)

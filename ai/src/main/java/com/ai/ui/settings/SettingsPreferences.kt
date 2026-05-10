@@ -67,6 +67,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 try { SubjectToTitleBarMode.valueOf(it) } catch (_: Exception) { null }
             } ?: SubjectToTitleBarMode.HARDCODED,
             iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, false),
+            iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false)
         )
     }
@@ -84,6 +85,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_SHOW_BACK_BUTTON, settings.showBackButton)
             putString(KEY_SUBJECT_TO_TITLE_BAR_MODE, settings.subjectToTitleBarMode.name)
             putBoolean(KEY_ICON_BAR_AT_BOTTOM, settings.iconBarAtBottom)
+            putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
         }
     }
@@ -427,6 +429,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_SHOW_BACK_BUTTON = "show_back_button"
         private const val KEY_SUBJECT_TO_TITLE_BAR_MODE = "subject_to_title_bar_mode"
         private const val KEY_ICON_BAR_AT_BOTTOM = "icon_bar_at_bottom"
+        private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"

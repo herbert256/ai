@@ -79,6 +79,17 @@ data class GeneralSettings(
      *  icons-on-top-right layout. The bar lives at AppNavHost scope so
      *  it survives nav transitions and is always visible. */
     val iconBarAtBottom: Boolean = false,
+    /** Master switch for the per-report icon-gen feature. When true
+     *  (default) every new report kicks off a background LLM call that
+     *  generates a fitting emoji, the icon-row appears on the result
+     *  page, the dynamic emoji shows in title bars / hub list / history
+     *  / search hits, and the 📝 memo icon mirrors. When false the
+     *  call is skipped, the icon row is hidden, the leftmost title-bar
+     *  icon (and its tied 📝 memo) is hidden, and every per-row icon
+     *  prefix falls back to the static 🕘 / 📌. Persisted icon /
+     *  iconCost values on existing reports stay on disk — re-enabling
+     *  brings them back. */
+    val iconGenEnabled: Boolean = true,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub

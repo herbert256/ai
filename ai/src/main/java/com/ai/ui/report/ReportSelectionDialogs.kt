@@ -912,9 +912,11 @@ internal fun ReportSelectFromReportScreen(
                             .padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        report.icon?.let {
-                            Text(it, fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                        if (com.ai.ui.shared.LocalIconGenEnabled.current) {
+                            report.icon?.let {
+                                Text(it, fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                            }
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(report.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = Color.White,

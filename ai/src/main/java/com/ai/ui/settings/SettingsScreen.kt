@@ -628,14 +628,16 @@ private fun SettingsMainScreen(
     var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
     var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
     var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
+    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, showKnowledgeCard) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
             showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
             iconBarAtBottom = iconBarAtBottom,
+            iconGenEnabled = iconGenEnabled,
             showKnowledgeCard = showKnowledgeCard
         )
         if (updated != generalSettings) {
@@ -659,6 +661,7 @@ private fun SettingsMainScreen(
                 tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
                 showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
                 iconBarAtBottom = iconBarAtBottom,
+            iconGenEnabled = iconGenEnabled,
                 showKnowledgeCard = showKnowledgeCard
             )
             if (updated != generalSettings) onSave(updated)
@@ -764,6 +767,21 @@ private fun SettingsMainScreen(
                 description = "Move every action icon (Home / Help / Trace / Delete / Info / Reload / Chat / Memo) and the back arrow into a fixed bar at the bottom of the screen. The top bar then shows only the screen title.",
                 checked = iconBarAtBottom,
                 onCheckedChange = { iconBarAtBottom = it }
+            )
+
+            // Master switch for the per-report icon-gen feature.
+            // When off, no background LLM call is fired at report
+            // start, the icon row on the result page is hidden, the
+            // leftmost report icon (and its tied 📝 memo) drops from
+            // every title bar, and per-row icon prefixes on the hub /
+            // history / search hits / pickers fall back to the static
+            // 🕘 / 📌 (or no prefix). Persisted icon values stay on
+            // disk — turning the setting back on brings them back.
+            ToggleSettingCard(
+                title = "Generate report icons",
+                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                checked = iconGenEnabled,
+                onCheckedChange = { iconGenEnabled = it }
             )
 
             // When off, the visible "< Back" button disappears from

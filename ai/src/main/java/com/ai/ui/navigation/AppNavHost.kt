@@ -181,6 +181,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton,
         com.ai.ui.shared.LocalSubjectToTitleBarMode provides rootUiStateForLayout.generalSettings.subjectToTitleBarMode,
         com.ai.ui.shared.LocalIconBarAtBottom provides iconBarAtBottom,
+        com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
         com.ai.ui.shared.LocalBottomIconState provides
             if (iconBarAtBottom) bottomBarIconState else null,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,

@@ -482,8 +482,10 @@ fun ReportsScreen(
     // pickers / viewer / detail screens (which don't have the Report
     // object in scope) can still render the leftmost report-icon glyph
     // in their TitleBar. Falls back to 📝 while icon-gen is in flight
-    // or after it errored. Null when there's no current report.
-    val effectiveReportIcon = if (currentReportId != null) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null
+    // or after it errored. Null when there's no current report OR the
+    // user disabled the icon-gen feature entirely.
+    val iconGenEnabled = uiState.generalSettings.iconGenEnabled
+    val effectiveReportIcon = if (iconGenEnabled && currentReportId != null) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null
     // Bumped from every overlay-driven delete so the parent screen's
     // counts / row list re-read from disk on the way back. Without
     // this the LaunchedEffect below has no reason to refire (the user
@@ -1742,7 +1744,7 @@ fun ReportsScreen(
             // when present; falls back to 📝 while icon-gen is in
             // flight or after it errored. Hidden during the selection
             // phase (no report yet).
-            reportIcon = if (isGenerating) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null,
+            reportIcon = if (iconGenEnabled && isGenerating) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null,
             onBackClick = onDismiss,
             onReload = if (isGenerating && currentReportId != null && isComplete) {
                 { showRegenerateConfirm = true }
@@ -2330,6 +2332,10 @@ private fun ColumnScope.GenerationPhase(
         if (currentReportId == null) return@LaunchedEffect
         resultListState.scrollToItem(0)
     }
+    // Capture the icon-gen-enabled flag here (Composable scope) so the
+    // LazyListScope DSL inside the LazyColumn below can gate the icon
+    // row without invoking @Composable functions.
+    val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
         // Meta runs \u2014 one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
@@ -2555,7 +2561,7 @@ private fun ColumnScope.GenerationPhase(
             val iconAgent = iconPrompt?.let { p ->
                 aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
             }
-            if (iconPrompt != null && iconAgent != null) {
+            if (iconGenEnabledForRow && iconPrompt != null && iconAgent != null) {
                 item(key = "row-icon") {
                     val running = reportIcon == null && reportIconError == null
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)

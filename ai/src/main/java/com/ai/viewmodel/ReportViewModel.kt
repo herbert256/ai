@@ -259,6 +259,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         promptText: String,
         aiSettings: Settings
     ) {
+        // Master switch — when the user disabled per-report icon-gen
+        // in Settings, skip the LLM call entirely. Existing on-disk
+        // icon values stay intact.
+        if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "icon"
         } ?: return

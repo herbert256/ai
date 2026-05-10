@@ -114,6 +114,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("showBackButton", g.showBackButton)
     addProperty("subjectToTitleBarMode", g.subjectToTitleBarMode.name)
+    addProperty("iconGenEnabled", g.iconGenEnabled)
 }
 
 /** Apply each present field of a Settings export onto [current],
@@ -141,7 +142,8 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         modelNameLayout = layout ?: current.modelNameLayout,
         showBackButton = bool("showBackButton") ?: current.showBackButton,
-        subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode
+        subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode,
+        iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled
     )
 }
 

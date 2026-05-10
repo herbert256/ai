@@ -118,6 +118,14 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  icons-on-top-right layout. Driven by GeneralSettings.iconBarAtBottom. */
 val LocalIconBarAtBottom = compositionLocalOf { false }
 
+/** Master switch for the per-report icon-gen feature, mirrored from
+ *  GeneralSettings.iconGenEnabled. Provided once by AppNavHost so
+ *  every screen that renders a report-icon prefix (hub Existing
+ *  reports, History, search hits, picker rows, the result-page icon
+ *  row, the leftmost title-bar icon, the 📝 memo icon) can short-
+ *  circuit when false. Default true keeps the feature live. */
+val LocalIconGenEnabled = compositionLocalOf { true }
+
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider so picker / viewer / etc.
