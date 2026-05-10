@@ -174,16 +174,16 @@ fun ReportsScreenNav(
         runningFanOutPairs = runningFanOutPairs,
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
-            reportViewModel.runMetaPrompt(scope, context, reportId, metaPrompt, picks, scopeChoice, languageScope)
+            reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
         onRunFanOut = { reportId, metaPrompt, scopeChoice ->
-            reportViewModel.runFanOutPrompt(scope, context, reportId, metaPrompt, scopeChoice)
+            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice)
         },
         onRunFanIn = { reportId, metaPrompt, pick ->
-            reportViewModel.runFanInPrompt(scope, context, reportId, metaPrompt, pick)
+            reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick)
         },
         onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl ->
-            reportViewModel.runModelFanInPrompt(scope, context, reportId, metaPrompt, pick, activePid, activeMdl)
+            reportViewModel.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -196,10 +196,10 @@ fun ReportsScreenNav(
             }
         },
         onRunLocalRerank = { reportId, modelName ->
-            reportViewModel.runLocalRerank(scope, context, reportId, modelName)
+            reportViewModel.runLocalRerank(context, reportId, modelName)
         },
         onRunRerank = { reportId, pick ->
-            reportViewModel.runRerank(scope, context, reportId, pick)
+            reportViewModel.runRerank(context, reportId, pick)
         },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
@@ -259,7 +259,7 @@ fun ReportsScreenNav(
         },
         translationRuns = reportViewModel.translationRuns.collectAsState().value.values.toList(),
         onStartTranslation = { sourceId, langName, langNative, prov, model ->
-            reportViewModel.startTranslation(scope, context, sourceId, langName, langNative, prov, model)
+            reportViewModel.startTranslation(context, sourceId, langName, langNative, prov, model)
         },
         onCancelTranslation = { runId -> reportViewModel.cancelTranslation(runId) },
         onConsumeTranslation = { runId -> reportViewModel.consumeTranslationRun(runId) },
@@ -273,22 +273,22 @@ fun ReportsScreenNav(
         onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
         onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
         onResumeStaleFanOut = { rid, mp ->
-            reportViewModel.resumeStaleFanOutPairs(scope, context, rid, mp)
+            reportViewModel.resumeStaleFanOutPairs(context, rid, mp)
         },
         onRecoverStaleSecondaries = { rid ->
-            reportViewModel.recoverStaleSecondariesAsync(scope, context, rid)
+            reportViewModel.recoverStaleSecondariesAsync(context, rid)
         },
         onRestartFailedTranslations = { rid, runId ->
-            reportViewModel.restartFailedTranslations(scope, context, rid, runId)
+            reportViewModel.restartFailedTranslations(context, rid, runId)
         },
         onStartMissingTranslations = { rid, runId ->
-            reportViewModel.startMissingTranslations(scope, context, rid, runId)
+            reportViewModel.startMissingTranslations(context, rid, runId)
         },
         onRestartFailedFanOut = { rid, mp ->
-            reportViewModel.rerunFailedFanOutPairs(scope, context, rid, mp)
+            reportViewModel.rerunFailedFanOutPairs(context, rid, mp)
         },
         onRerunCompleteFanOut = { rid, mp ->
-            reportViewModel.rerunCompleteFanOut(scope, context, rid, mp)
+            reportViewModel.rerunCompleteFanOut(context, rid, mp)
         },
         onDeleteFanOutModel = { rid, pid, prov, model ->
             reportViewModel.deleteFanOutModel(context, rid, pid, prov, model)

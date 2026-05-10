@@ -218,7 +218,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
-                kickOffIconGeneration(appViewModel.viewModelScope, context, reportId, aiPrompt, aiSettings)
+                kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
 
                 val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 try {
@@ -256,12 +256,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Report. Best-effort: silently no-ops when the prompt is missing,
      *  the pinned agent has been deleted / renamed, or the agent isn't
      *  resolvable via [Settings.agents] by name. The call is launched
-     *  on [Dispatchers.IO] from [scope] so it runs in parallel with
-     *  per-agent dispatch and survives the user navigating away from
-     *  the result screen. Failures are persisted to
-     *  [Report.iconErrorMessage] so the result-page row can render ❌. */
+     *  on viewModelScope so it runs in parallel with per-agent dispatch
+     *  and survives the user navigating away from the result screen.
+     *  Failures are persisted to [Report.iconErrorMessage] so the
+     *  result-page row can render ❌. */
     private fun kickOffIconGeneration(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         promptText: String,
@@ -290,7 +289,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
-        scope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(reportId = reportId, category = "Report icon") {
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
@@ -548,8 +547,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // viewModelScope so navigating away mid-regenerate doesn't
         // cancel in-flight calls and persist them as ERROR. Same
         // bug class fixed in generateGenericReports.
-        val scope = appViewModel.viewModelScope
-        scope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
@@ -593,7 +591,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 if (state.hasPendingPromptChange) {
                     ReportStorage.clearReportIcon(context, reportId)
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-                    kickOffIconGeneration(scope, context, reportId, report.prompt, ai)
+                    kickOffIconGeneration(context, reportId, report.prompt, ai)
                 }
                 for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
                 if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newTasks.map { it.reportAgent })
@@ -654,13 +652,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // jobs are mutually exclusive — startTranslation cancels
                 // the previous one). Picks come from the persisted rows so
                 // the user gets the same coverage they had before.
-                if (cascadeAll) cascadeMetasAndTranslations(context, scope, reportId)
+                if (cascadeAll) cascadeMetasAndTranslations(context, reportId)
             }
         }
     }
 
     private suspend fun cascadeMetasAndTranslations(
-        context: Context, scope: kotlinx.coroutines.CoroutineScope, reportId: String
+        context: Context, reportId: String
     ) {
         val all = SecondaryResultStorage.listForReport(context, reportId)
         if (all.isEmpty()) return
@@ -701,7 +699,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 else -> decoded
             }
             for (m in rows) SecondaryResultStorage.delete(context, reportId, m.id)
-            runMetaPrompt(scope, context, reportId, mp, picks, safeScope)?.join()
+            runMetaPrompt(context, reportId, mp, picks, safeScope)?.join()
         }
 
         val byKind = all.groupBy { it.kind }
@@ -719,7 +717,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .distinct()
             for (t in translates) SecondaryResultStorage.delete(context, reportId, t.id)
             for (run in translateRuns) {
-                startTranslation(scope, context, reportId, run.lang, run.native, run.provider, run.model).join()
+                startTranslation(context, reportId, run.lang, run.native, run.provider, run.model).join()
             }
         }
     }
@@ -884,13 +882,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  saved with providerId="LOCAL" so cost / usage rows stay
      *  separate from remote provider activity. */
     fun runLocalRerank(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         modelName: String
     ): Job {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 withTracerTags(reportId = reportId, category = "Report rerank (local)") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -953,20 +950,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  models (Cohere rerank-v3.5 etc.) to the dedicated rerank API and
      *  routes chat models through the standard analyse path. */
     fun runRerank(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         pick: Pair<AppService, String>
     ): Job? {
         val (provider, model) = pick
         if (provider.id == AppService.LOCAL.id) {
-            return runLocalRerank(scope, context, reportId, model)
+            return runLocalRerank(context, reportId, model)
         }
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rerankPrompt = aiSettings.getInternalPromptByName("rerank")
             ?: return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 withTracerTags(reportId = reportId, category = "Report rerank") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -1002,7 +998,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  drill-in can group by answerer then by source.
      */
     fun runFanOutPrompt(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
@@ -1017,7 +1012,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (existing.isActive) return existing
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val job = scope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -1125,7 +1120,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  placeholder's content/errorMessage on disk (so the row reads as
      *  pending again). */
     private fun rerunFanOutPlaceholders(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
@@ -1133,7 +1127,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         if (placeholders.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val job = scope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -1193,7 +1187,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  their original placeholder ids so the UI doesn't see them
      *  vanish-and-reappear. */
     private fun resetAndRelaunch(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
@@ -1210,7 +1203,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 durationMs = null
             ).also { SecondaryResultStorage.save(context, it) }
         }
-        return rerunFanOutPlaceholders(scope, context, reportId, metaPrompt, reset)
+        return rerunFanOutPlaceholders(context, reportId, metaPrompt, reset)
     }
 
     /** Mark every stuck placeholder secondary on the report as errored.
@@ -1228,10 +1221,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  meta runs, Rerank, Moderation, Translate per-call) get the
      *  honest red ❌. */
     fun recoverStaleSecondariesAsync(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String
-    ): Job = scope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
         val running = appViewModel.runningFanOutPairs.value
         val activeTranslationRunIds = _translationRuns.value.keys
         val rows = SecondaryResultStorage.listForReport(context, reportId)
@@ -1280,7 +1272,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  survive on disk but the launching coroutines are gone. The Fan out
      *  L1 screen calls this on entry. */
     fun resumeStaleFanOutPairs(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
@@ -1290,7 +1281,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // (report, prompt) is already in flight. The L1 LaunchedEffect
         // can re-key spuriously when aiSettings flows a new copy.
         if (!staleResumeScans.add(key)) return null
-        val job = scope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
                 val running = appViewModel.runningFanOutPairs.value
                 val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
@@ -1310,7 +1301,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             it.id !in running
                     }
                 if (stale.isNotEmpty()) {
-                    rerunFanOutPlaceholders(scope, context, reportId, metaPrompt, stale)
+                    rerunFanOutPlaceholders(context, reportId, metaPrompt, stale)
                 }
             } finally {
                 staleResumeScans.remove(key)
@@ -1323,7 +1314,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  (clears errorMessage so they read as queued again) and dispatches
      *  via [rerunFanOutPlaceholders]. */
     fun rerunFailedFanOutPairs(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
@@ -1335,7 +1325,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     it.fanInOf == null &&
                     it.errorMessage != null
             }
-        return resetAndRelaunch(scope, context, reportId, metaPrompt, failed)
+        return resetAndRelaunch(context, reportId, metaPrompt, failed)
     }
 
     /** Drop every fan_out pair-row + every fan_in combine-row for this
@@ -1343,7 +1333,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  [runFanOutPrompt]. Used by the Fan out L1 "Rerun the complete
      *  Fan out" button. */
     fun rerunCompleteFanOut(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
@@ -1353,7 +1342,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // surviving coroutines would call SecondaryResultStorage.save
         // on the just-deleted ids, resurrecting zombie rows beside
         // the freshly-created placeholders and double-billing.
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             fanOutJobs[fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
                 existing.cancelAndJoin()
             }
@@ -1374,7 +1363,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     it.metaPromptId == metaPrompt.id && it.fanOutSourceAgentId != null
                 }
                 .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            runFanOutPrompt(scope, context, reportId, metaPrompt)?.join()
+            runFanOutPrompt(context, reportId, metaPrompt)?.join()
         }
     }
 
@@ -1428,14 +1417,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  by `metaPromptName`.
      */
     fun runFanInPrompt(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
         pick: Pair<AppService, String>
     ): Job? {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -1554,7 +1542,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *               response to other_i). @RESPONDER_PAIRS@ holds them.
      *    model — both blocks populated. */
     fun runModelFanInPrompt(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
@@ -1563,7 +1550,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         activeModel: String
     ): Job? {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -1766,7 +1753,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun runMetaPrompt(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
@@ -1778,7 +1764,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val kind = SecondaryKind.META
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
-        return scope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             // Tag every API call this batch makes with the parent
             // report's id and a Meta-prompt-name category. Without the
             // reportId tag the resulting trace files would land with
@@ -2325,7 +2311,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  views. Structured-JSON meta results (rerank, moderation) are
      *  skipped. */
     fun startTranslation(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         sourceReportId: String,
         targetLanguageName: String,
@@ -2334,7 +2319,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         model: String
     ): Job {
         val runId = java.util.UUID.randomUUID().toString()
-        val job = scope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val generalSettings = state.generalSettings
@@ -2594,11 +2579,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  [runOneTranslation]. The runId is preserved so the rerun rows
      *  group under the same translation run on the result screen. */
     fun restartFailedTranslations(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = scope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
@@ -2611,11 +2595,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Used after an interrupted batch to fill in the items that
      *  never got persisted. */
     fun startMissingTranslations(
-        scope: kotlinx.coroutines.CoroutineScope,
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = scope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }
