@@ -861,7 +861,7 @@ fun ProviderSettingsScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
             // State toggle
-            var showStateHelp by remember { mutableStateOf(false) }
+            val navigateHelp = com.ai.ui.shared.LocalNavigateToHelp.current
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
@@ -869,7 +869,7 @@ fun ProviderSettingsScreen(
                         text = "❓", fontSize = 14.sp, color = AppColors.Blue,
                         modifier = Modifier
                             .padding(end = 12.dp)
-                            .clickable { showStateHelp = true }
+                            .clickable { navigateHelp("provider_card_state") }
                     )
                     Switch(
                         checked = isInactive,
@@ -905,37 +905,18 @@ fun ProviderSettingsScreen(
                     )
                 }
             }
-            if (showStateHelp) {
-                AlertDialog(
-                    onDismissRequest = { showStateHelp = false },
-                    title = { Text("Provider state") },
-                    text = {
-                        Text(
-                            "Each provider lives in one of four states surfaced as the emoji on its row in AI Setup → Providers: " +
-                                "🔑 ok (a working API key has been tested), ❌ error (the last test failed; the trace icon links to the captured request/response), " +
-                                "💤 inactive (the user explicitly turned it off — calls and pickers skip this provider), or ⭕ not-used (no key set yet). " +
-                                "Flipping the toggle to ON kicks off an activation flow: a model-list fetch followed by a test call against the picked Default " +
-                                "Model. Both must pass before the state goes 🔑 and a default agent is auto-created (and added to the 'default agents' Flock); " +
-                                "either failure leaves the provider in ❌. Flipping OFF goes straight to 💤 — no network call. Pickers, the Refresh All sweep, " +
-                                "and the active-only filter on the Providers screen all read this state."
-                        )
-                    },
-                    confirmButton = { TextButton(onClick = { showStateHelp = false }) { Text("OK") } }
-                )
-            }
 
             // API Key card — credential, then Models / Default Model
             // rows, then Test. Putting the catalog + bound-model rows
             // BETWEEN the key and the Test button keeps the
             // typing → picking → testing flow on one card, top to bottom.
-            var showApiKeyHelp by remember { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         Text(
                             text = "❓", fontSize = 14.sp, color = AppColors.Blue,
-                            modifier = Modifier.clickable { showApiKeyHelp = true }
+                            modifier = Modifier.clickable { navigateHelp("provider_card_apikey") }
                         )
                     }
                     var showApiKey by remember { mutableStateOf(false) }
@@ -1042,25 +1023,7 @@ fun ProviderSettingsScreen(
                     }
                 }
             }
-            if (showApiKeyHelp) {
-                AlertDialog(
-                    onDismissRequest = { showApiKeyHelp = false },
-                    title = { Text("API Key") },
-                    text = {
-                        Text(
-                            "Where the user's authentication for this provider lives. The key is stored in the per-provider SharedPreferences slot " +
-                                "(${service.id}_api_key) — masked by the eye toggle, never shipped through any export bundle that's marked 'no keys', " +
-                                "and never logged to the trace files. Tap Test to fire one round-trip request against the model picked below using " +
-                                "this key — on success the provider state flips to 🔑 and a default agent is auto-created for the report flow; on " +
-                                "failure the state goes ❌ and the captured trace is one tap away via the bug icon. Models opens the dedicated " +
-                                "per-provider Models screen (live API list or the manual / hardcoded subset, depending on the Models card setting). " +
-                                "Default Model writes the picked model into AppService.defaultModel — the single source of truth for what every " +
-                                "API call uses by default; sorted by output-token cost ascending so the cheap end of the catalog lands on top."
-                        )
-                    },
-                    confirmButton = { TextButton(onClick = { showApiKeyHelp = false }) { Text("OK") } }
-                )
-            }
+
 
             // ===== Provider definition (catalog) =====
             // Edits here flow into ProviderRegistry — the same store that loads from
@@ -1070,7 +1033,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Basics",
                 summary = null,
-                helpText = "Base URL is the root of every API call to this provider — paths declared on the API card append to it. Admin URL points at the provider's web dashboard (where the user gets / rotates an API key); rendered as a tappable link on the per-provider help page. The provider id (= its display label) lives in the title bar above and can't be edited in place — pre-unification builds carried a separate 'Display name' field here, but id, display name and prefs key collapsed into one in the unification refactor, so a rename is a delete-and-add operation."
+                helpTopic = "provider_card_basics"
             ) {
                 // The provider id (which is also its display label) is
                 // shown in the screen's title bar above; this card edits
@@ -1095,7 +1058,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "API",
                 summary = defApiFormat.name,
-                helpText = "Format selects the dispatch path: OPENAI_COMPATIBLE (the default — Bearer auth, /v1/chat/completions shape), ANTHROPIC (x-api-key + anthropic-version header, /v1/messages, mandatory max_tokens), or GOOGLE (?key= query param, generateContent path). Type paths override the global per-type defaults from AI Setup → Model Types — leave blank to inherit the user / hardcoded fallback (the placeholder shows what you'd inherit). Models path is the /models endpoint (defaults to v1/models). Model list format flips between 'object' (provider returns {data: [...]}) and 'array' (returns the list directly) — wrong choice yields zero models on fetch. Seed field name is what the request body calls the determinism seed (most providers: 'seed'; Mistral: 'random_seed')."
+                helpTopic = "provider_card_api"
             ) {
                 Text("Format", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1140,7 +1103,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Models",
                 summary = defDefaultModelSource,
-                helpText = "Default source decides where the per-provider Models screen seeds its list from. API hits the provider's /models endpoint on every refresh (live catalog). MANUAL hands you an empty list to populate by hand from Hardcoded models — useful for providers whose /models shape isn't supported, or when you want to lock the picker down to a curated subset. Model filter regex (Java syntax) trims the live or hardcoded list to entries whose id matches — e.g. 'gpt|o1|o3|o4' on OpenAI hides the Whisper / DALL·E / TTS rows. Hardcoded models is the asset-shipped fallback list, applied verbatim in MANUAL mode and unioned into the API list when the provider config has mergeHardcodedModels enabled (see Capability flags)."
+                helpTopic = "provider_card_models"
             ) {
                 Text("Default source", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1160,7 +1123,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Pricing & cost",
                 summary = null,
-                helpText = "OpenRouter name maps this provider into OpenRouter's catalog so cross-provider pricing fan out works (e.g. Anthropic openRouterName='anthropic' lets the layered lookup find anthropic/claude-3-5-sonnet pricing on OpenRouter when no native source has it). Required for layered-pricing pickup; harmless when blank for fully self-priced providers. LiteLLM prefix is the slug used as the lookup key in the LiteLLM catalog (per-provider override over the lowercased provider id fallback, e.g. 'together_ai' for Together). Cost ticks divisor — providers that report cost in fractional ticks (xAI's $/1e10 scale) divide their per-call usage cost by this factor; leave blank for providers that bill in plain USD. Extract API cost — when ON, the dispatcher reads the cost figure straight off the response body (OpenRouter ships per-call cost; most others don't). When OFF, cost is computed locally from token counts × the layered ModelPricing rate."
+                helpTopic = "provider_card_pricing"
             ) {
                 OutlinedTextField(value = defOpenRouterName, onValueChange = { defOpenRouterName = it },
                     label = { Text("OpenRouter name") }, singleLine = true,
@@ -1180,7 +1143,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Features",
                 summary = null,
-                helpText = "Supports citations — when ON, the response parser pulls the Perplexity-style `citations` array out of the response and surfaces it inline on the per-agent result. Only Perplexity sets this today; OpenAI's Responses-API web search uses a different shape and is gated separately by the Responses API patterns. Supports search recency — when ON, the dispatcher attaches Perplexity's `search_recency_filter` request param when the user picks 'Today / Week / Month / Year' on the report's web-search dropdown; providers without this flag get the toggle hidden. Both are simple Boolean gates on the dispatch path, NOT model-name patterns — they apply provider-wide."
+                helpTopic = "provider_card_features"
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Supports citations", color = Color.White, modifier = Modifier.weight(1f))
@@ -1197,7 +1160,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Native APIs",
                 summary = null,
-                helpText = "Optional dedicated endpoints exposed by some providers alongside the OpenAI-compat shim. When set, the dispatcher routes the corresponding action through that URL; when blank the user gets an explanatory error. Aux hosts is a comma list of alternate hostnames the provider's traffic lands on besides its baseUrl host (e.g. api.cohere.com for Cohere) so the trace-list Provider filter still attributes those calls correctly. Native rerank URL — Cohere v2/rerank-shaped POST body. Native moderation URL — Mistral v1/moderations-shaped POST body. Native capability URL — Cohere-shaped /v1/models listing (with `endpoints` / `supports_vision` / `context_length`); set on providers whose OpenAI-compat shim strips that data but a separate native host returns it."
+                helpTopic = "provider_card_native"
             ) {
                 Text(
                     "Optional dedicated endpoints exposed by some providers alongside the OpenAI-compat shim. " +
@@ -1252,7 +1215,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Capability flags",
                 summary = null,
-                helpText = "Pricing from /models — provider's /v1/models response carries authoritative pricing (input/output per million tokens) which the fetcher harvests as a self-report tier. Together AI is the canonical example. Cross-provider model list — provider's /models response drives pricing + type fan-out into every OTHER provider via the openRouterName prefix (only OpenRouter has this today; exactly one provider should). Merge hardcoded models — fetcher unions the persisted Hardcoded Models list with the API list (useful when /models silently omits valid endpoints, e.g. OpenAI's TTS / image / moderation). External reasoning signal untrusted — ignore the provider's `reasoning: true` field on /models metadata; capability is decided purely by Reasoning model patterns + Reasoning effort accept patterns. xAI uses this because some always-on reasoning variants reject the reasoning_effort parameter."
+                helpTopic = "provider_card_capability"
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -1299,7 +1262,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Model patterns",
                 summary = null,
-                helpText = "Each pattern is a JSON object with any combination of `exact` / `prefix` / `contains` / `suffix`, matched against modelId.lowercase() — every non-null part must match (intersection). Empty list = the feature is OFF for this provider. Responses API patterns route a model to OpenAI's /v1/responses instead of /v1/chat/completions (gpt-5, o-series, gpt-4.1). Reasoning model patterns gate the 🧠 badge AND the thinking dispatch path (Anthropic claude-3.7+, opus-4 / sonnet-4 / haiku-4; OpenAI gpt-5 / o1-o4; xAI grok-3 / grok-4 / grok-code; Moonshot kimi-k1.5 / kimi-k2; DeepSeek r1 / reasoner; Mistral magistral; Google gemini-2.5). Reasoning effort accept patterns optionally narrows the previous list to the subset that actually accepts the `reasoning_effort` request param — leave BLANK to fall back to Reasoning model patterns; set when always-on variants reject the param (xAI). Web-search model patterns gate the 🌐 web_search tool descriptor. Adaptive thinking patterns (Anthropic-only) opts a model into the newer `thinking.type:adaptive` request shape (Claude Opus 4.7+); older 3.7 / 4.x models keep the budget_tokens shape. Max-tokens defaults — list of {pattern, maxTokens} rules evaluated top-down for Anthropic's mandatory max_tokens (opus-4 → 32000, sonnet-4 / haiku-4 / claude-3-5 → 8192); fallback 4096 when no rule matches."
+                helpTopic = "provider_card_patterns"
             ) {
                 Text(
                     "Each pattern matches against modelId.lowercase(). Set any combination of `exact`, `prefix`, `contains`, `suffix` — match succeeds when EVERY non-null part matches. Empty list = feature off for this provider; the field stays blank in the asset bundle.",
@@ -1382,7 +1345,7 @@ fun ProviderSettingsScreen(
             CollapsibleCard(
                 title = "Built-in endpoints",
                 summary = null,
-                helpText = "Endpoints the user can pick between for this provider when assigning a model to an Agent or sending a Test request. Each entry is `{id, name, url, isDefault}` — the first `isDefault: true` shows up first in the picker. OpenAI ships Chat Completions + Responses API; Mistral ships Chat Completions + Codestral; DeepSeek ships Chat + Beta (FIM); Z.AI ships Chat + Coding. Empty list = a single synthesised default is used (built from the API card's Base URL + chat type path). Edits round-trip through providers.json on Export / Import."
+                helpTopic = "provider_card_endpoints"
             ) {
                 Text(
                     "Endpoints the user can pick between for this provider (e.g. OpenAI's Chat Completions vs Responses API). Empty list → a single synthesised default is used. Each entry is `{id, name, url, isDefault}` — the first `isDefault: true` shows up first in the picker. Example: [{\"id\":\"openai-chat\",\"name\":\"Chat Completions\",\"url\":\"https://api.openai.com/v1/chat/completions\",\"isDefault\":true},{\"id\":\"openai-responses\",\"name\":\"Responses API\",\"url\":\"https://api.openai.com/v1/responses\"}]",

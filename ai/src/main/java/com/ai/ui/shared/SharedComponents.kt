@@ -508,21 +508,22 @@ fun SettingsListItemCard(
 /**
  * Reusable collapsible card with a clickable title header.
  *
- * [helpText] — when non-null, an ℹ icon sits between the summary and
- * the chevron. Tapping it opens an AlertDialog with the full text
- * (multi-paragraph allowed). Tap stays inside the icon — does NOT
- * propagate to the row's expand/collapse handler.
+ * [helpTopic] — when non-null, an ❓ icon sits between the summary
+ * and the chevron. Tapping it routes through [LocalNavigateToHelp]
+ * to the full-screen help page for that topic. Tap stays inside
+ * the icon — does NOT propagate to the row's expand/collapse
+ * handler.
  */
 @Composable
 fun CollapsibleCard(
     title: String,
     defaultExpanded: Boolean = false,
     summary: String? = null,
-    helpText: String? = null,
+    helpTopic: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     var expanded by remember { mutableStateOf(defaultExpanded) }
-    var showHelp by remember { mutableStateOf(false) }
+    val navigateHelp = LocalNavigateToHelp.current
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()
@@ -545,26 +546,18 @@ fun CollapsibleCard(
                         color = AppColors.TextTertiary, modifier = Modifier.padding(end = 8.dp)
                     )
                 }
-                if (helpText != null) {
+                if (helpTopic != null) {
                     Text(
                         text = "❓", fontSize = 14.sp, color = AppColors.Blue,
                         modifier = Modifier
                             .padding(end = 8.dp)
-                            .clickable { showHelp = true }
+                            .clickable { navigateHelp(helpTopic) }
                     )
                 }
                 Text(text = if (expanded) "▾" else "▸", color = AppColors.TextTertiary, fontSize = 16.sp)
             }
             if (expanded) { content() }
         }
-    }
-    if (showHelp && helpText != null) {
-        AlertDialog(
-            onDismissRequest = { showHelp = false },
-            title = { Text(title) },
-            text = { Text(helpText) },
-            confirmButton = { TextButton(onClick = { showHelp = false }) { Text("OK") } }
-        )
     }
 }
 
