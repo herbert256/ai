@@ -118,6 +118,16 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  icons-on-top-right layout. Driven by GeneralSettings.iconBarAtBottom. */
 val LocalIconBarAtBottom = compositionLocalOf { false }
 
+/** Resolved per-report emoji propagated to every TitleBar inside a
+ *  report-scoped composition tree. Provided by ReportsScreen at every
+ *  inline overlay's CompositionLocalProvider so picker / viewer / etc.
+ *  composables that don't have the [com.ai.data.Report] in scope can
+ *  still render the report icon as the leftmost glyph in their
+ *  TitleBar. TitleBar uses this as a fallback when no explicit
+ *  `reportIcon` parameter is passed. Default null = not on a
+ *  report-scoped screen. */
+val LocalReportIcon = compositionLocalOf<String?> { null }
+
 /** Snapshot of the icons the *currently composed* TitleBar would paint
  *  on its right. TitleBar fills this via SideEffect on every
  *  recomposition when bottom-bar mode is on; clears it via
@@ -324,6 +334,11 @@ fun TitleBar(
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
     val navigateToCurrentReport = LocalNavigateToCurrentReport.current
+    // Explicit reportIcon param wins when non-null; otherwise inherit
+    // from LocalReportIcon (provided by ReportsScreen at every inline
+    // overlay so pickers / viewer / etc. see it without having to be
+    // refactored to thread it through their parameters).
+    val resolvedReportIcon = reportIcon ?: LocalReportIcon.current
     if (centered) {
         Box(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -355,7 +370,7 @@ fun TitleBar(
             onTrace = onTrace,
             // Suppress 📝 memo when the leftmost report icon is shown
             // — the report icon itself is the back-to-report tap target.
-            onMemo = if (reportIcon != null) null else LocalNavigateToCurrentReport.current
+            onMemo = if (resolvedReportIcon != null) null else LocalNavigateToCurrentReport.current
         )
         if (state != null) {
             SideEffect { state.value = captured }
@@ -378,8 +393,8 @@ fun TitleBar(
         ) {
             // Leftmost slot: per-report emoji (with 📝 fallback at the
             // callsite). Same slot the top-bar branch renders below.
-            if (reportIcon != null) {
-                TitleBarIcon(reportIcon, Color.Unspecified,
+            if (resolvedReportIcon != null) {
+                TitleBarIcon(resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
                     width = 22.dp, scale = 1.5f)
                 Spacer(modifier = Modifier.width(4.dp))
@@ -449,8 +464,8 @@ fun TitleBar(
             // when [reportIcon] is non-null — callers should pass
             // `report.icon ?: "📝"` so the slot is filled even while
             // the icon-gen call is in flight.
-            if (reportIcon != null) {
-                TitleBarIcon(reportIcon, Color.Unspecified,
+            if (resolvedReportIcon != null) {
+                TitleBarIcon(resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
                     width = 22.dp, scale = iconScale)
             }
@@ -520,7 +535,7 @@ fun TitleBar(
                 // Suppress 📝 memo when the leftmost report icon is
                 // shown — that icon already provides the back-to-
                 // report tap target.
-                onMemo = if (reportIcon != null) null else navigateToCurrentReport,
+                onMemo = if (resolvedReportIcon != null) null else navigateToCurrentReport,
                 scale = iconScale,
                 // Tight inter-icon spacing in the 1.5× mode. Without
                 // this, scaled-up slots leave 1.5× the air too —
