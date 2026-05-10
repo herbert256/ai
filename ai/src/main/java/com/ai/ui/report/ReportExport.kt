@@ -742,9 +742,9 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
     // category. Same visual styling as .cat-btn, declared in the
     // CSS block.
     sb.append("<div class='cost-scope-list'>")
-    sb.append("<button id='cost-btn-all' class='cost-scope-btn active' onclick=\"showCostsScope('all')\">All</button>")
-    sb.append("<button id='cost-btn-types' class='cost-scope-btn' onclick=\"showCostsScope('types')\">Types</button>")
+    sb.append("<button id='cost-btn-types' class='cost-scope-btn active' onclick=\"showCostsScope('types')\">Types</button>")
     sb.append("<button id='cost-btn-models' class='cost-scope-btn' onclick=\"showCostsScope('models')\">Models</button>")
+    sb.append("<button id='cost-btn-all' class='cost-scope-btn' onclick=\"showCostsScope('all')\">All</button>")
     sb.append("</div>")
 
     // Group totals — same projection used twice (by type, by model).
@@ -783,29 +783,22 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
     val byType = groupTotals { it.type }
     val byModel = groupTotals { "${it.providerDisplay} · ${it.model}" }
 
-    // Pane 1 — All. Both summaries + the per-call detail. Default
-    // visible (display:block); the other two panes start hidden.
-    sb.append("<div id='cost-pane-all' class='cost-pane' style='display:block'>")
-    if (byType.isNotEmpty()) {
-        sb.append("<div style='margin-top:12px;font-weight:600'>By type</div>")
-        appendSummary("Type", byType)
-    }
-    if (byModel.isNotEmpty()) {
-        sb.append("<div style='margin-top:12px;font-weight:600'>By model</div>")
-        appendSummary("Model", byModel)
-    }
-    sb.append("<div style='margin-top:12px;font-weight:600'>All calls</div>")
-    appendAllCalls()
-    sb.append("</div>")
-
-    // Pane 2 — Types only.
-    sb.append("<div id='cost-pane-types' class='cost-pane' style='display:none'>")
+    // Pane 1 — Types. The "By type" summary on its own. Default
+    // visible (matches the first button being .active above).
+    sb.append("<div id='cost-pane-types' class='cost-pane' style='display:block'>")
     appendSummary("Type", byType)
     sb.append("</div>")
 
-    // Pane 3 — Models only.
+    // Pane 2 — Models. The "By model" summary on its own.
     sb.append("<div id='cost-pane-models' class='cost-pane' style='display:none'>")
     appendSummary("Model", byModel)
+    sb.append("</div>")
+
+    // Pane 3 — All. The per-call detail table only. The two
+    // summaries already have their own panes, so showing them
+    // here too would just be duplication.
+    sb.append("<div id='cost-pane-all' class='cost-pane' style='display:none'>")
+    appendAllCalls()
     sb.append("</div>")
 
     sb.append("</div>")

@@ -162,6 +162,10 @@ internal fun makeStaticForPdf(html: String): String {
                and every per-trace part body must be on the page so the
                PDF carries the full request/response history. */
             .cat-block { display: block !important; }
+            /* Costs sub-picker: show every cost pane (Types, Models,
+               All) stacked in the static export — the picker buttons
+               are already hidden above, and a PDF reader can't tap. */
+            .cost-pane { display: block !important; }
             .trace-pane { display: block !important; }
             .trace-part { display: block !important; }
             /* Print niceties. */
