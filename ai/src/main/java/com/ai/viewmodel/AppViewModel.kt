@@ -339,17 +339,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
         }
 
-        // Every-start delta-sync from bundled providers.json. For each
-        // provider already in the registry, refresh fields the user
-        // hasn't edited (timestamp == null) so APK upgrades pick up
-        // catalog corrections (new modelFilter, hardcoded models,
-        // mergeHardcodedModels flips, etc.) without touching user
-        // edits. Already on Dispatchers.IO via the viewModelScope.launch
-        // wrapping bootstrap. New asset entries don't get appended here
-        // — that path is the explicit "Import new providers" button.
+        // Every-start delta-sync from bundled providers.json. Two
+        // passes, in order:
+        //   1. syncFromAsset refreshes fields the user hasn't edited
+        //      on existing entries (timestamp == null) so APK upgrades
+        //      pick up catalog corrections — new modelFilter regex,
+        //      hardcoded models, mergeHardcodedModels flips, etc. —
+        //      without touching user edits.
+        //   2. importFromAsset appends any asset id not yet in the
+        //      registry. Append-only (existing rows are skipped),
+        //      mirrors the prompts delta-merge below — new providers
+        //      shipped in an APK upgrade light up without the user
+        //      having to hit the manual "Import new providers" button.
+        // Already on Dispatchers.IO via viewModelScope.launch.
         runCatching {
             ProviderRegistry.syncFromAsset(application, "providers.json")
-        }.onFailure { android.util.Log.w("AppViewModel", "syncFromAsset failed", it) }
+            ProviderRegistry.importFromAsset(application, "providers.json")
+        }.onFailure { android.util.Log.w("AppViewModel", "providers.json delta sync failed", it) }
 
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
