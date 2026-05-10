@@ -227,7 +227,7 @@ fun ReportsScreenNav(
         onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
-        onRegenerateAgent = { rid, aid -> reportViewModel.regenerateAgent(scope, context, rid, aid) },
+        onRegenerateAgent = { rid, aid -> reportViewModel.regenerateAgent(context, rid, aid) },
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
         onUpdateModelList = { rid, edited ->
@@ -236,7 +236,7 @@ fun ReportsScreenNav(
         onMarkParametersChanged = {
             viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
         },
-        onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid, scope) },
+        onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid) },
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },

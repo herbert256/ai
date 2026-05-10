@@ -544,7 +544,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * Re-run a previously generated report end-to-end with the same prompt, agent set,
      * and parameter selections.
      */
-    fun regenerateReport(context: Context, reportId: String, scope: kotlinx.coroutines.CoroutineScope) {
+    fun regenerateReport(context: Context, reportId: String) {
+        // viewModelScope so navigating away mid-regenerate doesn't
+        // cancel in-flight calls and persist them as ERROR. Same
+        // bug class fixed in generateGenericReports.
+        val scope = appViewModel.viewModelScope
         scope.launch(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
@@ -2147,8 +2151,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  on-the-fly from the parsed parts). When a real-agent row points
      *  at an agent that's since been deleted, falls back to the direct
      *  shape so the regenerate still goes through. */
-    fun regenerateAgent(scope: kotlinx.coroutines.CoroutineScope, context: Context, reportId: String, agentId: String) {
-        scope.launch(Dispatchers.IO) {
+    fun regenerateAgent(context: Context, reportId: String, agentId: String) {
+        // viewModelScope: same survival rationale as
+        // generateGenericReports — a screen-scoped scope here would
+        // turn the in-flight call into ERROR on disk if the user
+        // navigates away before the new response lands.
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ra = report.agents.find { it.agentId == agentId } ?: return@launch
