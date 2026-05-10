@@ -1526,7 +1526,12 @@ private fun ColumnScope.FanOutDrillInView(
                         color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(end = 8.dp))
                 }
-                Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                // Fixed-width chevron slot so the totals footer below
+                // (which renders an empty 16dp Box in this column)
+                // lines its cost up exactly under the per-row costs.
+                Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
             }
             HorizontalDivider(color = AppColors.DividerDark)
         }
