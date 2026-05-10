@@ -887,25 +887,49 @@ fun ProviderSettingsScreen(
                 }
             }
 
-            // Models — link to the dedicated per-provider Models screen (AI Setup → Models → this provider)
+            // Models card — picker entry to the dedicated per-provider
+            // Models screen (AI Setup → Models → this provider) plus a
+            // nested Default Model row so the model the agent uses by
+            // default is set right alongside the catalog the user
+            // pulled it from.
             Card(
-                modifier = Modifier.fillMaxWidth().clickable { onNavigateToModels() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                    if (modelsCount > 0) {
-                        Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
+                Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToModels() }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                        if (modelsCount > 0) {
+                            Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
+                        }
+                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
                     }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                    HorizontalDivider(color = AppColors.DividerDark)
+                    // Default Model — opens the shared SelectModelScreen overlay.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { showModelSelector = true }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(
+                                text = defaultModel.ifBlank { "Tap to select a model" },
+                                fontSize = 12.sp,
+                                color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.Blue,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                    }
                 }
             }
 
-            // API Key + Default Model — folded into one card so the
-            // bound model sits next to the key it authenticates.
+            // API Key card.
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("API Key", fontWeight = FontWeight.Bold, color = Color.White)
@@ -973,24 +997,6 @@ fun ProviderSettingsScreen(
                                     .padding(start = 8.dp)
                                     .clickable { onNavigateToTrace(tf) })
                         }
-                    }
-
-                    // Default Model — opens the shared SelectModelScreen overlay.
-                    Row(
-                        modifier = Modifier.fillMaxWidth().clickable { showModelSelector = true }
-                            .padding(top = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(
-                                text = defaultModel.ifBlank { "Tap to select a model" },
-                                fontSize = 12.sp,
-                                color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.Blue,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
                     }
                 }
             }
