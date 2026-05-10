@@ -291,11 +291,11 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
     }
 }
 
-/** Combined card under the AI Reports hub: a tappable header that
- *  routes to the full History screen, plus up to 3 most-recent
+/** Combined card under the AI Reports hub: up to 3 most-recent
  *  unpinned reports (🕘) followed by up to 3 most-recent pinned
- *  reports (📌). Each row opens that report; tapping the header opens
- *  the full History list. */
+ *  reports (📌). Trailing 'All AI reports' row routes to the full
+ *  History screen. Visual style mirrors StartHubGroup / SearchHubGroup
+ *  so the three list cards on the hub look uniform. */
 @Composable
 private fun ExistingReportsCard(
     recent: List<com.ai.data.Report>,
@@ -307,44 +307,20 @@ private fun ExistingReportsCard(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onHeaderClick() }
-                    .padding(horizontal = 14.dp, vertical = 4.dp)
-            ) {
-                Text("📚", fontSize = 26.sp)
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Existing reports", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text("Existing reports", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp))
+            recent.forEach { r ->
+                SearchHubItem(icon = "🕘", title = r.title.ifBlank { "(untitled)" },
+                    enabled = true, onClick = { onOpenReport(r.id) })
             }
-            if (recent.isNotEmpty() || pinned.isNotEmpty()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp)) {
-                    recent.forEach { ReportRow(icon = "🕘", report = it, onOpen = onOpenReport) }
-                    pinned.forEach { ReportRow(icon = "📌", report = it, onOpen = onOpenReport) }
-                }
+            pinned.forEach { r ->
+                SearchHubItem(icon = "📌", title = r.title.ifBlank { "(untitled)" },
+                    enabled = true, onClick = { onOpenReport(r.id) })
             }
+            SearchHubItem(icon = "📚", title = "All AI reports", enabled = true, onClick = onHeaderClick)
         }
-    }
-}
-
-@Composable
-private fun ReportRow(icon: String, report: com.ai.data.Report, onOpen: (String) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onOpen(report.id) }
-            .padding(vertical = 3.dp)
-    ) {
-        Text(icon, fontSize = 13.sp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = report.title.ifBlank { "(untitled)" },
-            fontSize = 13.sp, color = Color.White,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-        )
     }
 }
 
@@ -418,7 +394,8 @@ private fun SearchHubItem(icon: String, title: String, enabled: Boolean, onClick
         Text(text = icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-            color = if (enabled) Color.White else AppColors.TextDim)
+            color = if (enabled) Color.White else AppColors.TextDim,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
