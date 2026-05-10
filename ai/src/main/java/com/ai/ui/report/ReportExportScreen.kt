@@ -32,7 +32,13 @@ fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit,
-    onExportAll: suspend ((Int, Int) -> Unit) -> Unit
+    onExportAll: suspend ((Int, Int) -> Unit) -> Unit,
+    /** Open the in-app HTML viewer (the same screen the AI Report
+     *  "HTML" action-row button reaches). Surfaced as a third button
+     *  next to Android share / View in browser when the user has the
+     *  HTML / Complete combo selected — that's the rendering the
+     *  preview screen produces. */
+    onViewInApp: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -136,6 +142,7 @@ fun ReportExportScreen(
             }
         }
 
+        val showViewInApp = format == ReportExportFormat.HTML && detail == ReportExportDetail.COMPLETE
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = { runExport(ReportExportAction.SHARE) },
@@ -150,6 +157,15 @@ fun ReportExportScreen(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("View in browser", maxLines = 1, softWrap = false) }
+
+            if (showViewInApp) {
+                Button(
+                    onClick = { onViewInApp() },
+                    enabled = progress == null,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("View in app", maxLines = 1, softWrap = false) }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))

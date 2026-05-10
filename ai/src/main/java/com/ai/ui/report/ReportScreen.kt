@@ -1550,7 +1550,8 @@ fun ReportsScreen(
                 onBack = { showExport = false },
                 onNavigateHome = onNavigateHome,
                 onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
-                onExportAll = { onProgress -> onExportAll(rid, onProgress) }
+                onExportAll = { onProgress -> onExportAll(rid, onProgress) },
+                onViewInApp = { showExport = false; showHtmlPreview = true }
             )
         }
         return
