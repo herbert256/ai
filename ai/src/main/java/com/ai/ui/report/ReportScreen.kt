@@ -643,9 +643,9 @@ fun ReportsScreen(
     // Action-row pickers — hoisted up here so they render as proper
     // full-screen overlays. When they lived inside GenerationPhase the
     // parent TitleBar + ActionRow had already painted above them, so
-    // the picker visibly stacked on top of a half-drawn screen.
-    var showViewPicker by rememberSaveable { mutableStateOf(false) }
-    var showEditPicker by rememberSaveable { mutableStateOf(false) }
+    // the picker visibly stacked on top of a half-drawn screen. View
+    // and Edit no longer drill into a full-screen picker — the new
+    // two-row action bar exposes their sub-actions inline.
     var showMetaPicker by rememberSaveable { mutableStateOf(false) }
     var showFanOutPicker by rememberSaveable { mutableStateOf(false) }
     var showRerankPicker by rememberSaveable { mutableStateOf(false) }
@@ -707,6 +707,12 @@ fun ReportsScreen(
     // not the top of the report screen.
     var listKind by rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     var listFilterByName by rememberSaveable { mutableStateOf<String?>(null) }
+    /** Category filter for the secondary results list. Set by the
+     *  "every: meta / fan-out / fan-in / fan-in-model" buttons in the
+     *  new action bar's View row. Layered on top of [listKind] (which
+     *  these all set to META). Null when the user opened the list via
+     *  a name-based bucket or directly. */
+    var listFilterByCategory by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
@@ -1388,7 +1394,7 @@ fun ReportsScreen(
         // previous AlertDialog. Rendered as an overlay on top of the
         // secondary list via the early-return pattern.
         if (showFanInPromptPicker && fanInList.isNotEmpty()) {
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null; listFilterByCategory = null }) {
                 ReportSelectInternalPromptScreen(
                     titleText = "Run an fan-in prompt",
                     category = "fan_in",
@@ -1406,11 +1412,13 @@ fun ReportsScreen(
             }
             return
         }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null; listFilterByCategory = null }) {
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
             nameFilter = listFilterByName,
+            categoryFilter = listFilterByCategory,
+            aiSettings = aiSettings,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
             fanInPrompts = fanInList,
@@ -1435,7 +1443,7 @@ fun ReportsScreen(
                 // currentReportId — otherwise the new report would
                 // briefly render its (empty) META L2 view instead of
                 // the result page.
-                listKind = null; listFilterByName = null
+                listKind = null; listFilterByName = null; listFilterByCategory = null
                 onCreateReportFromFanOut(rid, activePid, activeMdl)
             },
             onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
@@ -1448,7 +1456,7 @@ fun ReportsScreen(
                 // navigated away mid-sweep.
                 onBulkDeleteSecondaries(rid, ids) { secondaryRefreshTick++ }
             },
-            onBack = { listKind = null; listFilterByName = null },
+            onBack = { listKind = null; listFilterByName = null; listFilterByCategory = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
@@ -1661,103 +1669,6 @@ fun ReportsScreen(
         }
         return
     }
-    if (showViewPicker) {
-        val successful = reportsAgentResults.count { it.value.isSuccess }
-        val totalAgents = reportsAgentResults.size
-        val secondaryCost = secondaryTotals.inputCost + secondaryTotals.outputCost
-        val secondaryTokens = secondaryTotals.inputTokens + secondaryTotals.outputTokens
-        val promptPreview = uiState.genericPromptText.lineSequence()
-            .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
-        val viewBuckets = buildViewBuckets(secondaryRuns)
-        val options = buildList {
-            add(ReportActionOption(
-                label = "Reports",
-                detail = if (totalAgents == 0) "No agent results yet"
-                else "$successful of $totalAgents agents succeeded",
-                onClick = {
-                    showViewPicker = false
-                    selectedAgentForViewer = null; viewerSection = null; showViewer = true
-                }
-            ))
-            add(ReportActionOption(
-                label = "Prompt",
-                detail = promptPreview,
-                onClick = {
-                    showViewPicker = false
-                    selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
-                }
-            ))
-            add(ReportActionOption(
-                label = "Costs",
-                detail = if (secondaryTokens > 0)
-                    "Tokens & cost — secondary so far: %.4f USD".format(secondaryCost)
-                else "Tokens & cost breakdown",
-                onClick = {
-                    showViewPicker = false
-                    selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
-                }
-            ))
-            viewBuckets.forEach { (name, kind, count) ->
-                add(ReportActionOption(
-                    label = name,
-                    detail = "$count run${if (count == 1) "" else "s"}",
-                    secondary = com.ai.data.legacyKindDisplayName(kind),
-                    onClick = {
-                        showViewPicker = false
-                        listKind = kind; listFilterByName = name
-                    }
-                ))
-            }
-        }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewPicker = false }) {
-            ReportActionPickerScreen(
-                titleText = "View",
-                helpTopic = "report_view_picker",
-                options = options,
-                onBack = { showViewPicker = false }
-            )
-        }
-        return
-    }
-    if (showEditPicker && currentReportId != null) {
-        val rid = currentReportId
-        val titlePreview = uiState.genericPromptTitle.ifBlank { "(untitled)" }
-        val promptPreview = uiState.genericPromptText.lineSequence()
-            .firstOrNull { it.isNotBlank() }?.take(80) ?: "(empty)"
-        val modelCount = reportsAgentResults.size
-        val options = listOf(
-            ReportActionOption(
-                label = "Prompt",
-                detail = promptPreview,
-                onClick = { showEditPicker = false; showEditPrompt = true }
-            ),
-            ReportActionOption(
-                label = "Title",
-                detail = titlePreview,
-                onClick = { showEditPicker = false; showEditTitle = true }
-            ),
-            ReportActionOption(
-                label = "Models",
-                detail = if (modelCount == 0) "Adjust the model list"
-                else "$modelCount model${if (modelCount == 1) "" else "s"} on this report",
-                onClick = { showEditPicker = false; onEditModels(rid) }
-            ),
-            ReportActionOption(
-                label = "Parameters",
-                detail = "Temperature, max tokens, top_p, stop sequences",
-                onClick = { showEditPicker = false; showEditParameters = true }
-            )
-        )
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showEditPicker = false }) {
-            ReportActionPickerScreen(
-                titleText = "Edit",
-                helpTopic = "report_edit_picker",
-                options = options,
-                onBack = { showEditPicker = false }
-            )
-        }
-        return
-    }
 
     // Main UI
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
@@ -1881,12 +1792,31 @@ fun ReportsScreen(
                 onCopy = { currentReportId?.let(onCopyReport) },
                 onTogglePin = { currentReportId?.let(onTogglePinReport) },
                 onTranslate = { showTranslateLanguagePicker = true },
-                onOpenViewPicker = { showViewPicker = true },
-                onOpenEditPicker = { showEditPicker = true },
                 onOpenMetaPicker = { showMetaPicker = true },
                 onOpenFanOutPicker = { showFanOutPicker = true },
                 onOpenRerankPicker = { showRerankPicker = true },
                 onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
+                onViewReports = {
+                    selectedAgentForViewer = null; viewerSection = null; showViewer = true
+                },
+                onViewPrompt = {
+                    selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
+                },
+                onViewCosts = {
+                    selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
+                },
+                onViewSecondaryByKind = { kind, category ->
+                    listKind = kind
+                    listFilterByName = null
+                    listFilterByCategory = category
+                },
+                onEditTitle = { showEditTitle = true },
+                onEditPromptInline = { showEditPrompt = true },
+                onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
+                onEditParametersInline = { showEditParameters = true },
+                onRequestRegenerate = { showRegenerateConfirm = true },
+                onRequestDelete = { showDeleteConfirm = true },
+                onRequestExport = { showExport = true },
                 secondaryCounts = secondaryCounts,
                 costsFromDeletedItems = costsFromDeletedItems,
                 secondaryRuns = secondaryRuns,
@@ -2083,16 +2013,34 @@ private fun ColumnScope.GenerationPhase(
     onCopy: () -> Unit = {},
     onTogglePin: () -> Unit = {},
     onTranslate: () -> Unit = {},
-    /** Open the action-row pickers. The picker bodies live at
+    /** Open the action-row pickers (Meta / Fan-out / Rerank still drill
+     *  into their dedicated picker screens; the bodies live at
      *  ReportsScreen scope so they render as proper full-screen
-     *  overlays — these callbacks just flip the parent's visibility
-     *  state. */
-    onOpenViewPicker: () -> Unit = {},
-    onOpenEditPicker: () -> Unit = {},
+     *  overlays). View and Edit no longer have pickers — their
+     *  sub-actions are inline in the new Row 2 toggle. */
     onOpenMetaPicker: () -> Unit = {},
     onOpenFanOutPicker: () -> Unit = {},
     onOpenRerankPicker: () -> Unit = {},
     onOpenHtmlPreview: () -> Unit = {},
+    /** Direct sub-actions for the new two-row action bar's View row. */
+    onViewReports: () -> Unit = {},
+    onViewPrompt: () -> Unit = {},
+    onViewCosts: () -> Unit = {},
+    /** Opens the secondary results list filtered to the given
+     *  [SecondaryKind] plus optionally a category-name filter (used to
+     *  distinguish META-stored fan_out / fan_in / fan-in-model runs
+     *  from regular meta runs). */
+    onViewSecondaryByKind: (SecondaryKind, String?) -> Unit = { _, _ -> },
+    /** Direct sub-actions for the Edit row. */
+    onEditTitle: () -> Unit = {},
+    onEditPromptInline: () -> Unit = {},
+    onEditModelsInline: () -> Unit = {},
+    onEditParametersInline: () -> Unit = {},
+    /** Direct sub-actions for the Action row. Mirror existing TitleBar
+     *  icons (Regenerate / Delete / Export). */
+    onRequestRegenerate: () -> Unit = {},
+    onRequestDelete: () -> Unit = {},
+    onRequestExport: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     /** Sum of costs the user dropped from this report via Delete actions
      *  on agents / secondaries / fan-out pairs / translations. Surfaces
@@ -2141,11 +2089,11 @@ private fun ColumnScope.GenerationPhase(
     }
 
     // ===== Action row (lives at the top of the page) =====
-    // While the run is in flight: STOP / Background. Once complete:
-    // a single FlowRow of CompactButtons. View / Edit each fan out
-    // into a popup picker; the rest fire directly. The legacy
-    // View / Edit / Actions sectioned cards have collapsed into
-    // this row.
+    // Two-tier toggle: Row 1 has View / Edit / Create / Action; tapping
+    // a Row 1 button opens Row 2 (its sub-actions) inline; tapping the
+    // same Row 1 button again closes Row 2. Sub-actions fire and then
+    // collapse Row 2. The TitleBar 🔄 / 🗑 / 📤 / 💬 / ℹ icons stay
+    // wired in parallel — duplicates with Row "Action" are intentional.
     @OptIn(ExperimentalLayoutApi::class)
     @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {
         FlowRow(
@@ -2155,43 +2103,151 @@ private fun ColumnScope.GenerationPhase(
             content = content
         )
     }
-    // Always-on action row. Triggering Meta / Fan-out / Translate /
-    // Rerank mid-run runs against agents finished by the time of the
-    // click — explicitly the user's responsibility. Title-bar 🔄
-    // (Regenerate) and the pending-changes banner stay gated on
-    // isComplete since Regenerate would race the running job.
     var pinTick by remember(currentReportId) { mutableStateOf(0) }
     val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
         value = currentReportId?.let { rid ->
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
     }
+
+    // Row 1 active group: "view" / "edit" / "create" / "action" / null.
+    // rememberSaveable so a rotation doesn't collapse the sub-row in
+    // the middle of the user reading it.
+    var activeBar by rememberSaveable { mutableStateOf<String?>(null) }
+    fun toggleBar(name: String) { activeBar = if (activeBar == name) null else name }
+    fun close() { activeBar = null }
+
+    // Per-group colour. Active button uses the full colour; inactive
+    // Row-1 buttons fall back to a dim tint so the open group is
+    // visually anchored.
+    val viewColor = AppColors.Purple
+    val editColor = AppColors.Indigo
+    val createColor = AppColors.Orange
+    val actionColor = AppColors.Red
+    fun rowOneColor(name: String, active: Color): Color =
+        if (activeBar == name) active else active.copy(alpha = 0.32f)
+
+    // Per-kind / per-category run counts for the View row's "every:"
+    // buttons. Computed each composition off [secondaryRuns] — cheap,
+    // and avoids stale counts after a delete / new run.
+    val rerankCount = secondaryRuns.count { it.kind == SecondaryKind.RERANK }
+    val translateCount = secondaryRuns.count { it.kind == SecondaryKind.TRANSLATE }
+    val metaByCategory: Map<String, Int> = remember(secondaryRuns, aiSettings) {
+        val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
+        val tally = HashMap<String, Int>()
+        secondaryRuns.forEach { r ->
+            if (r.kind != SecondaryKind.META) return@forEach
+            val cat = r.metaPromptName?.let { nameToCat[it] } ?: return@forEach
+            tally[cat] = (tally[cat] ?: 0) + 1
+        }
+        tally
+    }
+    val metaCount = metaByCategory["meta"] ?: 0
+    val fanOutCount = metaByCategory["fan_out"] ?: 0
+    val fanInCount = metaByCategory["fan_in"] ?: 0
+    val fanInModelCount = metaByCategory["fan-in-model"] ?: 0
+
+    // ----- Row 1 -----
     ActionRow {
-        CompactButton(onClick = onOpenViewPicker, color = AppColors.Purple, text = "View")
-        CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
-        // 'Export' button is gone — the title-bar 📤 share icon now
-        // routes to the same showExport flow.
-        CompactButton(onClick = onOpenHtmlPreview, color = AppColors.Purple, text = "HTML")
-        CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
-        CompactButton(
-            onClick = { onTogglePin(); pinTick++ },
-            color = AppColors.Orange,
-            text = if (isPinned) "Unpin" else "Pin"
-        )
-        CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
-        CompactButton(onClick = onOpenRerankPicker, color = AppColors.Orange, text = "Rerank")
-        CompactButton(
-            onClick = onOpenMetaPicker,
-            color = AppColors.Orange,
-            text = "Meta",
-            enabled = metaPrompts.isNotEmpty()
-        )
-        CompactButton(
-            onClick = onOpenFanOutPicker,
-            color = AppColors.Orange,
-            text = "Fan out",
-            enabled = fanOutPrompts.isNotEmpty()
-        )
+        CompactButton(onClick = { toggleBar("view") }, color = rowOneColor("view", viewColor), text = "View")
+        CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
+        CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
+        CompactButton(onClick = { toggleBar("action") }, color = rowOneColor("action", actionColor), text = "Action")
+    }
+
+    // ----- Row 2 (contextual) -----
+    when (activeBar) {
+        "view" -> {
+            Spacer(modifier = Modifier.height(4.dp))
+            ActionRow {
+                CompactButton(onClick = { close(); onViewPrompt() }, color = viewColor, text = "Prompt")
+                CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
+                CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
+                CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("every:", fontSize = 11.sp, color = AppColors.TextDim,
+                modifier = Modifier.padding(start = 4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
+            ActionRow {
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "meta") },
+                    color = viewColor, text = "Meta", enabled = metaCount > 0
+                )
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.RERANK, null) },
+                    color = viewColor, text = "Rerank", enabled = rerankCount > 0
+                )
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan_out") },
+                    color = viewColor, text = "Fan-out", enabled = fanOutCount > 0
+                )
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan_in") },
+                    color = viewColor, text = "Fan-in", enabled = fanInCount > 0
+                )
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.META, "fan-in-model") },
+                    color = viewColor, text = "Fan-in-model", enabled = fanInModelCount > 0
+                )
+                CompactButton(
+                    onClick = { close(); onViewSecondaryByKind(SecondaryKind.TRANSLATE, null) },
+                    color = viewColor, text = "Translate", enabled = translateCount > 0
+                )
+            }
+        }
+        "edit" -> {
+            Spacer(modifier = Modifier.height(4.dp))
+            ActionRow {
+                CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
+                CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
+                CompactButton(
+                    onClick = { close(); onEditModelsInline() },
+                    color = editColor, text = "Models",
+                    enabled = currentReportId != null
+                )
+                CompactButton(onClick = { close(); onEditParametersInline() }, color = editColor, text = "Parameters")
+            }
+        }
+        "create" -> {
+            Spacer(modifier = Modifier.height(4.dp))
+            ActionRow {
+                CompactButton(
+                    onClick = { close(); onOpenMetaPicker() },
+                    color = createColor, text = "Meta",
+                    enabled = metaPrompts.isNotEmpty()
+                )
+                CompactButton(onClick = { close(); onOpenRerankPicker() }, color = createColor, text = "Rerank")
+                CompactButton(
+                    onClick = { close(); onOpenFanOutPicker() },
+                    color = createColor, text = "Fan out",
+                    enabled = fanOutPrompts.isNotEmpty()
+                )
+                CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
+            }
+        }
+        "action" -> {
+            Spacer(modifier = Modifier.height(4.dp))
+            ActionRow {
+                CompactButton(
+                    onClick = { close(); onRequestRegenerate() },
+                    color = actionColor, text = "Regenerate",
+                    enabled = currentReportId != null && isComplete
+                )
+                CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
+                CompactButton(onClick = { close(); onRequestDelete() }, color = actionColor, text = "Delete")
+                CompactButton(
+                    onClick = { onTogglePin(); pinTick++; close() },
+                    color = actionColor, text = if (isPinned) "Unpin" else "Pin"
+                )
+                CompactButton(
+                    onClick = { close(); onRequestExport() },
+                    color = actionColor, text = "Export",
+                    enabled = currentReportId != null && isComplete
+                )
+            }
+        }
+        else -> { /* no Row 2 */ }
     }
     Spacer(modifier = Modifier.height(8.dp))
 
