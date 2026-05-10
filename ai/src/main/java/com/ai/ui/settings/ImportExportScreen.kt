@@ -114,7 +114,9 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("showBackButton", g.showBackButton)
     addProperty("subjectToTitleBarMode", g.subjectToTitleBarMode.name)
+    addProperty("iconBarAtBottom", g.iconBarAtBottom)
     addProperty("iconGenEnabled", g.iconGenEnabled)
+    addProperty("showKnowledgeCard", g.showKnowledgeCard)
 }
 
 /** Apply each present field of a Settings export onto [current],
@@ -143,36 +145,134 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
         modelNameLayout = layout ?: current.modelNameLayout,
         showBackButton = bool("showBackButton") ?: current.showBackButton,
         subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode,
-        iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled
+        iconBarAtBottom = bool("iconBarAtBottom") ?: current.iconBarAtBottom,
+        iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
+        showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard
     )
 }
 
-/** Per-provider model lists keyed by AppService.id. Sorted by id so
+/** Per-provider model catalog keyed by AppService.id. Carries the
+ *  user-curated model list plus everything the user might have tuned
+ *  for those models: type assignments, vision/web-search/reasoning
+ *  overrides, provider self-report pricing, and the parsed capability
+ *  sidecar. The pre-computed *_capable_computed sets and the raw
+ *  /models JSON blob are deliberately omitted — both regenerate from
+ *  a Refresh on the receiving install. Sorted by provider id so
  *  successive exports diff cleanly. */
-private fun buildModelListsTree(s: Settings): JsonObject = JsonObject().apply {
-    s.providers.entries.sortedBy { it.key.id }.forEach { (svc, cfg) ->
-        val arr = JsonArray()
-        cfg.models.forEach { arr.add(it) }
-        add(svc.id, arr)
+private fun buildModelListsTree(s: Settings): JsonObject {
+    val gson = createAppGson()
+    return JsonObject().apply {
+        s.providers.entries.sortedBy { it.key.id }.forEach { (svc, cfg) ->
+            val obj = JsonObject().apply {
+                add("models", gson.toJsonTree(cfg.models))
+                if (cfg.modelTypes.isNotEmpty()) add("modelTypes", gson.toJsonTree(cfg.modelTypes))
+                if (cfg.visionModels.isNotEmpty()) add("visionModels", gson.toJsonTree(cfg.visionModels.toList()))
+                if (cfg.webSearchModels.isNotEmpty()) add("webSearchModels", gson.toJsonTree(cfg.webSearchModels.toList()))
+                if (cfg.reasoningModels.isNotEmpty()) add("reasoningModels", gson.toJsonTree(cfg.reasoningModels.toList()))
+                if (cfg.modelPricing.isNotEmpty()) add("modelPricing", gson.toJsonTree(cfg.modelPricing))
+                if (cfg.modelCapabilities.isNotEmpty()) add("modelCapabilities", gson.toJsonTree(cfg.modelCapabilities))
+            }
+            add(svc.id, obj)
+        }
     }
 }
 
-/** Replace each known provider's models list with the file's list.
- *  Unknown provider ids are skipped (logged). Returns (updated, count). */
+/** Replace each known provider's catalog with the file's. Unknown
+ *  provider ids are skipped. The capability/pricing sidecar fields
+ *  are optional — importing a bare `[modelId, …]` array still works
+ *  and just refreshes the model list. Returns (updated, count). */
 private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
+    var s = working
+    var n = 0
+    obj.entrySet().forEach { (key, value) ->
+        val service = AppService.findById(key) ?: run {
+            android.util.Log.w("ImportExport", "Skipped model list for unknown provider $key")
+            return@forEach
+        }
+        // Tolerate both the legacy `[modelId, …]` shape and the new
+        // per-provider object so older exports still import.
+        if (value is JsonArray) {
+            val list = value.mapNotNull {
+                if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+            }
+            s = s.withModels(service, list)
+            n++
+            return@forEach
+        }
+        val po = value as? JsonObject ?: return@forEach
+        val models: List<String> = po.getAsJsonArray("models")?.mapNotNull {
+            if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+        } ?: emptyList()
+        val modelTypes: Map<String, String> = po.getAsJsonObject("modelTypes")?.entrySet()
+            ?.mapNotNull { (k, v) -> if (v.isJsonPrimitive) k to v.asString else null }
+            ?.toMap()
+            .orEmpty()
+        fun strSet(name: String): Set<String> = po.getAsJsonArray(name)?.mapNotNull {
+            if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+        }?.toSet().orEmpty()
+        val pricing: Map<String, com.ai.data.PricingCache.ModelPricing> =
+            po.getAsJsonObject("modelPricing")?.let {
+                try {
+                    val t = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.PricingCache.ModelPricing>>() {}.type
+                    gson.fromJson<Map<String, com.ai.data.PricingCache.ModelPricing>>(it, t)
+                } catch (_: Exception) { null }
+            }.orEmpty()
+        val caps: Map<String, com.ai.data.ModelCapabilities> =
+            po.getAsJsonObject("modelCapabilities")?.let {
+                try {
+                    val t = object : com.google.gson.reflect.TypeToken<Map<String, com.ai.data.ModelCapabilities>>() {}.type
+                    gson.fromJson<Map<String, com.ai.data.ModelCapabilities>>(it, t)
+                } catch (_: Exception) { null }
+            }.orEmpty()
+        val current = s.getProvider(service)
+        val updated = current.copy(
+            models = models,
+            modelTypes = modelTypes.ifEmpty { models.associateWith { id -> com.ai.data.ModelType.infer(id) } },
+            visionModels = strSet("visionModels"),
+            webSearchModels = strSet("webSearchModels"),
+            reasoningModels = strSet("reasoningModels"),
+            modelPricing = pricing,
+            modelCapabilities = caps
+        )
+        s = s.withProvider(service, updated)
+        n++
+    }
+    return s to n
+}
+
+/** Per-provider user-defined endpoints, keyed by AppService.id. The
+ *  built-in endpoints (sourced from assets/providers.json) are not in
+ *  Settings.endpoints — only the user's custom additions / overrides
+ *  ride along here. */
+private fun buildEndpointsTree(s: Settings): JsonObject {
+    val gson = createAppGson()
+    return JsonObject().apply {
+        s.endpoints.entries.sortedBy { it.key.id }.forEach { (svc, list) ->
+            if (list.isNotEmpty()) add(svc.id, gson.toJsonTree(list))
+        }
+    }
+}
+
+private fun applyEndpoints(obj: JsonObject, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
     var s = working
     var n = 0
     obj.entrySet().forEach { (key, value) ->
         val arr = value as? JsonArray ?: return@forEach
         val service = AppService.findById(key) ?: run {
-            android.util.Log.w("ImportExport", "Skipped model list for unknown provider $key")
+            android.util.Log.w("ImportExport", "Skipped endpoints for unknown provider $key")
             return@forEach
         }
-        val list = arr.mapNotNull {
-            if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+        val list = mutableListOf<Endpoint>()
+        arr.forEach { el ->
+            try { list.add(gson.fromJson(el, Endpoint::class.java)) }
+            catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped endpoint entry: ${e.message}") }
         }
-        s = s.withModels(service, list)
-        n++
+        if (list.isNotEmpty()) {
+            s = s.withEndpoints(service, list)
+            n++
+        }
     }
     return s to n
 }
@@ -243,6 +343,7 @@ private fun buildAllBundle(
     workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
     bundle.add("settings", buildGeneralSettingsTree(generalSettings))
     bundle.add("modelLists", buildModelListsTree(aiSettings))
+    bundle.add("endpoints", buildEndpointsTree(aiSettings))
     bundle.add("parameters", buildParametersTree(aiSettings))
     bundle.add("systemPrompts", buildSystemPromptsTree(aiSettings))
     return bundle
@@ -353,7 +454,17 @@ fun ImportExportScreen(
         shareExportText(context, "ai_model_lists-${exportTimestamp()}.json", "application/json", "Share model lists",
             createAppGson(prettyPrint = true).toJson(tree))
         val nonEmpty = aiSettings.providers.values.count { it.models.isNotEmpty() }
-        Toast.makeText(context, "Model lists ready to share ($nonEmpty providers)", Toast.LENGTH_SHORT).show()
+        val totalModels = aiSettings.providers.values.sumOf { it.models.size }
+        Toast.makeText(context, "Model lists ready to share ($nonEmpty providers, $totalModels models)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportEndpoints() {
+        val tree = buildEndpointsTree(aiSettings)
+        shareExportText(context, "ai_endpoints-${exportTimestamp()}.json", "application/json", "Share endpoints",
+            createAppGson(prettyPrint = true).toJson(tree))
+        val providers = tree.size()
+        val total = aiSettings.endpoints.values.sumOf { it.size }
+        Toast.makeText(context, "Endpoints ready to share ($providers providers, $total endpoints)", Toast.LENGTH_SHORT).show()
     }
 
     fun exportParameters() {
@@ -555,6 +666,22 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Updated model lists for $n provider${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "endpoints" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val obj = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (obj == null) {
+                    Toast.makeText(context, "Endpoints file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applyEndpoints(obj, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No endpoints matched a known provider", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Updated endpoints for $n provider${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
             "parameters" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -684,6 +811,11 @@ fun ImportExportScreen(
                     if (n > 0) { working = updated; parts.add("$n model lists") }
                 }
 
+                root.getAsJsonObject("endpoints")?.let { obj ->
+                    val (updated, n) = applyEndpoints(obj, working)
+                    if (n > 0) { working = updated; parts.add("$n endpoints") }
+                }
+
                 root.getAsJsonArray("parameters")?.let { arr ->
                     val (updated, n) = applyParameters(arr, working)
                     if (n > 0) { working = updated; parts.add("$n parameters") }
@@ -768,9 +900,10 @@ fun ImportExportScreen(
                                 modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportEndpoints() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                             OutlinedButton(onClick = { exportCosts() },
                                 modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            Spacer(modifier = Modifier.weight(1f))
                         }
                         // "All": single JSON file bundling every section
                         // above. API keys are excluded — they ship via the
@@ -823,9 +956,11 @@ fun ImportExportScreen(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = {
+                            importType = "endpoints"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = {
                             importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                     // The All importer still tolerates an apiKeys section
                     // for older bundles; new exports omit it.
