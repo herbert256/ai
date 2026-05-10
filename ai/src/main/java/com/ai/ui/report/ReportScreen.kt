@@ -1220,7 +1220,13 @@ fun ReportsScreen(
                 onStartMissing = { srcRid, runId ->
                     onStartMissingTranslations(srcRid, runId)
                     secondaryRefreshTick++
-                }
+                },
+                // Live state for the in-flight run — lets the detail
+                // screen show queued / running items in addition to
+                // whatever's already persisted as a SecondaryResult.
+                // Null after the run finishes; the screen falls back
+                // to its persisted-only path.
+                liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished }
             )
         }
         return
@@ -2349,15 +2355,11 @@ private fun ColumnScope.GenerationPhase(
         // Live translation rows — one per active run. Hourglass spins
         // while items are in flight; the text leads with "n / N" so
         // progress is visible at a glance, and the cost cell ticks up
-        // as each call returns. Multiple translations can run in
-        // parallel (different language / model / both); each gets its
-        // own row and its own Cancel.
+        // as each call returns. Tap the row to drill into the per-run
+        // detail screen; the Delete button there handles cancellation,
+        // so the row itself doesn't carry an inline Cancel.
         if (showLiveTranslations) {
             items(activeTranslationRuns, key = { "tr-live-${it.runId}" }) { run ->
-                // Tap anywhere on the row body to open the live run
-                // detail (per-call list with current progress); the
-                // inline Cancel TextButton handles its own click and
-                // doesn't propagate.
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         .clickable { onOpenTranslationRun(run.runId) },
@@ -2380,10 +2382,6 @@ private fun ColumnScope.GenerationPhase(
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(end = 6.dp))
                     }
-                    Text(
-                        "Cancel", fontSize = 11.sp, color = AppColors.Red,
-                        modifier = Modifier.clickable { onCancelTranslation(run.runId) }.padding(horizontal = 4.dp)
-                    )
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }

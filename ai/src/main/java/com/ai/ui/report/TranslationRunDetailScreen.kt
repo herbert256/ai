@@ -61,7 +61,13 @@ internal fun TranslationRunDetailScreen(
     /** Fills in every expected translation item that has no row in
      *  this run yet (e.g., after an interrupted batch). Wired to
      *  [com.ai.viewmodel.ReportViewModel.startMissingTranslations]. */
-    onStartMissing: (String, String) -> Unit = { _, _ -> }
+    onStartMissing: (String, String) -> Unit = { _, _ -> },
+    /** Live state when the run is still in flight. When non-null we
+     *  render every item (PENDING / RUNNING / DONE / ERROR) so the
+     *  user sees what's queued in addition to what's already landed
+     *  as a persisted SecondaryResult. Null after the run finishes —
+     *  the screen falls back to showing only persisted rows. */
+    liveRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -188,7 +194,13 @@ internal fun TranslationRunDetailScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (results.isEmpty()) {
+        // When the run is in flight we render every TranslationItem
+        // from the viewmodel state — DONE / RUNNING / PENDING /
+        // ERROR — so the user sees queued items too. After the run
+        // finishes the persisted SecondaryResults are the source.
+        val liveItems = liveRun?.items.orEmpty()
+        val showingLive = liveItems.isNotEmpty()
+        if (results.isEmpty() && !showingLive) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("No translation calls", color = AppColors.TextSecondary, fontSize = 14.sp)
             }
@@ -203,69 +215,127 @@ internal fun TranslationRunDetailScreen(
                     .modelInfoClickable(providerService, modelName))
         }
         Row(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)) {
-            Text("${results.size} calls", fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+            val callsLabel = if (showingLive) "${liveRun?.completed ?: 0} / ${liveItems.size} calls"
+                else "${results.size} calls"
+            Text(callsLabel, fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             if (totalCost > 0.0) {
                 Text("${formatCents(totalCost)} ¢", fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
             }
         }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(results, key = { it.id }) { r ->
-                // Build the row label from the actual source so the
-                // "Model name layout" setting is honoured. The stored
-                // agentName always contains both provider and model
-                // (it's a freeze-at-save-time string, so toggling the
-                // setting wouldn't update it). For PROMPT rows the
-                // source has no model, so we fall back to "Report
-                // prompt" (also handles the legacy stored label).
-                val what = when (r.translateSourceKind) {
-                    "AGENT" -> {
-                        val agent = r.translateSourceTargetId?.let { agentsByIdFromReport[it] }
-                        if (agent != null) {
-                            val pn = AppService.findById(agent.provider)?.id ?: agent.provider
-                            com.ai.ui.shared.modelLabel(pn, agent.model, separator = " / ")
-                        } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+            if (showingLive) {
+                // Live mode: every TranslationItem from the viewmodel
+                // gets a row, even queued ones. DONE / ERROR items
+                // also have a persisted SecondaryResult — when found
+                // the row stays tappable so the user can drill in;
+                // RUNNING / PENDING are informational only.
+                items(liveItems, key = { "live-${it.id}" }) { item ->
+                    val srcKind = when (item.kind) {
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.PROMPT -> "PROMPT"
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.AGENT_RESPONSE -> "AGENT"
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.META -> "META"
                     }
-                    "META" -> {
-                        val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
-                        if (src != null) {
-                            val pn = AppService.findById(src.providerId)?.id ?: src.providerId
-                            com.ai.ui.shared.modelLabel(pn, src.model, separator = " / ")
-                        } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                    val srcTargetId = if (srcKind == "PROMPT") "prompt" else (item.target ?: "")
+                    val matching = results.firstOrNull {
+                        it.translateSourceKind == srcKind &&
+                            (it.translateSourceTargetId ?: "") == srcTargetId
                     }
-                    "PROMPT" -> "Report prompt"
-                    else -> r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                    val statusEmoji = when (item.status) {
+                        com.ai.viewmodel.ReportViewModel.TranslationStatus.DONE -> "✅"
+                        com.ai.viewmodel.ReportViewModel.TranslationStatus.ERROR -> "❌"
+                        com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING -> "⏳"
+                        com.ai.viewmodel.ReportViewModel.TranslationStatus.PENDING -> "🕓"
+                    }
+                    val typeLabel = when (item.kind) {
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.PROMPT -> "prompt"
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.AGENT_RESPONSE -> "report"
+                        com.ai.viewmodel.ReportViewModel.TranslationKind.META -> matching?.let { typeFor(it) } ?: "meta"
+                    }
+                    val rowMod = if (matching != null) {
+                        Modifier.fillMaxWidth().clickable { openId = matching.id }.padding(vertical = 8.dp, horizontal = 4.dp)
+                    } else {
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
+                    }
+                    Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
+                        Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        Text(
+                            typeLabel, fontSize = 11.sp, color = AppColors.TextSecondary,
+                            modifier = Modifier.width(70.dp).padding(end = 8.dp),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                item.label.ifBlank { item.kind.name.lowercase() },
+                                fontSize = 13.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (item.costDollars > 0.0) {
+                            Text(formatCents(item.costDollars), fontSize = 10.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { openId = r.id }.padding(vertical = 8.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val statusEmoji = when {
-                        r.errorMessage != null -> "❌"
-                        r.content.isNullOrBlank() -> "⏳"
-                        else -> "✅"
+            } else {
+                items(results, key = { it.id }) { r ->
+                    // Build the row label from the actual source so the
+                    // "Model name layout" setting is honoured. The stored
+                    // agentName always contains both provider and model
+                    // (it's a freeze-at-save-time string, so toggling the
+                    // setting wouldn't update it). For PROMPT rows the
+                    // source has no model, so we fall back to "Report
+                    // prompt" (also handles the legacy stored label).
+                    val what = when (r.translateSourceKind) {
+                        "AGENT" -> {
+                            val agent = r.translateSourceTargetId?.let { agentsByIdFromReport[it] }
+                            if (agent != null) {
+                                val pn = AppService.findById(agent.provider)?.id ?: agent.provider
+                                com.ai.ui.shared.modelLabel(pn, agent.model, separator = " / ")
+                            } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                        }
+                        "META" -> {
+                            val src = r.translateSourceTargetId?.let { metaSourcesById[it] }
+                            if (src != null) {
+                                val pn = AppService.findById(src.providerId)?.id ?: src.providerId
+                                com.ai.ui.shared.modelLabel(pn, src.model, separator = " / ")
+                            } else r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
+                        }
+                        "PROMPT" -> "Report prompt"
+                        else -> r.agentName.removePrefix("Translate:").trim().ifBlank { r.agentName }
                     }
-                    Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
-                    // What kind of source row this translation came from
-                    // — "report" for an agent response, "fan-out" /
-                    // "fan-in" for fan out drill-in rows, the meta
-                    // prompt name for chat-type META rows, "prompt" for
-                    // the report prompt itself.
-                    Text(
-                        typeFor(r), fontSize = 11.sp, color = AppColors.TextSecondary,
-                        modifier = Modifier.width(70.dp).padding(end = 8.dp),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(what, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { openId = r.id }.padding(vertical = 8.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val statusEmoji = when {
+                            r.errorMessage != null -> "❌"
+                            r.content.isNullOrBlank() -> "⏳"
+                            else -> "✅"
+                        }
+                        Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        // What kind of source row this translation came from
+                        // — "report" for an agent response, "fan-out" /
+                        // "fan-in" for fan out drill-in rows, the meta
+                        // prompt name for chat-type META rows, "prompt" for
+                        // the report prompt itself.
+                        Text(
+                            typeFor(r), fontSize = 11.sp, color = AppColors.TextSecondary,
+                            modifier = Modifier.width(70.dp).padding(end = 8.dp),
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(what, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        val cost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+                        if (cost > 0.0) {
+                            Text(formatCents(cost), fontSize = 10.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                        }
                     }
-                    val cost = (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
-                    if (cost > 0.0) {
-                        Text(formatCents(cost), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
 
