@@ -24,6 +24,7 @@ class AppService(
     val id: String,
     val baseUrl: String,
     val adminUrl: String,
+    val defaultModel: String,
     val openRouterName: String? = null,
     val apiFormat: ApiFormat = ApiFormat.OPENAI_COMPATIBLE,
     /** Per-type API paths the provider exposes ("chat" → "v1/chat/completions",
@@ -102,7 +103,8 @@ class AppService(
         val LOCAL = AppService(
             id = "Local",
             baseUrl = "local://",
-            adminUrl = ""
+            adminUrl = "",
+            defaultModel = ""
         )
         val entries: List<AppService> get() = ProviderRegistry.getAll()
         fun findById(id: String): AppService? = if (id == LOCAL.id) LOCAL else ProviderRegistry.findById(id)

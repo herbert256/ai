@@ -36,6 +36,7 @@ fun ProviderAddScreen(
 
     var id by remember { mutableStateOf("") }
     var baseUrl by remember { mutableStateOf("") }
+    var defaultModel by remember { mutableStateOf("") }
     var apiFormat by remember { mutableStateOf(ApiFormat.OPENAI_COMPATIBLE) }
     var chatPath by remember { mutableStateOf("v1/chat/completions") }
     var modelsPath by remember { mutableStateOf("v1/models") }
@@ -64,7 +65,7 @@ fun ProviderAddScreen(
     // refuse it here instead of letting the user create a ghost row.
     val idReserved = normalizedId.equals("LOCAL", ignoreCase = true)
     val canSave = normalizedId.isNotBlank() && !idTaken && !idReserved &&
-        baseUrl.isNotBlank()
+        baseUrl.isNotBlank() && defaultModel.isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "provider_add", title = "Add provider", onBackClick = onBack)
@@ -86,6 +87,9 @@ fun ProviderAddScreen(
                 )
                 OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it },
                     label = { Text("Base URL (https://…/)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                OutlinedTextField(value = defaultModel, onValueChange = { defaultModel = it },
+                    label = { Text("Default model") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 OutlinedTextField(value = adminUrl, onValueChange = { adminUrl = it },
                     label = { Text("Admin URL (optional)") }, singleLine = true,
@@ -172,6 +176,7 @@ fun ProviderAddScreen(
                     id = normalizedId,
                     baseUrl = baseUrl.trim(),
                     adminUrl = adminUrl.trim(),
+                    defaultModel = defaultModel.trim(),
                     openRouterName = openRouterName.trim().ifBlank { null },
                     apiFormat = apiFormat,
                     typePaths = chatPath.trim().ifBlank { null }?.let { mapOf(com.ai.data.ModelType.CHAT to it) } ?: emptyMap(),

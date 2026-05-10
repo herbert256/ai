@@ -68,11 +68,7 @@ fun defaultProviderConfig(service: AppService): ProviderConfig {
     val defaultModelSource = service.defaultModelSource?.let {
         try { ModelSource.valueOf(it) } catch (_: IllegalArgumentException) { null }
     } ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
-    // Model is left blank — the user picks one on the provider's
-    // detail screen (Default Model row in the API Key card) before
-    // activating. The catalog no longer carries a default since that
-    // was redundant with the per-user selection.
-    return ProviderConfig(model = "", modelSource = defaultModelSource, models = defaultModels)
+    return ProviderConfig(model = service.defaultModel, modelSource = defaultModelSource, models = defaultModels)
 }
 
 fun defaultProvidersMap(): Map<AppService, ProviderConfig> = AppService.entries.associateWith { defaultProviderConfig(it) }

@@ -619,6 +619,7 @@ fun ProviderSettingsScreen(
     // catalog entry that ships in setup.json. Auto-saves via ProviderRegistry.update().
     var defBaseUrl by remember(service.id) { mutableStateOf(service.baseUrl) }
     var defAdminUrl by remember(service.id) { mutableStateOf(service.adminUrl) }
+    var defDefaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
     var defOpenRouterName by remember(service.id) { mutableStateOf(service.openRouterName ?: "") }
     var defApiFormat by remember(service.id) { mutableStateOf(service.apiFormat) }
     // One path-state entry per ModelType — provider-level overrides for the global
@@ -662,7 +663,7 @@ fun ProviderSettingsScreen(
     var defBuiltInEndpointsJson by remember(service.id) { mutableStateOf(endpointsToJson(service.builtInEndpoints)) }
 
     LaunchedEffect(
-        defBaseUrl, defAdminUrl, defOpenRouterName, defApiFormat,
+        defBaseUrl, defAdminUrl, defDefaultModel, defOpenRouterName, defApiFormat,
         defTypePaths, defModelsPath, defSeedFieldName, defModelListFormat, defDefaultModelSource,
         defModelFilter, defLitellmPrefix, defCostTicksDivisor, defExtractApiCost,
         defSupportsCitations, defSupportsSearchRecency, defHardcodedModelsText,
@@ -676,6 +677,7 @@ fun ProviderSettingsScreen(
         // actually changed something — i.e. a field differs from its catalog source value.
         val same = defBaseUrl == service.baseUrl &&
             defAdminUrl == service.adminUrl &&
+            defDefaultModel == service.defaultModel &&
             defOpenRouterName == (service.openRouterName ?: "") &&
             defApiFormat == service.apiFormat &&
             defTypePaths.filterValues { it.isNotBlank() } == service.typePaths &&
@@ -706,7 +708,7 @@ fun ProviderSettingsScreen(
             defMaxTokensDefaultsJson == maxTokensRulesToJson(service.maxTokensDefaults) &&
             defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints)
         if (same) return@LaunchedEffect
-        if (defBaseUrl.isBlank()) return@LaunchedEffect
+        if (defBaseUrl.isBlank() || defDefaultModel.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
         val auxHosts = defAuxHostsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
         // For the JSON-shaped fields, fall back to the existing service value
@@ -725,6 +727,7 @@ fun ProviderSettingsScreen(
             id = service.id,
             baseUrl = defBaseUrl.trim(),
             adminUrl = defAdminUrl.trim(),
+            defaultModel = defDefaultModel.trim(),
             openRouterName = defOpenRouterName.trim().ifBlank { null },
             apiFormat = defApiFormat,
             typePaths = defTypePaths.mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
@@ -1015,6 +1018,13 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 OutlinedTextField(value = defAdminUrl, onValueChange = { defAdminUrl = it },
                     label = { Text("Admin URL") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
+                Text(
+                    "Catalog fallback used to seed a fresh install (or when no per-user model is persisted yet). The user's active model lives on the API Key card above and is independent of this value.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(value = defDefaultModel, onValueChange = { defDefaultModel = it },
+                    label = { Text("Catalog default model") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
             }
 
