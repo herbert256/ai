@@ -953,7 +953,10 @@ fun ProviderSettingsScreen(
                             }
                         }
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (apiKey.isNotBlank()) {
                             Button(
                                 onClick = {
@@ -982,6 +985,10 @@ fun ProviderSettingsScreen(
                                 },
                                 enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
+                            Text(
+                                "Test uses the default model as set above",
+                                fontSize = 11.sp, color = AppColors.TextTertiary
+                            )
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
