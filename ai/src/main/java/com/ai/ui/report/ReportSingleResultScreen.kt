@@ -253,7 +253,7 @@ fun ReportSingleResultScreen(
         val agentIdx = report.agents.indexOfFirst { it.agentId == currentAgentId }
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Button(
                 onClick = {
