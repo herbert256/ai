@@ -508,15 +508,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
     val navigateToCurrentReport = LocalNavigateToCurrentReport.current
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 4.dp
+    Row(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
             // Left side: back-arrow icon when the active TitleBar
             // passed an onBackClick. Sized at the same 1.5× scale as
             // the right-strip icons so the bar reads as one continuous
@@ -530,19 +525,18 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             // render, with the same Home / Help wiring and per-icon
             // null-check rules. onMemo is non-null only when the active
             // screen is "deeper" than the report-result page.
-            TitleBarActionStrip(
-                onHome = navigateHome,
-                onReload = icons?.onReload,
-                onChat = icons?.onChat,
-                onInfo = icons?.onInfo,
-                onDelete = icons?.onDelete,
-                onTrace = icons?.onTrace,
-                onHelp = { navigateHelp(icons?.helpTopic) },
-                onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
-                scale = 1.5f,
-                compactSpacing = true
-            )
-        }
+        TitleBarActionStrip(
+            onHome = navigateHome,
+            onReload = icons?.onReload,
+            onChat = icons?.onChat,
+            onInfo = icons?.onInfo,
+            onDelete = icons?.onDelete,
+            onTrace = icons?.onTrace,
+            onHelp = { navigateHelp(icons?.helpTopic) },
+            onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
+            scale = 1.5f,
+            compactSpacing = true
+        )
     }
 }
 
