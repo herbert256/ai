@@ -371,10 +371,11 @@ private fun TitleBarActionStrip(
         if (onDelete != null && onTrace == null) {
             Spacer(modifier = Modifier.width(8.dp * scale))
         }
-        // Visual gap between 🐞 Trace and 🏠 Home when Memo is hidden
-        // — the two emojis are different colours but the 22dp slots
-        // butt them flush, which reads as one chunk rather than two
-        // distinct controls.
+        // Visual gap between 🐞 Trace and 🏠 Home — the user asked
+        // for the pairing specifically. The two 22dp slots butt flush
+        // and the emojis read as one chunk despite the colour
+        // difference. Only fires when 📝 Memo is absent (otherwise
+        // Memo sits between them and the gap doesn't apply).
         if (onTrace != null && onMemo == null) {
             Spacer(modifier = Modifier.width(8.dp * scale))
         }
