@@ -288,7 +288,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                     val emoji = response.analysis?.trim().orEmpty().take(8)
                     if (response.error == null && emoji.isNotEmpty()) {
-                        ReportStorage.updateReportIcon(context, reportId, emoji)
+                        val cost = response.tokenUsage?.let { tu ->
+                            PricingCache.computeCost(tu, PricingCache.getPricing(context, agent.provider, agent.model))
+                        } ?: 0.0
+                        ReportStorage.updateReportIcon(context, reportId, emoji, cost)
                     } else {
                         ReportStorage.updateReportIconError(
                             context, reportId,

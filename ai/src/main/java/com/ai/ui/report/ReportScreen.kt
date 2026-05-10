@@ -464,15 +464,18 @@ fun ReportsScreen(
     // field) so a mid-flight resolution flips the row in real time.
     var reportIcon by remember { mutableStateOf<String?>(null) }
     var reportIconError by remember { mutableStateOf<String?>(null) }
+    var reportIconCost by remember { mutableStateOf(0.0) }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
             reportIcon = null
             reportIconError = null
+            reportIconCost = 0.0
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
             reportIconError = r?.iconErrorMessage
+            reportIconCost = r?.iconCost ?: 0.0
         }
     }
     // Bumped from every overlay-driven delete so the parent screen's
@@ -1832,7 +1835,8 @@ fun ReportsScreen(
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
                 reportIcon = reportIcon,
-                reportIconError = reportIconError
+                reportIconError = reportIconError,
+                reportIconCost = reportIconCost
             )
         }
     }
@@ -2048,7 +2052,10 @@ private fun ColumnScope.GenerationPhase(
     reportIcon: String? = null,
     /** Report.iconErrorMessage mirrored from disk. Set when icon-gen
      *  errored; the inline 'icon' row flips to ❌ when non-null. */
-    reportIconError: String? = null
+    reportIconError: String? = null,
+    /** Report.iconCost mirrored from disk. Rendered on the right of
+     *  the inline 'icon' row + summed into the report total. */
+    reportIconCost: Double = 0.0
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -2202,7 +2209,7 @@ private fun ColumnScope.GenerationPhase(
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems
+        liveTranslationCost + costsFromDeletedItems + reportIconCost
 
     // Totals — sums tokens and cents across the per-agent rows, every
     // persisted meta run (rerank / summarize / compare / moderation /
@@ -2537,15 +2544,23 @@ private fun ColumnScope.GenerationPhase(
                             // the user sees *why* it errored (rate limit /
                             // 401 / etc.) instead of the harmless model
                             // label that would otherwise appear next to
-                            // the ❌. Running and success keep the model
-                            // label.
+                            // the ❌. Running and success show the
+                            // resolved model label — falling back to
+                            // getEffectiveModelForAgent when the agent's
+                            // model field is blank (i.e., it's pinned to
+                            // the provider's default).
+                            val effectiveModel = aiSettings.getEffectiveModelForAgent(iconAgent)
                             val text = reportIconError
-                                ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, iconAgent.model)
+                                ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
                             val color = if (reportIconError != null) AppColors.Red else Color.White
                             Text(
                                 text, fontSize = 13.sp, color = color,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
+                        }
+                        if (reportIconCost > 0.0) {
+                            Text(formatCents(reportIconCost), fontSize = 10.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                         }
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
