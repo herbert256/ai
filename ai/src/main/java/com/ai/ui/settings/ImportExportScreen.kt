@@ -171,6 +171,7 @@ private fun buildModelListsTree(s: Settings): JsonObject {
                 if (cfg.reasoningModels.isNotEmpty()) add("reasoningModels", gson.toJsonTree(cfg.reasoningModels.toList()))
                 if (cfg.modelPricing.isNotEmpty()) add("modelPricing", gson.toJsonTree(cfg.modelPricing))
                 if (cfg.modelCapabilities.isNotEmpty()) add("modelCapabilities", gson.toJsonTree(cfg.modelCapabilities))
+                if (cfg.parametersIds.isNotEmpty()) add("parametersIds", gson.toJsonTree(cfg.parametersIds))
             }
             add(svc.id, obj)
         }
@@ -225,6 +226,9 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
                     gson.fromJson<Map<String, com.ai.data.ModelCapabilities>>(it, t)
                 } catch (_: Exception) { null }
             }.orEmpty()
+        val parametersIds: List<String> = po.getAsJsonArray("parametersIds")?.mapNotNull {
+            if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+        } ?: emptyList()
         val current = s.getProvider(service)
         val updated = current.copy(
             models = models,
@@ -233,7 +237,8 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
             webSearchModels = strSet("webSearchModels"),
             reasoningModels = strSet("reasoningModels"),
             modelPricing = pricing,
-            modelCapabilities = caps
+            modelCapabilities = caps,
+            parametersIds = parametersIds
         )
         s = s.withProvider(service, updated)
         n++
@@ -294,6 +299,21 @@ private fun applyParameters(arr: JsonArray, working: Settings): Pair<Settings, I
     return working.copy(parameters = merged) to incoming.size
 }
 
+private fun buildModelTypeOverridesTree(s: Settings): JsonArray =
+    createAppGson().toJsonTree(s.modelTypeOverrides).asJsonArray
+
+private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
+    val incoming = mutableListOf<ModelTypeOverride>()
+    arr.forEach { el ->
+        try { incoming.add(gson.fromJson(el, ModelTypeOverride::class.java)) }
+        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped model type override entry: ${e.message}") }
+    }
+    val incomingIds = incoming.map { it.id }.toSet()
+    val merged = working.modelTypeOverrides.filterNot { it.id in incomingIds } + incoming
+    return working.copy(modelTypeOverrides = merged) to incoming.size
+}
+
 private fun buildSystemPromptsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.systemPrompts).asJsonArray
 
@@ -346,6 +366,7 @@ private fun buildAllBundle(
     bundle.add("endpoints", buildEndpointsTree(aiSettings))
     bundle.add("parameters", buildParametersTree(aiSettings))
     bundle.add("systemPrompts", buildSystemPromptsTree(aiSettings))
+    bundle.add("modelTypeOverrides", buildModelTypeOverridesTree(aiSettings))
     return bundle
 }
 
@@ -479,6 +500,13 @@ fun ImportExportScreen(
         shareExportText(context, "ai_system_prompts-${exportTimestamp()}.json", "application/json", "Share system prompts",
             createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(context, "System prompts ready to share (${aiSettings.systemPrompts.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportModelTypeOverrides() {
+        val tree = buildModelTypeOverridesTree(aiSettings)
+        shareExportText(context, "ai_model_overrides-${exportTimestamp()}.json", "application/json", "Share model overrides",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Model overrides ready to share (${aiSettings.modelTypeOverrides.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
     // "All" bundle: single JSON file carrying every section the
@@ -714,6 +742,22 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Imported $n system prompt${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "modelTypeOverrides" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val arr = try { JsonParser.parseString(json) as? JsonArray } catch (_: Exception) { null }
+                if (arr == null) {
+                    Toast.makeText(context, "Model overrides file is not a JSON array", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applyModelTypeOverrides(arr, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No model overrides found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Imported $n model override${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
             "all" -> {
                 // All-bundle: { apiKeys, costs, providers, prompts }.
                 // Each section is optional; missing or malformed sections
@@ -826,6 +870,11 @@ fun ImportExportScreen(
                     if (n > 0) { working = updated; parts.add("$n system prompts") }
                 }
 
+                root.getAsJsonArray("modelTypeOverrides")?.let { arr ->
+                    val (updated, n) = applyModelTypeOverrides(arr, working)
+                    if (n > 0) { working = updated; parts.add("$n model overrides") }
+                }
+
                 if (workingGs != generalSettings) onSaveGeneral(workingGs)
                 if (working !== aiSettings) onSave(working)
                 Toast.makeText(
@@ -902,8 +951,13 @@ fun ImportExportScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { exportEndpoints() },
                                 modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportModelTypeOverrides() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { exportCosts() },
                                 modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                         // "All": single JSON file bundling every section
                         // above. API keys are excluded — they ship via the
@@ -959,8 +1013,14 @@ fun ImportExportScreen(
                             importType = "endpoints"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         OutlinedButton(onClick = {
+                            importType = "modelTypeOverrides"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = {
                             importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                     // The All importer still tolerates an apiKeys section
                     // for older bundles; new exports omit it.
