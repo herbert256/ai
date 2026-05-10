@@ -801,40 +801,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    fun stopGenericReports(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
-        reportGenerationJob?.cancel()
-        reportGenerationJob = null
-        val state = appViewModel.uiState.value
-        val selected = state.genericReportsSelectedAgents
-        val current = _agentResults.value
-        val reportId = state.currentReportId
-
-        val updatedResults = selected.associate { agentId ->
-            current[agentId]?.let { agentId to it } ?: run {
-                val agent = state.aiSettings.getAgentById(agentId)
-                val service = agent?.provider
-                    ?: agentId.takeIf { it.startsWith("swarm:") }?.removePrefix("swarm:")?.substringBefore(':')?.let { AppService.findById(it) }
-                    ?: AppService.entries.firstOrNull() ?: AppService.LOCAL
-                agentId to AnalysisResponse(service = service, analysis = null, error = "Stopped by user")
-            }
-        }
-
-        // No need to touch ApiTracer.currentReportId here — the report
-        // job's own withTracerTags block restores the previous value
-        // when its scope ends (via the agent fan-out completing).
-
-        if (reportId != null) {
-            scope.launch(Dispatchers.IO) {
-                selected.filterNot { current.containsKey(it) }.forEach { agentId ->
-                    ReportStorage.markAgentStoppedAsync(context, reportId, agentId)
-                }
-            }
-        }
-
-        _agentResults.value = updatedResults
-        appViewModel.updateUiState { it.copy(genericReportsProgress = state.genericReportsTotal) }
-    }
-
     fun dismissGenericReportsDialog() {
         // The report job's withTracerTags block restores tags on its
         // own when the job ends or is cancelled — no manual clear here.

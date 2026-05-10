@@ -146,17 +146,27 @@ fun ReportsScreenNav(
     // be wired later, but they're intentionally not invoked here.
     val initialModels = emptyList<ReportModel>()
 
-    val handleDismiss = {
-        reportViewModel.dismissGenericReportsDialog()
+    // During an in-flight run we keep the run alive and arm the
+    // completion toast (the old "Background" UX). Outside that — on a
+    // finished report or before generation starts — fall through to
+    // the destructive dismiss that clears UiState.
+    val handleLeave = {
+        val state = viewModel.uiState.value
+        val running = state.currentReportId != null
+            && state.showGenericReportsDialog
+            && state.genericReportsProgress < state.genericReportsTotal
+        if (running) reportViewModel.continueReportInBackground()
+        else reportViewModel.dismissGenericReportsDialog()
         viewModel.clearExternalInstructions()
+    }
+    val handleDismiss = {
+        handleLeave()
         onNavigateBack()
     }
     val handleNavigateHome = {
-        reportViewModel.dismissGenericReportsDialog()
-        viewModel.clearExternalInstructions()
+        handleLeave()
         onNavigateHome()
     }
-    val handleContinueInBackground = { reportViewModel.continueReportInBackground(); onNavigateHome() }
 
     ReportsScreen(
         uiState = uiState,
@@ -208,10 +218,8 @@ fun ReportsScreenNav(
                 directModelIds = directIds, parametersIds = paramsIds, reportType = reportType
             )
         },
-        onStop = { reportViewModel.stopGenericReports(context, scope) },
         onDismiss = handleDismiss,
         onNavigateHome = handleNavigateHome,
-        onContinueInBackground = handleContinueInBackground,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
         onNavigateToTrace = onNavigateToTrace,
@@ -340,10 +348,8 @@ fun ReportsScreen(
     runningFanOutPairs: Set<String> = emptySet(),
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
-    onStop: () -> Unit,
     onDismiss: () -> Unit,
     onNavigateHome: () -> Unit = onDismiss,
-    onContinueInBackground: () -> Unit = onNavigateHome,
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
@@ -1797,8 +1803,6 @@ fun ReportsScreen(
                 reportsTotal = reportsTotal,
                 reportsAgentResults = reportsAgentResults,
                 currentReportId = currentReportId,
-                onStop = onStop,
-                onContinueInBackground = onContinueInBackground,
                 onViewAgent = { agentId -> singleResultAgentId = agentId },
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
@@ -1998,8 +2002,6 @@ private fun ColumnScope.GenerationPhase(
     reportsTotal: Int,
     reportsAgentResults: Map<String, AnalysisResponse>,
     currentReportId: String?,
-    onStop: () -> Unit,
-    onContinueInBackground: () -> Unit,
     onViewAgent: (String) -> Unit,
     onShare: () -> Unit,
     onTrace: () -> Unit,
@@ -2072,54 +2074,41 @@ private fun ColumnScope.GenerationPhase(
             content = content
         )
     }
-    if (!isComplete) {
-        ActionRow {
-            CompactButton(onClick = onStop, color = AppColors.Red, text = "STOP")
-            CompactButton(onClick = onContinueInBackground, color = AppColors.SurfaceDark, text = "Background")
-        }
-    } else {
-        // Read the persisted pinned flag so the button toggles between
-        // "Pin" and "Unpin" rather than always saying the same thing.
-        // Re-keyed when the user taps the button (currentReportId
-        // doesn't change but the report file does).
-        var pinTick by remember(currentReportId) { mutableStateOf(0) }
-        val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
-            value = currentReportId?.let { rid ->
-                withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
-            } ?: false
-        }
-        // The View / Edit / Meta / Fan out pickers live at ReportsScreen
-        // scope so they can render as proper full-screen overlays.
-        // GenerationPhase only owns the trigger callbacks now.
-        ActionRow {
-            CompactButton(onClick = onOpenViewPicker, color = AppColors.Purple, text = "View")
-            CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
-            // Regenerate moved to the title-bar 🔄 icon (with a
-            // confirm dialog naming the row count) so the action
-            // row stays focused on per-report navigation choices.
-            CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
-            CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
-            CompactButton(
-                onClick = { onTogglePin(); pinTick++ },
-                color = AppColors.Orange,
-                text = if (isPinned) "Unpin" else "Pin"
-            )
-            CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
-            CompactButton(onClick = onOpenRerankPicker, color = AppColors.Orange, text = "Rerank")
-            CompactButton(
-                onClick = onOpenMetaPicker,
-                color = AppColors.Orange,
-                text = "Meta",
-                enabled = metaPrompts.isNotEmpty()
-            )
-            CompactButton(
-                onClick = onOpenFanOutPicker,
-                color = AppColors.Orange,
-                text = "Fan out",
-                enabled = fanOutPrompts.isNotEmpty()
-            )
-        }
-
+    // Always-on action row. Triggering Meta / Fan-out / Translate /
+    // Rerank mid-run runs against agents finished by the time of the
+    // click — explicitly the user's responsibility. Title-bar 🔄
+    // (Regenerate) and the pending-changes banner stay gated on
+    // isComplete since Regenerate would race the running job.
+    var pinTick by remember(currentReportId) { mutableStateOf(0) }
+    val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
+        value = currentReportId?.let { rid ->
+            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
+        } ?: false
+    }
+    ActionRow {
+        CompactButton(onClick = onOpenViewPicker, color = AppColors.Purple, text = "View")
+        CompactButton(onClick = onOpenEditPicker, color = AppColors.Indigo, text = "Edit")
+        CompactButton(onClick = onShare, color = AppColors.Blue, text = "Export")
+        CompactButton(onClick = onCopy, color = AppColors.Purple, text = "Copy")
+        CompactButton(
+            onClick = { onTogglePin(); pinTick++ },
+            color = AppColors.Orange,
+            text = if (isPinned) "Unpin" else "Pin"
+        )
+        CompactButton(onClick = onTranslate, color = AppColors.Indigo, text = "Translate")
+        CompactButton(onClick = onOpenRerankPicker, color = AppColors.Orange, text = "Rerank")
+        CompactButton(
+            onClick = onOpenMetaPicker,
+            color = AppColors.Orange,
+            text = "Meta",
+            enabled = metaPrompts.isNotEmpty()
+        )
+        CompactButton(
+            onClick = onOpenFanOutPicker,
+            color = AppColors.Orange,
+            text = "Fan out",
+            enabled = fanOutPrompts.isNotEmpty()
+        )
     }
     Spacer(modifier = Modifier.height(8.dp))
 
