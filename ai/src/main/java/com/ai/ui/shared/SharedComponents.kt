@@ -357,19 +357,43 @@ fun TitleBar(
                 onDispose { if (state.value === captured) state.value = null }
             }
         }
-        // Bare top bar: just the title, left-aligned.
+        // Bare top bar — honours the same SubjectToTitleBarMode the
+        // top-bar branch below does, so BOTH renders the subject left
+        // and the title right with no separator (and SUBJECT folds the
+        // subject into the title slot).
         val titleStyle = MaterialTheme.typography.titleLarge
+        val mode = LocalSubjectToTitleBarMode.current
+        val subjectNonBlank = !subject.isNullOrBlank()
+        val barFontSize = titleStyle.fontSize * 1.25f
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (title != null) {
+            if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
                 Text(
-                    text = title, style = titleStyle, color = Color.White,
-                    fontSize = titleStyle.fontSize * 1.25f,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    text = subject!!, style = titleStyle, color = Color.White,
+                    fontSize = barFontSize, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Start,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title, style = titleStyle, color = Color.White,
+                    fontSize = barFontSize, fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            } else {
+                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) subject!! else title
+                if (effective != null) {
+                    Text(
+                        text = effective, style = titleStyle, color = Color.White,
+                        fontSize = barFontSize, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     } else {
