@@ -641,15 +641,6 @@ fun ProvidersScreen(
                     fontSize = 13.sp, color = AppColors.TextTertiary
                 )
             }
-            // Show Add in both filter modes — the previous gate hid the
-            // button on "Active" so a fresh install (no providers
-            // active yet) gave the user a dead-end empty state.
-            Button(
-                onClick = onAddProvider,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
-
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {
@@ -674,6 +665,18 @@ fun ProvidersScreen(
                     }
                 }
             }
+            // Add sits at the bottom — the typical flow is "scroll the
+            // list to confirm what you want isn't already there, then
+            // add a new entry", so the action lands under the user's
+            // thumb after the scan. Shown in both filter modes so a
+            // fresh install (no Active providers yet) still has a
+            // working entry point on the default Active view.
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(
+                onClick = onAddProvider,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
     }
 }
