@@ -17,7 +17,6 @@ import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -759,6 +758,43 @@ fun RefreshScreen(
         }
     }
 
+    // The two grouped sections are full-screen sub-pages, navigated
+    // via NavCards on the main Refresh screen. Each sub-page has its
+    // own TitleBar + help topic. State lives in [subPage] using the
+    // standard early-return overlay pattern so the parent Refresh
+    // screen's remember state survives the round-trip.
+    var subPage by remember { mutableStateOf<RefreshSubPage?>(null) }
+    if (subPage == RefreshSubPage.INFO_PROVIDERS) {
+        InfoProvidersRefreshPage(
+            isAnyRunning = isAnyRunning,
+            openRouterApiKey = openRouterApiKey,
+            artificialAnalysisApiKey = artificialAnalysisApiKey,
+            onAllInfoProviders = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) },
+            onOpenRouter = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
+            onLiteLLM = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
+            onModelsDev = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
+            onHelicone = { launchTask("Refreshing Helicone") { runHelicone(true) } },
+            onLLMPrices = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
+            onArtificialAnalysis = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
+            onNavigateToHelpTopic = onNavigateToHelpTopic,
+            onBack = { subPage = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (subPage == RefreshSubPage.RUNTIME_WORKERS) {
+        RuntimeWorkersRefreshPage(
+            isAnyRunning = isAnyRunning,
+            onAllRuntimeWorkers = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) },
+            onProviders = { launchTask("Testing Providers") { runProviders(true) } },
+            onModels = { launchTask("Refreshing Models") { runModels(true) } },
+            onDefaultAgents = { launchTask("Generating Agents") { runDefaultAgents(true) } },
+            onBack = { subPage = null },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
@@ -778,103 +814,164 @@ fun RefreshScreen(
                 onClick = { startRefreshChain(includeCatalogs = true, includeProviders = true, includeModels = true, includeAgents = true) }
             )
 
-            // ===== AI Info Providers group =====
-            // Catalog-source refreshes wrapped in a single collapsible
-            // (collapsed by default) — the six external metadata feeds
-            // that drive pricing / capability flags. Independent
-            // network fetches with no per-app-provider state, so the
-            // group's "All info providers" button runs them in parallel.
-            CollapsibleCard("AI Info Providers") {
-                RefreshActionRow(
-                    label = "All info providers",
-                    description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
-                    enabled = !isAnyRunning,
-                    onClick = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) }
-                )
-                RefreshActionRow(
-                    label = "OpenRouter",
-                    description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
-                    enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
-                    onClick = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
-                    helpTopic = "info_provider_openrouter",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-                RefreshActionRow(
-                    label = "LiteLLM",
-                    description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
-                    helpTopic = "info_provider_litellm",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-                RefreshActionRow(
-                    label = "models.dev",
-                    description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
-                    helpTopic = "info_provider_models_dev",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-                RefreshActionRow(
-                    label = "Helicone",
-                    description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } },
-                    helpTopic = "info_provider_helicone",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-                RefreshActionRow(
-                    label = "llm-prices.com",
-                    description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
-                    helpTopic = "info_provider_llm_prices",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-                RefreshActionRow(
-                    label = "Artificial Analysis",
-                    description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
-                    enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
-                    onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
-                    helpTopic = "info_provider_artificial_analysis",
-                    onNavigateToHelpTopic = onNavigateToHelpTopic
-                )
-            }
+            // The two grouped sections live as full-screen sub-pages
+            // each with its own TitleBar / help topic. Tapping a
+            // NavCard sets [subPage] above; the early-return at the
+            // top of the composable swaps in the sub-page composable.
+            RefreshNavCard(
+                title = "AI Info Providers",
+                description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis).",
+                onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
+            )
+            RefreshNavCard(
+                title = "AI Runtime workers",
+                description = "Provider key tests, model lists, and default-agent generation.",
+                onClick = { subPage = RefreshSubPage.RUNTIME_WORKERS }
+            )
 
-            // ===== AI Runtime workers group =====
-            // Per-app-provider work that depends on the catalogs above:
-            // test each provider's saved API key, fetch its model list
-            // from /models, and (re)create its default agent. Inactive
-            // and unkeyed providers are filtered out at runtime — the
-            // popup only ever shows providers that could actually be
-            // tested. Collapsed by default — pop it open to drill in.
-            CollapsibleCard("AI Runtime workers") {
-                RefreshActionRow(
-                    label = "All runtime workers",
-                    description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
-                    enabled = !isAnyRunning,
-                    onClick = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) }
-                )
-                RefreshActionRow(
-                    label = "Providers",
-                    description = "Test the saved API key for every active or errored provider against a small live model call. Inactive / unkeyed providers are skipped. Marks each as ok / error.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Testing Providers") { runProviders(true) } }
-                )
-                RefreshActionRow(
-                    label = "Models",
-                    description = "Fetch the latest model list from every active working provider's /models endpoint. Replaces the cached lists used by the model pickers.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Refreshing Models") { runModels(true) } }
-                )
-                RefreshActionRow(
-                    label = "Default agents",
-                    description = "Create a default agent per active working provider (using its current default model) and a \"default agents\" flock that includes them.",
-                    enabled = !isAnyRunning,
-                    onClick = { launchTask("Generating Agents") { runDefaultAgents(true) } }
-                )
-            }
+        }
+    }
+}
 
+private enum class RefreshSubPage { INFO_PROVIDERS, RUNTIME_WORKERS }
+
+@Composable
+private fun RefreshNavCard(title: String, description: String, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
+            Text(">", color = AppColors.Blue, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun InfoProvidersRefreshPage(
+    isAnyRunning: Boolean,
+    openRouterApiKey: String,
+    artificialAnalysisApiKey: String,
+    onAllInfoProviders: () -> Unit,
+    onOpenRouter: () -> Unit,
+    onLiteLLM: () -> Unit,
+    onModelsDev: () -> Unit,
+    onHelicone: () -> Unit,
+    onLLMPrices: () -> Unit,
+    onArtificialAnalysis: () -> Unit,
+    onNavigateToHelpTopic: (String) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RefreshAction(
+                label = "All info providers",
+                description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
+                enabled = !isAnyRunning,
+                onClick = onAllInfoProviders
+            )
+            RefreshAction(
+                label = "OpenRouter",
+                description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
+                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                onClick = onOpenRouter,
+                helpTopic = "info_provider_openrouter",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "LiteLLM",
+                description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
+                enabled = !isAnyRunning,
+                onClick = onLiteLLM,
+                helpTopic = "info_provider_litellm",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "models.dev",
+                description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
+                enabled = !isAnyRunning,
+                onClick = onModelsDev,
+                helpTopic = "info_provider_models_dev",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "Helicone",
+                description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
+                enabled = !isAnyRunning,
+                onClick = onHelicone,
+                helpTopic = "info_provider_helicone",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "llm-prices.com",
+                description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
+                enabled = !isAnyRunning,
+                onClick = onLLMPrices,
+                helpTopic = "info_provider_llm_prices",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+            RefreshAction(
+                label = "Artificial Analysis",
+                description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
+                enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
+                onClick = onArtificialAnalysis,
+                helpTopic = "info_provider_artificial_analysis",
+                onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+        }
+    }
+}
+
+@Composable
+private fun RuntimeWorkersRefreshPage(
+    isAnyRunning: Boolean,
+    onAllRuntimeWorkers: () -> Unit,
+    onProviders: () -> Unit,
+    onModels: () -> Unit,
+    onDefaultAgents: () -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = "refresh_runtime_workers", title = "AI Runtime workers", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RefreshAction(
+                label = "All runtime workers",
+                description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
+                enabled = !isAnyRunning,
+                onClick = onAllRuntimeWorkers
+            )
+            RefreshAction(
+                label = "Providers",
+                description = "Test the saved API key for every active or errored provider against a small live model call. Inactive / unkeyed providers are skipped. Marks each as ok / error.",
+                enabled = !isAnyRunning,
+                onClick = onProviders
+            )
+            RefreshAction(
+                label = "Models",
+                description = "Fetch the latest model list from every active working provider's /models endpoint. Replaces the cached lists used by the model pickers.",
+                enabled = !isAnyRunning,
+                onClick = onModels
+            )
+            RefreshAction(
+                label = "Default agents",
+                description = "Create a default agent per active working provider (using its current default model) and a \"default agents\" flock that includes them.",
+                enabled = !isAnyRunning,
+                onClick = onDefaultAgents
+            )
         }
     }
 }

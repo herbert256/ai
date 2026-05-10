@@ -1629,15 +1629,38 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "refresh" to HelpContent(
         title = "Refresh",
         cards = listOf(
-            HelpCard("Overview", "Bulk refresh hub. Each card has a button + helper text. \"Refresh all\" at the top runs every action below in sequence — catalogs first (so capability data is fresh before per-provider tests fire), then provider tests, model lists, default agents, and finally an automatic process restart."),
+            HelpCard("Overview", "Bulk refresh hub. Top-level page has three rows: \"Refresh all\" at the top, then NavCards into \"AI Info Providers\" and \"AI Runtime workers\" — each opens a dedicated full screen with its own help."),
             HelpCard("Refresh all (auto-restart)", "Sequence: OpenRouter (if key) → LiteLLM → models.dev → Helicone → llm-prices.com → Artificial Analysis (if key) → Providers → Models → Default agents → kill+relaunch via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK. Saves you from a manual kill/relaunch. Tapping the button routes to the Refresh-all progress screen."),
-            HelpCard("Catalog refreshes", "OpenRouter (needs key), LiteLLM (BerriAI/litellm GitHub), models.dev (LiteLLM fallback), Helicone (helicone.ai/api/llm-costs — pricing-only), llm-prices.com (Simon Willison's curated 10-vendor tables), Artificial Analysis (needs key)."),
-            HelpCard("Providers", "Tests every provider's saved key with a small live model call. Marks each as ok / error / inactive (already disabled) / not-used (no key). Live progress dialog with per-provider rows updating from \"pending\" to ok/error."),
-            HelpCard("Models", "Calls every active provider's model-list endpoint (forceRefresh=true). Replaces the cached lists used by every model picker. Result dialog shows per-provider counts."),
-            HelpCard("Default agents", "Per active provider: ensure an agent named after the provider exists (using its current default model), then ensure the \"default agents\" flock contains exactly the successfully-tested agents. Live progress with per-provider rows."),
-            HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision/web-search precomputed sets pick up the new state. Helicone is pricing-only — no recompute."),
-            HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons disable themselves until you set their keys under External Services."),
+            HelpCard("AI Info Providers (sub-page)", "Catalog-source refreshes: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. The page's own \"All info providers\" runs the six in parallel without touching per-provider tests."),
+            HelpCard("AI Runtime workers (sub-page)", "Per-AppService work: Provider key tests, Model lists, Default agents. The page's own \"All runtime workers\" runs the three sequentially without touching the catalogs."),
+            HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons inside AI Info Providers disable themselves until you set their keys under External Services."),
             HelpCard("Related", "Reachable both from AI Setup → Refresh and from Housekeeping → Refresh.")
+        )
+    ),
+    "refresh_info_providers" to HelpContent(
+        title = "AI Info Providers",
+        cards = listOf(
+            HelpCard("Overview", "Refresh-screen sub-page for the six external metadata catalogs (model pricing, capability flags, supported parameters). They have no per-AppService side effects, so the page's \"All info providers\" runs them in parallel."),
+            HelpCard("All info providers", "Runs OpenRouter (if its key is set), LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis (if its key is set) in parallel via the same full-screen progress page Refresh-all uses. Skips Providers / Models / Default agents."),
+            HelpCard("OpenRouter", "Pulls the OpenRouter catalog: pricing, capability flags, and supported parameters. Disabled until the OpenRouter External Services key is set."),
+            HelpCard("LiteLLM", "Downloads model_prices_and_context_window.json from BerriAI/litellm — primary source for pricing and capability flags."),
+            HelpCard("models.dev", "Pulls the models.dev community catalog. LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet."),
+            HelpCard("Helicone", "Pulls helicone.ai/api/llm-costs. Pricing-only fallback after LiteLLM and models.dev."),
+            HelpCard("llm-prices.com", "Pulls Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers."),
+            HelpCard("Artificial Analysis", "Pulls pricing + intelligence_index + output speed. Disabled until the Artificial Analysis key is set under External Services."),
+            HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision / web-search precomputed sets pick up the new catalog. Helicone is pricing-only — no recompute."),
+            HelpCard("Tips", "Each card has its own ℹ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
+        )
+    ),
+    "refresh_runtime_workers" to HelpContent(
+        title = "AI Runtime workers",
+        cards = listOf(
+            HelpCard("Overview", "Refresh-screen sub-page for per-AppService work — the things that actually call your providers' APIs. Inactive and unkeyed providers are filtered out at every step (no point testing or fetching against a provider that can't authenticate)."),
+            HelpCard("All runtime workers", "Runs Providers → Models → Default agents in sequence on the Refresh-all progress page. Skips the catalog refresh (use \"All info providers\" or \"Refresh all\" for that)."),
+            HelpCard("Providers", "Tests each active or errored provider's saved API key with a small live model call. Marks each as ok / error. Inactive and unkeyed providers are filtered out before the popup so the result list only shows providers that could actually be tested."),
+            HelpCard("Models", "Calls every active working provider's /models endpoint with forceRefresh=true. Replaces the cached lists used by the model pickers. Errored / inactive / unkeyed providers are skipped — refreshing them just hits 401."),
+            HelpCard("Default agents", "Per active working provider: ensures an agent named after the provider exists (using its current default model), then ensures the \"default agents\" flock contains exactly those agents. The standalone button runs the test step too; the All-runtime-workers chain reuses results from the Providers step instead of re-testing."),
+            HelpCard("Pitfalls", "If a model-list fetch fails for a provider, its existing model list is preserved (no destructive overwrite). Failed default-agent tests log to logcat but don't block other providers' agents from being created.")
         )
     ),
     "refresh_all_progress" to HelpContent(
