@@ -161,11 +161,77 @@ object ProviderRegistry {
         save()
         true
     }
+    /** User-initiated update: replaces the entry by id and bumps
+     *  [ProviderFieldTimestamps] for every field whose value
+     *  changed. The Settings UI's edit form, the
+     *  withDefaultModel / withModelSource helpers, and any
+     *  programmatic per-field edit reach this path. Asset-driven
+     *  changes go through [importFromAsset] / [upsertFromJson] /
+     *  [syncFromAsset] instead so they don't poison the
+     *  "user touched this" markers. */
     fun update(service: AppService) = synchronized(lock) {
         val i = providers.indexOfFirst { it.id == service.id }
-        if (i >= 0) { providers[i] = service; save() }
+        if (i >= 0) {
+            val existing = providers[i]
+            val changed = diffTrackedFields(existing, service)
+            providers[i] = service
+            save()
+            if (changed.isNotEmpty()) {
+                ProviderFieldTimestamps.bump(service.id, changed)
+            }
+        }
     }
-    fun remove(id: String) = synchronized(lock) { providers.removeAll { it.id == id }; save() }
+    fun remove(id: String) = synchronized(lock) {
+        providers.removeAll { it.id == id }
+        save()
+        ProviderFieldTimestamps.clear(id)
+    }
+
+    /** Reconcile the registry against bundled `assets/providers.json`.
+     *  For each asset entry that already exists in the registry, we
+     *  walk the tracked fields and pull the asset value into a field
+     *  iff (a) it differs from the in-app value AND (b) the user has
+     *  not edited that field (timestamp is null). User-edited fields
+     *  are left alone. New asset entries are NOT appended here —
+     *  that's [importFromAsset]'s job — so a brand-new bundled
+     *  provider still requires the user to opt in.
+     *
+     *  Designed for app start; safe to call on any thread. Returns
+     *  the count of providers that received at least one field
+     *  update, or `-1` on parse / read failure. */
+    fun syncFromAsset(context: Context, filename: String = "providers.json"): Int {
+        return try {
+            val json = context.assets.open(filename).bufferedReader().use { it.readText() }
+            val root = JsonParser.parseString(json) as? JsonObject ?: return -1
+            val arr = root.getAsJsonArray("providers") ?: return -1
+            val gson = createAppGson()
+            val defs: List<ProviderDefinition> = gson.fromJson(arr, providerListType)
+            synchronized(lock) {
+                var changedCount = 0
+                for (def in defs) {
+                    val asset = try { def.toAppService() } catch (_: Exception) { continue }
+                    val i = providers.indexOfFirst { it.id == asset.id }
+                    if (i < 0) continue
+                    val existing = providers[i]
+                    val diff = diffTrackedFields(existing, asset)
+                    if (diff.isEmpty()) continue
+                    val take = diff.filter { ProviderFieldTimestamps.get(asset.id, it) == null }.toSet()
+                    if (take.isEmpty()) continue
+                    providers[i] = mergeTrackedFields(existing, asset, take)
+                    changedCount++
+                    android.util.Log.i(
+                        "ProviderRegistry",
+                        "syncFromAsset: ${asset.id} pulled ${take.joinToString()}"
+                    )
+                }
+                if (changedCount > 0) save()
+                changedCount
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ProviderRegistry", "syncFromAsset failed: ${e.message}")
+            -1
+        }
+    }
 
     fun save() {
         val sp = prefs ?: return
@@ -183,6 +249,7 @@ object ProviderRegistry {
             initialized = false
         }
         prefs?.edit { clear() }
+        ProviderFieldTimestamps.clearAll()
         init(context)
     }
 
@@ -199,6 +266,7 @@ object ProviderRegistry {
             initialized = false
         }
         prefs?.edit { clear() }
+        ProviderFieldTimestamps.clearAll()
         init(context)
         return importFromAsset(context, filename)
     }
@@ -209,6 +277,111 @@ object ProviderRegistry {
             if (findById(service.id) == null) { providers.add(service); changed = true }
         }
         if (changed) save()
+    }
+
+    // ===== Field tracking (per-provider, per-field timestamps) =====
+    //
+    // The set below mirrors every `assets/providers.json` field on
+    // AppService — adding a new field to that catalog requires adding
+    // it here AND in [appServiceFieldMap] / [mergeTrackedFields] so
+    // user edits to the new field stick across asset-sync. The `id` is
+    // intentionally excluded — it's an immutable identity, not a
+    // value the user edits.
+    internal val TRACKED_FIELDS: Set<String> = setOf(
+        "baseUrl", "adminUrl", "defaultModel", "openRouterName", "apiFormat",
+        "typePaths", "modelsPath", "seedFieldName", "supportsCitations",
+        "supportsSearchRecency", "extractApiCost", "costTicksDivisor",
+        "modelListFormat", "modelFilter", "litellmPrefix", "hardcodedModels",
+        "defaultModelSource", "auxHosts", "nativeRerankUrl",
+        "nativeModerationUrl", "nativeCapabilityUrl", "pricingFromModelList",
+        "crossProviderModelList", "mergeHardcodedModels",
+        "externalReasoningSignalUntrusted", "responsesApiPatterns",
+        "reasoningModelPatterns", "reasoningEffortAcceptPatterns",
+        "webSearchModelPatterns", "adaptiveThinkingPatterns",
+        "maxTokensDefaults", "builtInEndpoints"
+    )
+
+    private fun appServiceFieldMap(s: AppService): Map<String, Any?> = mapOf(
+        "baseUrl" to s.baseUrl,
+        "adminUrl" to s.adminUrl,
+        "defaultModel" to s.defaultModel,
+        "openRouterName" to s.openRouterName,
+        "apiFormat" to s.apiFormat,
+        "typePaths" to s.typePaths,
+        "modelsPath" to s.modelsPath,
+        "seedFieldName" to s.seedFieldName,
+        "supportsCitations" to s.supportsCitations,
+        "supportsSearchRecency" to s.supportsSearchRecency,
+        "extractApiCost" to s.extractApiCost,
+        "costTicksDivisor" to s.costTicksDivisor,
+        "modelListFormat" to s.modelListFormat,
+        "modelFilter" to s.modelFilter,
+        "litellmPrefix" to s.litellmPrefix,
+        "hardcodedModels" to s.hardcodedModels,
+        "defaultModelSource" to s.defaultModelSource,
+        "auxHosts" to s.auxHosts,
+        "nativeRerankUrl" to s.nativeRerankUrl,
+        "nativeModerationUrl" to s.nativeModerationUrl,
+        "nativeCapabilityUrl" to s.nativeCapabilityUrl,
+        "pricingFromModelList" to s.pricingFromModelList,
+        "crossProviderModelList" to s.crossProviderModelList,
+        "mergeHardcodedModels" to s.mergeHardcodedModels,
+        "externalReasoningSignalUntrusted" to s.externalReasoningSignalUntrusted,
+        "responsesApiPatterns" to s.responsesApiPatterns,
+        "reasoningModelPatterns" to s.reasoningModelPatterns,
+        "reasoningEffortAcceptPatterns" to s.reasoningEffortAcceptPatterns,
+        "webSearchModelPatterns" to s.webSearchModelPatterns,
+        "adaptiveThinkingPatterns" to s.adaptiveThinkingPatterns,
+        "maxTokensDefaults" to s.maxTokensDefaults,
+        "builtInEndpoints" to s.builtInEndpoints
+    )
+
+    private fun diffTrackedFields(a: AppService, b: AppService): Set<String> {
+        val ma = appServiceFieldMap(a)
+        val mb = appServiceFieldMap(b)
+        return TRACKED_FIELDS.filter { ma[it] != mb[it] }.toSet()
+    }
+
+    /** Build a new AppService where the listed [take] fields come
+     *  from [asset] and every other tracked field comes from
+     *  [existing]. The id stays from [existing] (immutable). */
+    private fun mergeTrackedFields(existing: AppService, asset: AppService, take: Set<String>): AppService {
+        fun <T> p(name: String, e: T, a: T): T = if (name in take) a else e
+        return AppService(
+            id = existing.id,
+            baseUrl = p("baseUrl", existing.baseUrl, asset.baseUrl),
+            adminUrl = p("adminUrl", existing.adminUrl, asset.adminUrl),
+            defaultModel = p("defaultModel", existing.defaultModel, asset.defaultModel),
+            openRouterName = p("openRouterName", existing.openRouterName, asset.openRouterName),
+            apiFormat = p("apiFormat", existing.apiFormat, asset.apiFormat),
+            typePaths = p("typePaths", existing.typePaths, asset.typePaths),
+            modelsPath = p("modelsPath", existing.modelsPath, asset.modelsPath),
+            seedFieldName = p("seedFieldName", existing.seedFieldName, asset.seedFieldName),
+            supportsCitations = p("supportsCitations", existing.supportsCitations, asset.supportsCitations),
+            supportsSearchRecency = p("supportsSearchRecency", existing.supportsSearchRecency, asset.supportsSearchRecency),
+            extractApiCost = p("extractApiCost", existing.extractApiCost, asset.extractApiCost),
+            costTicksDivisor = p("costTicksDivisor", existing.costTicksDivisor, asset.costTicksDivisor),
+            modelListFormat = p("modelListFormat", existing.modelListFormat, asset.modelListFormat),
+            modelFilter = p("modelFilter", existing.modelFilter, asset.modelFilter),
+            litellmPrefix = p("litellmPrefix", existing.litellmPrefix, asset.litellmPrefix),
+            hardcodedModels = p("hardcodedModels", existing.hardcodedModels, asset.hardcodedModels),
+            defaultModelSource = p("defaultModelSource", existing.defaultModelSource, asset.defaultModelSource),
+            auxHosts = p("auxHosts", existing.auxHosts, asset.auxHosts),
+            nativeRerankUrl = p("nativeRerankUrl", existing.nativeRerankUrl, asset.nativeRerankUrl),
+            nativeModerationUrl = p("nativeModerationUrl", existing.nativeModerationUrl, asset.nativeModerationUrl),
+            nativeCapabilityUrl = p("nativeCapabilityUrl", existing.nativeCapabilityUrl, asset.nativeCapabilityUrl),
+            pricingFromModelList = p("pricingFromModelList", existing.pricingFromModelList, asset.pricingFromModelList),
+            crossProviderModelList = p("crossProviderModelList", existing.crossProviderModelList, asset.crossProviderModelList),
+            mergeHardcodedModels = p("mergeHardcodedModels", existing.mergeHardcodedModels, asset.mergeHardcodedModels),
+            externalReasoningSignalUntrusted = p("externalReasoningSignalUntrusted", existing.externalReasoningSignalUntrusted, asset.externalReasoningSignalUntrusted),
+            responsesApiPatterns = p("responsesApiPatterns", existing.responsesApiPatterns, asset.responsesApiPatterns),
+            reasoningModelPatterns = p("reasoningModelPatterns", existing.reasoningModelPatterns, asset.reasoningModelPatterns),
+            reasoningEffortAcceptPatterns = p("reasoningEffortAcceptPatterns", existing.reasoningEffortAcceptPatterns, asset.reasoningEffortAcceptPatterns),
+            webSearchModelPatterns = p("webSearchModelPatterns", existing.webSearchModelPatterns, asset.webSearchModelPatterns),
+            adaptiveThinkingPatterns = p("adaptiveThinkingPatterns", existing.adaptiveThinkingPatterns, asset.adaptiveThinkingPatterns),
+            maxTokensDefaults = p("maxTokensDefaults", existing.maxTokensDefaults, asset.maxTokensDefaults),
+            builtInEndpoints = p("builtInEndpoints", existing.builtInEndpoints, asset.builtInEndpoints)
+        )
     }
 }
 

@@ -319,6 +319,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ReportStorage.init(application)
         SecondaryResultStorage.init(application)
         ProviderRegistry.init(application)
+        ProviderFieldTimestamps.init(application)
         PromptCache.init(application)
 
         val gs = settingsPrefs.loadGeneralSettings()
@@ -337,6 +338,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
         }
+
+        // Every-start delta-sync from bundled providers.json. For each
+        // provider already in the registry, refresh fields the user
+        // hasn't edited (timestamp == null) so APK upgrades pick up
+        // catalog corrections (new modelFilter, hardcoded models,
+        // mergeHardcodedModels flips, etc.) without touching user
+        // edits. Already on Dispatchers.IO via the viewModelScope.launch
+        // wrapping bootstrap. New asset entries don't get appended here
+        // — that path is the explicit "Import new providers" button.
+        runCatching {
+            ProviderRegistry.syncFromAsset(application, "providers.json")
+        }.onFailure { android.util.Log.w("AppViewModel", "syncFromAsset failed", it) }
 
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
