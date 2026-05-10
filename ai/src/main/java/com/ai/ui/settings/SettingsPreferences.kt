@@ -104,9 +104,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val providers = AppService.entries.associateWith { service ->
             val key = service.id
             val defaults = defaultProviderConfig(service)
-            val modelSource = prefs.getString("${key}_model_source", null)?.let {
-                try { ModelSource.valueOf(it) } catch (_: Exception) { null }
-            } ?: defaults.modelSource
             val models = if (defaults.models.isNotEmpty())
                 loadJsonList("${key}_manual_models") ?: defaults.models
             else
@@ -141,7 +138,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
             ProviderConfig(
                 apiKey = prefs.getString("${key}_api_key", "") ?: "",
-                modelSource = modelSource, models = models, modelTypes = types,
+                models = models, modelTypes = types,
                 visionModels = visionModels, webSearchModels = webSearchModels,
                 reasoningModels = reasoningModels,
                 visionCapableComputed = visionCapableComputed,
@@ -170,7 +167,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 val key = service.id
                 val config = settings.providers[service] ?: defaultProviderConfig(service)
                 putString("${key}_api_key", config.apiKey)
-                putString("${key}_model_source", config.modelSource.name)
                 putString("${key}_manual_models", gson.toJson(config.models))
                 putString("${key}_model_types", gson.toJson(config.modelTypes))
                 // User-curated vision / web-search overrides + the per-fetch

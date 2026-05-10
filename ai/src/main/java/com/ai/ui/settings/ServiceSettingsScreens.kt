@@ -296,7 +296,11 @@ fun ProviderModelSettingsScreen(
     val scope = rememberCoroutineScope()
     val config = aiSettings.getProvider(service)
     val apiKey = config.apiKey
-    var modelSource by remember { mutableStateOf(config.modelSource) }
+    // ModelSource lives on AppService.defaultModelSource (single
+    // source of truth). Local var mirrors the catalog value; the
+    // filter chips below write back via withModelSource →
+    // ProviderRegistry.update.
+    var modelSource by remember(service.id) { mutableStateOf(aiSettings.getModelSource(service)) }
     var models by remember { mutableStateOf(config.models) }
     // Inline add/edit state for the Manual CRUD form.
     var manualInput by remember { mutableStateOf("") }
@@ -312,23 +316,25 @@ fun ProviderModelSettingsScreen(
     LaunchedEffect(config.models) {
         if (config.models != models) models = config.models
     }
-    LaunchedEffect(config.modelSource) {
-        if (config.modelSource != modelSource) modelSource = config.modelSource
-    }
-
-    // Auto-save — only the fields this screen exposes; other config fields preserved via copy of the current provider config.
-    // The two-way sync above can race with this effect: an external Fetch
-    // Models completion mutates config.models → first effect copies it
-    // into local `models` → this effect refires and sees the captured
-    // `aiSettings` is a recomposition behind, so calling `onSave(aiSettings
-    // .withProvider(...))` rolls back any other field that changed in the
-    // same window. Guard by skipping the save when local state already
-    // matches what's in settings (i.e. nothing to write).
-    LaunchedEffect(modelSource, models) {
-        if (models == config.models && modelSource == config.modelSource) return@LaunchedEffect
+    // Auto-save the model list — modelSource writes through
+    // withModelSource (catalog field) on every chip change. The two-way
+    // sync above can race with this effect: an external Fetch Models
+    // completion mutates config.models → first effect copies it into
+    // local `models` → this effect refires and sees the captured
+    // `aiSettings` is a recomposition behind, so calling
+    // `onSave(aiSettings.withProvider(...))` rolls back any other
+    // field that changed in the same window. Guard by skipping the
+    // save when local state already matches what's in settings.
+    LaunchedEffect(models) {
+        if (models == config.models) return@LaunchedEffect
         val current = aiSettings.getProvider(service)
-        val updated = current.copy(modelSource = modelSource, models = models)
+        val updated = current.copy(models = models)
         if (updated != current) onSave(aiSettings.withProvider(service, updated))
+    }
+    LaunchedEffect(modelSource) {
+        if (aiSettings.getModelSource(service) != modelSource) {
+            aiSettings.withModelSource(service, modelSource)
+        }
     }
 
     // When switching away from Manual mode, clear any half-typed/edit state to avoid surprises on return.

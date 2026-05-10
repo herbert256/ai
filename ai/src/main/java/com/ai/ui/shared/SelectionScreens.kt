@@ -63,7 +63,7 @@ fun SelectModelScreen(
     // For an API-mode provider, hold the model list behind a refresh: kick off the fetch,
     // wait for it to complete (observed via the parent-supplied isRefreshing flag), then
     // unveil the list. A 15s timeout makes sure the screen doesn't hang on a stalled call.
-    val providerSource = aiSettings.getProvider(provider).modelSource
+    val providerSource = aiSettings.getModelSource(provider)
     val refreshingState = rememberUpdatedState(isRefreshing)
     var initialRefreshDone by remember(provider.id) {
         mutableStateOf(providerSource != ModelSource.API || onRefresh == null)

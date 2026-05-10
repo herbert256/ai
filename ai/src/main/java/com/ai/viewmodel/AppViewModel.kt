@@ -718,10 +718,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     // (per-provider Test button), apply it in the same
                     // state update so model list + source land atomically.
                     val withSource = if (flipToApiOnSuccess && fetched.ids.isNotEmpty()) {
-                        val cfg = withSelf.getProvider(service)
-                        if (cfg.modelSource != ModelSource.API)
-                            withSelf.withProvider(service, cfg.copy(modelSource = ModelSource.API))
-                        else withSelf
+                        if (withSelf.getModelSource(service) != ModelSource.API) {
+                            // Writes through ProviderRegistry.update — Settings is unchanged.
+                            withSelf.withModelSource(service, ModelSource.API)
+                        }
+                        withSelf
                     } else withSelf
                     // Fan out-pollinate OpenRouter labels — covers two flows:
                     //   • non-OpenRouter fetch picks up labels OpenRouter already has cached
@@ -732,12 +733,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val cfgSelf = final.getProvider(service)
                 settingsPrefs.saveModelsForProvider(service, fetched.ids, cfgSelf.modelTypes, cfgSelf.visionModels, cfgSelf.modelCapabilities, cfgSelf.modelListRawJson)
                 // saveModelsForProvider only writes the per-key model
-                // set. The modelSource lives in the main aiSettings JSON
-                // and needs a saveSettings to be persisted across
-                // restarts, so flush it here when the flip happened.
-                if (flipToApiOnSuccess && fetched.ids.isNotEmpty() && cfgSelf.modelSource == ModelSource.API) {
-                    settingsPrefs.saveSettings(final)
-                }
+                // set. modelSource was flipped above through
+                // ProviderRegistry.update (which auto-persists to its
+                // own prefs), so no settings flush needed here.
                 if (service.crossProviderModelList) {
                     // Persist the freshly fan out-applied labels for every other provider.
                     AppService.entries.filter { it.id != service.id }.forEach { other ->

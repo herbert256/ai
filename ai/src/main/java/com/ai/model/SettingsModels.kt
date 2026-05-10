@@ -7,12 +7,11 @@ enum class ModelSource { API, MANUAL }
 
 data class ProviderConfig(
     val apiKey: String = "",
-    // The previously per-user `model` field was dropped — the
-    // provider's default model is now the single field
-    // [AppService.defaultModel], loaded from assets/providers.json on
-    // first install and edited via the API Key card's Default Model
-    // picker (writes through ProviderRegistry.update).
-    val modelSource: ModelSource = ModelSource.API,
+    // The previously per-user `model` and `modelSource` fields were
+    // dropped — both live as single fields on [AppService]
+    // (`defaultModel`, `defaultModelSource`), loaded from
+    // assets/providers.json on first install and edited via the
+    // provider settings UI (writes through ProviderRegistry.update).
     val models: List<String> = emptyList(),
     /** Type classification per model id ("chat", "embedding", "rerank", ...). Sidecar
      *  to `models` rather than embedded so existing screens can keep treating models
@@ -69,10 +68,18 @@ data class ProviderConfig(
 
 fun defaultProviderConfig(service: AppService): ProviderConfig {
     val defaultModels = service.hardcodedModels ?: emptyList()
-    val defaultModelSource = service.defaultModelSource?.let {
-        try { ModelSource.valueOf(it) } catch (_: IllegalArgumentException) { null }
-    } ?: if (defaultModels.isNotEmpty()) ModelSource.MANUAL else ModelSource.API
-    return ProviderConfig(modelSource = defaultModelSource, models = defaultModels)
+    return ProviderConfig(models = defaultModels)
+}
+
+/** Decode the catalog [AppService.defaultModelSource] string ("API" /
+ *  "MANUAL") into the [ModelSource] enum. Falls back to MANUAL when
+ *  the provider ships hardcodedModels and no explicit source is set
+ *  (the bundled list IS the model catalog), API otherwise. */
+fun resolveModelSource(service: AppService): ModelSource {
+    service.defaultModelSource?.let {
+        try { return ModelSource.valueOf(it) } catch (_: IllegalArgumentException) { /* fall through */ }
+    }
+    return if (!service.hardcodedModels.isNullOrEmpty()) ModelSource.MANUAL else ModelSource.API
 }
 
 fun defaultProvidersMap(): Map<AppService, ProviderConfig> = AppService.entries.associateWith { defaultProviderConfig(it) }
@@ -261,7 +268,47 @@ data class Settings(
         com.ai.data.ProviderRegistry.update(updated)
         return this
     }
-    fun getModelSource(service: AppService) = getProvider(service).modelSource
+    fun getModelSource(service: AppService) = resolveModelSource(service)
+
+    /** Persist a new model source for [service] — writes the
+     *  ModelSource enum's `name` to [AppService.defaultModelSource]
+     *  via [com.ai.data.ProviderRegistry.update]. Single source of
+     *  truth lives on the catalog; this Settings is unchanged. */
+    fun withModelSource(service: AppService, source: ModelSource): Settings {
+        if (resolveModelSource(service) == source) return this
+        val updated = AppService(
+            id = service.id, baseUrl = service.baseUrl, adminUrl = service.adminUrl,
+            defaultModel = service.defaultModel,
+            openRouterName = service.openRouterName, apiFormat = service.apiFormat,
+            typePaths = service.typePaths, modelsPath = service.modelsPath,
+            seedFieldName = service.seedFieldName,
+            supportsCitations = service.supportsCitations,
+            supportsSearchRecency = service.supportsSearchRecency,
+            extractApiCost = service.extractApiCost,
+            costTicksDivisor = service.costTicksDivisor,
+            modelListFormat = service.modelListFormat, modelFilter = service.modelFilter,
+            litellmPrefix = service.litellmPrefix, hardcodedModels = service.hardcodedModels,
+            defaultModelSource = source.name,
+            auxHosts = service.auxHosts,
+            nativeRerankUrl = service.nativeRerankUrl,
+            nativeModerationUrl = service.nativeModerationUrl,
+            nativeCapabilityUrl = service.nativeCapabilityUrl,
+            pricingFromModelList = service.pricingFromModelList,
+            crossProviderModelList = service.crossProviderModelList,
+            mergeHardcodedModels = service.mergeHardcodedModels,
+            externalReasoningSignalUntrusted = service.externalReasoningSignalUntrusted,
+            responsesApiPatterns = service.responsesApiPatterns,
+            reasoningModelPatterns = service.reasoningModelPatterns,
+            reasoningEffortAcceptPatterns = service.reasoningEffortAcceptPatterns,
+            webSearchModelPatterns = service.webSearchModelPatterns,
+            adaptiveThinkingPatterns = service.adaptiveThinkingPatterns,
+            maxTokensDefaults = service.maxTokensDefaults,
+            builtInEndpoints = service.builtInEndpoints
+        )
+        com.ai.data.ProviderRegistry.update(updated)
+        return this
+    }
+
     fun getModels(service: AppService) = getProvider(service).models
     fun withModels(service: AppService, models: List<String>) =
         withProvider(service, getProvider(service).copy(models = models.distinct())).recomputeCapabilities(service)
