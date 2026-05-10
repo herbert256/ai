@@ -42,7 +42,9 @@ fun ReportsViewerScreen(
     onNavigateToTraceFile: (String) -> Unit = {},
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
-    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    onRemoveAgent: (String, String) -> Unit = { _, _ -> },
+    onRegenerateAgent: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onDismiss() }
     val context = LocalContext.current
@@ -76,7 +78,8 @@ fun ReportsViewerScreen(
         is ReportLoadState.Loaded -> {
             ReportsViewerScreenLoaded(s.report, initialSelectedAgentId, initialSection,
                 onDismiss, onNavigateHome, onNavigateToTraceFile,
-                onContinueWithCurrent, onContinueWithAgentPicker, onContinueWithOnTheFly)
+                onContinueWithCurrent, onContinueWithAgentPicker, onContinueWithOnTheFly,
+                onRemoveAgent, onRegenerateAgent)
         }
     }
 }
@@ -190,10 +193,14 @@ private fun ReportsViewerScreenLoaded(
     onNavigateToTraceFile: (String) -> Unit,
     onContinueWithCurrent: (String, String) -> Unit,
     onContinueWithAgentPicker: (String, String) -> Unit,
-    onContinueWithOnTheFly: (String, String) -> Unit
+    onContinueWithOnTheFly: (String, String) -> Unit,
+    onRemoveAgent: (String, String) -> Unit,
+    onRegenerateAgent: (String, String) -> Unit
 ) {
     val context = LocalContext.current
     var showContinuePicker by remember { mutableStateOf(false) }
+    var confirmRemove by remember { mutableStateOf(false) }
+    var confirmReload by remember { mutableStateOf(false) }
 
     // Load TRANSLATE secondaries up front; the picker / overlay both
     // key on this list. Empty list → no picker shown, viewer behaves
@@ -373,6 +380,8 @@ private fun ReportsViewerScreenLoaded(
                 val shareSubject = selectedAgentLabel?.let { "Model response — $it" } ?: "Model response"
                 { com.ai.ui.shared.shareText(context, body, shareSubject) }
             },
+            onDelete = if (selectedReportAgent != null) { { confirmRemove = true } } else null,
+            onReload = if (selectedReportAgent != null) { { confirmReload = true } } else null,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
@@ -516,6 +525,48 @@ private fun ReportsViewerScreenLoaded(
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) { Text("View in one page", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
+    }
+
+    // Reload / Remove confirmation dialogs for the selected agent.
+    // Both dismiss the viewer on confirm: the on-disk report is
+    // mutated by the parent's callback, but this screen's read-once
+    // produceState wouldn't refresh, so dropping back to the report
+    // screen avoids showing stale data.
+    if (confirmReload && selectedReportAgent != null && selectedProviderService != null) {
+        com.ai.ui.shared.ReloadConfirmationDialog(
+            target = "${selectedProviderService.id} / ${selectedReportAgent.model}",
+            onConfirm = {
+                confirmReload = false
+                onRegenerateAgent(report.id, selectedReportAgent.agentId)
+                onDismiss()
+            },
+            onDismiss = { confirmReload = false }
+        )
+    }
+
+    if (confirmRemove && selectedReportAgent != null && selectedProviderService != null) {
+        AlertDialog(
+            onDismissRequest = { confirmRemove = false },
+            title = { Text("Remove from report?") },
+            text = {
+                Text(
+                    "Drop ${selectedProviderService.id} / ${selectedReportAgent.model} from this report. " +
+                        "Removes the saved response and recomputes totals; can't be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemove = false
+                    onRemoveAgent(report.id, selectedReportAgent.agentId)
+                    onDismiss()
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemove = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 }
 

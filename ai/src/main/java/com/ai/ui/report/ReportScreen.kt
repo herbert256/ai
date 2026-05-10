@@ -840,7 +840,12 @@ fun ReportsScreen(
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onContinueWithCurrent = onContinueWithCurrent,
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
-                onContinueWithOnTheFly = onContinueWithOnTheFly
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
+                onRemoveAgent = { rid, aid ->
+                    onRemoveAgent(rid, aid)
+                    secondaryRefreshTick++
+                },
+                onRegenerateAgent = onRegenerateAgent
             )
         }
         return
