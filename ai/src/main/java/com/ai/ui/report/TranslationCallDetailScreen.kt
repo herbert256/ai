@@ -131,7 +131,10 @@ internal fun TranslationCallDetailScreen(
                 onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
                 onInfo = if (translationProviderService != null && result.model.isNotBlank()) {
                     { navToModelInfo(translationProviderService, result.model) }
-                } else null
+                } else null,
+                onCopy = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+                    { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
+                }
             )
             if (!foldSubject) {
                 Text(

@@ -195,9 +195,19 @@ private fun ReportsViewerScreenLoaded(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
+            // Resolve the prompt text up front so the title-bar 📋
+            // icon and the body Text below render the same string.
+            // Costs view has no copy target — the helper renders a
+            // table, not a copyable string.
+            val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
             TitleBar(helpTopic = sectionHelpTopic,
                 title = com.ai.ui.shared.reportIconTitle(report, title),
                 onBackClick = onDismiss,
+                onCopy = if (initialSection == "prompt") {
+                    displayPrompt.takeIf { it.isNotBlank() }?.let {
+                        { com.ai.ui.shared.copyToClipboard(context, displayPrompt, "prompt") }
+                    }
+                } else null,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
@@ -207,7 +217,6 @@ private fun ReportsViewerScreenLoaded(
             }
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 if (initialSection == "prompt") {
-                    val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
                     if (displayPrompt.isBlank()) {
                         Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {

@@ -127,6 +127,18 @@ val LocalIconBarAtBottom = compositionLocalOf { false }
  *  short-circuits the publish path. */
 val LocalBottomIconState = compositionLocalOf<MutableState<TitleBarIcons?>?> { null }
 
+/** Copy [text] to the system clipboard with [label] as the ClipData
+ *  label and surface a "Copied" Toast. Empty text is a no-op so the
+ *  caller doesn't have to pre-check. Used by every TitleBar `onCopy`
+ *  callback so the wiring at each screen stays one line. */
+fun copyToClipboard(context: android.content.Context, text: String, label: String = "AI app") {
+    if (text.isEmpty()) return
+    val clip = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+        as android.content.ClipboardManager
+    clip.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
+    android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+}
+
 /** Prepend the report's resolved emoji to the given title, separated
  *  by a space. Used by every screen that's scoped to a single report
  *  so the report's icon shows in the title bar (View flow, per-result
@@ -144,6 +156,7 @@ data class TitleBarIcons(
     val backText: String,
     val onChat: (() -> Unit)?,
     val onInfo: (() -> Unit)?,
+    val onCopy: (() -> Unit)?,
     val onReload: (() -> Unit)?,
     val onDelete: (() -> Unit)?,
     val onTrace: (() -> Unit)?,
@@ -274,6 +287,12 @@ fun TitleBar(
     onInfo: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
     onChat: (() -> Unit)? = null,
+    /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
+     *  display substantial copyable text (agent response, raw JSON,
+     *  prompt body, translated text, redacted trace bytes, …). Null →
+     *  icon hidden. Use the top-level [copyToClipboard] helper inside
+     *  the lambda for the standard "set ClipData + Toast" behaviour. */
+    onCopy: (() -> Unit)? = null,
     /** Applied to the bar's outer Row. Default no-op preserves the
      *  existing convention (most screens wrap the bar in a parent
      *  Column with `.padding(16.dp)` and pay zero pad here).
@@ -326,6 +345,7 @@ fun TitleBar(
             backText = backText,
             onChat = onChat,
             onInfo = onInfo,
+            onCopy = onCopy,
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
@@ -440,6 +460,7 @@ fun TitleBar(
                 onReload = onReload,
                 onChat = onChat,
                 onInfo = onInfo,
+                onCopy = onCopy,
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onHelp = { navigateHelp(helpTopic) },
@@ -467,6 +488,7 @@ private fun TitleBarActionStrip(
     onReload: (() -> Unit)?,
     onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
+    onCopy: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
     onHelp: () -> Unit,
@@ -491,6 +513,10 @@ private fun TitleBarActionStrip(
     ) {
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
+        // 📋 Copy — slots into the "act on this content" cluster
+        // alongside 💬 and ℹ. Hidden when the screen has nothing
+        // copyable (callsites pass a null callback in that case).
+        if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = w(28.dp), scale = scale)
         // 🔄 sits immediately to the left of 🗑 — the reload-vs-
         // discard pair lives together so a user reaching for one
         // doesn't accidentally hit the other from across the strip.
@@ -603,6 +629,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onReload = icons?.onReload,
             onChat = icons?.onChat,
             onInfo = icons?.onInfo,
+            onCopy = icons?.onCopy,
             onDelete = icons?.onDelete,
             onTrace = icons?.onTrace,
             onHelp = { navigateHelp(icons?.helpTopic) },

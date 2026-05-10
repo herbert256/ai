@@ -40,6 +40,7 @@ internal fun TranslationCompareScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
@@ -47,6 +48,9 @@ internal fun TranslationCompareScreen(
             title = "Translation compare",
             subject = title,
             onBackClick = onBack,
+            onCopy = translatedContent.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
+            },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         if (!foldSubject) {

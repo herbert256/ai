@@ -322,7 +322,12 @@ fun EditApiRequestScreen(
     var editableJson by remember { mutableStateOf(initialJson) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick)
+        TitleBar(
+            helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick,
+            onCopy = editableJson.takeIf { it.isNotBlank() }?.let {
+                { com.ai.ui.shared.copyToClipboard(context, editableJson, "request") }
+            }
+        )
 
         // Info card
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {

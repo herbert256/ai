@@ -166,6 +166,9 @@ fun ReportSingleResultScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onCopy = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.copyToClipboard(context, body, "agent response") }
+            },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 

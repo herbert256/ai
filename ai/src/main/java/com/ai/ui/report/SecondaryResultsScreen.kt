@@ -2026,7 +2026,10 @@ internal fun SecondaryResultDetailScreen(
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
-            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null
+            onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            onCopy = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.copyToClipboard(context, body, "secondary result") }
+            }
         )
         if (!foldSubject) {
             Text(

@@ -1106,6 +1106,7 @@ private fun ModelRawInfoScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     val annotated = remember(body) { colorizeJson(body) }
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -1121,7 +1122,10 @@ private fun ModelRawInfoScreen(
             // ℹ → per-provider help page (LiteLLM, OpenRouter, …).
             onInfo = if (provider != null) {
                 { onNavigateToHelpTopic(provider.topicId) }
-            } else null
+            } else null,
+            onCopy = body.takeIf { it.isNotBlank() }?.let {
+                { com.ai.ui.shared.copyToClipboard(context, body, "raw catalog JSON") }
+            }
         )
         if (provider != null && !foldSubject) {
             Spacer(modifier = Modifier.height(4.dp))

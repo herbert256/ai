@@ -704,6 +704,12 @@ fun TraceDetailScreen(
                     }.apply()
                     onEditRequest()
                 }
+            } else null,
+            // 📋: copy the active tab's redacted bytes — same payload
+            // the body-row Copy button puts on the clipboard, so the
+            // two affordances stay byte-identical.
+            onCopy = if (t != null) {
+                { com.ai.ui.shared.copyToClipboard(context, redactedContentFor(currentView, t), "trace") }
             } else null
         )
         // First line: HTTP status code + path (no query params — they
