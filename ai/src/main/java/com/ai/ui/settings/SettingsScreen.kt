@@ -5,6 +5,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -80,7 +81,12 @@ fun SettingsScreen(
     initialEditingInternalPromptId: String? = null,
     initialInternalPromptCategory: String? = null
 ) {
-    var currentSubScreen by remember { mutableStateOf(initialSubScreen) }
+    // rememberSaveable so a navigation hop OUT of Settings and back
+    // (e.g. tapping a per-card ❓ that opens HelpScreen) restores the
+    // user to the same sub-screen they left, instead of resetting to
+    // the initial entry point. SettingsSubScreen is an enum →
+    // Bundle's serializable saver handles it.
+    var currentSubScreen by rememberSaveable { mutableStateOf(initialSubScreen) }
     // Hold the runtime selection as the AppService id (a String) so a
     // mutating ProviderRegistry doesn't blow it away. The previous
     // approach keyed remember on AppService.entries.size to "re-resolve
@@ -91,7 +97,10 @@ fun SettingsScreen(
     // lazily by id below. The cold-launch race the previous comment
     // worried about is handled by the lookup returning null until
     // bootstrap finishes, then succeeding on the next recomposition.
-    var selectedProviderId by remember(initialProviderId) {
+    // rememberSaveable so the AI_PROVIDER_EDIT sub-screen knows
+    // which provider to show after a navigation hop back into
+    // Settings (per-card ❓ → HelpScreen → back).
+    var selectedProviderId by rememberSaveable(initialProviderId) {
         mutableStateOf(initialProviderId)
     }
     val selectedProvider: AppService? = selectedProviderId?.let { AppService.findById(it) }
