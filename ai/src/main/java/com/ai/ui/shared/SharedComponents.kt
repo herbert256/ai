@@ -371,6 +371,13 @@ private fun TitleBarActionStrip(
         if (onDelete != null && onTrace == null) {
             Spacer(modifier = Modifier.width(8.dp * scale))
         }
+        // Visual gap between 🐞 Trace and 🏠 Home when Memo is hidden
+        // — the two emojis are different colours but the 22dp slots
+        // butt them flush, which reads as one chunk rather than two
+        // distinct controls.
+        if (onTrace != null && onMemo == null) {
+            Spacer(modifier = Modifier.width(8.dp * scale))
+        }
         // 📝 Memo — "back to the current AI Report's result page".
         // Sits to the left of Home / Help; only renders when
         // [LocalNavigateToCurrentReport] is non-null, i.e. the user
