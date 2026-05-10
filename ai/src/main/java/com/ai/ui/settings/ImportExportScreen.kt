@@ -113,7 +113,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("showBackButton", g.showBackButton)
-    addProperty("subjectToTitleBar", g.subjectToTitleBar)
+    addProperty("subjectToTitleBarMode", g.subjectToTitleBarMode.name)
 }
 
 /** Apply each present field of a Settings export onto [current],
@@ -131,6 +131,9 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
     }
+    val subjectMode = str("subjectToTitleBarMode")?.let {
+        runCatching { com.ai.viewmodel.SubjectToTitleBarMode.valueOf(it) }.getOrNull()
+    }
     return current.copy(
         userName = str("userName") ?: current.userName,
         defaultEmail = str("defaultEmail") ?: current.defaultEmail,
@@ -138,7 +141,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         modelNameLayout = layout ?: current.modelNameLayout,
         showBackButton = bool("showBackButton") ?: current.showBackButton,
-        subjectToTitleBar = bool("subjectToTitleBar") ?: current.subjectToTitleBar
+        subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode
     )
 }
 

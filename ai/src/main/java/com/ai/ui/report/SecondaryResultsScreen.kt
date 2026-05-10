@@ -254,7 +254,8 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
@@ -262,7 +263,7 @@ internal fun SecondaryResultsScreen(
             TitleBar(
                 helpTopic = "secondary_list",
                 title = com.ai.ui.shared.reportIconTitle(parentReport,
-                    if (foldSubject) baseTitle else "Secondary results"),
+                    com.ai.ui.shared.titleBarLabel(mode, "Secondary results", baseTitle)),
                 onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
@@ -1729,7 +1730,8 @@ private fun OnePageView(
     val context = LocalContext.current
     val provName = AppService.findById(activePid)?.id ?: activePid
     val activeProviderService = AppService.findById(activePid)
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
@@ -1806,7 +1808,7 @@ private fun OnePageView(
         TitleBar(
             helpTopic = "secondary_fan_out",
             title = com.ai.ui.shared.reportIconTitle(parentReport,
-                if (foldSubject) modelLabel else "One page view"),
+                com.ai.ui.shared.titleBarLabel(mode, "One page view", modelLabel)),
             onBackClick = onBack,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -2016,13 +2018,14 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
             title = com.ai.ui.shared.reportIconTitle(parentReport,
-                if (foldSubject) title else "Secondary detail"),
+                com.ai.ui.shared.titleBarLabel(mode, "Secondary detail", title)),
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },

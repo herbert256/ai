@@ -26,6 +26,15 @@ import kotlinx.coroutines.withContext
  *  multiple providers and want to disambiguate at a glance. */
 enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
 
+/** How a detail screen's title bar combines its static label with its
+ *  dynamic subject (model id, KB name, agent name, …).
+ *  HARDCODED: title bar shows only the static label; the subject
+ *  renders below as the green sub-header (legacy default).
+ *  SUBJECT: title bar shows the subject; green sub-header hidden.
+ *  BOTH: title bar shows "<static label> / <subject>"; green sub-header
+ *  hidden. */
+enum class SubjectToTitleBarMode { HARDCODED, SUBJECT, BOTH }
+
 data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
@@ -56,13 +65,13 @@ data class GeneralSettings(
      *  BackHandler is registered independently of the button.
      *  Provided to the composition tree via LocalShowBackButton. */
     val showBackButton: Boolean = true,
-    /** Compact-header mode. When true, every screen that today shows
-     *  a fixed TitleBar label plus a green "subject" sub-header below
-     *  it (Model Info, Trace detail, Knowledge base, Translation
-     *  run, Agent result, …) folds the dynamic subject into the
-     *  title bar and drops the green line. Default false preserves
-     *  the legacy two-row layout. Provided via LocalSubjectToTitleBar. */
-    val subjectToTitleBar: Boolean = false,
+    /** Compact-header mode (tri-state). HARDCODED keeps the legacy
+     *  layout: fixed label in the title bar + green dynamic-subject
+     *  sub-header below. SUBJECT folds the subject into the title bar
+     *  and drops the green line. BOTH puts both ("<fixed> / <subject>")
+     *  in the title bar and drops the green line. Provided via
+     *  LocalSubjectToTitleBarMode. */
+    val subjectToTitleBarMode: SubjectToTitleBarMode = SubjectToTitleBarMode.HARDCODED,
     /** When true, every TitleBar's action icons (Home / Help / Trace /
      *  Delete / Info / Reload / Chat / Memo + the back arrow) move into
      *  a fixed bar at the bottom of the screen and the top bar shows

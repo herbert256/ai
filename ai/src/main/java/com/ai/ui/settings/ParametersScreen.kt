@@ -82,17 +82,15 @@ fun ParametersEditScreen(
         else -> null
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "parameters_edit",
-            title = when {
-                !isEditing -> "Add Parameters"
-                foldSubject && name.isNotBlank() -> name
-                else -> "Edit Parameters"
-            },
+            title = if (!isEditing) "Add Parameters"
+                else com.ai.ui.shared.titleBarLabel(mode, "Edit Parameters", name),
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))

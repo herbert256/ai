@@ -79,13 +79,30 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
  *  because TitleBar registers its BackHandler independently. */
 val LocalShowBackButton = compositionLocalOf { true }
 
-/** When true, screens that show a fixed TitleBar label plus a green
- *  "subject" sub-header (Model Info, Trace detail, Knowledge base,
- *  Translation run, Agent result, …) fold the subject into the
- *  title bar and drop the green line. Default false preserves the
- *  legacy two-row layout. Provided once by AppNavHost from
- *  GeneralSettings.subjectToTitleBar. */
-val LocalSubjectToTitleBar = compositionLocalOf { false }
+/** Tri-state: how detail screens that have both a fixed label and a
+ *  dynamic subject (Model Info, Trace detail, KB, Translation run,
+ *  Agent result, …) compose their title. HARDCODED keeps the legacy
+ *  two-row layout (fixed label in the bar, green subject below).
+ *  SUBJECT folds the subject into the bar. BOTH puts both
+ *  ("<fixed> / <subject>") in the bar. The green sub-header shows
+ *  only in HARDCODED. Provided once by AppNavHost from
+ *  GeneralSettings.subjectToTitleBarMode. */
+val LocalSubjectToTitleBarMode = compositionLocalOf { com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED }
+
+/** Composes the title shown in the top bar based on the user's
+ *  Settings → "Subject to title bar" choice. HARDCODED → fixed;
+ *  SUBJECT → subject (falls back to fixed when blank); BOTH →
+ *  "<fixed> / <subject>" (falls back to fixed when subject is blank). */
+fun titleBarLabel(
+    mode: com.ai.viewmodel.SubjectToTitleBarMode,
+    fixed: String,
+    subject: String
+): String = when (mode) {
+    com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED -> fixed
+    com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT -> subject.ifBlank { fixed }
+    com.ai.viewmodel.SubjectToTitleBarMode.BOTH ->
+        if (subject.isBlank()) fixed else "$fixed / $subject"
+}
 
 /** Provided by AppNavHost so the title-bar Help icon can navigate
  *  to a help page without prop-drilling a callback. The argument is
@@ -341,7 +358,7 @@ fun TitleBar(
         }
     } else {
         val showBackButton = LocalShowBackButton.current
-        val foldSubject = LocalSubjectToTitleBar.current
+        val foldSubject = LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         val backVisible = onBackClick != null && showBackButton
         val hasLeftSlot = leftContent != null || backVisible
         // When the user has hidden the "< Back" button the title row

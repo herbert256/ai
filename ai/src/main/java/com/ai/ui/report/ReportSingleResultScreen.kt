@@ -153,13 +153,14 @@ fun ReportSingleResultScreen(
     val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
             title = com.ai.ui.shared.reportIconTitle(report,
-                if (foldSubject) agentLabel else "Agent result"),
+                com.ai.ui.shared.titleBarLabel(mode, "Agent result", agentLabel)),
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmRemove = true },

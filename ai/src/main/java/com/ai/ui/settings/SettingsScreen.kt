@@ -626,15 +626,15 @@ private fun SettingsMainScreen(
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
-    var subjectToTitleBar by remember { mutableStateOf(generalSettings.subjectToTitleBar) }
+    var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
     var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar, iconBarAtBottom, showKnowledgeCard) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, showKnowledgeCard) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-            showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+            showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
             iconBarAtBottom = iconBarAtBottom,
             showKnowledgeCard = showKnowledgeCard
         )
@@ -657,7 +657,7 @@ private fun SettingsMainScreen(
             val updated = generalSettings.copy(
                 userName = userName, defaultEmail = defaultEmail,
                 tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-                showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+                showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
                 iconBarAtBottom = iconBarAtBottom,
                 showKnowledgeCard = showKnowledgeCard
             )
@@ -724,13 +724,34 @@ private fun SettingsMainScreen(
             // fixed title plus a green subject sub-header (Model
             // Info, Trace detail, Knowledge base, Translation run, …)
             // fold the subject into the title bar and drop the green
-            // line. Drives LocalSubjectToTitleBar.
-            ToggleSettingCard(
-                title = "Subject to title bar",
-                description = "Detail screens normally show a fixed title plus a green page-subject line below it. Turn this on to fold the subject into the title bar and hide the green line — saves a row of vertical space at the cost of long subjects truncating.",
-                checked = subjectToTitleBar,
-                onCheckedChange = { subjectToTitleBar = it }
-            )
+            // line. Drives LocalSubjectToTitleBarMode.
+            // Tri-state: HARDCODED keeps the legacy two-row layout
+            // (fixed label + green subject line below). SUBJECT folds
+            // the subject into the bar and hides the green line. BOTH
+            // shows "<fixed> / <subject>" in the bar and hides the
+            // green line. Drives LocalSubjectToTitleBarMode.
+            SettingCard(
+                "Subject to title bar",
+                "Detail screens have a fixed label and a dynamic subject. Pick which one (or both) goes in the title bar."
+            ) {
+                Column {
+                    RadioRow(
+                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED,
+                        label = "Hardcoded screen title",
+                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED }
+                    )
+                    RadioRow(
+                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT,
+                        label = "Dynamic subject name",
+                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT }
+                    )
+                    RadioRow(
+                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH,
+                        label = "Both",
+                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.BOTH }
+                    )
+                }
+            }
 
             // Move every TitleBar action icon (Home / Help / Trace /
             // Delete / Info / Reload / Chat / Memo + the back arrow)

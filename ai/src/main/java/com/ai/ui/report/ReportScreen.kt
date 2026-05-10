@@ -1693,20 +1693,18 @@ fun ReportsScreen(
     }
 
     // Main UI
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Static page title in the menu bar by default; the dynamic
         // prompt title surfaces as a green sub-header inside the body.
-        // When subject-to-title-bar is on AND we're in the results
-        // phase AND a prompt title exists, the prompt title takes the
-        // bar slot and the green line drops out below.
+        // SUBJECT folds the prompt title into the bar; BOTH puts both
+        // ("AI Report / <prompt title>") in the bar; HARDCODED keeps
+        // just the static label and shows the green line below.
         val barTitle = run {
             val promptTitle = uiState.genericPromptTitle
-            val base = when {
-                !isGenerating -> "AI Report — Models"
-                foldSubject && promptTitle.isNotBlank() -> promptTitle
-                else -> "AI Report"
-            }
+            val base = if (!isGenerating) "AI Report — Models"
+                else com.ai.ui.shared.titleBarLabel(mode, "AI Report", promptTitle)
             // Prepend the resolved icon emoji once kickOffIconGeneration
             // finishes — visible on the result-screen title bar so the
             // user sees the same icon they'll see in the hub / history

@@ -342,13 +342,14 @@ fun ProviderModelSettingsScreen(
         if (modelSource != ModelSource.MANUAL) { manualInput = ""; editingOriginal = null }
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "models_per_provider",
-            title = if (foldSubject) service.id else "Models",
+            title = com.ai.ui.shared.titleBarLabel(mode, "Models", service.id),
             onBackClick = onBack
         )
         if (!foldSubject) {
@@ -837,13 +838,14 @@ fun ProviderSettingsScreen(
         return
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "provider_edit",
-            title = if (foldSubject) service.id else "Provider",
+            title = com.ai.ui.shared.titleBarLabel(mode, "Provider", service.id),
             onBackClick = onBackToSettings,
             onInfo = { onNavigateToHelpTopic(com.ai.ui.admin.providerHelpTopicId(service.id)) }
         )

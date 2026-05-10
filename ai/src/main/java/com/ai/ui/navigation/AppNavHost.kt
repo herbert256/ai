@@ -179,7 +179,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
         com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton,
-        com.ai.ui.shared.LocalSubjectToTitleBar provides rootUiStateForLayout.generalSettings.subjectToTitleBar,
+        com.ai.ui.shared.LocalSubjectToTitleBarMode provides rootUiStateForLayout.generalSettings.subjectToTitleBarMode,
         com.ai.ui.shared.LocalIconBarAtBottom provides iconBarAtBottom,
         com.ai.ui.shared.LocalBottomIconState provides
             if (iconBarAtBottom) bottomBarIconState else null,

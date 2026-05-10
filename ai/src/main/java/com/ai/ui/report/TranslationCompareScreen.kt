@@ -40,11 +40,12 @@ internal fun TranslationCompareScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "translation_compare",
-            title = if (foldSubject) title else "Translation compare",
+            title = com.ai.ui.shared.titleBarLabel(mode, "Translation compare", title),
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )

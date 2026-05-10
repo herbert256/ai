@@ -159,17 +159,15 @@ fun AgentEditScreen(
         }
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "agent_edit",
-            title = when {
-                !isEditing -> "Add Agent"
-                foldSubject && name.isNotBlank() -> name
-                else -> "Edit Agent"
-            },
+            title = if (!isEditing) "Add Agent"
+                else com.ai.ui.shared.titleBarLabel(mode, "Edit Agent", name),
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(16.dp))

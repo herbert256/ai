@@ -122,10 +122,11 @@ internal fun TranslationCallDetailScreen(
             val translationProviderService = com.ai.data.AppService.findById(result.providerId)
             val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
             val traceEnabled = ApiTracer.isTracingEnabled && translationTraceFilename != null
-            val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+            val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+            val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
             TitleBar(
                 helpTopic = "translation_call",
-                title = if (foldSubject) titleLang else "Translation call",
+                title = com.ai.ui.shared.titleBarLabel(mode, "Translation call", titleLang),
                 onBackClick = onBack,
                 onTrace = if (traceEnabled) { { onNavigateToTraceFile(translationTraceFilename!!) } } else null,
                 onInfo = if (translationProviderService != null && result.model.isNotBlank()) {

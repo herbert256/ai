@@ -107,17 +107,15 @@ fun FlockEditScreen(
             onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val mode = com.ai.ui.shared.LocalSubjectToTitleBarMode.current
+    val foldSubject = mode != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "flock_edit",
-            title = when {
-                !isEditing -> "Add Flock"
-                foldSubject && name.isNotBlank() -> name
-                else -> "Edit Flock"
-            },
+            title = if (!isEditing) "Add Flock"
+                else com.ai.ui.shared.titleBarLabel(mode, "Edit Flock", name),
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))
