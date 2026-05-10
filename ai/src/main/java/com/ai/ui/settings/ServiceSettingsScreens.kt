@@ -861,9 +861,16 @@ fun ProviderSettingsScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
             // State toggle
+            var showStateHelp by remember { mutableStateOf(false) }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
+                    Text(
+                        text = "❓", fontSize = 14.sp, color = AppColors.Blue,
+                        modifier = Modifier
+                            .padding(end = 12.dp)
+                            .clickable { showStateHelp = true }
+                    )
                     Switch(
                         checked = isInactive,
                         onCheckedChange = { inactive ->
@@ -898,6 +905,24 @@ fun ProviderSettingsScreen(
                     )
                 }
             }
+            if (showStateHelp) {
+                AlertDialog(
+                    onDismissRequest = { showStateHelp = false },
+                    title = { Text("Provider state") },
+                    text = {
+                        Text(
+                            "Each provider lives in one of four states surfaced as the emoji on its row in AI Setup → Providers: " +
+                                "🔑 ok (a working API key has been tested), ❌ error (the last test failed; the trace icon links to the captured request/response), " +
+                                "💤 inactive (the user explicitly turned it off — calls and pickers skip this provider), or ⭕ not-used (no key set yet). " +
+                                "Flipping the toggle to ON kicks off an activation flow: a model-list fetch followed by a test call against the picked Default " +
+                                "Model. Both must pass before the state goes 🔑 and a default agent is auto-created (and added to the 'default agents' Flock); " +
+                                "either failure leaves the provider in ❌. Flipping OFF goes straight to 💤 — no network call. Pickers, the Refresh All sweep, " +
+                                "and the active-only filter on the Providers screen all read this state."
+                        )
+                    },
+                    confirmButton = { TextButton(onClick = { showStateHelp = false }) { Text("OK") } }
+                )
+            }
 
             // API Key card — credential, then Models / Default Model
             // rows, then Test. Putting the catalog + bound-model rows
@@ -909,7 +934,7 @@ fun ProviderSettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         Text(
-                            text = "❓", fontSize = 22.sp, color = AppColors.Blue,
+                            text = "❓", fontSize = 14.sp, color = AppColors.Blue,
                             modifier = Modifier.clickable { showApiKeyHelp = true }
                         )
                     }

@@ -547,7 +547,7 @@ fun CollapsibleCard(
                 }
                 if (helpText != null) {
                     Text(
-                        text = "❓", fontSize = 22.sp, color = AppColors.Blue,
+                        text = "❓", fontSize = 14.sp, color = AppColors.Blue,
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .clickable { showHelp = true }
