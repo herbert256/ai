@@ -1493,8 +1493,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPrompt: com.ai.model.InternalPrompt,
         pick: Pair<AppService, String>,
         activeProviderId: String,
-        activeModel: String,
-        category: String
+        activeModel: String
     ): Job? {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return scope.launch(Dispatchers.IO) {
@@ -1531,50 +1530,43 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
                         .sortedBy { it.timestamp }
 
-                    val needResponders = category == "initiator" || category == "model"
-                    val needPairs = category == "requester" || category == "model"
+                    // The unified fan-in-model template can use both
+                    // @RESPONDERS@ and @RESPONDER_PAIRS@; resolve both
+                    // unconditionally and let the prompt body opt in
+                    // by reference.
 
                     // @RESPONDERS@: rows where the active model is the
                     // SOURCE (others responded TO active's report). One
                     // row per other answerer; bucket and pick the
                     // freshest non-errored row per (other-provider,
                     // other-model, source-agent) triple.
-                    val responders: List<String> = if (needResponders) {
-                        fanOutRows
-                            .filter { it.fanOutSourceAgentId in activeAgentIds }
-                            .groupBy { "${it.providerId}|${it.model}" }
-                            .values
-                            .mapNotNull { bucket -> bucket.lastOrNull()?.content?.trim()?.takeIf { it.isNotBlank() } }
-                    } else emptyList()
+                    val responders: List<String> = fanOutRows
+                        .filter { it.fanOutSourceAgentId in activeAgentIds }
+                        .groupBy { "${it.providerId}|${it.model}" }
+                        .values
+                        .mapNotNull { bucket -> bucket.lastOrNull()?.content?.trim()?.takeIf { it.isNotBlank() } }
 
                     // @RESPONDER_PAIRS@: rows where the active model is
                     // the ANSWERER (active responded to others). Each
                     // pair = (other's report response, active's fan-out
                     // response). Bucket by source agent.
-                    val responderPairs: List<Pair<String, String>> = if (needPairs) {
-                        fanOutRows
-                            .filter { it.providerId == activeProviderId && it.model == activeModel }
-                            .groupBy { it.fanOutSourceAgentId.orEmpty() }
-                            .mapNotNull { (srcAgentId, bucket) ->
-                                if (srcAgentId.isBlank()) return@mapNotNull null
-                                val source = report.agents.firstOrNull { it.agentId == srcAgentId } ?: return@mapNotNull null
-                                val srcBody = source.responseBody?.trim().orEmpty()
-                                val resp = bucket.lastOrNull()?.content?.trim().orEmpty()
-                                if (srcBody.isBlank() || resp.isBlank()) null else srcBody to resp
-                            }
-                    } else emptyList()
+                    val responderPairs: List<Pair<String, String>> = fanOutRows
+                        .filter { it.providerId == activeProviderId && it.model == activeModel }
+                        .groupBy { it.fanOutSourceAgentId.orEmpty() }
+                        .mapNotNull { (srcAgentId, bucket) ->
+                            if (srcAgentId.isBlank()) return@mapNotNull null
+                            val source = report.agents.firstOrNull { it.agentId == srcAgentId } ?: return@mapNotNull null
+                            val srcBody = source.responseBody?.trim().orEmpty()
+                            val resp = bucket.lastOrNull()?.content?.trim().orEmpty()
+                            if (srcBody.isBlank() || resp.isBlank()) null else srcBody to resp
+                        }
 
                     val (provider, model) = pick
 
                     // Bail with an error placeholder when there's
                     // nothing to combine — same shape as the legacy
                     // fan_in does for empty fan-out states.
-                    val nothingToCombine = when (category) {
-                        "initiator" -> responders.isEmpty()
-                        "requester" -> responderPairs.isEmpty()
-                        "model" -> responders.isEmpty() && responderPairs.isEmpty()
-                        else -> true
-                    }
+                    val nothingToCombine = responders.isEmpty() && responderPairs.isEmpty()
                     if (nothingToCombine) {
                         val agentName = "${provider.id} / $model"
                         val placeholder = SecondaryResultStorage.create(

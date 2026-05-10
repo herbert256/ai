@@ -353,8 +353,7 @@ fun InternalPromptsHubScreen(
         // count badge shows so the user can see at a glance how many
         // templates total live in the sub-hub.
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
-            countByCategory("initiator") + countByCategory("requester") +
-            countByCategory("model")
+            countByCategory("fan-in-model")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
@@ -398,12 +397,8 @@ fun FanInOutPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("fan_out") })
             ModelsSetupNavCard("🪢", "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
                 onClick = { onOpenInternalPrompts("fan_in") })
-            ModelsSetupNavCard("🎬", "Fan in, model, Initiator", "Per-model initiator template (category initiator)", "${countByCategory("initiator")}",
-                onClick = { onOpenInternalPrompts("initiator") })
-            ModelsSetupNavCard("💬", "Fan in, model, Responder", "Per-model responder template (category requester)", "${countByCategory("requester")}",
-                onClick = { onOpenInternalPrompts("requester") })
-            ModelsSetupNavCard("🧬", "Fan in, model, Initiator & Responder", "Combined initiator + responder template (category model)", "${countByCategory("model")}",
-                onClick = { onOpenInternalPrompts("model") })
+            ModelsSetupNavCard("🧬", "Fan In, model", "Per-model fan-in template (category fan-in-model) — both @RESPONDERS@ and @RESPONDER_PAIRS@ placeholders available", "${countByCategory("fan-in-model")}",
+                onClick = { onOpenInternalPrompts("fan-in-model") })
         }
     }
 }

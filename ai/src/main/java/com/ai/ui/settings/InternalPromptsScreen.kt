@@ -20,8 +20,7 @@ import com.ai.ui.shared.*
  *  resolves the model to run on through its own picker, not via
  *  [Settings.agents]. */
 private val FAN_CATEGORIES = setOf(
-    "fan_out", "fan_in",
-    "initiator", "requester", "model"
+    "fan_out", "fan_in", "fan-in-model"
 )
 
 /** Sentinel meaning the run-time picker should ask the user which
@@ -41,9 +40,7 @@ fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
-    "initiator" -> "Fan in, model, Initiator prompts"
-    "requester" -> "Fan in, model, Responder prompts"
-    "model" -> "Fan in, model, Initiator & Responder prompts"
+    "fan-in-model" -> "Fan In, model"
     "internal" -> "Other internal prompts"
     else -> category
 }
@@ -246,9 +243,7 @@ fun InternalPromptEditScreen(
                 when (fixedCategory) {
                     "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
                     "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
-                    "initiator" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (the other models' fan-out responses to the active model — same `***Response***` layout as fan-out), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
-                    "requester" -> "Placeholders: @RESPONDER_PAIRS@ (pairs where the active model is the responder — each pair `***Report*** {other's report}\\n\\n***Response*** {active's fan-out response}`), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
-                    "model" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
+                    "fan-in-model" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
                     else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                 },
                 fontSize = 11.sp, color = AppColors.TextTertiary

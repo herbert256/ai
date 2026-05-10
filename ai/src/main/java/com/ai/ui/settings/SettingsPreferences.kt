@@ -92,7 +92,14 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
-            internalPrompts = loadList(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType),
+            // Migrate legacy category="model" → "fan-in-model" so users
+            // who hand-curated Fan In templates under the old name keep
+            // their content after the three-way category collapse.
+            // Idempotent — runs every load, no-ops once persisted prefs
+            // are clean (next save flushes the migrated list back).
+            internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { p ->
+                if (p.category == "model") p.copy(category = "fan-in-model") else p
+            },
             examplePrompts = loadList(KEY_AI_EXAMPLE_PROMPTS, TypeTokens.listExamplePromptType),
             endpoints = loadEndpoints(),
             providerStates = loadMap(KEY_PROVIDER_STATES),

@@ -47,20 +47,15 @@ internal fun SecondaryResultsScreen(
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    /** Per-model fan-in prompt lists driving the three sub-buttons
-     *  inside the "Create a model fan in report" expandable on L2.
-     *  Each is the user's internalPrompts filtered to its category
-     *  (initiator / requester / model). */
-    fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** Per-model fan-in prompt list driving the L2 "New Fan In"
+     *  button. Filtered to category="fan-in-model". */
+    fanInModelPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     onRunFanIn: (() -> Unit)? = null,
-    /** Open the prompt picker filtered to a specific model-fan-in
-     *  category, scoped to the L2 active model. Wired by the three
-     *  sub-buttons inside the "Create a model fan in report"
-     *  expandable on L2. */
-    onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
+    /** Open the per-model fan-in prompt picker scoped to the L2
+     *  active (provider, model). Wired by the L2 "New Fan In"
+     *  button. */
+    onRunModelFanIn: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Wired by the "Create Report" button next to
      *  "Switch role" on the L2 header. */
@@ -339,13 +334,11 @@ internal fun SecondaryResultsScreen(
                 results = fanOutRowsAll,
                 combinedRows = fanInRows,
                 fanInPrompts = fanInPrompts,
-                fanInIPrompts = fanInIPrompts,
-                fanInRPrompts = fanInRPrompts,
-                fanInMPrompts = fanInMPrompts,
+                fanInModelPrompts = fanInModelPrompts,
                 fanOutPrompt = fanOutPrompt,
                 runningFanOutPairs = runningFanOutPairs,
                 onRunFanIn = onRunFanIn,
-                onRunModelFanInForCategory = onRunModelFanInForCategory,
+                onRunModelFanIn = onRunModelFanIn,
                 onCreateReportFromFanOut = onCreateReportFromFanOut,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },
@@ -517,17 +510,13 @@ private fun ColumnScope.FanOutDrillInView(
     results: List<SecondaryResult>,
     combinedRows: List<SecondaryResult> = emptyList(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    /** Per-model fan-in prompt lists driving the three sub-buttons
-     *  inside the "Create a model fan in report" expandable on L2.
-     *  Each is the internalPrompts filtered to its category
-     *  (initiator / requester / model). */
-    fanInIPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    fanInRPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    fanInMPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** Per-model fan-in prompt list driving the L2 "New Fan In"
+     *  button. Filtered to category="fan-in-model". */
+    fanInModelPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     runningFanOutPairs: Set<String> = emptySet(),
     onRunFanIn: (() -> Unit)? = null,
-    onRunModelFanInForCategory: ((activeProviderId: String, activeModel: String, category: String) -> Unit)? = null,
+    onRunModelFanIn: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. */
     onCreateReportFromFanOut: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
@@ -1008,7 +997,7 @@ private fun ColumnScope.FanOutDrillInView(
                 .padding(top = 4.dp)
                 .modelInfoClickable(activeProviderService, activeMdl)
         )
-        // Second line: Role + Switch role button
+        // Row 1: role label + Switch role button.
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 4.dp)) {
             Text("Role: $selectedRole", fontSize = 12.sp, color = AppColors.TextSecondary,
@@ -1019,21 +1008,35 @@ private fun ColumnScope.FanOutDrillInView(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            // Promote the L2 conversation into a fresh AI Report.
-            // Disabled when active model has no fan-out rows where it
-            // is the source — those rows become the new report's
-            // agents, so without them there's nothing to copy.
-            val hasInitiatorRows = remember(latestByPair, activeAgentIds) {
-                latestByPair.values.any { it.fanOutSourceAgentId in activeAgentIds }
-            }
-            Spacer(modifier = Modifier.width(6.dp))
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        // Row 2: Create Report + New Fan In on their own row, equal weight.
+        // Disabled when the L2 active model has no fan-out rows where
+        // it is the source — those rows become the new report's
+        // agents (Create Report) or the responder set the fan-in
+        // template walks over (New Fan In), so without them there's
+        // nothing to feed in.
+        val hasInitiatorRows = remember(latestByPair, activeAgentIds) {
+            latestByPair.values.any { it.fanOutSourceAgentId in activeAgentIds }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             Button(
                 onClick = { onCreateReportFromFanOut?.invoke(activePid, activeMdl) },
                 enabled = onCreateReportFromFanOut != null && hasInitiatorRows,
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier.heightIn(min = 32.dp)
+                modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { onRunModelFanIn?.invoke(activePid, activeMdl) },
+                enabled = onRunModelFanIn != null && fanInModelPrompts.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+            ) { Text("New Fan In", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
         // Per-model total cost across the per-pair rows. Memoised so
@@ -1043,56 +1046,6 @@ private fun ColumnScope.FanOutDrillInView(
         // total visually belongs to the rows it sums.
         val totalCost = remember(l2Rows) {
             l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
-        }
-
-        // "Create a model fan in report" — produces a per-model
-        // fan-in row scoped to this L2's active (provider, model)
-        // pair. Tapping the button toggles a row of three role-tagged
-        // sub-buttons; each opens the existing prompt picker filtered
-        // to its category and runs through ReportViewModel
-        // .runModelFanInPrompt. Resulting rows carry scopeProviderId /
-        // scopeModel so they surface here (top of L2 list) and also
-        // on the main result page's secondary-runs section.
-        val anyModelFanIn = fanInIPrompts.isNotEmpty() || fanInRPrompts.isNotEmpty() || fanInMPrompts.isNotEmpty()
-        if (anyModelFanIn && onRunModelFanInForCategory != null) {
-            var rolesExpanded by remember { mutableStateOf(false) }
-            Button(
-                onClick = { rolesExpanded = !rolesExpanded },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) {
-                Text(
-                    if (rolesExpanded) "Create a model fan in report ▾" else "Create a model fan in report ▸",
-                    fontSize = 13.sp, maxLines = 1, softWrap = false
-                )
-            }
-            if (rolesExpanded) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "initiator") },
-                        enabled = fanInIPrompts.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Initiator role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                    OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "requester") },
-                        enabled = fanInRPrompts.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Responder role", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                    OutlinedButton(
-                        onClick = { onRunModelFanInForCategory(activePid, activeMdl, "model") },
-                        enabled = fanInMPrompts.isNotEmpty(),
-                        modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Init. & Resp.", fontSize = 11.sp, maxLines = 1, softWrap = false) }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
         // Model-scoped fan-in rows for THIS L2 active model. Filtered

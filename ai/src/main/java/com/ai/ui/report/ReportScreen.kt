@@ -112,8 +112,8 @@ fun ReportsScreenNav(
         onRunFanIn = { reportId, metaPrompt, pick ->
             reportViewModel.runFanInPrompt(scope, context, reportId, metaPrompt, pick)
         },
-        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, cat ->
-            reportViewModel.runModelFanInPrompt(scope, context, reportId, metaPrompt, pick, activePid, activeMdl, cat)
+        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl ->
+            reportViewModel.runModelFanInPrompt(scope, context, reportId, metaPrompt, pick, activePid, activeMdl)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -305,9 +305,8 @@ fun ReportsScreen(
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
-     *  model, active provider id (the L2 page's), active model name,
-     *  category (initiator / requester / model). */
-    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String) -> Unit = { _, _, _, _, _, _ -> },
+     *  model, active provider id (the L2 page's), active model name. */
+    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String) -> Unit = { _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
@@ -592,7 +591,6 @@ fun ReportsScreen(
     // they're stored here so the picker → model picker chain can
     // reach all the way to ReportViewModel.runModelFanInPrompt
     // without re-deriving them.
-    var modelFanInPickerCategory by remember { mutableStateOf<String?>(null) }
     var modelFanInActivePid by remember { mutableStateOf<String?>(null) }
     var modelFanInActiveMdl by remember { mutableStateOf<String?>(null) }
     var modelFanInPickerPrompt by remember { mutableStateOf<com.ai.model.InternalPrompt?>(null) }
@@ -1057,49 +1055,33 @@ fun ReportsScreen(
         return
     }
 
-    // Model-scoped fan-in flow (categories initiator / requester /
-    // model). Triggered from L2's "Create a model fan in report"
-    // expandable. Two-step picker chain mirroring the legacy fan-in
-    // path — first pick a prompt from the active category, then
-    // pick the model the run will fire on. After model confirm we
-    // call the model-scoped runner and pop back so the L2 page's
-    // polling tick surfaces the placeholder row at the top.
-    val modelFanInCat = modelFanInPickerCategory
+    // Model-scoped fan-in flow (single fan-in-model category).
+    // Triggered from L2's "New Fan In" button. Two-step picker
+    // chain mirroring the legacy fan-in path — first pick a prompt
+    // from the fan-in-model bucket, then pick the model the run
+    // will fire on. After model confirm we call the model-scoped
+    // runner and pop back so the L2 page's polling tick surfaces
+    // the placeholder row at the top.
     val modelFanInPicker = modelFanInPickerPrompt
-    if (modelFanInCat != null && modelFanInPicker == null && currentReportId != null) {
-        val list = when (modelFanInCat) {
-            "initiator" -> aiSettings.internalPrompts.filter { it.category == "initiator" }
-            "requester" -> aiSettings.internalPrompts.filter { it.category == "requester" }
-            "model" -> aiSettings.internalPrompts.filter { it.category == "model" }
-            else -> emptyList()
-        }
-        val titleText = when (modelFanInCat) {
-            "initiator" -> "Pick an Initiator-role prompt"
-            "requester" -> "Pick a Responder-role prompt"
-            "model" -> "Pick an Initiator & Responder prompt"
-            else -> "Pick a prompt"
-        }
+    if (modelFanInPicker == null && modelFanInActivePid != null && modelFanInActiveMdl != null && currentReportId != null) {
+        val list = aiSettings.internalPrompts.filter { it.category == "fan-in-model" }
         CompositionLocalProvider(LocalNavigateToCurrentReport provides {
-            modelFanInPickerCategory = null
             modelFanInActivePid = null
             modelFanInActiveMdl = null
         }) {
             ReportSelectInternalPromptScreen(
-                titleText = titleText,
-                category = modelFanInCat,
+                titleText = "Pick a Fan In, model prompt",
+                category = "fan-in-model",
                 prompts = list,
                 onSelectPrompt = { modelFanInPickerPrompt = it },
                 onBack = {
-                    modelFanInPickerCategory = null
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                 },
                 onEditPrompts = {
-                    val cat = modelFanInCat
-                    modelFanInPickerCategory = null
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
-                    onNavigateToInternalPromptsByCategory(cat)
+                    onNavigateToInternalPromptsByCategory("fan-in-model")
                 }
             )
         }
@@ -1107,14 +1089,11 @@ fun ReportsScreen(
     }
     if (modelFanInPicker != null && currentReportId != null
         && modelFanInActivePid != null && modelFanInActiveMdl != null
-        && modelFanInCat != null
     ) {
         val rid = currentReportId
         val activePid = modelFanInActivePid!!
         val activeMdl = modelFanInActiveMdl!!
-        val cat = modelFanInCat
         CompositionLocalProvider(LocalNavigateToCurrentReport provides {
-            modelFanInPickerCategory = null
             modelFanInActivePid = null
             modelFanInActiveMdl = null
             modelFanInPickerPrompt = null
@@ -1124,14 +1103,12 @@ fun ReportsScreen(
                 titleText = "${modelFanInPicker.name} — pick model",
                 modelTypeFilter = null,
                 onConfirm = { pick ->
-                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, cat)
-                    modelFanInPickerCategory = null
+                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl)
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
                 },
                 onBack = {
-                    modelFanInPickerCategory = null
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
@@ -1256,12 +1233,10 @@ fun ReportsScreen(
     if (openListKind != null && currentReportId != null) {
         val rid = currentReportId
         val fanInList = aiSettings.internalPrompts.filter { it.category == "fan_in" }
-        // Per-model fan-in lists driving the L2 "Create a model fan
-        // in report" sub-buttons. Same internalPrompts source, just
-        // filtered by the per-role categories.
-        val fanInIList = aiSettings.internalPrompts.filter { it.category == "initiator" }
-        val fanInRList = aiSettings.internalPrompts.filter { it.category == "requester" }
-        val fanInMList = aiSettings.internalPrompts.filter { it.category == "model" }
+        // Per-model fan-in list driving the L2 "New Fan In" button.
+        // Same internalPrompts source, filtered to the single
+        // fan-in-model category.
+        val fanInModelList = aiSettings.internalPrompts.filter { it.category == "fan-in-model" }
         val fanOutPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
             aiSettings.internalPrompts.firstOrNull {
                 it.category == "fan_out" && it.name == listFilterByName
@@ -1297,9 +1272,7 @@ fun ReportsScreen(
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
             fanInPrompts = fanInList,
-            fanInIPrompts = fanInIList,
-            fanInRPrompts = fanInRList,
-            fanInMPrompts = fanInMList,
+            fanInModelPrompts = fanInModelList,
             fanOutPrompt = fanOutPrompt,
             onRunFanIn = if (fanInList.isNotEmpty()) {
                 {
@@ -1307,20 +1280,13 @@ fun ReportsScreen(
                     else showFanInPromptPicker = true
                 }
             } else null,
-            onRunModelFanInForCategory = { activePid, activeMdl, cat ->
+            onRunModelFanIn = { activePid, activeMdl ->
                 modelFanInActivePid = activePid
                 modelFanInActiveMdl = activeMdl
-                modelFanInPickerCategory = cat
-                val list = when (cat) {
-                    "initiator" -> fanInIList
-                    "requester" -> fanInRList
-                    "model" -> fanInMList
-                    else -> emptyList()
-                }
-                // Auto-pick when exactly one prompt exists for the
-                // category (skips the picker step, mirroring the
-                // legacy fan_in single-prompt behaviour).
-                if (list.size == 1) modelFanInPickerPrompt = list.first()
+                // Auto-pick when exactly one prompt exists (skips the
+                // picker step, mirroring the legacy fan_in
+                // single-prompt behaviour).
+                if (fanInModelList.size == 1) modelFanInPickerPrompt = fanInModelList.first()
             },
             onCreateReportFromFanOut = { activePid, activeMdl ->
                 // Drop the L1/L2 overlay state before the parent flips
