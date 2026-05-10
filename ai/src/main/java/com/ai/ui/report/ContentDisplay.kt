@@ -195,7 +195,9 @@ private fun ReportsViewerScreenLoaded(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
-            TitleBar(helpTopic = sectionHelpTopic, title = title, onBackClick = onDismiss,
+            TitleBar(helpTopic = sectionHelpTopic,
+                title = com.ai.ui.shared.reportIconTitle(report, title),
+                onBackClick = onDismiss,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
@@ -272,7 +274,9 @@ private fun ReportsViewerScreenLoaded(
         // the active model. ℹ on the title bar opens Model Info for
         // the selected agent's model.
         TitleBar(
-            helpTopic = "content_view", title = "Model response", onBackClick = onDismiss,
+            helpTopic = "content_view",
+            title = com.ai.ui.shared.reportIconTitle(report, "Model response"),
+            onBackClick = onDismiss,
             onTrace = if (ApiTracer.isTracingEnabled && headerTraceFilename != null) {
                 { onNavigateToTraceFile(headerTraceFilename) }
             } else null,
@@ -415,7 +419,8 @@ private fun OnePageReportView(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "content_view",
-            title = if (foldSubject) titleText else "View in one page",
+            title = com.ai.ui.shared.reportIconTitle(report,
+                if (foldSubject) titleText else "View in one page"),
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )

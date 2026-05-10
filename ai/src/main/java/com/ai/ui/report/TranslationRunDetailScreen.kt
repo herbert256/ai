@@ -175,11 +175,17 @@ internal fun TranslationRunDetailScreen(
 
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
     val targetLang = first?.targetLanguage
+    // Pull the parent report just for its emoji icon — same pattern
+    // as the SecondaryResultDetailScreen.
+    val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && translationTraceCount > 0
         TitleBar(
             helpTopic = "translation_run",
-            title = if (foldSubject && !targetLang.isNullOrBlank()) targetLang else "Translation run",
+            title = com.ai.ui.shared.reportIconTitle(parentReport,
+                if (foldSubject && !targetLang.isNullOrBlank()) targetLang else "Translation run"),
             onBackClick = onBack,
             // 🔄 combines "restart failed" + "start missing" — fires
             // a fresh API call for any errored row plus any expected

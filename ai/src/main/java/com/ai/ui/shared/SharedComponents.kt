@@ -125,6 +125,15 @@ val LocalIconBarAtBottom = compositionLocalOf { false }
  *  short-circuits the publish path. */
 val LocalBottomIconState = compositionLocalOf<MutableState<TitleBarIcons?>?> { null }
 
+/** Prepend the report's resolved emoji to the given title, separated
+ *  by a space. Used by every screen that's scoped to a single report
+ *  so the report's icon shows in the title bar (View flow, per-result
+ *  screen, secondary results, Meta, Translate compare / detail, etc.).
+ *  Returns the title unchanged when [report] is null or its icon is
+ *  empty — so legacy reports without an icon still render cleanly. */
+fun reportIconTitle(report: com.ai.data.Report?, title: String): String =
+    report?.icon?.takeIf { it.isNotBlank() }?.let { "$it $title" } ?: title
+
 /** Captured icon state from a TitleBar — what BottomIconBar needs to
  *  render the same strip the top bar would have rendered. */
 data class TitleBarIcons(

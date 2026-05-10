@@ -108,8 +108,13 @@ internal fun ReportMetaScreen(
         return
     }
 
+    val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "report_meta", title = "Meta", onBackClick = onBack)
+        TitleBar(helpTopic = "report_meta",
+            title = com.ai.ui.shared.reportIconTitle(parentReport, "Meta"),
+            onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (results.isEmpty()) {

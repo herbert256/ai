@@ -123,6 +123,12 @@ internal fun SecondaryResultsScreen(
             SecondaryResultStorage.listForReport(context, reportId, kind = null)
         }
     }
+    // Parent report — needed only for its emoji icon, prepended to
+    // every TitleBar in this screen for parity with the other
+    // report-scoped screens.
+    val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
+    }
     val results = remember(allRows, kind, nameFilter) {
         val sameKind = allRows.filter { it.kind == kind }
         if (nameFilter == null) sameKind
@@ -255,7 +261,8 @@ internal fun SecondaryResultsScreen(
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
             TitleBar(
                 helpTopic = "secondary_list",
-                title = if (foldSubject) baseTitle else "Secondary results",
+                title = com.ai.ui.shared.reportIconTitle(parentReport,
+                    if (foldSubject) baseTitle else "Secondary results"),
                 onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
@@ -791,7 +798,7 @@ private fun ColumnScope.FanOutDrillInView(
         val srcTrace = srcTraceState.value
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = "Fan out - pair",
+            title = com.ai.ui.shared.reportIconTitle(report, "Fan out - pair"),
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
@@ -976,7 +983,7 @@ private fun ColumnScope.FanOutDrillInView(
         val l2Trace = activeModelTrace
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = "Fan out - model",
+            title = com.ai.ui.shared.reportIconTitle(report, "Fan out - model"),
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -1321,7 +1328,7 @@ private fun ColumnScope.FanOutDrillInView(
     // without losing the screen identity.
     TitleBar(
         helpTopic = "secondary_fan_out",
-        title = "Fan out",
+        title = com.ai.ui.shared.reportIconTitle(report, "Fan out"),
         onBackClick = onBack,
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
@@ -1719,9 +1726,13 @@ private fun OnePageView(
     onNavigateToTraceFile: (String) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     val provName = AppService.findById(activePid)?.id ?: activePid
     val activeProviderService = AppService.findById(activePid)
     val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBar.current
+    val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
+    }
 
     // Flatten into a stable item list driven by role. Source bodies
     // appear once per source agent so the multi-agent Initiator view
@@ -1794,7 +1805,8 @@ private fun OnePageView(
         // model, mirroring the L2 page's TitleBar slot.
         TitleBar(
             helpTopic = "secondary_fan_out",
-            title = if (foldSubject) modelLabel else "One page view",
+            title = com.ai.ui.shared.reportIconTitle(parentReport,
+                if (foldSubject) modelLabel else "One page view"),
             onBackClick = onBack,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
@@ -1947,6 +1959,13 @@ internal fun SecondaryResultDetailScreen(
     }
     val traceFilename = traceFilenameState.value
 
+    // Pull the parent report just for its emoji icon — the title bar
+    // prepends it for parity with every other report-scoped screen.
+    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
+    }
+    val parentReport = parentReportState.value
+
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
     // names instead of the bracketed [N] ids.
@@ -2002,7 +2021,8 @@ internal fun SecondaryResultDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
             helpTopic = "secondary_detail",
-            title = if (foldSubject) title else "Secondary detail",
+            title = com.ai.ui.shared.reportIconTitle(parentReport,
+                if (foldSubject) title else "Secondary detail"),
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
