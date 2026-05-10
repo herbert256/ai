@@ -798,7 +798,7 @@ private fun ColumnScope.FanOutDrillInView(
         }
         val srcTrace = srcTraceState.value
         TitleBar(
-            helpTopic = "secondary_fan_out",
+            helpTopic = "secondary_fan_out_l3",
             title = "Fan out - pair",
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
@@ -984,7 +984,7 @@ private fun ColumnScope.FanOutDrillInView(
         // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
         TitleBar(
-            helpTopic = "secondary_fan_out",
+            helpTopic = "secondary_fan_out_l2",
             title = "Fan out - model",
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { selectedModelKey = null },
@@ -1330,7 +1330,7 @@ private fun ColumnScope.FanOutDrillInView(
     // so the user can tell which Fan out prompt this run came from
     // without losing the screen identity.
     TitleBar(
-        helpTopic = "secondary_fan_out",
+        helpTopic = "secondary_fan_out_l1",
         title = "Fan out",
         reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
         onBackClick = onBack,
@@ -1808,7 +1808,7 @@ private fun OnePageView(
         // "Close" button needed). ℹ → Model Info for the active
         // model, mirroring the L2 page's TitleBar slot.
         TitleBar(
-            helpTopic = "secondary_fan_out",
+            helpTopic = "secondary_fan_out_onepage",
             title = "One page view",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = modelLabel,

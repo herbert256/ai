@@ -640,13 +640,12 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "secondary_list" to HelpContent(
         title = "Secondary results — list",
         cards = listOf(
-            HelpCard("Overview", "Lists every persisted secondary of one kind (Rerank / Meta / Moderation; Translate has its own per-run screen). Same screen serves all kinds — title is the user-given Meta-prompt name (or the legacy kind label for older rows)."),
-            HelpCard("Polling", "While at least one batch is in flight (isBatching), the list re-reads disk every 500 ms so newly-stamped placeholders flip from ⏳ to ✅/❌ without leaving the screen."),
+            HelpCard("Overview", "Lists every persisted secondary of one kind (Rerank / Meta / Moderation). Translate has its own per-run screen; Fan-out has its own drilldown. The bar reads the user-given Meta-prompt name (or the legacy kind label for older rows)."),
+            HelpCard("Polling", "While at least one batch is in flight, the list re-reads disk every 500 ms so newly-stamped placeholders flip from ⏳ to ✅/❌ without leaving the screen."),
             HelpCard("Language picker", "For chat-type META, when the report has TRANSLATE rows a row of language pills appears: Original plus one per distinct targetLanguage. Selecting a non-Original language overlays translated bodies onto the matching original rows."),
-            HelpCard("Fan out drill-in", "Fan-out prompts paint 'Fan out / Fan out - model / Fan out - pair' as the user steps in. L1 lists every (answerer, source) pair, L2 lists sources for one answerer with a Responder/Initiator role toggle, L3 splits a single source/fan-out response side-by-side. System back steps out one level at a time."),
             HelpCard("Meta picker view", "Chat-type META renders a FlowRow of buttons (one per result, labelled by provider · model) plus the selected result inline — mirror of the Reports viewer."),
             HelpCard("Per-row 🗑", "Each row has its own confirm dialog. Title-bar 🗑 is grayed because deletion is per-row here."),
-            HelpCard("Per-row tap", "Opens SecondaryResultDetailScreen. Drilling into the same row after popping back is preserved via rememberSaveable openId."),
+            HelpCard("Per-row tap", "Opens the secondary-result detail screen. Drilling into the same row after popping back is preserved via rememberSaveable openId."),
         )
     ),
     "secondary_detail" to HelpContent(
@@ -663,18 +662,47 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Translation info", "Shown only for META rows that have a translateSourceTargetId resolving to a non-blank source — opens TranslationCompareScreen.")
         )
     ),
-    "secondary_fan_out" to HelpContent(
-        title = "Fan out",
+    "secondary_fan_out_l1" to HelpContent(
+        title = "Fan out — answerers",
         cards = listOf(
-            HelpCard("Overview", "Fan out runs every selected answerer × every source row's content. Each cell is one fan-out response call; the title bar reads 'Fan out / Fan out - model / Fan out - pair' as you drill in."),
-            HelpCard("Fan out (L1)", "List of every (answerer model, status) — derived from latestByPair across all results. Status icons: ✅ done, ❌ errored, ⏳ running, queued. Tap an answerer to drop to L2."),
-            HelpCard("Fan out - model (L2)", "Sources for the chosen answerer (or, if Initiator role is selected, every (answerer, source) where this model is the source). Tap a source row → L3."),
-            HelpCard("Fan out - pair (L3)", "Single cell — source content on top, fan-out response underneath. Per-row 🐞 links to its own captured trace."),
+            HelpCard("Overview", "Top of the fan-out drilldown. Lists every answerer model on this fan-out run with its current status. Tap an answerer to step into its sources at L2."),
+            HelpCard("Status icons", "Per-row: ✅ all pairs done, ❌ at least one errored, ⏳ at least one running, queued = no row on disk yet. Derived from latestByPair across all results."),
             HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningFanOutPairs is re-enqueued via onResumeStaleFanOut — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
-            HelpCard("Per-model delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so L1 reflects the gap on pop-back."),
+            HelpCard("Per-answerer delete", "Drops every cell where this answerer participated. Fan-out list refresh tick bumps so the L1 list reflects the gap on pop-back."),
             HelpCard("Pitfalls", "Cell count is N×(N-1) for an N-agent run; cost grows fast. Watch the Action row's cost summary before pressing Restart on large grids.")
+        )
+    ),
+    "secondary_fan_out_l2" to HelpContent(
+        title = "Fan out — model",
+        cards = listOf(
+            HelpCard("Overview", "Per-answerer drilldown. Shows the sources fed into the chosen answerer (or, in Initiator role, every pair where this model was the source). Tap a source row → L3 pair detail."),
+            HelpCard("Role toggle", "Responder = the active model received others' sources (default). Initiator = the active model's report fed into others. The role chip swaps the row list between the two views."),
+            HelpCard("Title bar — ℹ", "Opens Model Info for the active (provider, model) pair."),
+            HelpCard("Title bar — 🗑", "Deletes every fan-out cell where this answerer participated. Pops back to L1."),
+            HelpCard("Title bar — 🐞", "When tracing is on and the answerer's own report run was traced (Initiator role only), opens that trace file."),
+            HelpCard("Tap a source", "Opens L3 with the source content on top and the fan-out response underneath."),
+            HelpCard("One page view", "The 'View on one page' button concatenates every (source, response) under the active answerer onto a single scrollable page."),
+        )
+    ),
+    "secondary_fan_out_l3" to HelpContent(
+        title = "Fan out — pair",
+        cards = listOf(
+            HelpCard("Overview", "Single cell view. Source content (the row this answerer was given) is on top; the fan-out response (this answerer's reply to that source) is underneath. Two scrollable panes split half-and-half by default."),
+            HelpCard("Title bar — 🐞", "Opens this fan-out call's captured trace when tracing was on at the time of the call."),
+            HelpCard("Back", "System back / ‹ pops one level up to L2 (per-model)."),
+            HelpCard("Pitfalls", "If the source has been deleted from the report after this fan-out ran, the source pane shows a placeholder; the response stays visible."),
+        )
+    ),
+    "secondary_fan_out_onepage" to HelpContent(
+        title = "Fan out — one page",
+        cards = listOf(
+            HelpCard("Overview", "Concatenates every (source, response) pair under the active answerer onto one page so you can scan the whole drilldown without tapping each cell."),
+            HelpCard("Layout", "Per pair: source label + body, then the fan-out response body. Sources render in the order activeAgents (the row stack visible on L2)."),
+            HelpCard("Initiator role", "When the parent L2 was on Initiator role, the page lists every (answerer, source) where the active model was the source — same shape, opposite direction."),
+            HelpCard("Title bar — ℹ", "Opens Model Info for the active (provider, model) pair."),
+            HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
     "secondary_scope" to HelpContent(
