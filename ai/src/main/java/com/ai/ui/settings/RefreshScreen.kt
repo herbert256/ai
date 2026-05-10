@@ -17,6 +17,7 @@ import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -778,65 +779,67 @@ fun RefreshScreen(
             )
 
             // ===== AI Info Providers group =====
-            // Catalog-source refreshes: the six external metadata feeds
+            // Catalog-source refreshes wrapped in a single collapsible
+            // (collapsed by default) — the six external metadata feeds
             // that drive pricing / capability flags. Independent
             // network fetches with no per-app-provider state, so the
             // group's "All info providers" button runs them in parallel.
-            SectionHeader("AI Info Providers")
-            RefreshAction(
-                label = "All info providers",
-                description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
-                enabled = !isAnyRunning,
-                onClick = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) }
-            )
-            RefreshAction(
-                label = "OpenRouter",
-                description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
-                enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
-                onClick = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
-                helpTopic = "info_provider_openrouter",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "LiteLLM",
-                description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
-                helpTopic = "info_provider_litellm",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "models.dev",
-                description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
-                helpTopic = "info_provider_models_dev",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "Helicone",
-                description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } },
-                helpTopic = "info_provider_helicone",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "llm-prices.com",
-                description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
-                helpTopic = "info_provider_llm_prices",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
-            RefreshAction(
-                label = "Artificial Analysis",
-                description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
-                enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
-                onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
-                helpTopic = "info_provider_artificial_analysis",
-                onNavigateToHelpTopic = onNavigateToHelpTopic
-            )
+            CollapsibleCard("AI Info Providers") {
+                RefreshActionRow(
+                    label = "All info providers",
+                    description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
+                    enabled = !isAnyRunning,
+                    onClick = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) }
+                )
+                RefreshActionRow(
+                    label = "OpenRouter",
+                    description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
+                    enabled = !isAnyRunning && openRouterApiKey.isNotBlank(),
+                    onClick = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
+                    helpTopic = "info_provider_openrouter",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+                RefreshActionRow(
+                    label = "LiteLLM",
+                    description = "Download model_prices_and_context_window.json from BerriAI/litellm — the primary source for pricing and capability flags.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
+                    helpTopic = "info_provider_litellm",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+                RefreshActionRow(
+                    label = "models.dev",
+                    description = "Pull the models.dev community catalog. Acts as a LiteLLM fallback for newer models / -latest aliases LiteLLM hasn't picked up yet.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
+                    helpTopic = "info_provider_models_dev",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+                RefreshActionRow(
+                    label = "Helicone",
+                    description = "Pull Helicone's pricing aggregator (helicone.ai/api/llm-costs). Pricing-only fallback after LiteLLM and models.dev.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Refreshing Helicone") { runHelicone(true) } },
+                    helpTopic = "info_provider_helicone",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+                RefreshActionRow(
+                    label = "llm-prices.com",
+                    description = "Pull Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Refreshing llm-prices.com") { runLLMPrices(true) } },
+                    helpTopic = "info_provider_llm_prices",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+                RefreshActionRow(
+                    label = "Artificial Analysis",
+                    description = "Pull Artificial Analysis (pricing + intelligence_index + output speed). Needs the API key under External Services.",
+                    enabled = !isAnyRunning && artificialAnalysisApiKey.isNotBlank(),
+                    onClick = { launchTask("Refreshing Artificial Analysis") { runArtificialAnalysis(true) } },
+                    helpTopic = "info_provider_artificial_analysis",
+                    onNavigateToHelpTopic = onNavigateToHelpTopic
+                )
+            }
 
             // ===== AI Runtime workers group =====
             // Per-app-provider work that depends on the catalogs above:
@@ -844,47 +847,38 @@ fun RefreshScreen(
             // from /models, and (re)create its default agent. Inactive
             // and unkeyed providers are filtered out at runtime — the
             // popup only ever shows providers that could actually be
-            // tested.
-            SectionHeader("AI Runtime workers")
-            RefreshAction(
-                label = "All runtime workers",
-                description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
-                enabled = !isAnyRunning,
-                onClick = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) }
-            )
-            RefreshAction(
-                label = "Providers",
-                description = "Test the saved API key for every active or errored provider against a small live model call. Inactive / unkeyed providers are skipped. Marks each as ok / error.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Testing Providers") { runProviders(true) } }
-            )
-            RefreshAction(
-                label = "Models",
-                description = "Fetch the latest model list from every active working provider's /models endpoint. Replaces the cached lists used by the model pickers.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Refreshing Models") { runModels(true) } }
-            )
-            RefreshAction(
-                label = "Default agents",
-                description = "Create a default agent per active working provider (using its current default model) and a \"default agents\" flock that includes them.",
-                enabled = !isAnyRunning,
-                onClick = { launchTask("Generating Agents") { runDefaultAgents(true) } }
-            )
+            // tested. Collapsed by default — pop it open to drill in.
+            CollapsibleCard("AI Runtime workers") {
+                RefreshActionRow(
+                    label = "All runtime workers",
+                    description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
+                    enabled = !isAnyRunning,
+                    onClick = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) }
+                )
+                RefreshActionRow(
+                    label = "Providers",
+                    description = "Test the saved API key for every active or errored provider against a small live model call. Inactive / unkeyed providers are skipped. Marks each as ok / error.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Testing Providers") { runProviders(true) } }
+                )
+                RefreshActionRow(
+                    label = "Models",
+                    description = "Fetch the latest model list from every active working provider's /models endpoint. Replaces the cached lists used by the model pickers.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Refreshing Models") { runModels(true) } }
+                )
+                RefreshActionRow(
+                    label = "Default agents",
+                    description = "Create a default agent per active working provider (using its current default model) and a \"default agents\" flock that includes them.",
+                    enabled = !isAnyRunning,
+                    onClick = { launchTask("Generating Agents") { runDefaultAgents(true) } }
+                )
+            }
 
         }
     }
 }
 
-@Composable
-private fun SectionHeader(text: String) {
-    Text(
-        text = text,
-        fontSize = 13.sp,
-        color = AppColors.TextSecondary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 8.dp)
-    )
-}
 
 @Composable
 private fun RefreshAction(
@@ -900,22 +894,40 @@ private fun RefreshAction(
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = onClick,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-                if (helpTopic != null) {
-                    IconButton(onClick = { onNavigateToHelpTopic(helpTopic) }, modifier = Modifier.size(28.dp)) {
-                        Text("ℹ️", fontSize = 14.sp)
-                    }
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            RefreshActionRow(label, description, enabled, onClick, helpTopic, onNavigateToHelpTopic)
+        }
+    }
+}
+
+/** Card-less variant of [RefreshAction] used inside the AI Info
+ *  Providers / AI Runtime workers collapsibles — those wrap their
+ *  own outer Card, so dropping the per-action Card wrapper avoids
+ *  the cards-within-a-card look. */
+@Composable
+private fun RefreshActionRow(
+    label: String,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    helpTopic: String? = null,
+    onNavigateToHelpTopic: (String) -> Unit = {}
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
+            if (helpTopic != null) {
+                IconButton(onClick = { onNavigateToHelpTopic(helpTopic) }, modifier = Modifier.size(28.dp)) {
+                    Text("ℹ️", fontSize = 14.sp)
                 }
             }
         }
