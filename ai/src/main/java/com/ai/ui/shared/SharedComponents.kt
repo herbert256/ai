@@ -418,10 +418,19 @@ private fun TitleBarActionStrip(
      *  16dp minimum) so the strip looks compact instead of airy at
      *  the larger 1.5× icon scale. The glyph itself still scales —
      *  only the surrounding tap-target slop is reduced. */
-    compactSpacing: Boolean = false
+    compactSpacing: Boolean = false,
+    /** Extra horizontal gap inserted between every adjacent icon —
+     *  on top of the per-pair Spacers already coded into the strip.
+     *  Default 0.dp keeps the dense top-bar layout; the bottom-bar
+     *  uses ~6dp so the icons read as separate tap targets instead
+     *  of one chunk. */
+    extraSpacing: Dp = 0.dp
 ) {
     fun w(slot: Dp): Dp = if (compactSpacing) (slot - 6.dp).coerceAtLeast(16.dp) else slot
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(extraSpacing)
+    ) {
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
         // 🔄 sits immediately to the left of 🗑 — the reload-vs-
@@ -509,22 +518,22 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHelp = LocalNavigateToHelp.current
     val navigateToCurrentReport = LocalNavigateToCurrentReport.current
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 2.dp),
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Left side: back-arrow icon when the active TitleBar passed
-        // an onBackClick. Sized noticeably larger than the right-strip
-        // glyphs (2× vs 1.5×) so it reads as the primary navigation
-        // affordance from peripheral vision.
+        // an onBackClick. Bigger than the right-strip glyphs (2.5×
+        // vs 1.5×) so it reads as the primary navigation affordance
+        // from peripheral vision.
         val onBack = icons?.onBack
         if (onBack != null) {
-            TitleBarIcon("←", Color.White, onBack, width = 28.dp, scale = 2.0f)
+            TitleBarIcon("←", Color.White, onBack, width = 36.dp, scale = 2.5f)
         }
         Spacer(modifier = Modifier.weight(1f))
         // Right side: same TitleBarActionStrip the top bar would
         // render, with the same Home / Help wiring and per-icon
-        // null-check rules. compactSpacing = false so the slots
-        // stay roomy and adjacent icons don't read as one chunk.
+        // null-check rules. extraSpacing = 6.dp pushes icons apart
+        // so adjacent glyphs don't read as one chunk.
         TitleBarActionStrip(
             onHome = navigateHome,
             onReload = icons?.onReload,
@@ -535,7 +544,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             onHelp = { navigateHelp(icons?.helpTopic) },
             onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
             scale = 1.5f,
-            compactSpacing = false
+            compactSpacing = false,
+            extraSpacing = 6.dp
         )
     }
 }
