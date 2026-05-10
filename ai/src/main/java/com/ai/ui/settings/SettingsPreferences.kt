@@ -63,6 +63,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             modelNameLayout = modelNameLayout,
             showBackButton = prefs.getBoolean(KEY_SHOW_BACK_BUTTON, true),
             subjectToTitleBar = prefs.getBoolean(KEY_SUBJECT_TO_TITLE_BAR, false),
+            iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, false),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false)
         )
     }
@@ -79,6 +80,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
             putBoolean(KEY_SHOW_BACK_BUTTON, settings.showBackButton)
             putBoolean(KEY_SUBJECT_TO_TITLE_BAR, settings.subjectToTitleBar)
+            putBoolean(KEY_ICON_BAR_AT_BOTTOM, settings.iconBarAtBottom)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
         }
     }
@@ -421,6 +423,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_SHOW_BACK_BUTTON = "show_back_button"
         private const val KEY_SUBJECT_TO_TITLE_BAR = "subject_to_title_bar"
+        private const val KEY_ICON_BAR_AT_BOTTOM = "icon_bar_at_bottom"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"

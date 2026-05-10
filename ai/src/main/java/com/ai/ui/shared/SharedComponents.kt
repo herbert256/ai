@@ -108,6 +108,37 @@ val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
  *  takes the user back to the active report's result page. */
 val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
 
+/** When true, every TitleBar renders only its title (no back arrow,
+ *  no action icons) and publishes its icon callbacks to
+ *  [LocalBottomIconState]; the single [BottomIconBar] composable at
+ *  AppNavHost scope reads from that and renders the same action strip
+ *  pinned to the screen bottom. Default false keeps the legacy
+ *  icons-on-top-right layout. Driven by GeneralSettings.iconBarAtBottom. */
+val LocalIconBarAtBottom = compositionLocalOf { false }
+
+/** Snapshot of the icons the *currently composed* TitleBar would paint
+ *  on its right. TitleBar fills this via SideEffect on every
+ *  recomposition when bottom-bar mode is on; clears it via
+ *  DisposableEffect on screen exit. The single [BottomIconBar] at
+ *  AppNavHost scope reads from this so the same per-screen visibility
+ *  rules carry through. Null when bottom-bar mode is off — TitleBar
+ *  short-circuits the publish path. */
+val LocalBottomIconState = compositionLocalOf<MutableState<TitleBarIcons?>?> { null }
+
+/** Captured icon state from a TitleBar — what BottomIconBar needs to
+ *  render the same strip the top bar would have rendered. */
+data class TitleBarIcons(
+    val helpTopic: String?,
+    val onBack: (() -> Unit)?,
+    val backText: String,
+    val onChat: (() -> Unit)?,
+    val onInfo: (() -> Unit)?,
+    val onReload: (() -> Unit)?,
+    val onDelete: (() -> Unit)?,
+    val onTrace: (() -> Unit)?,
+    val showMemo: Boolean
+)
+
 /** Make a model-name Text clickable so tapping it opens the Model
  *  Info screen for [providerService] / [model]. No-op when the
  *  provider can't be resolved or the model is blank. Stack on top
@@ -256,6 +287,48 @@ fun TitleBar(
                 text = "AI", fontSize = 36.sp, color = Color.White, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable { navigateHome() }
             )
+        }
+    } else if (LocalIconBarAtBottom.current) {
+        // Bottom-bar mode: top bar renders only the title text. Every
+        // icon (and the back arrow) gets published into
+        // LocalBottomIconState so the global BottomIconBar paints them.
+        // SideEffect on every recomposition keeps the published state
+        // fresh; DisposableEffect clears it on screen exit (with an
+        // identity check so a racing nav transition doesn't clobber
+        // the next screen's just-published state).
+        val state = LocalBottomIconState.current
+        val showMemo = LocalNavigateToCurrentReport.current != null
+        val captured = TitleBarIcons(
+            helpTopic = helpTopic,
+            onBack = onBackClick,
+            backText = backText,
+            onChat = onChat,
+            onInfo = onInfo,
+            onReload = onReload,
+            onDelete = onDelete,
+            onTrace = onTrace,
+            showMemo = showMemo
+        )
+        if (state != null) {
+            SideEffect { state.value = captured }
+            DisposableEffect(Unit) {
+                onDispose { if (state.value === captured) state.value = null }
+            }
+        }
+        // Bare top bar: just the title, left-aligned.
+        val titleStyle = MaterialTheme.typography.titleLarge
+        Row(
+            modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (title != null) {
+                Text(
+                    text = title, style = titleStyle, color = Color.White,
+                    fontSize = titleStyle.fontSize * 1.25f,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
     } else {
         val showBackButton = LocalShowBackButton.current
@@ -420,6 +493,58 @@ private fun TitleBarIcon(
             text = emoji, fontSize = 16.sp * scale,
             color = if (tint == Color.Unspecified) Color.White else tint
         )
+    }
+}
+
+/** Fixed-position bottom bar that mirrors the active TitleBar's
+ *  action icons + back arrow. Always present (every nav destination,
+ *  every screen) when GeneralSettings.iconBarAtBottom is on; the
+ *  AppNavHost renders one instance and feeds it the icons published
+ *  by whichever TitleBar is currently composed. Falls back to a
+ *  dim "no icons" bar during the brief sub-frame between two
+ *  screens' nav transitions. */
+@Composable
+fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
+    val navigateHome = LocalNavigateHome.current
+    val navigateHelp = LocalNavigateToHelp.current
+    val navigateToCurrentReport = LocalNavigateToCurrentReport.current
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left side: back arrow when the active TitleBar passed an
+            // onBackClick. Stays compact at 1× to avoid eating
+            // horizontal room from the right-aligned strip.
+            val onBack = icons?.onBack
+            if (onBack != null) {
+                TextButton(onClick = onBack) {
+                    Text(icons.backText, color = Color.White, fontSize = 16.sp,
+                        maxLines = 1, softWrap = false)
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            // Right side: same TitleBarActionStrip the top bar would
+            // render, with the same Home / Help wiring and per-icon
+            // null-check rules. onMemo is non-null only when the active
+            // screen is "deeper" than the report-result page.
+            TitleBarActionStrip(
+                onHome = navigateHome,
+                onReload = icons?.onReload,
+                onChat = icons?.onChat,
+                onInfo = icons?.onInfo,
+                onDelete = icons?.onDelete,
+                onTrace = icons?.onTrace,
+                onHelp = { navigateHelp(icons?.helpTopic) },
+                onMemo = if (icons?.showMemo == true) navigateToCurrentReport else null,
+                scale = 1.5f,
+                compactSpacing = true
+            )
+        }
     }
 }
 

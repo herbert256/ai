@@ -63,6 +63,13 @@ data class GeneralSettings(
      *  title bar and drops the green line. Default false preserves
      *  the legacy two-row layout. Provided via LocalSubjectToTitleBar. */
     val subjectToTitleBar: Boolean = false,
+    /** When true, every TitleBar's action icons (Home / Help / Trace /
+     *  Delete / Info / Reload / Chat / Memo + the back arrow) move into
+     *  a fixed bar at the bottom of the screen and the top bar shows
+     *  only the screen title. Default false keeps the legacy
+     *  icons-on-top-right layout. The bar lives at AppNavHost scope so
+     *  it survives nav transitions and is always visible. */
+    val iconBarAtBottom: Boolean = false,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub

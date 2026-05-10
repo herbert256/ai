@@ -627,13 +627,15 @@ private fun SettingsMainScreen(
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
     var subjectToTitleBar by remember { mutableStateOf(generalSettings.subjectToTitleBar) }
+    var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar, showKnowledgeCard) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBar, iconBarAtBottom, showKnowledgeCard) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
             showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+            iconBarAtBottom = iconBarAtBottom,
             showKnowledgeCard = showKnowledgeCard
         )
         if (updated != generalSettings) {
@@ -656,6 +658,7 @@ private fun SettingsMainScreen(
                 userName = userName, defaultEmail = defaultEmail,
                 tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
                 showBackButton = showBackButton, subjectToTitleBar = subjectToTitleBar,
+                iconBarAtBottom = iconBarAtBottom,
                 showKnowledgeCard = showKnowledgeCard
             )
             if (updated != generalSettings) onSave(updated)
@@ -727,6 +730,19 @@ private fun SettingsMainScreen(
                 description = "Detail screens normally show a fixed title plus a green page-subject line below it. Turn this on to fold the subject into the title bar and hide the green line — saves a row of vertical space at the cost of long subjects truncating.",
                 checked = subjectToTitleBar,
                 onCheckedChange = { subjectToTitleBar = it }
+            )
+
+            // Move every TitleBar action icon (Home / Help / Trace /
+            // Delete / Info / Reload / Chat / Memo + the back arrow)
+            // into a fixed bar at the bottom of the screen. The top
+            // bar then shows only the screen title. Drives
+            // LocalIconBarAtBottom; the bar lives at AppNavHost scope
+            // so it survives nav transitions.
+            ToggleSettingCard(
+                title = "Icon bar at bottom",
+                description = "Move every action icon (Home / Help / Trace / Delete / Info / Reload / Chat / Memo) and the back arrow into a fixed bar at the bottom of the screen. The top bar then shows only the screen title.",
+                checked = iconBarAtBottom,
+                onCheckedChange = { iconBarAtBottom = it }
             )
 
             // When off, the visible "< Back" button disappears from

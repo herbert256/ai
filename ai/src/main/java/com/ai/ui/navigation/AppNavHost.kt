@@ -1,5 +1,7 @@
 package com.ai.ui.navigation
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -168,15 +170,27 @@ fun AppNavHost(
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
     }
+    val iconBarAtBottom = rootUiStateForLayout.generalSettings.iconBarAtBottom
+    val bottomBarIconState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<com.ai.ui.shared.TitleBarIcons?>(null)
+    }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
         com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton,
         com.ai.ui.shared.LocalSubjectToTitleBar provides rootUiStateForLayout.generalSettings.subjectToTitleBar,
+        com.ai.ui.shared.LocalIconBarAtBottom provides iconBarAtBottom,
+        com.ai.ui.shared.LocalBottomIconState provides
+            if (iconBarAtBottom) bottomBarIconState else null,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp
     ) {
-    NavHost(navController = navController, startDestination = NavRoutes.AI, modifier = modifier) {
+    Column(modifier = Modifier.fillMaxSize()) {
+    NavHost(
+        navController = navController,
+        startDestination = NavRoutes.AI,
+        modifier = if (iconBarAtBottom) Modifier.weight(1f) else modifier
+    ) {
 
         // ===== Hub =====
         composable(NavRoutes.AI) {
@@ -1025,6 +1039,10 @@ fun AppNavHost(
                 onNavigateToTraceDetail = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
     }
+    if (iconBarAtBottom) {
+        com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
+    }
+    } // end Column
     } // end CompositionLocalProvider
 }
 
