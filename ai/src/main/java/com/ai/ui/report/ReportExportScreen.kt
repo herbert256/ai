@@ -31,7 +31,7 @@ import kotlinx.coroutines.launch
 fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportCostsScope, ReportExportAction, (Int, Int) -> Unit) -> Unit,
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit,
     onExportAll: suspend ((Int, Int) -> Unit) -> Unit
 ) {
     BackHandler { onBack() }
@@ -39,7 +39,6 @@ fun ReportExportScreen(
     val scope = rememberCoroutineScope()
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
     var detail by rememberSaveable { mutableStateOf(ReportExportDetail.COMPLETE) }
-    var costsScope by rememberSaveable { mutableStateOf(ReportExportCostsScope.ALL) }
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     progress?.let { (done, total) ->
@@ -110,47 +109,15 @@ fun ReportExportScreen(
                     }
                 }
             }
-
-            // Costs picker — only meaningful for HTML / Complete (the
-            // other formats either skip costs entirely (Short) or
-            // render a fixed legacy single table (PDF / DOCX / ODT)).
-            // Mirrors the in-app View → Costs page: Types ⇒ "By type"
-            // summary only, Models ⇒ "By model" summary only, All ⇒
-            // both summaries plus the per-call detail table.
-            if (format == ReportExportFormat.HTML && detail == ReportExportDetail.COMPLETE) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Costs", fontWeight = FontWeight.Bold, color = Color.White)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            ReportExportCostsScope.entries.forEach { c ->
-                                FilterChip(
-                                    selected = costsScope == c,
-                                    onClick = { costsScope = c },
-                                    label = { Text(c.displayName) }
-                                )
-                            }
-                        }
-                        Text(
-                            when (costsScope) {
-                                ReportExportCostsScope.TYPES -> "Only the \"By type\" summary table — one row per kind (report / fan-out / fan-in / rerank / moderation / translate / etc.)."
-                                ReportExportCostsScope.MODELS -> "Only the \"By model\" summary table — one row per (provider, model)."
-                                ReportExportCostsScope.ALL -> "Both summaries plus the full per-call detail table — same shape as the in-app View → Costs page."
-                            },
-                            fontSize = 12.sp, color = AppColors.TextTertiary
-                        )
-                    }
-                }
-            }
         }
 
         fun runExport(action: ReportExportAction) {
             val pickedFormat = format
             val pickedDetail = detail
-            val pickedCostsScope = costsScope
             scope.launch {
                 progress = 0 to 1
                 try {
-                    onExport(pickedFormat, pickedDetail, pickedCostsScope, action) { d, t -> progress = d to t }
+                    onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
                     progress = null
                     // For SHARE the share sheet itself is the user's last action so we
                     // collapse this screen away. For VIEW the file just opened in the

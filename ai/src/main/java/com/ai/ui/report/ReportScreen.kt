@@ -183,8 +183,8 @@ fun ReportsScreenNav(
         onCopyReport = { rid -> reportViewModel.copyReport(context, rid, scope) },
         onTogglePinReport = { rid -> reportViewModel.toggleReportPinned(context, rid, scope) },
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
-        onExport = { rid, fmt, det, costsScope, act, onProgress ->
-            shareReportAsExport(context, rid, fmt, det, costsScope, act, uiState.aiSettings, viewModel.repository, onProgress)
+        onExport = { rid, fmt, det, act, onProgress ->
+            shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress)
         },
         onExportAll = { rid, onProgress ->
             bulkExportAndShare(context, rid, onProgress)
@@ -327,7 +327,7 @@ fun ReportsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
-    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportCostsScope, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> },
     onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
@@ -1411,7 +1411,7 @@ fun ReportsScreen(
             ReportExportScreen(
                 onBack = { showExport = false },
                 onNavigateHome = onNavigateHome,
-                onExport = { fmt, det, costsScope, act, onProgress -> onExport(rid, fmt, det, costsScope, act, onProgress) },
+                onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
                 onExportAll = { onProgress -> onExportAll(rid, onProgress) }
             )
         }

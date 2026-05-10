@@ -40,17 +40,6 @@ enum class ReportExportFormat(val displayName: String) {
 enum class ReportExportDetail { SHORT, COMPLETE }
 enum class ReportExportAction { SHARE, VIEW }
 
-/** Which cost sections to render in the HTML / PDF Costs view.
- *  Mirrors the three sections the in-app View → Costs page shows:
- *  - TYPES — only the "By type" summary table.
- *  - MODELS — only the "By model" summary table.
- *  - ALL — both summaries plus the per-call "All calls" table. */
-enum class ReportExportCostsScope(val displayName: String) {
-    TYPES("Types"),
-    MODELS("Models"),
-    ALL("All")
-}
-
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
@@ -70,7 +59,6 @@ suspend fun shareReportAsExport(
     reportId: String,
     format: ReportExportFormat,
     detail: ReportExportDetail,
-    costsScope: ReportExportCostsScope,
     action: ReportExportAction,
     @Suppress("UNUSED_PARAMETER") aiSettings: Settings,
     @Suppress("UNUSED_PARAMETER") repository: AnalysisRepository,
@@ -110,7 +98,7 @@ suspend fun shareReportAsExport(
     onProgress(0, 1)
     val html = when (detail) {
         ReportExportDetail.SHORT -> buildShortHtml(context, report)
-        ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersion(context), costsScope)
+        ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersion(context))
     }
     onProgress(1, 1)
 
