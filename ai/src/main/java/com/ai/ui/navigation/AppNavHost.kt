@@ -12,6 +12,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
@@ -1040,7 +1041,14 @@ fun AppNavHost(
         }
     }
     if (iconBarAtBottom) {
-        com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
+        // Hide the bar on the home Hub — that screen has no TitleBar
+        // (it's the centered "AI" logo) so the bar would just show
+        // the bare Home + Help fallback. The Hub already routes home /
+        // help via its own card list; no need for a duplicate strip.
+        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+        if (currentRoute != NavRoutes.AI) {
+            com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
+        }
     }
     } // end Column
     } // end CompositionLocalProvider
