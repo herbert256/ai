@@ -70,7 +70,16 @@ data class Report(
     /** User-pinned flag. Pinned reports surface as their own group
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */
-    var pinned: Boolean = false
+    var pinned: Boolean = false,
+    /** Sum of input + output cost (USD) for every row deleted from
+     *  this report — agent rows, secondary results, fan-out pairs,
+     *  fan-in rows, translations, etc. Bumped on every delete by the
+     *  callers that own the deletion path; surfaced as a dedicated
+     *  "Costs from deleted items" line on the result page just above
+     *  the total when non-zero. Lets the user see what the API
+     *  actually billed for the run even after they've trimmed the
+     *  visible rows. */
+    var costsFromDeletedItems: Double = 0.0
 )
 
 /**
@@ -350,20 +359,39 @@ object ReportStorage {
     }
 
     /** Drop a single ReportAgent row from the report, recompute totalCost,
-     *  and persist. Used by the per-model viewer's "Remove model from
-     *  report" button so the user can prune dud responses without
-     *  rebuilding the whole report. Returns false when the report or
-     *  agent isn't found. */
+     *  and persist. The deleted row's cost (if any) is added to
+     *  [Report.costsFromDeletedItems] so the result page can still
+     *  show the API spend for the run after the row is gone. Used by
+     *  the per-model viewer's "Remove model from report" button so
+     *  the user can prune dud responses without rebuilding the whole
+     *  report. Returns false when the report or agent isn't found. */
     fun removeAgent(context: Context, reportId: String, agentId: String): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
-            report.agents.removeAt(idx)
+            val removed = report.agents.removeAt(idx)
+            removed.cost?.takeIf { it > 0.0 }?.let {
+                report.costsFromDeletedItems += it
+            }
             report.totalCost = report.agents.mapNotNull { it.cost }.sum()
             saveReport(report)
             true
+        }
+    }
+
+    /** Bump [Report.costsFromDeletedItems] by [deltaUsd] for [reportId]
+     *  and persist. Called by the secondary-result + translation delete
+     *  paths so cost stays accounted for after the row disappears.
+     *  Negative or zero deltas are ignored; missing reports no-op. */
+    fun bumpCostsFromDeletedItems(context: Context, reportId: String, deltaUsd: Double) {
+        if (deltaUsd <= 0.0) return
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            report.costsFromDeletedItems += deltaUsd
+            saveReport(report)
         }
     }
 
@@ -463,7 +491,8 @@ object ReportStorage {
                 // output than the original. `pinned` intentionally stays
                 // at the default false: a copy shouldn't inherit pin
                 // status, that's a fresh user choice on the new entry.
-                knowledgeBaseIds = src.knowledgeBaseIds
+                knowledgeBaseIds = src.knowledgeBaseIds,
+                costsFromDeletedItems = src.costsFromDeletedItems
             )
             saveReport(copy)
             newId

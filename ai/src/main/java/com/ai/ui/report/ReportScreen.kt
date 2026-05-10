@@ -386,6 +386,11 @@ fun ReportsScreen(
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
+    // Carried straight from Report.costsFromDeletedItems on disk —
+    // bumped by every user-initiated delete on this report (rows,
+    // fan-out pairs, secondaries, translations). Surfaces as its own
+    // line above the Total footer when non-zero.
+    var costsFromDeletedItems by remember { mutableStateOf(0.0) }
     // Bumped from every overlay-driven delete so the parent screen's
     // counts / row list re-read from disk on the way back. Without
     // this the LaunchedEffect below has no reason to refire (the user
@@ -422,7 +427,11 @@ fun ReportsScreen(
             translationRunSummaries = emptyList()
             fanOutSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
+            costsFromDeletedItems = 0.0
             return@LaunchedEffect
+        }
+        costsFromDeletedItems = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, rid)?.costsFromDeletedItems ?: 0.0
         }
         suspend fun reload() {
             withContext(Dispatchers.IO) {
@@ -716,7 +725,14 @@ fun ReportsScreen(
                 onNavigateHome = onNavigateHome,
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onRemoveAgent = onRemoveAgent,
+                onRemoveAgent = { rid, aid ->
+                    onRemoveAgent(rid, aid)
+                    // Refire the totals LaunchedEffect so the
+                    // freshly-bumped Report.costsFromDeletedItems
+                    // appears on the result page without waiting
+                    // for some other state change.
+                    secondaryRefreshTick++
+                },
                 onRegenerateAgent = onRegenerateAgent,
                 onContinueWithCurrent = onContinueWithCurrent,
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
@@ -1745,6 +1761,7 @@ fun ReportsScreen(
                 onOpenFanOutPicker = { showFanOutPicker = true },
                 onOpenRerankPicker = { showRerankPicker = true },
                 secondaryCounts = secondaryCounts,
+                costsFromDeletedItems = costsFromDeletedItems,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
                 translationRuns = translationRuns,
@@ -1947,6 +1964,10 @@ private fun ColumnScope.GenerationPhase(
     onOpenFanOutPicker: () -> Unit = {},
     onOpenRerankPicker: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
+    /** Sum of costs the user dropped from this report via Delete actions
+     *  on agents / secondaries / fan-out pairs / translations. Surfaces
+     *  as a dedicated row above the Total footer when non-zero. */
+    costsFromDeletedItems: Double = 0.0,
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
@@ -2131,7 +2152,8 @@ private fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost + liveTranslationCost
+    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
+        liveTranslationCost + costsFromDeletedItems
 
     // Totals — sums tokens and cents across the per-agent rows, every
     // persisted meta run (rerank / summarize / compare / moderation /
@@ -2470,6 +2492,31 @@ private fun ColumnScope.GenerationPhase(
                 // its title bar.
             }
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        }
+
+        // Above the total: surfaces cost the user dropped from the
+        // report via Delete actions. Hidden when zero. Sits just
+        // above the Total footer so the user's eye lands on
+        // (deleted) → (total) in reading order.
+        if (costsFromDeletedItems > 0.0) {
+            item(key = "footer-deleted-costs") {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🗑", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    RowTypeCell("deleted")
+                    Text(
+                        "Costs from deleted items",
+                        fontSize = 13.sp, color = AppColors.TextSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        formatCents(costsFromDeletedItems),
+                        fontSize = 10.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
         }
 
         // Footer total row — visually matches the agent rows above:

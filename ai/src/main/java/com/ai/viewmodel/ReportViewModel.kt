@@ -1332,7 +1332,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
             .map { it.agentId }
             .toSet()
-        SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+        val toDelete = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter {
                 it.metaPromptId == metaPromptId &&
                     it.fanOutSourceAgentId != null &&
@@ -1342,7 +1342,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             (it.fanOutSourceAgentId in matchingAgentIds)
                     )
             }
-            .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        val costDelta = toDelete.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        toDelete.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
 
@@ -2037,7 +2039,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
+        // Read the row's cost BEFORE deleting so we can carry it
+        // into the report's costsFromDeletedItems tally. The user
+        // dropped the row from the report; the API spend is real
+        // and should still surface on the result page.
+        val cost = SecondaryResultStorage.get(context, reportId, resultId)?.let {
+            (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
+        } ?: 0.0
         SecondaryResultStorage.delete(context, reportId, resultId)
+        if (cost > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, cost)
         // Bump the parent report's timestamp — removing a meta /
         // translation row is a real change to what the report contains
         // and should sort the report to the top of History, same as an
@@ -2052,9 +2062,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  during a Fan-out delete. Returns once the sweep finishes. */
     fun bulkDeleteSecondaryResults(context: Context, reportId: String, resultIds: List<String>, onComplete: () -> Unit = {}) {
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            // Snapshot the per-id costs before deleting so we can
+            // bump costsFromDeletedItems with the total.
+            var costDelta = 0.0
             resultIds.forEach { id ->
-                runCatching { SecondaryResultStorage.delete(context, reportId, id) }
+                runCatching {
+                    SecondaryResultStorage.get(context, reportId, id)?.let { r ->
+                        costDelta += (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+                    }
+                    SecondaryResultStorage.delete(context, reportId, id)
+                }
             }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
             withContext(Dispatchers.Main) { onComplete() }
         }
