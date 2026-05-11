@@ -805,9 +805,22 @@ fun AppNavHost(
         composable(NavRoutes.AI_HOUSEKEEPING) {
             val uiState by appViewModel.uiState.collectAsState()
             val hasActiveProvider = uiState.aiSettings.getActiveServices().isNotEmpty()
+            val ctx = LocalContext.current
+            // Recompute on every screen-resume so trimming everything
+            // away (or a fresh restore that left nothing behind) hides
+            // the card the moment the user pops back here.
+            val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+            val hasTrimmable by produceState(initialValue = false, resumeTick) {
+                value = withContext(Dispatchers.IO) {
+                    com.ai.data.ReportStorage.getAllReports(ctx).isNotEmpty() ||
+                        com.ai.data.ChatHistoryManager.getSessionCount() > 0 ||
+                        com.ai.data.ApiTracer.hasAnyTraceFile()
+                }
+            }
             com.ai.ui.admin.HousekeepingScreen(
                 onBackToHome = navigateHome,
                 hasActiveProvider = hasActiveProvider,
+                hasTrimmable = hasTrimmable,
                 onNavigateToBackupRestore = { navController.navigate(NavRoutes.AI_BACKUP_RESTORE) },
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },

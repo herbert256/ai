@@ -26,6 +26,12 @@ fun HousekeepingScreen(
      *  hidden because there's nothing to export. The user can still
      *  Restore / Import to bring data in from another install. */
     hasActiveProvider: Boolean = true,
+    /** True when there's at least one report, chat session, or trace
+     *  file on disk for the Trim flow to delete. Even with an active
+     *  provider, a freshly-installed-then-restored device may have
+     *  nothing to trim until the user actually runs something — the
+     *  Trim card hides itself in that window. */
+    hasTrimmable: Boolean = true,
     onNavigateToBackupRestore: () -> Unit = {},
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
@@ -47,7 +53,7 @@ fun HousekeepingScreen(
                 title = if (hasActiveProvider) "Export & Import" else "Import",
                 onClick = onNavigateToImportExport
             )
-            if (hasActiveProvider) {
+            if (hasActiveProvider && hasTrimmable) {
                 NavCard("Trim by age", onClick = onNavigateToTrimByAge)
             }
             // In-app log viewer — daily-rotating file under filesDir/applog/.
