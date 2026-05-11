@@ -28,9 +28,22 @@ object ChatHistoryManager {
 
     fun saveSession(session: ChatSession): Boolean {
         val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return false }
+        // Defence in depth: imports carry an externally-supplied id.
+        // Internal callers all use UUIDs, but a crafted runtime-import
+        // payload with `id = "../reports/foo"` would otherwise land
+        // outside chat-history/. Reject and canonical-check.
+        if (!isSafeFlatId(session.id)) {
+            AppLog.e("ChatHistory", "Refusing to save session with suspect id ${session.id}")
+            return false
+        }
         return lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
+                val target = File(dir, "${session.id}.json")
+                if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                    AppLog.e("ChatHistory", "Refusing to save session that escapes historyDir: ${session.id}")
+                    return@withLock false
+                }
                 // writeTextAtomic returns false on disk-full / permission /
                 // other I/O failure; previously we ignored that and
                 // returned `true` regardless, so the caller had no way to
@@ -38,7 +51,7 @@ object ChatHistoryManager {
                 // boolean so the chat session UI can warn / retry instead
                 // of pretending the message persisted.
                 val json = gson.toJson(session)
-                val ok = File(dir, "${session.id}.json").writeTextAtomic(json)
+                val ok = target.writeTextAtomic(json)
                 if (ok) {
                     AppLog.v("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
@@ -122,6 +135,10 @@ object ChatHistoryManager {
             count
         }
     }
+
+    private fun isSafeFlatId(id: String): Boolean =
+        id.isNotBlank() && id != "." && id != ".." &&
+            !id.contains('/') && !id.contains('\\')
 
     fun getSessionCount(): Int {
         val dir = historyDir ?: return 0

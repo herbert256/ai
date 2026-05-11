@@ -135,7 +135,20 @@ object SecondaryResultStorage {
 
     private fun reportDir(reportId: String): File? {
         val root = rootDir ?: return null
+        // Defence in depth: the import path persists secondaries
+        // keyed by the embedded reportId. A crafted id ("../prefs/x")
+        // would otherwise mkdirs outside the secondary root. Reject
+        // flat-id violations and canonical containment escapes alike.
+        if (reportId.isBlank() || reportId == "." || reportId == ".."
+                || reportId.contains('/') || reportId.contains('\\')) {
+            AppLog.e("SecondaryResultStorage", "Refusing to resolve report dir for suspect id $reportId")
+            return null
+        }
         val dir = File(root, reportId)
+        if (!dir.canonicalPath.startsWith(root.canonicalPath + File.separator)) {
+            AppLog.e("SecondaryResultStorage", "Refusing to resolve report dir that escapes root: $reportId")
+            return null
+        }
         if (!dir.exists()) dir.mkdirs()
         return dir
     }

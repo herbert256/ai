@@ -304,8 +304,23 @@ object ReportStorage {
     }
 
     private fun saveReport(report: Report) {
-        val ok = File(reportsDir ?: return, "${report.id}.json")
-            .writeTextAtomic(gson.toJson(report))
+        val dir = reportsDir ?: return
+        // Defence in depth: a runtime-import JSON payload can carry a
+        // crafted `id` ("../prefs/foo") that would otherwise escape
+        // reportsDir on write. Every internal caller uses UUIDs; the
+        // import path (ImportExportScreen.applyRuntimeReports) trusts
+        // the embedded id verbatim. Gate write-side too so the rule
+        // can't be bypassed by adding another import call site.
+        if (!isSafeFlatId(report.id)) {
+            AppLog.e("ReportStorage", "Refusing to save report with suspect id ${report.id}")
+            return
+        }
+        val target = File(dir, "${report.id}.json")
+        if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+            AppLog.e("ReportStorage", "Refusing to save report that escapes reportsDir: ${report.id}")
+            return
+        }
+        val ok = target.writeTextAtomic(gson.toJson(report))
         if (!ok) {
             // Surface the failure in logcat — disk-full or permission
             // races would otherwise leave the in-memory state diverged
@@ -314,6 +329,10 @@ object ReportStorage {
             AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
         }
     }
+
+    private fun isSafeFlatId(id: String): Boolean =
+        id.isNotBlank() && id != "." && id != ".." &&
+            !id.contains('/') && !id.contains('\\')
 
     /** Set a report's [Report.timestamp] to the current wall-clock time
      *  and persist. Used when a Rerank/Summarize/Compare batch is
