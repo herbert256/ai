@@ -148,7 +148,6 @@ fun RefreshScreen(
         RefreshAllProgressScreen(
             steps = refreshAllSteps.toList(),
             overallError = refreshAllError,
-            isFinished = refreshAllFinished,
             failedProviders = failedProviders,
             onOpenProvider = { svc ->
                 // Tear down the in-progress overlay before navigating
@@ -160,7 +159,6 @@ fun RefreshScreen(
                 refreshAllError = null
                 onOpenProvider(svc)
             },
-            onRestartNow = { doRestart() },
             onBack = {
                 // Don't allow leaving while work is in flight — keeps
                 // the per-step status reachable for the user.
@@ -169,8 +167,7 @@ fun RefreshScreen(
                     refreshAllSteps.clear()
                     refreshAllError = null
                 }
-            },
-            onNavigateHome = onNavigateHome
+            }
         )
         // Force a restart at completion. The popup overlays the
         // step-results screen — the user can still read which step
@@ -1129,20 +1126,15 @@ private data class RefreshAllStep(
 /** Full-screen progress page used by the Refresh all chain. Lists
  *  every planned step up front with a status icon + sub-detail, so
  *  the user can see what's been done, what's running, and what's
- *  still queued without a modal popup blocking the screen. The
- *  Restart-app step at the bottom is gated on a button at the foot
- *  of the screen so the user can review final results before
- *  killing the process. */
+ *  still queued. On completion the caller overlays a forcing
+ *  RestartAppDialog — no per-screen action buttons here. */
 @Composable
 private fun RefreshAllProgressScreen(
     steps: List<RefreshAllStep>,
     overallError: String?,
-    isFinished: Boolean,
     failedProviders: List<AppService>,
     onOpenProvider: (AppService) -> Unit,
-    onRestartNow: () -> Unit,
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -1223,20 +1215,6 @@ private fun RefreshAllProgressScreen(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = onRestartNow,
-            enabled = isFinished,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text(if (isFinished) "Restart app" else "Working…", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(4.dp))
-        OutlinedButton(
-            onClick = onBack,
-            enabled = isFinished,
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Back without restart", maxLines = 1, softWrap = false) }
     }
 }
 
