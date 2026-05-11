@@ -19,11 +19,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.ChatHistoryManager
+import com.ai.data.ChatSession
 import com.ai.data.PricingCache
 import com.ai.data.ProviderRegistry
+import com.ai.data.Report
+import com.ai.data.ReportStorage
+import com.ai.data.SecondaryResult
+import com.ai.data.SecondaryResultStorage
 import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
@@ -90,6 +97,122 @@ private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResul
     val mergedSwarms = upsert(working.swarms, incomingSwarms) { it.id }
     val updated = working.copy(agents = mergedAgents, flocks = mergedFlocks, swarms = mergedSwarms)
     return WorkerImportResult(updated, incomingAgents.size, incomingFlocks.size, incomingSwarms.size)
+}
+
+/** Runtime-data export bundle: every report + the per-report
+ *  secondary-result rows (rerank / summary / compare / moderate /
+ *  translate). Reports already serialise round-trip via the same
+ *  [createAppGson] used by [ReportStorage.saveReport], so the bundle
+ *  is just a top-level array of those JSON objects plus a sibling map
+ *  keyed by reportId. */
+private fun buildReportsRuntimeBundle(context: Context): JsonObject {
+    val gson = createAppGson()
+    val reports = ReportStorage.getAllReports(context)
+    val reportsArr = gson.toJsonTree(reports).asJsonArray
+    val secondaries = JsonObject().apply {
+        for (r in reports) {
+            val rows = SecondaryResultStorage.listForReport(context, r.id)
+            if (rows.isNotEmpty()) add(r.id, gson.toJsonTree(rows))
+        }
+    }
+    return JsonObject().apply {
+        add("reports", reportsArr)
+        add("secondaries", secondaries)
+    }
+}
+
+/** Runtime-data export bundle: every chat session. Same JSON shape
+ *  [ChatHistoryManager.saveSession] writes per file, just bundled in
+ *  a top-level array. */
+private fun buildChatsRuntimeBundle(): JsonObject {
+    val gson = createAppGson()
+    val sessions = ChatHistoryManager.getAllSessions()
+    return JsonObject().apply {
+        add("chats", gson.toJsonTree(sessions))
+    }
+}
+
+/** Combined runtime bundle — reports + secondaries + chats. The
+ *  importer reads each section independently so old single-section
+ *  exports stay readable. */
+private fun buildAllRuntimeBundle(context: Context): JsonObject {
+    val gson = createAppGson()
+    val reports = ReportStorage.getAllReports(context)
+    val sessions = ChatHistoryManager.getAllSessions()
+    val secondaries = JsonObject().apply {
+        for (r in reports) {
+            val rows = SecondaryResultStorage.listForReport(context, r.id)
+            if (rows.isNotEmpty()) add(r.id, gson.toJsonTree(rows))
+        }
+    }
+    return JsonObject().apply {
+        add("reports", gson.toJsonTree(reports))
+        add("secondaries", secondaries)
+        add("chats", gson.toJsonTree(sessions))
+    }
+}
+
+/** Additive merge: every incoming report whose id is not already on
+ *  disk is persisted; secondaries that travel with it land in
+ *  filesDir/secondary/<reportId>/. Existing reports are NEVER
+ *  overwritten — the user explicitly asked for merge, not replace.
+ *  Returns (addedReports, skippedReports, addedSecondaries). */
+private data class ImportReportsResult(val added: Int, val skipped: Int, val secondaries: Int)
+
+private fun applyRuntimeReports(context: Context, root: JsonObject): ImportReportsResult {
+    val gson = createAppGson()
+    val existingIds = ReportStorage.getAllReports(context).map { it.id }.toSet()
+    var added = 0
+    var skipped = 0
+    var secondariesAdded = 0
+    val reportsArr = root.getAsJsonArray("reports") ?: return ImportReportsResult(0, 0, 0)
+    val secondariesObj = root.getAsJsonObject("secondaries")
+    reportsArr.forEach { el ->
+        val report = try { gson.fromJson(el, Report::class.java) } catch (e: Exception) {
+            AppLog.w("ImportExport", "Skipped runtime report entry: ${e.message}")
+            return@forEach
+        }
+        if (report.id.isBlank()) { skipped++; return@forEach }
+        if (report.id in existingIds) { skipped++; return@forEach }
+        ReportStorage.persistReport(context, report)
+        added++
+        // Per-report secondaries — same additive logic. The parent
+        // report just landed (its id wasn't in existingIds), so any
+        // secondary id is by construction new on this device.
+        val rows = secondariesObj?.getAsJsonArray(report.id) ?: return@forEach
+        rows.forEach { se ->
+            val sr = try { gson.fromJson(se, SecondaryResult::class.java) } catch (e: Exception) {
+                AppLog.w("ImportExport", "Skipped secondary row: ${e.message}")
+                return@forEach
+            }
+            if (sr.id.isBlank() || sr.reportId.isBlank()) return@forEach
+            SecondaryResultStorage.save(context, sr)
+            secondariesAdded++
+        }
+    }
+    return ImportReportsResult(added, skipped, secondariesAdded)
+}
+
+/** Additive merge for chat sessions — same id-based logic. */
+private data class ImportChatsResult(val added: Int, val skipped: Int)
+
+private fun applyRuntimeChats(root: JsonObject): ImportChatsResult {
+    val gson = createAppGson()
+    val existingIds = ChatHistoryManager.getAllSessions().map { it.id }.toSet()
+    var added = 0
+    var skipped = 0
+    val arr = root.getAsJsonArray("chats") ?: return ImportChatsResult(0, 0)
+    arr.forEach { el ->
+        val session = try { gson.fromJson(el, ChatSession::class.java) } catch (e: Exception) {
+            AppLog.w("ImportExport", "Skipped chat session entry: ${e.message}")
+            return@forEach
+        }
+        if (session.id.isBlank()) { skipped++; return@forEach }
+        if (session.id in existingIds) { skipped++; return@forEach }
+        ChatHistoryManager.saveSession(session)
+        added++
+    }
+    return ImportChatsResult(added, skipped)
 }
 
 /** JSON tree of every Agent / Flock / Swarm. Same shape used by both
@@ -554,6 +677,37 @@ fun ImportExportScreen(
         ).show()
     }
 
+    fun exportRuntimeReports() {
+        val bundle = buildReportsRuntimeBundle(context)
+        shareExportText(context, "ai_reports-${exportTimestamp()}.json", "application/json", "Share reports",
+            createAppGson(prettyPrint = true).toJson(bundle))
+        val reports = bundle.getAsJsonArray("reports")?.size() ?: 0
+        val secondaries = bundle.getAsJsonObject("secondaries")?.entrySet()?.sumOf {
+            (it.value as? JsonArray)?.size() ?: 0
+        } ?: 0
+        Toast.makeText(context, "Reports ready to share ($reports reports, $secondaries meta-results)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportRuntimeChats() {
+        val bundle = buildChatsRuntimeBundle()
+        shareExportText(context, "ai_chats-${exportTimestamp()}.json", "application/json", "Share chats",
+            createAppGson(prettyPrint = true).toJson(bundle))
+        val chats = bundle.getAsJsonArray("chats")?.size() ?: 0
+        Toast.makeText(context, "Chats ready to share ($chats sessions)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportRuntimeAll() {
+        val bundle = buildAllRuntimeBundle(context)
+        shareExportText(context, "ai_runtime-${exportTimestamp()}.json", "application/json", "Share runtime data",
+            createAppGson(prettyPrint = true).toJson(bundle))
+        val reports = bundle.getAsJsonArray("reports")?.size() ?: 0
+        val chats = bundle.getAsJsonArray("chats")?.size() ?: 0
+        val secondaries = bundle.getAsJsonObject("secondaries")?.entrySet()?.sumOf {
+            (it.value as? JsonArray)?.size() ?: 0
+        } ?: 0
+        Toast.makeText(context, "Runtime data ready to share ($reports reports, $secondaries meta-results, $chats chats)", Toast.LENGTH_SHORT).show()
+    }
+
     fun exportCosts() {
         val manual = PricingCache.getAllManualPricing(context)
         val lines = mutableListOf("provider,model,input_per_million,output_per_million")
@@ -771,6 +925,59 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Imported $n model override${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "runtimeReports" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (root == null) {
+                    Toast.makeText(context, "Reports file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val res = applyRuntimeReports(context, root)
+                val msg = buildString {
+                    append("Added ${res.added} report")
+                    if (res.added != 1) append("s")
+                    if (res.secondaries > 0) append(" + ${res.secondaries} meta-results")
+                    if (res.skipped > 0) append(" (${res.skipped} skipped, already present)")
+                }
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            }
+            "runtimeChats" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (root == null) {
+                    Toast.makeText(context, "Chats file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val res = applyRuntimeChats(root)
+                val msg = "Added ${res.added} chat session${if (res.added == 1) "" else "s"}" +
+                    if (res.skipped > 0) " (${res.skipped} skipped, already present)" else ""
+                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+            }
+            "runtimeAll" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (root == null) {
+                    Toast.makeText(context, "Runtime file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val rRes = if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)
+                val cRes = if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0)
+                if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0) {
+                    Toast.makeText(context, "No runtime data found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    val parts = mutableListOf<String>()
+                    if (rRes.added > 0) parts += "${rRes.added} reports"
+                    if (rRes.secondaries > 0) parts += "${rRes.secondaries} meta-results"
+                    if (cRes.added > 0) parts += "${cRes.added} chats"
+                    val skipped = rRes.skipped + cRes.skipped
+                    val msg = "Added " + (if (parts.isEmpty()) "nothing new" else parts.joinToString(", ")) +
+                        if (skipped > 0) " ($skipped skipped, already present)" else ""
+                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                }
+            }
             "all" -> {
                 // All-bundle: { apiKeys, costs, providers, prompts }.
                 // Each section is optional; missing or malformed sections
@@ -914,24 +1121,19 @@ fun ImportExportScreen(
             // leak credentials. Importing keys from another install is
             // the first-run use case, so the Import button stays usable
             // even when the Export card below is hidden.
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("API keys", fontWeight = FontWeight.Bold, color = Color.White)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (!importOnly) {
-                            OutlinedButton(onClick = { exportKeys() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        OutlinedButton(onClick = {
-                            importType = "keys"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            CollapsibleCard(title = "API keys") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!importOnly) {
+                        OutlinedButton(onClick = { exportKeys() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
+                    OutlinedButton(onClick = {
+                        importType = "keys"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                    }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Import", fontWeight = FontWeight.Bold, color = Color.White)
+            CollapsibleCard(title = "Import configuration") {
                     // Bundle-shape imports: provider catalog and internal
                     // prompts. Upsert by id (providers) or by name
                     // (prompts).
@@ -981,66 +1183,105 @@ fun ImportExportScreen(
                         }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                         Spacer(modifier = Modifier.weight(1f))
                     }
-                    // The All importer still tolerates an apiKeys section
-                    // for older bundles; new exports omit it.
+                // The All importer still tolerates an apiKeys section
+                // for older bundles; new exports omit it.
+                OutlinedButton(onClick = {
+                    importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                    Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                }
+            }
+
+            // Runtime data = reports + chat sessions. Different from
+            // the configuration card above: this carries user activity,
+            // not catalog / prompt / agent definitions. Imports here
+            // merge additively (by id) — existing rows with the same id
+            // are kept, only new ids land. Safer than replace for an
+            // activity log the user accumulated on the source phone.
+            CollapsibleCard(title = "Import runtime data") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = {
-                        importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                    }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        importType = "runtimeReports"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                    }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                        Text("Reports", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
+                    OutlinedButton(onClick = {
+                        importType = "runtimeChats"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                    }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                        Text("Chat", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+                OutlinedButton(onClick = {
+                    importType = "runtimeAll"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
+                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                    Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
                 }
             }
 
             if (!importOnly) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
-                        // Bundle-shape exports: provider catalog and internal
-                        // prompts. Drop-in shape for assets/providers.json
-                        // and assets/prompts.json so a developer can ship the
-                        // user's tuned catalog as the new bundled defaults.
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportProvidersJson() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportPromptsJson() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                CollapsibleCard(title = "Export configuration") {
+                    // Bundle-shape exports: provider catalog and internal
+                    // prompts. Drop-in shape for assets/providers.json
+                    // and assets/prompts.json so a developer can ship the
+                    // user's tuned catalog as the new bundled defaults.
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportProvidersJson() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportPromptsJson() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportWorkers() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportExamplePrompts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportSettings() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportModelLists() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportParameters() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportSystemPrompts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportEndpoints() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportModelTypeOverrides() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportCosts() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                    // "All": single JSON file bundling every section
+                    // above. API keys are excluded — they ship via the
+                    // dedicated API keys card.
+                    OutlinedButton(onClick = { exportAll() },
+                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+
+                CollapsibleCard(title = "Export runtime data") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { exportRuntimeReports() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Reports", fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportWorkers() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportExamplePrompts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        OutlinedButton(onClick = { exportRuntimeChats() },
+                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                            Text("Chat", fontSize = 12.sp, maxLines = 1, softWrap = false)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportSettings() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportModelLists() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportParameters() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportSystemPrompts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportEndpoints() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportModelTypeOverrides() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportCosts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        // "All": single JSON file bundling every section
-                        // above. API keys are excluded — they ship via the
-                        // dedicated API keys card.
-                        OutlinedButton(onClick = { exportAll() },
-                            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
+                    }
+                    OutlinedButton(onClick = { exportRuntimeAll() },
+                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }
