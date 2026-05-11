@@ -46,9 +46,14 @@ fun HousekeepingScreen(
                 title = if (hasActiveProvider) "Export & Import" else "Import",
                 onClick = onNavigateToImportExport
             )
-            NavCard("Refresh", onClick = onNavigateToRefresh)
             if (hasActiveProvider) {
                 NavCard("Trim by age", onClick = onNavigateToTrimByAge)
+            }
+            // Refresh and Reset live together at the bottom — both
+            // wholesale-state operations that finish with a forced app
+            // restart popup.
+            NavCard("Refresh", onClick = onNavigateToRefresh)
+            if (hasActiveProvider) {
                 NavCard("Reset", onClick = onNavigateToReset)
             }
         }
