@@ -239,6 +239,41 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )
     ),
+    "report_icon_detail" to HelpContent(
+        title = "Icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for the report's emoji icon, reached by tapping the inline 'icon' row on the result screen. Three cards plus a button to fan the icon prompt out across additional models."),
+            HelpCard("Model", "The model that produced the currently displayed icon. On a fresh report this is the bundled icon-prompt agent (DeepSeek by default). After picking an alternative via Find alternative icons, it switches to that model and the inline icon row's middle text updates to match."),
+            HelpCard("Prompt", "The full resolved icon prompt — assets/prompts.json template with @PROMPT@ substituted with the report's prompt text."),
+            HelpCard("Response", "Running shows '(running…)'; success shows the resolved emoji at large size; failure shows the error reason."),
+            HelpCard("Find alternative icons", "Opens a model picker (same +Agent / +Flock / +Swarm / +Report / +Model chips as the New-Report screen, but without Params / Sys prompt / Knowledge). Tapping Find Icons runs the icon prompt against every selected (provider, model) in parallel."),
+            HelpCard("View alternative icons", "When a fan-out is already in flight or completed for this report, the button label flips to View alternative icons and skips the picker — jumps straight to the live progress list. Pick a returned emoji from there to commit it as the report's icon."),
+            HelpCard("Cost", "Sum of every icon call run for this report: the original kickoff plus every alternative call, whether picked or not. Per-call cost is bumped on the Report at the moment each call returns its token usage.")
+        )
+    ),
+    "find_icons_selection" to HelpContent(
+        title = "Find icons",
+        cards = listOf(
+            HelpCard("Overview", "Model picker that fans the bundled internal/icon prompt across whatever (provider, model) pairs you choose. Reached from the Icon detail screen's 'Find alternative icons' button."),
+            HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
+            HelpCard("Selected list", "Rows are sorted alphabetically by model id. Each row shows model id + capability badges + provider id + pricing per million tokens. The ✕ on the right drops a single row; the Clear button at the bottom wipes the whole list."),
+            HelpCard("Stripped affordances", "Params, Sys prompt, and Knowledge attach are intentionally absent — an icon is a one-shot @PROMPT@ → emoji round-trip; parameter presets and RAG don't apply."),
+            HelpCard("Find Icons", "Kicks off one analyzeWithAgent call per (provider, model) pair against the bundled internal/icon prompt with @PROMPT@ replaced by the report's prompt text. Per-provider throttle (ProviderThrottle) caps concurrency. Pops you straight to the Alternative icons live list."),
+            HelpCard("Cost note", "Each call's tokens × pricing tier is added to the Report's icon cost as soon as the response lands — regardless of whether you later pick that result."),
+            HelpCard("Pitfalls", "Models with no API key set won't run — the call lands as ❌ on the Alternative icons screen. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
+        )
+    ),
+    "alternative_icons" to HelpContent(
+        title = "Alternative icons",
+        cards = listOf(
+            HelpCard("Overview", "Live progress list for an in-flight or completed icon fan-out. One row per (provider, model) pair you picked on the previous screen. State sits in AppViewModel.iconFanOutByReport — survives navigating away and back into the screen for the same report."),
+            HelpCard("Row meanings", "⏳ = the icon call is still running (or queued behind the per-provider throttle). The emoji shown big = the call returned a usable response and the row is tappable. ❌ = the call failed or returned an empty body; the error reason renders underneath in red. The row is non-tappable."),
+            HelpCard("Tap to pick", "Tapping a Done row commits its emoji as the Report's icon and records the model label on the Report. All three icon overlays (Alternative icons, Find icons picker, Icon detail) close together — you land back on the Report result screen."),
+            HelpCard("Cost", "Every call's tokens × pricing tier is bumped onto the Report's icon cost as the response lands, so the icon row's cost reflects the total search cost regardless of which (if any) icon you eventually pick."),
+            HelpCard("Backing out mid-flight", "Calls keep running. Re-entering the Icon detail screen for the same report shows a 'View alternative icons' button (instead of 'Find alternative icons') — tapping it jumps straight back here with the same live list."),
+            HelpCard("Pitfalls", "If the app process dies mid-run, the in-memory candidate map is lost — costs already bumped survive on the Report, but the screen will be empty on next launch.")
+        )
+    ),
     "report_single_result" to HelpContent(
         title = "Single agent result",
         cards = listOf(

@@ -341,6 +341,18 @@ data class RefreshAllState(
     val isFinished: Boolean = false
 )
 
+/** One row in the "Alternative icons" screen — the live state of a
+ *  single per-(provider, model) icon-prompt call kicked off by
+ *  [ReportViewModel.startIconFanOut]. Sealed so the screen can match
+ *  on the three states without a "isRunning" flag bag. */
+sealed interface IconCandidate {
+    val provider: com.ai.data.AppService
+    val model: String
+    data class Running(override val provider: com.ai.data.AppService, override val model: String) : IconCandidate
+    data class Done(override val provider: com.ai.data.AppService, override val model: String, val emoji: String) : IconCandidate
+    data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String) : IconCandidate
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -358,6 +370,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val runningFanOutPairs: StateFlow<Set<String>> = _runningFanOutPairs.asStateFlow()
     internal fun updateRunningFanOutPairs(block: (Set<String>) -> Set<String>) {
         _runningFanOutPairs.update(block)
+    }
+
+    /** Live state of any "Find alternative icons" fan-out, keyed by
+     *  reportId. Lives outside [UiState] for the same reason as
+     *  [runningFanOutPairs] — per-call status flips fire faster than
+     *  any other UiState field changes and would over-recompose
+     *  unrelated screens if bundled with them. Cleared on process
+     *  death by design; per-call costs already bumped on the Report
+     *  survive. */
+    private val _iconFanOutByReport = MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
+    val iconFanOutByReport: StateFlow<Map<String, List<IconCandidate>>> = _iconFanOutByReport.asStateFlow()
+    internal fun updateIconFanOut(reportId: String, mutator: (List<IconCandidate>) -> List<IconCandidate>) {
+        _iconFanOutByReport.update { current ->
+            val next = mutator(current[reportId].orEmpty())
+            current + (reportId to next)
+        }
     }
 
     // Refresh-all in-flight state. null = idle (nothing running, nothing to

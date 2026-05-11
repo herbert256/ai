@@ -103,7 +103,14 @@ data class Report(
     var iconInputTokens: Int = 0,
     var iconOutputTokens: Int = 0,
     var iconInputCost: Double = 0.0,
-    var iconOutputCost: Double = 0.0
+    var iconOutputCost: Double = 0.0,
+    /** When non-null, the model that produced the currently displayed
+     *  icon (set by "Find alternative icons" — the user picked a
+     *  fan-out result over the bundled-agent default). When null, the
+     *  icon row / detail screen fall back to the pinned icon-prompt
+     *  agent label. Stored as "<providerId>/<modelId>" so the row
+     *  never has to re-resolve through the agent list. */
+    var iconModel: String? = null
 )
 
 /**
@@ -445,6 +452,50 @@ object ReportStorage {
         }
     }
 
+    /** Additive update for "Find alternative icons" fan-out calls.
+     *  Every per-(provider, model) call bumps the report's icon
+     *  cost regardless of whether the user later picks that result —
+     *  the icon row's cost should always reflect total tokens spent
+     *  searching for an icon for this report. */
+    fun bumpReportIconCost(
+        context: Context, reportId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                iconInputTokens = report.iconInputTokens + inputTokens,
+                iconOutputTokens = report.iconOutputTokens + outputTokens,
+                iconInputCost = report.iconInputCost + inputCost,
+                iconOutputCost = report.iconOutputCost + outputCost,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Commit the user's pick from the "Alternative icons" screen.
+     *  Replaces the emoji, sets [Report.iconModel] to the
+     *  "<providerId>/<modelId>" label, and clears any prior
+     *  [Report.iconErrorMessage]. Cost fields are left alone — every
+     *  fan-out call has already bumped them via [bumpReportIconCost]. */
+    fun setReportIconChoice(
+        context: Context, reportId: String,
+        icon: String, iconModel: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                icon = icon, iconErrorMessage = null, iconModel = iconModel,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     /** Wipe icon + error + tokens + cost so a regenerate-with-prompt-
      *  change run starts fresh on ⏳. Used by [regenerateReport] when
      *  the prompt was edited. */
@@ -453,7 +504,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(
-                icon = null, iconErrorMessage = null,
+                icon = null, iconErrorMessage = null, iconModel = null,
                 iconInputTokens = 0, iconOutputTokens = 0,
                 iconInputCost = 0.0, iconOutputCost = 0.0,
                 timestamp = System.currentTimeMillis()

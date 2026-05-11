@@ -115,6 +115,11 @@ internal fun ColumnScope.GenerationPhase(
     /** Report.iconCost mirrored from disk. Rendered on the right of
      *  the inline 'icon' row + summed into the report total. */
     reportIconCost: Double = 0.0,
+    /** Report.iconModel mirrored from disk. Non-null when the user
+     *  picked an icon from the "Alternative icons" flow — the row's
+     *  middle text displays this instead of the bundled icon-prompt
+     *  agent's resolved model. */
+    reportIconModel: String? = null,
     /** Tap-handler for the inline 'icon' row — opens the icon-gen
      *  detail overlay (model + prompt + response). */
     onOpenIconDetail: () -> Unit = {}
@@ -781,6 +786,7 @@ internal fun ColumnScope.GenerationPhase(
                             // the provider's default).
                             val effectiveModel = aiSettings.getEffectiveModelForAgent(iconAgent)
                             val text = reportIconError
+                                ?: reportIconModel
                                 ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
                             val color = if (reportIconError != null) AppColors.Red else Color.White
                             Text(

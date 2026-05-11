@@ -36,12 +36,21 @@ import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
+import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Which list a +Add overlay confirm should write to. The same
+ *  overlays (showSelectAgent / showSelectFlock / showSelectSwarm /
+ *  showSelectAllModels / showSelectFromReport) are reused by the
+ *  "Find icons" picker flow; this enum tells their `onConfirm`
+ *  whether to push the picked row into the New-Report `models`
+ *  list or the Find-icons `findIconsModels` list. */
+private enum class PickerTarget { NEW_REPORT, FIND_ICONS }
 
 // ===== rememberSaveable savers =====
 //
@@ -129,6 +138,7 @@ fun ReportsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
+    val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -173,6 +183,13 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         runningFanOutPairs = runningFanOutPairs,
+        iconFanOutByReport = iconFanOutByReport,
+        onStartIconFanOut = { rid, prompt, models ->
+            reportViewModel.startIconFanOut(context, rid, prompt, models, aiSettings)
+        },
+        onPickAlternativeIcon = { rid, emoji, iconModel ->
+            reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
+        },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -351,6 +368,14 @@ fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
     runningFanOutPairs: Set<String> = emptySet(),
+    /** Live state of any "Find alternative icons" fan-out, keyed by
+     *  reportId. Collected from [AppViewModel.iconFanOutByReport] in
+     *  [ReportsScreenNav] and threaded through here. */
+    iconFanOutByReport: Map<String, List<IconCandidate>> = emptyMap(),
+    /** Kick off an icon fan-out for the given report. */
+    onStartIconFanOut: (reportId: String, promptText: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    /** Commit a picked icon from the Alternative icons screen. */
+    onPickAlternativeIcon: (reportId: String, emoji: String, iconModel: String) -> Unit = { _, _, _ -> },
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -493,17 +518,20 @@ fun ReportsScreen(
     var reportIcon by remember { mutableStateOf<String?>(null) }
     var reportIconError by remember { mutableStateOf<String?>(null) }
     var reportIconCost by remember { mutableStateOf(0.0) }
+    var reportIconModel by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
             reportIcon = null
             reportIconError = null
             reportIconCost = 0.0
+            reportIconModel = null
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
             reportIconError = r?.iconErrorMessage
             reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
+            reportIconModel = r?.iconModel
         }
     }
     // Provided to every inline overlay below via LocalReportIcon so
@@ -646,6 +674,19 @@ fun ReportsScreen(
 
     var showViewer by rememberSaveable { mutableStateOf(false) }
     var showIconDetail by rememberSaveable { mutableStateOf(false) }
+    var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
+    var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
+    var findIconsModels by remember { mutableStateOf(emptyList<ReportModel>()) }
+    // Which model-picker target the next +Add overlay confirm should
+    // deposit into. NEW_REPORT = the SelectionPhase's `models` list
+    // (existing behavior); FIND_ICONS = the [findIconsModels] list
+    // backing the "Find icons" picker overlay. The +Add overlays
+    // (showSelectAgent / showSelectFlock / showSelectSwarm /
+    // showSelectAllModels / showSelectFromReport) are shared between
+    // the two flows; this flag is what decides where the picked rows
+    // land. Reset to NEW_REPORT whenever the find-icons picker closes
+    // so a later New-Report +Add doesn't leak the find-icons target.
+    var pickerTarget by remember { mutableStateOf(PickerTarget.NEW_REPORT) }
     var selectedAgentForViewer by rememberSaveable { mutableStateOf<String?>(null) }
     var viewerSection by rememberSaveable { mutableStateOf<String?>(null) }
     // Per-row click → focused single-model viewer. Distinct from the
@@ -836,7 +877,50 @@ fun ReportsScreen(
         }
     }
 
-    // Full-screen overlays
+    // Full-screen overlays — innermost (Alternative icons) is checked
+    // first so its `return` short-circuits before the parent picker /
+    // icon-detail blocks run.
+    if (showAlternativeIcons && currentReportId != null) {
+        val rid = currentReportId
+        val candidates = iconFanOutByReport[rid].orEmpty()
+        AlternativeIconsScreen(
+            candidates = candidates,
+            onPickIcon = { emoji, iconModel ->
+                onPickAlternativeIcon(rid, emoji, iconModel)
+                showAlternativeIcons = false
+                showFindIconsPicker = false
+                showIconDetail = false
+            },
+            onBack = { showAlternativeIcons = false }
+        )
+        return
+    }
+    if (showFindIconsPicker && currentReportId != null) {
+        val rid = currentReportId
+        FindIconsSelectionScreen(
+            models = findIconsModels,
+            aiSettings = aiSettings,
+            onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
+            onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
+            onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
+            onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
+            onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
+            onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
+            onClearAll = { findIconsModels = emptyList() },
+            onFindIcons = {
+                onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
+                findIconsModels = emptyList()
+                pickerTarget = PickerTarget.NEW_REPORT
+                showFindIconsPicker = false
+                showAlternativeIcons = true
+            },
+            onBack = {
+                pickerTarget = PickerTarget.NEW_REPORT
+                showFindIconsPicker = false
+            }
+        )
+        return
+    }
     if (showIconDetail && currentReportId != null) {
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "icon"
@@ -845,6 +929,8 @@ fun ReportsScreen(
             aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
         }
         if (iconPrompt != null && iconAgent != null) {
+            val rid = currentReportId
+            val hasActiveFanOut = iconFanOutByReport[rid].orEmpty().isNotEmpty()
             CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
                 ReportIconDetailScreen(
                     aiSettings = aiSettings,
@@ -854,6 +940,18 @@ fun ReportsScreen(
                     icon = reportIcon,
                     errorMessage = reportIconError,
                     cost = reportIconCost,
+                    iconModel = reportIconModel,
+                    onFindAlternativeIcons = {
+                        // When there's already an in-flight or finished
+                        // fan-out for this report, the button skips the
+                        // picker and jumps straight to the live list.
+                        if (hasActiveFanOut) {
+                            showAlternativeIcons = true
+                        } else {
+                            showFindIconsPicker = true
+                        }
+                    },
+                    hasActiveFanOut = hasActiveFanOut,
                     onBack = { showIconDetail = false }
                 )
             }
@@ -914,12 +1012,22 @@ fun ReportsScreen(
         return
     }
 
+    // Deposit picked rows into whichever list the active picker is
+    // bound to. The same overlays serve the New-Report SelectionPhase
+    // and the Find-icons picker; [pickerTarget] is what decides.
+    val addToActiveTarget: (List<ReportModel>) -> Unit = { added ->
+        when (pickerTarget) {
+            PickerTarget.NEW_REPORT -> models = deduplicateModels(models + added)
+            PickerTarget.FIND_ICONS -> findIconsModels = deduplicateModels(findIconsModels + added)
+        }
+    }
+
     // Selection overlay dialogs
     if (showSelectFlock) {
         ReportSelectFlockScreen(
             aiSettings = aiSettings,
             onSelectFlock = {
-                models = deduplicateModels(models + expandFlockToModels(it, aiSettings))
+                addToActiveTarget(expandFlockToModels(it, aiSettings))
                 showSelectFlock = false
             },
             onNavigateToModelInfo = onNavigateToModelInfo,
@@ -932,7 +1040,7 @@ fun ReportsScreen(
         ReportSelectAgentScreen(
             aiSettings = aiSettings,
             onSelectAgent = {
-                expandAgentToModel(it, aiSettings)?.let { m -> models = deduplicateModels(models + m) }
+                expandAgentToModel(it, aiSettings)?.let { m -> addToActiveTarget(listOf(m)) }
                 showSelectAgent = false
             },
             onBack = { showSelectAgent = false },
@@ -944,7 +1052,7 @@ fun ReportsScreen(
         ReportSelectSwarmScreen(
             aiSettings = aiSettings,
             onSelectSwarm = {
-                models = deduplicateModels(models + expandSwarmToModels(it, aiSettings))
+                addToActiveTarget(expandSwarmToModels(it, aiSettings))
                 showSelectSwarm = false
             },
             onNavigateToModelInfo = onNavigateToModelInfo,
@@ -962,7 +1070,7 @@ fun ReportsScreen(
         ReportSelectModelDialog(
             prov, aiSettings,
             onSelectModel = {
-                models = deduplicateModels(models + toReportModel(prov, it))
+                addToActiveTarget(listOf(toReportModel(prov, it)))
                 pendingProvider = null
             },
             onDismiss = { pendingProvider = null },
@@ -972,14 +1080,18 @@ fun ReportsScreen(
         return
     }
     if (showSelectAllModels) {
-        val already = remember(models) { models.map { it.provider to it.model }.toSet() }
+        // The "already added" hint dims rows that are already in the
+        // active picker's list — for FIND_ICONS that's findIconsModels,
+        // not the New-Report models list.
+        val activeList = if (pickerTarget == PickerTarget.FIND_ICONS) findIconsModels else models
+        val already = remember(activeList) { activeList.map { it.provider to it.model }.toSet() }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadyAdded = already,
             recentEntries = recentReportPairs,
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { (prov, m) ->
-                models = deduplicateModels(models + toReportModel(prov, m))
+                addToActiveTarget(listOf(toReportModel(prov, m)))
                 showSelectAllModels = false
             },
             onBack = { showSelectAllModels = false },
@@ -1000,7 +1112,7 @@ fun ReportsScreen(
                     if (savedAgent != null) expandAgentToModel(savedAgent, aiSettings)
                     else AppService.findById(ra.provider)?.let { prov -> toReportModel(prov, ra.model) }
                 }
-                models = deduplicateModels(models + copied)
+                addToActiveTarget(copied)
                 showSelectFromReport = false
             },
             onBack = { showSelectFromReport = false },
@@ -1948,6 +2060,7 @@ fun ReportsScreen(
                 reportIcon = reportIcon,
                 reportIconError = reportIconError,
                 reportIconCost = reportIconCost,
+                reportIconModel = reportIconModel,
                 onOpenIconDetail = { showIconDetail = true }
             )
         }
@@ -1967,12 +2080,25 @@ private fun ReportIconDetailScreen(
     icon: String?,
     errorMessage: String?,
     cost: Double,
+    /** When non-null, the report has had its icon replaced via "Find
+     *  alternative icons" — show this label instead of the bundled
+     *  pinned agent's model. */
+    iconModel: String?,
+    /** Fires either the picker overlay (no active fan-out) or jumps
+     *  straight to the live "Alternative icons" list (active /
+     *  completed fan-out — see [hasActiveFanOut]). */
+    onFindAlternativeIcons: () -> Unit,
+    /** Controls the button label: "View alternative icons" while a
+     *  fan-out exists for this report, "Find alternative icons"
+     *  otherwise. */
+    hasActiveFanOut: Boolean,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val effectiveModel = aiSettings.getEffectiveModelForAgent(iconAgent)
     val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
     val running = icon == null && errorMessage == null
+    val modelLabel = iconModel ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "report_icon_detail",
@@ -1988,8 +2114,7 @@ private fun ReportIconDetailScreen(
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontWeight = FontWeight.Bold)
-                    Text(com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel),
-                        fontSize = 14.sp, color = Color.White)
+                    Text(modelLabel, fontSize = 14.sp, color = Color.White)
                     if (cost > 0.0) {
                         Text("Cost: ${formatCents(cost)} ¢",
                             fontSize = 11.sp, color = AppColors.TextTertiary,
@@ -2026,6 +2151,17 @@ private fun ReportIconDetailScreen(
                             fontSize = 13.sp, color = AppColors.TextTertiary)
                     }
                 }
+            }
+
+            Button(
+                onClick = onFindAlternativeIcons,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) {
+                Text(
+                    if (hasActiveFanOut) "View alternative icons" else "Find alternative icons",
+                    maxLines = 1, softWrap = false
+                )
             }
         }
     }

@@ -335,7 +335,133 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Fan-out of the `internal/icon` prompt across user-picked
+     *  [models] for one report. Per call: pre-acquire the per-provider
+     *  throttle permit, run the prompt against (provider, model), bump
+     *  the Report's icon-cost fields by the call's tokens (regardless
+     *  of success — token spend already happened), then flip the
+     *  matching [IconCandidate] to [IconCandidate.Done] or
+     *  [IconCandidate.Error]. Lives independently of the per-call
+     *  coroutines so the user can navigate away mid-flight; the in-
+     *  memory [AppViewModel.iconFanOutByReport] map is what
+     *  [AlternativeIconsScreen] reads. */
+    fun startIconFanOut(
+        context: Context,
+        reportId: String,
+        promptText: String,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        } ?: return
+        // Dedupe by "provider:model" so picking the same pair via two
+        // different sources (e.g. an agent + a direct +Model) only
+        // fires one API call.
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
+        // Pre-populate Running rows so the Alternative icons screen
+        // shows ⏳ for every pair the moment the screen opens, before
+        // any throttle permit is acquired.
+        appViewModel.updateIconFanOut(reportId) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            unique.forEach { item ->
+                // One async per model. Throttle pre-acquire matches
+                // runFanOutPrompt's pattern so the OkHttp interceptor
+                // sees permitPreAcquired=true and skips its own
+                // acquire, avoiding double-counting.
+                launch {
+                    val host = providerHost(item.provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "Report icon (alt)") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "icon-alt-${item.provider.id}-${item.model}",
+                                        name = item.model,
+                                        provider = item.provider,
+                                        model = item.model,
+                                        apiKey = aiSettings.getApiKey(item.provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, AgentParameters(),
+                                        null, context, baseUrl
+                                    )
+                                    val emoji = response.analysis?.trim().orEmpty().take(8)
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    // Cost bump is unconditional — the
+                                    // user paid for the call whether or
+                                    // not it returned a usable emoji.
+                                    if (inT > 0 || outT > 0) {
+                                        ReportStorage.bumpReportIconCost(
+                                            context, reportId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    }
+                                    if (response.error == null && emoji.isNotEmpty()) {
+                                        appViewModel.updateIconFanOut(reportId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Done(item.provider, item.model, emoji)
+                                                else c
+                                            }
+                                        }
+                                    } else {
+                                        appViewModel.updateIconFanOut(reportId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "empty response")
+                                                else c
+                                            }
+                                        }
+                                    }
+                                }.onFailure { e ->
+                                    appViewModel.updateIconFanOut(reportId) { list ->
+                                        list.map { c ->
+                                            if (c.provider.id == item.provider.id && c.model == item.model)
+                                                IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed")
+                                            else c
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+    }
 
+    /** Commit a user-picked icon from the "Alternative icons" list:
+     *  replace the emoji + record the source model on the Report, and
+     *  bump [UiState.iconRefreshTick] so screens re-read. Cost fields
+     *  were already bumped per-call by [startIconFanOut]. */
+    fun pickAlternativeIcon(
+        context: Context,
+        reportId: String,
+        emoji: String,
+        iconModel: String
+    ) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
 
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
