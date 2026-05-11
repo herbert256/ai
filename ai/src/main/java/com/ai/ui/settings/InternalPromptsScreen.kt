@@ -14,6 +14,25 @@ import androidx.compose.ui.unit.sp
 import com.ai.model.*
 import com.ai.ui.shared.*
 
+/** A surfaceVariant Card with a 16.dp Column inside, used to group
+ *  the related fields on the Internal Prompt edit screen into
+ *  visually distinct sections (Name & Title / Reference / Scope /
+ *  Agent / Template). Matches the Card pattern in
+ *  ServiceSettingsScreens. */
+@Composable
+private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content
+        )
+    }
+}
+
 /** Categories whose prompts are pure templates (no agent dispatch).
  *  All five fan-* categories share the same agent-N/A treatment —
  *  they're consumed by the Fan out / Fan in flow which already
@@ -165,128 +184,140 @@ fun InternalPromptEditScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, colors = AppColors.outlinedFieldColors(),
-                enabled = !isFixedList,
-                isError = name.isNotBlank() && nameError != null,
-                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
-            )
-
-            OutlinedTextField(
-                value = title, onValueChange = { title = it },
-                label = { Text("Title") }, modifier = Modifier.fillMaxWidth(),
-                singleLine = true, colors = AppColors.outlinedFieldColors(),
-                supportingText = { Text("Short description shown alongside the name on Fan out.",
-                    fontSize = 11.sp, color = AppColors.TextTertiary) }
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Switch(
-                    checked = reference,
-                    onCheckedChange = { reference = it }
+            // Name + Title belong together: both are display fields on
+            // the list / Fan-out picker. Group them under a single card
+            // so the visual hierarchy maps to the role.
+            SectionCard {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it },
+                    label = { Text("Name") }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors(),
+                    enabled = !isFixedList,
+                    isError = name.isNotBlank() && nameError != null,
+                    supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
-                    Text("Append reference legend", fontSize = 13.sp)
+                OutlinedTextField(
+                    value = title, onValueChange = { title = it },
+                    label = { Text("Title") }, modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors(),
+                    supportingText = { Text("Short description shown alongside the name on Fan out.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary) }
+                )
+            }
+
+            SectionCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = reference,
+                        onCheckedChange = { reference = it }
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text("Append reference legend", fontSize = 13.sp)
+                        Text(
+                            "Adds a [N] = Provider / Model footer to the response.",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                }
+            }
+
+            if (isMeta || isFanOut) {
+                SectionCard {
+                    Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Default", "Select").forEach { opt ->
+                            val selected = scope.equals(opt, ignoreCase = true)
+                            OutlinedButton(
+                                onClick = { scope = opt },
+                                modifier = Modifier.weight(1f),
+                                colors = if (selected)
+                                    ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Blue, contentColor = Color.White)
+                                else AppColors.outlinedButtonColors()
+                            ) { Text(opt, fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                        }
+                    }
                     Text(
-                        "Adds a [N] = Provider / Model footer to the response.",
+                        when {
+                            scope.equals("Default", ignoreCase = true) && isFanOut ->
+                                "Starts immediately across every (answerer, source) pair of successful report agents — both the scope picker and the run-confirm screen are skipped."
+                            scope.equals("Default", ignoreCase = true) ->
+                                "Runs against every successful report agent — the scope picker is skipped."
+                            isFanOut ->
+                                "Opens the scope picker so the user can narrow the set of report agents before the call-count confirm dialog."
+                            else ->
+                                "Opens the scope picker so the user can pick a subset / top-N from a rerank / language fan-out before the model picker."
+                        },
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                 }
             }
 
-            if (isMeta || isFanOut) {
-                Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf("Default", "Select").forEach { opt ->
-                        val selected = scope.equals(opt, ignoreCase = true)
-                        OutlinedButton(
-                            onClick = { scope = opt },
+            SectionCard {
+                Text("Agent", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Box {
+                    OutlinedButton(
+                        onClick = { agentMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            agent,
                             modifier = Modifier.weight(1f),
-                            colors = if (selected)
-                                ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Blue, contentColor = Color.White)
-                            else AppColors.outlinedButtonColors()
-                        ) { Text(opt, fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                            fontSize = 13.sp,
+                            color = if (agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(
+                        expanded = agentMenuOpen,
+                        onDismissRequest = { agentMenuOpen = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(AGENT_SELECT, fontSize = 13.sp,
+                                color = if (agent == AGENT_SELECT) AppColors.Blue else Color.White) },
+                            onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
+                        )
+                        agentNames.sortedBy { it.lowercase() }.forEach { n ->
+                            DropdownMenuItem(
+                                text = { Text(n, fontSize = 13.sp,
+                                    color = if (agent == n) AppColors.Blue else Color.White) },
+                                onClick = { agent = n; agentMenuOpen = false }
+                            )
+                        }
                     }
                 }
                 Text(
-                    when {
-                        scope.equals("Default", ignoreCase = true) && isFanOut ->
-                            "Starts immediately across every (answerer, source) pair of successful report agents — both the scope picker and the run-confirm screen are skipped."
-                        scope.equals("Default", ignoreCase = true) ->
-                            "Runs against every successful report agent — the scope picker is skipped."
-                        isFanOut ->
-                            "Opens the scope picker so the user can narrow the set of report agents before the call-count confirm dialog."
-                        else ->
-                            "Opens the scope picker so the user can pick a subset / top-N from a rerank / language fan-out before the model picker."
-                    },
+                    if (agent == AGENT_SELECT) "*select means the user picks the model at run time."
+                    else "Bound to the agent named '$agent' (resolved from Settings.agents at run time).",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
             }
 
-            Text("Agent", fontSize = 12.sp, color = AppColors.TextTertiary)
-            Box {
-                OutlinedButton(
-                    onClick = { agentMenuOpen = true },
+            SectionCard {
+                OutlinedTextField(
+                    value = text, onValueChange = { text = it },
+                    label = { Text("Template body") },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) {
-                    Text(
-                        agent,
-                        modifier = Modifier.weight(1f),
-                        fontSize = 13.sp,
-                        color = if (agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text("▾", color = AppColors.TextTertiary)
-                }
-                DropdownMenu(
-                    expanded = agentMenuOpen,
-                    onDismissRequest = { agentMenuOpen = false },
-                    modifier = Modifier.background(Color(0xFF2D2D2D))
-                ) {
-                    DropdownMenuItem(
-                        text = { Text(AGENT_SELECT, fontSize = 13.sp,
-                            color = if (agent == AGENT_SELECT) AppColors.Blue else Color.White) },
-                        onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
-                    )
-                    agentNames.sortedBy { it.lowercase() }.forEach { n ->
-                        DropdownMenuItem(
-                            text = { Text(n, fontSize = 13.sp,
-                                color = if (agent == n) AppColors.Blue else Color.White) },
-                            onClick = { agent = n; agentMenuOpen = false }
-                        )
-                    }
-                }
+                    minLines = 8, maxLines = 22,
+                    colors = AppColors.outlinedFieldColors()
+                )
+                Text(
+                    when (fixedCategory) {
+                        "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
+                        "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
+                        "fan-in-model" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
+                        else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
+                    },
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Text("${text.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)
             }
-            Text(
-                if (agent == AGENT_SELECT) "*select means the user picks the model at run time."
-                else "Bound to the agent named '$agent' (resolved from Settings.agents at run time).",
-                fontSize = 11.sp, color = AppColors.TextTertiary
-            )
-
-            OutlinedTextField(
-                value = text, onValueChange = { text = it },
-                label = { Text("Template body") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 8, maxLines = 22,
-                colors = AppColors.outlinedFieldColors()
-            )
-            Text(
-                when (fixedCategory) {
-                    "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
-                    "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
-                    "fan-in-model" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
-                    else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
-                },
-                fontSize = 11.sp, color = AppColors.TextTertiary
-            )
-            Text("${text.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
