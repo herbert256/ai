@@ -570,24 +570,36 @@ object ProviderThrottle {
      *  rate-limit branch appends a timestamp on admission — even if a
      *  later concurrency-acquire blocks, the slot stays "used" for the
      *  full minute, which is the safe direction (over-throttling
-     *  rather than silently exceeding the user's setting). */
+     *  rather than silently exceeding the user's setting).
+     *
+     *  Caps are resolved at acquire time per host:
+     *    per-provider override (AppService.maxCalls… / maxConcurrent…)
+     *    → global default (NetworkSettings.*).
+     *  Provider edits go through [ProviderRegistry.save] which calls
+     *  [resetForNewLimits], so an override bump takes effect on the
+     *  next acquire — no need to re-read on every iteration of the
+     *  rate-limit loop. */
     fun acquire(host: String): Releaser {
         if (host.isBlank()) {
             // Hostless requests (rare; only with a malformed URL) get
             // a stub releaser so the interceptor's finally is a no-op.
             return Releaser(java.util.concurrent.Semaphore(Int.MAX_VALUE))
         }
+        val override = ProviderRegistry.findByHost(host)
+        val perMinuteLimit = (override?.maxCallsPerProviderPerMinute
+            ?: NetworkSettings.maxCallsPerProviderPerMinute).coerceAtLeast(1)
+        val concurrentLimit = (override?.maxConcurrentCallsPerProvider
+            ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
         val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
         // Rate-limit gate — loop until we claim a slot in the 60 s window.
         while (true) {
-            val limit = NetworkSettings.maxCallsPerProviderPerMinute.coerceAtLeast(1)
             val now = System.currentTimeMillis()
             val sleepMs: Long = synchronized(window) {
                 while (true) {
                     val head = window.peekFirst() ?: break
                     if (head < now - 60_000L) window.pollFirst() else break
                 }
-                if (window.size < limit) {
+                if (window.size < perMinuteLimit) {
                     window.addLast(now)
                     0L
                 } else {
@@ -603,7 +615,7 @@ object ProviderThrottle {
         }
         // Concurrency gate.
         val sem = sems.computeIfAbsent(host) {
-            java.util.concurrent.Semaphore(NetworkSettings.maxConcurrentCallsPerProvider.coerceAtLeast(1))
+            java.util.concurrent.Semaphore(concurrentLimit)
         }
         sem.acquire()
         return Releaser(sem)

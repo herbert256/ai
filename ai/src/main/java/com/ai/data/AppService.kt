@@ -72,7 +72,17 @@ class AppService(
     /** Per-family default max_tokens (Anthropic). First match wins. */
     val maxTokensDefaults: List<MaxTokensRule> = emptyList(),
     /** Built-in endpoints the user can pick between. */
-    val builtInEndpoints: List<Endpoint> = emptyList()
+    val builtInEndpoints: List<Endpoint> = emptyList(),
+    /** Per-provider override for
+     *  [GeneralSettings.maxCallsPerProviderPerMinute]. Null →
+     *  inherit the global default. Read by
+     *  [com.ai.data.ProviderThrottle.acquire] when this provider's
+     *  hostname is matched. */
+    val maxCallsPerProviderPerMinute: Int? = null,
+    /** Per-provider override for
+     *  [GeneralSettings.maxConcurrentCallsPerProvider]. Null →
+     *  inherit the global default. */
+    val maxConcurrentCallsPerProvider: Int? = null
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 

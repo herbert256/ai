@@ -674,6 +674,12 @@ fun ProviderSettingsScreen(
     var defAdaptiveThinkingPatternsJson by remember(service.id) { mutableStateOf(patternsToJson(service.adaptiveThinkingPatterns)) }
     var defMaxTokensDefaultsJson by remember(service.id) { mutableStateOf(maxTokensRulesToJson(service.maxTokensDefaults)) }
     var defBuiltInEndpointsJson by remember(service.id) { mutableStateOf(endpointsToJson(service.builtInEndpoints)) }
+    // Per-provider throttle overrides. Blank → inherit the global
+    // default from Settings → Per-provider throttling. Stored as
+    // strings so partial / empty edits don't fight the user
+    // mid-keystroke; parsed back via toIntOrNull on save.
+    var defMaxCallsPerMinute by remember(service.id) { mutableStateOf(service.maxCallsPerProviderPerMinute?.toString() ?: "") }
+    var defMaxConcurrentCalls by remember(service.id) { mutableStateOf(service.maxConcurrentCallsPerProvider?.toString() ?: "") }
 
     LaunchedEffect(
         defBaseUrl, defAdminUrl, defaultModel, defOpenRouterName, defApiFormat,
@@ -684,7 +690,8 @@ fun ProviderSettingsScreen(
         defPricingFromModelList, defCrossProviderModelList, defMergeHardcodedModels,
         defExternalReasoningUntrusted, defResponsesApiPatternsJson, defReasoningModelPatternsJson,
         defReasoningEffortAcceptPatternsJson, defWebSearchModelPatternsJson,
-        defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson
+        defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson,
+        defMaxCallsPerMinute, defMaxConcurrentCalls
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -719,7 +726,9 @@ fun ProviderSettingsScreen(
             defWebSearchModelPatternsJson == patternsToJson(service.webSearchModelPatterns) &&
             defAdaptiveThinkingPatternsJson == patternsToJson(service.adaptiveThinkingPatterns) &&
             defMaxTokensDefaultsJson == maxTokensRulesToJson(service.maxTokensDefaults) &&
-            defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints)
+            defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints) &&
+            defMaxCallsPerMinute == (service.maxCallsPerProviderPerMinute?.toString() ?: "") &&
+            defMaxConcurrentCalls == (service.maxConcurrentCallsPerProvider?.toString() ?: "")
         if (same) return@LaunchedEffect
         if (defBaseUrl.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -779,7 +788,9 @@ fun ProviderSettingsScreen(
             webSearchModelPatterns = webSearchModelPatterns,
             adaptiveThinkingPatterns = adaptiveThinkingPatterns,
             maxTokensDefaults = maxTokensDefaults,
-            builtInEndpoints = builtInEndpoints
+            builtInEndpoints = builtInEndpoints,
+            maxCallsPerProviderPerMinute = defMaxCallsPerMinute.trim().toIntOrNull()?.takeIf { it > 0 },
+            maxConcurrentCallsPerProvider = defMaxConcurrentCalls.trim().toIntOrNull()?.takeIf { it > 0 }
         ))
     }
 
@@ -1139,6 +1150,36 @@ fun ProviderSettingsScreen(
                     Text("Extract API cost", color = Color.White, modifier = Modifier.weight(1f))
                     Switch(checked = defExtractApiCost, onCheckedChange = { defExtractApiCost = it })
                 }
+            }
+
+            // Per-provider throttle overrides. Blank field → inherit
+            // the global default from Settings → Per-provider
+            // throttling. Each cap maps to the same OkHttp interceptor
+            // gate (ProviderThrottleInterceptor) but the values are
+            // resolved per-host: this provider's baseUrl + auxHosts.
+            CollapsibleCard(
+                title = "Throttle overrides",
+                summary = null,
+                helpTopic = "provider_card_throttle"
+            ) {
+                Text(
+                    "Override the app-wide per-provider rate / concurrency caps for this provider. " +
+                        "Leave blank to inherit the global defaults set under Settings → Per-provider throttling. " +
+                        "Useful when one provider has a stricter API tier than the rest.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                OutlinedTextField(
+                    value = defMaxCallsPerMinute,
+                    onValueChange = { defMaxCallsPerMinute = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max calls per minute (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defMaxConcurrentCalls,
+                    onValueChange = { defMaxConcurrentCalls = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max concurrent calls (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
             }
 
             CollapsibleCard(

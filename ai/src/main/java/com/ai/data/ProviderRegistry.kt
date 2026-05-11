@@ -27,6 +27,14 @@ object ProviderRegistry {
     private val lock = Any()
     private val providerListType = object : TypeToken<List<ProviderDefinition>>() {}.type
 
+    /** Hostname → AppService lookup used by
+     *  [ProviderThrottle.acquire] to resolve per-provider override
+     *  values from a raw OkHttp request hostname. Rebuilt on every
+     *  [save] so adding / removing / editing a provider takes effect
+     *  on the next request. Both baseUrl and auxHosts contribute keys;
+     *  on collision the first provider that claims a host wins. */
+    @Volatile private var hostIndex: Map<String, AppService> = emptyMap()
+
     fun init(context: Context) {
         if (initialized) return
         synchronized(lock) {
@@ -44,6 +52,7 @@ object ProviderRegistry {
                     }
                 }
             }
+            rebuildHostIndex()
             initialized = true
         }
     }
@@ -145,6 +154,16 @@ object ProviderRegistry {
     fun findById(id: String): AppService? = providers.find { it.id == id }
     fun getCustomProviders(): List<ProviderDefinition> = providers.map { ProviderDefinition.fromAppService(it) }
 
+    /** Resolve a request hostname (from OkHttp's `request.url.host`)
+     *  to the AppService that owns it, or null when the host doesn't
+     *  belong to any registered provider (catalog fetches, pricing
+     *  CDNs, etc.). Used by [ProviderThrottle] to pick up per-provider
+     *  rate / concurrency overrides. */
+    fun findByHost(host: String): AppService? {
+        if (host.isBlank()) return null
+        return hostIndex[host] ?: hostIndex[host.lowercase()]
+    }
+
     /** Append [service] to the registry. The UI's Add Provider screen
      *  already checks for duplicate ids; this defensive check covers
      *  programmatic adds (import flows, restore, future callers) so a
@@ -237,7 +256,29 @@ object ProviderRegistry {
         val sp = prefs ?: return
         val json = createAppGson().toJson(providers.map { ProviderDefinition.fromAppService(it) })
         sp.edit { putString(KEY_PROVIDERS, json); putBoolean(KEY_INITIALIZED, true) }
+        rebuildHostIndex()
+        // A provider's throttle override may have changed — drop any
+        // stale per-host semaphores so the next acquire uses the new
+        // caps. Cheap (no-op when nothing throttle-related changed).
+        ProviderThrottle.resetForNewLimits()
     }
+
+    private fun rebuildHostIndex() {
+        val map = LinkedHashMap<String, AppService>()
+        for (svc in providers) {
+            urlHost(svc.baseUrl)?.let { h -> map.putIfAbsent(h, svc) }
+            svc.auxHosts.forEach { aux -> urlHost(aux)?.let { h -> map.putIfAbsent(h, svc) } }
+        }
+        hostIndex = map
+    }
+
+    private fun urlHost(raw: String): String? = try {
+        val s = raw.trim()
+        if (s.isBlank()) null else {
+            val withScheme = if (s.contains("://")) s else "https://$s"
+            java.net.URI(withScheme).host?.lowercase()?.takeIf { it.isNotBlank() }
+        }
+    } catch (_: Exception) { null }
 
     fun resetToDefaults(context: Context) {
         // Drop the in-memory list as well as the persisted prefs.
@@ -298,7 +339,8 @@ object ProviderRegistry {
         "externalReasoningSignalUntrusted", "responsesApiPatterns",
         "reasoningModelPatterns", "reasoningEffortAcceptPatterns",
         "webSearchModelPatterns", "adaptiveThinkingPatterns",
-        "maxTokensDefaults", "builtInEndpoints"
+        "maxTokensDefaults", "builtInEndpoints",
+        "maxCallsPerProviderPerMinute", "maxConcurrentCallsPerProvider"
     )
 
     private fun appServiceFieldMap(s: AppService): Map<String, Any?> = mapOf(
@@ -333,7 +375,9 @@ object ProviderRegistry {
         "webSearchModelPatterns" to s.webSearchModelPatterns,
         "adaptiveThinkingPatterns" to s.adaptiveThinkingPatterns,
         "maxTokensDefaults" to s.maxTokensDefaults,
-        "builtInEndpoints" to s.builtInEndpoints
+        "builtInEndpoints" to s.builtInEndpoints,
+        "maxCallsPerProviderPerMinute" to s.maxCallsPerProviderPerMinute,
+        "maxConcurrentCallsPerProvider" to s.maxConcurrentCallsPerProvider
     )
 
     private fun diffTrackedFields(a: AppService, b: AppService): Set<String> {
@@ -380,7 +424,9 @@ object ProviderRegistry {
             webSearchModelPatterns = p("webSearchModelPatterns", existing.webSearchModelPatterns, asset.webSearchModelPatterns),
             adaptiveThinkingPatterns = p("adaptiveThinkingPatterns", existing.adaptiveThinkingPatterns, asset.adaptiveThinkingPatterns),
             maxTokensDefaults = p("maxTokensDefaults", existing.maxTokensDefaults, asset.maxTokensDefaults),
-            builtInEndpoints = p("builtInEndpoints", existing.builtInEndpoints, asset.builtInEndpoints)
+            builtInEndpoints = p("builtInEndpoints", existing.builtInEndpoints, asset.builtInEndpoints),
+            maxCallsPerProviderPerMinute = p("maxCallsPerProviderPerMinute", existing.maxCallsPerProviderPerMinute, asset.maxCallsPerProviderPerMinute),
+            maxConcurrentCallsPerProvider = p("maxConcurrentCallsPerProvider", existing.maxConcurrentCallsPerProvider, asset.maxConcurrentCallsPerProvider)
         )
     }
 }
@@ -522,6 +568,14 @@ data class ProviderDefinition(
      *  Chat vs Responses). Replaces the legacy
      *  `Settings.BUILT_IN_ENDPOINTS` map. */
     val builtInEndpoints: List<Endpoint>? = null,
+    /** Per-provider override for the global per-minute rate cap.
+     *  Null → inherit
+     *  [com.ai.viewmodel.GeneralSettings.maxCallsPerProviderPerMinute]. */
+    val maxCallsPerProviderPerMinute: Int? = null,
+    /** Per-provider override for the global concurrency cap. Null →
+     *  inherit
+     *  [com.ai.viewmodel.GeneralSettings.maxConcurrentCallsPerProvider]. */
+    val maxConcurrentCallsPerProvider: Int? = null,
     /** Deprecated — kept on the deserialization shape so old prefs / setup.json
      *  files with the field still parse, but ignored at dispatch time
      *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
@@ -562,7 +616,9 @@ data class ProviderDefinition(
             webSearchModelPatterns = webSearchModelPatterns ?: emptyList(),
             adaptiveThinkingPatterns = adaptiveThinkingPatterns ?: emptyList(),
             maxTokensDefaults = maxTokensDefaults ?: emptyList(),
-            builtInEndpoints = builtInEndpoints ?: emptyList()
+            builtInEndpoints = builtInEndpoints ?: emptyList(),
+            maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute?.takeIf { it > 0 },
+            maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider?.takeIf { it > 0 }
         )
     }
 
@@ -595,7 +651,9 @@ data class ProviderDefinition(
             webSearchModelPatterns = s.webSearchModelPatterns.takeIf { it.isNotEmpty() },
             adaptiveThinkingPatterns = s.adaptiveThinkingPatterns.takeIf { it.isNotEmpty() },
             maxTokensDefaults = s.maxTokensDefaults.takeIf { it.isNotEmpty() },
-            builtInEndpoints = s.builtInEndpoints.takeIf { it.isNotEmpty() }
+            builtInEndpoints = s.builtInEndpoints.takeIf { it.isNotEmpty() },
+            maxCallsPerProviderPerMinute = s.maxCallsPerProviderPerMinute,
+            maxConcurrentCallsPerProvider = s.maxConcurrentCallsPerProvider
         )
     }
 }
