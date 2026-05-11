@@ -31,6 +31,12 @@ import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** Per-agent icon UI snapshot mirrored from disk for the result
+ *  list. Populated by [com.ai.viewmodel.ReportViewModel.runReportIcons]
+ *  writing through [ReportStorage.updateReportAgentIcon]; the parent
+ *  screen rebuilds this map on every iconRefreshTick bump. */
+data class AgentIconRow(val icon: String?, val cost: Double)
+
 /** Post-generation half of the Reports result page. Owns the
  *  two-row action bar, the pending-changes banner, and the
  *  scrollable result list (agent rows, secondary rows, fan-out
@@ -122,7 +128,21 @@ internal fun ColumnScope.GenerationPhase(
     reportIconModel: String? = null,
     /** Tap-handler for the inline 'icon' row — opens the icon-gen
      *  detail overlay (model + prompt + response). */
-    onOpenIconDetail: () -> Unit = {}
+    onOpenIconDetail: () -> Unit = {},
+    /** Fires the per-agent "Report icons" fan-out from the Create
+     *  menu — one icon-prompt call per successful agent in the
+     *  report, each against the agent's own (provider, model). */
+    onRunReportIcons: () -> Unit = {},
+    /** Tap-handler for the per-row emoji that replaced the leftmost
+     *  ✅ status cell once a Report icons run lands. Opens the
+     *  per-agent icon detail screen for the tapped agent. */
+    onOpenAgentIconDetail: (agentId: String) -> Unit = { _ -> },
+    /** Per-agent icon results mirrored from disk, keyed by agentId.
+     *  The parent screen rebuilds this on every iconRefreshTick bump
+     *  so the row picks up new emojis / cleared values without a
+     *  manual subscribe. Rows without an entry (or with a null
+     *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
+    agentIconRows: Map<String, AgentIconRow> = emptyMap()
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -322,6 +342,14 @@ internal fun ColumnScope.GenerationPhase(
                     enabled = fanOutPrompts.isNotEmpty()
                 )
                 CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
+                CompactButton(
+                    onClick = { close(); onRunReportIcons() },
+                    color = createColor, text = "Report icons",
+                    // Only meaningful when at least one row succeeded
+                    // — the dispatcher filters to result.isSuccess
+                    // agents and would no-op otherwise.
+                    enabled = reportsAgentResults.values.any { it.isSuccess }
+                )
             }
         }
         "action" -> {
@@ -817,8 +845,15 @@ internal fun ColumnScope.GenerationPhase(
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 .clickable { onViewAgent(agentId) },
                 verticalAlignment = Alignment.CenterVertically) {
-                // Status icon - newly-staged rows get a NEW badge (no result yet because
-                // the user hasn't re-run); pending hourglass spins; success/failure static.
+                // Status icon — newly-staged rows get a NEW badge, pending
+                // hourglass spins, success/failure static. When a Report
+                // icons run has landed an emoji for this row, the emoji
+                // replaces the ✅ AND becomes its own click target that
+                // opens the per-agent icon detail. The outer row's
+                // .clickable still fires for taps outside the 24 dp icon
+                // cell — Compose hit-testing prefers the innermost
+                // .clickable inside the bounds.
+                val agentIconEmoji = agentIconRows[agentId]?.icon
                 if (row.isNew) {
                     Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else if (result == null) {
@@ -829,6 +864,13 @@ internal fun ColumnScope.GenerationPhase(
                         label = "hourglass-rotation"
                     )
                     Text(text = "⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                } else if (result.isSuccess && !agentIconEmoji.isNullOrBlank()) {
+                    Text(
+                        text = agentIconEmoji,
+                        fontSize = 16.sp,
+                        modifier = Modifier.width(24.dp)
+                            .clickable { onOpenAgentIconDetail(agentId) }
+                    )
                 } else {
                     Text(
                         text = if (result.isSuccess) "✅" else "❌",
@@ -841,8 +883,12 @@ internal fun ColumnScope.GenerationPhase(
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
-                    val cost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
-                    Text(formatCents(cost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    val baseCost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
+                    // Fold per-agent icon cost into the row's right-side
+                    // cost cell so the user sees a single total per row —
+                    // icon spend doesn't get its own column.
+                    val totalCost = baseCost + (agentIconRows[agentId]?.cost ?: 0.0)
+                    Text(formatCents(totalCost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
                 // Per-row 🐞 removed — ReportSingleResultScreen (the
                 // row's tap target) carries the same trace icon in

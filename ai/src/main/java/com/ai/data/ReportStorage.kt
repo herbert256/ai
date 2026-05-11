@@ -26,7 +26,20 @@ data class ReportAgent(
     var searchResults: List<SearchResult>? = null,
     var relatedQuestions: List<String>? = null,
     var rawUsageJson: String? = null,
-    var durationMs: Long? = null
+    var durationMs: Long? = null,
+    /** Per-agent icon produced by Create → Report icons. Filled
+     *  by [ReportViewModel.runReportIcons] which fires the
+     *  internal/icon prompt against this agent's own (provider,
+     *  model) with @PROMPT@ replaced by [responseBody]. Null until
+     *  the user runs Report icons; null too when the call errored
+     *  (see [iconErrorMessage]) — the row's ✅ stays unchanged in
+     *  that case. */
+    var icon: String? = null,
+    var iconErrorMessage: String? = null,
+    var iconInputTokens: Int = 0,
+    var iconOutputTokens: Int = 0,
+    var iconInputCost: Double = 0.0,
+    var iconOutputCost: Double = 0.0
 )
 
 enum class ReportType { CLASSIC, TABLE }
@@ -197,7 +210,11 @@ object ReportStorage {
                 if (rawUsageJson != null) agent.rawUsageJson = rawUsageJson
             }
             if (tokenUsage != null) agent.tokenUsage = tokenUsage
-            if (cost != null) { agent.cost = cost; report.totalCost = report.agents.mapNotNull { it.cost }.sum() }
+            if (cost != null) {
+                agent.cost = cost
+                report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
+                    report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
+            }
             if (durationMs != null) agent.durationMs = durationMs
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
@@ -515,6 +532,85 @@ object ReportStorage {
         }
     }
 
+    /** Per-agent icon success path. Used by Create → Report icons:
+     *  for each agent whose primary call succeeded, fires the
+     *  internal/icon prompt against that agent's own (provider, model)
+     *  with @PROMPT@ substituted by the agent's responseBody. The
+     *  emoji + token usage + per-call cost lands here. Cost is rolled
+     *  into Report.totalCost via the same `agents.sumOf(...)`
+     *  recompute path the per-row cost cell reads from. */
+    fun updateReportAgentIcon(
+        context: Context, reportId: String, agentId: String,
+        icon: String, inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                icon = icon, iconErrorMessage = null,
+                iconInputTokens = inputTokens, iconOutputTokens = outputTokens,
+                iconInputCost = inputCost, iconOutputCost = outputCost
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
+                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
+            saveReport(report.copy(
+                agents = newAgents, totalCost = newTotal,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Per-agent icon failure path. Records the reason so the
+     *  per-agent detail screen can surface it; the row itself stays
+     *  on ✅ by design (the agent's primary call succeeded; only the
+     *  secondary icon call didn't). */
+    fun updateReportAgentIconError(
+        context: Context, reportId: String, agentId: String, error: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(iconErrorMessage = error)
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(
+                agents = newAgents,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Wipe per-agent icon fields across every agent in the report.
+     *  Used by Create → Report icons at the start of a re-run so the
+     *  second run doesn't show stale emojis from the first while
+     *  the new calls are still in flight. */
+    fun clearAllReportAgentIcons(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newAgents = report.agents.map { a ->
+                a.copy(
+                    icon = null, iconErrorMessage = null,
+                    iconInputTokens = 0, iconOutputTokens = 0,
+                    iconInputCost = 0.0, iconOutputCost = 0.0
+                )
+            }.toMutableList()
+            val newTotal = newAgents.mapNotNull { it.cost }.sum()
+            saveReport(report.copy(
+                agents = newAgents, totalCost = newTotal,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     fun updateReportPromptText(context: Context, reportId: String, newPrompt: String): Boolean {
         init(context)
         return lock.withLock {
@@ -541,7 +637,13 @@ object ReportStorage {
             removed.cost?.takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
             }
-            report.totalCost = report.agents.mapNotNull { it.cost }.sum()
+            // Per-agent icon spend also stays out of the live total
+            // once the row is gone — same as the primary cost field.
+            (removed.iconInputCost + removed.iconOutputCost).takeIf { it > 0.0 }?.let {
+                report.costsFromDeletedItems += it
+            }
+            report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
+                report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
             saveReport(report)
             true
         }
@@ -604,7 +706,17 @@ object ReportStorage {
             agent.relatedQuestions = null
             agent.rawUsageJson = null
             agent.durationMs = null
-            report.totalCost = report.agents.mapNotNull { it.cost }.sum()
+            // Per-agent icon belongs to the previous response; clear
+            // it too so a regenerate doesn't keep a stale emoji from
+            // an answer that no longer exists.
+            agent.icon = null
+            agent.iconErrorMessage = null
+            agent.iconInputTokens = 0
+            agent.iconOutputTokens = 0
+            agent.iconInputCost = 0.0
+            agent.iconOutputCost = 0.0
+            report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
+                report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
             report.completedAt = null
             saveReport(report)
         }

@@ -238,6 +238,10 @@ fun ReportsScreenNav(
             reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
         },
         onRestartIconFanOut = { rid -> reportViewModel.restartIconFanOut(rid) },
+        onRunReportIcons = {
+            val rid = uiState.currentReportId
+            if (rid != null) reportViewModel.runReportIcons(context, rid, aiSettings)
+        },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -429,6 +433,9 @@ fun ReportsScreen(
      *  wants to start over. Costs already bumped on the Report by
      *  completed calls stay; they accumulate by design. */
     onRestartIconFanOut: (reportId: String) -> Unit = { _ -> },
+    /** Kick off Create → Report icons — one icon-prompt call per
+     *  successful agent in the active report. */
+    onRunReportIcons: () -> Unit = {},
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -572,6 +579,16 @@ fun ReportsScreen(
     var reportIconError by remember { mutableStateOf<String?>(null) }
     var reportIconCost by remember { mutableStateOf(0.0) }
     var reportIconModel by remember { mutableStateOf<String?>(null) }
+    // Per-agent snapshot for the inline result list and the
+    // per-agent icon detail overlay. Sourced from each ReportAgent
+    // on disk, keyed by agentId. Same iconRefreshTick gates this
+    // and the report-level mirror above so a single ViewModel ping
+    // picks up both — Create → Report icons writes through
+    // updateReportAgentIcon and bumps the tick, which rebuilds this
+    // map. agentIconRows + agentRecordsByAgentId share the same
+    // disk read so we don't double-IO when the overlay opens.
+    var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
+    var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
@@ -579,12 +596,18 @@ fun ReportsScreen(
             reportIconError = null
             reportIconCost = 0.0
             reportIconModel = null
+            agentIconRows = emptyMap()
+            agentRecordsByAgentId = emptyMap()
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
             reportIconError = r?.iconErrorMessage
             reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
             reportIconModel = r?.iconModel
+            agentIconRows = r?.agents?.associate { ra ->
+                ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
+            } ?: emptyMap()
+            agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
         }
     }
     // Provided to every inline overlay below via LocalReportIcon so
@@ -727,6 +750,7 @@ fun ReportsScreen(
 
     var showViewer by rememberSaveable { mutableStateOf(false) }
     var showIconDetail by rememberSaveable { mutableStateOf(false) }
+    var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
     var findIconsModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
@@ -1196,6 +1220,35 @@ fun ReportsScreen(
         }
         // Icon prompt / agent missing — nothing to show. Fall through.
         showIconDetail = false
+    }
+    // Per-agent icon detail — reached from the leftmost emoji cell on
+    // a row that Create → Report icons has populated. Same shape as
+    // ReportIconDetailScreen but data is per-agent (the agent's own
+    // (provider, model) ran the call, and the icon-prompt's @PROMPT@
+    // was the agent's responseBody, not the report's prompt).
+    agentIconDetailFor?.let { agentId ->
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        }
+        val agent = agentRecordsByAgentId[agentId]
+        val provider = agent?.let { AppService.findById(it.provider) }
+        if (iconPrompt != null && agent != null && provider != null) {
+            AgentIconDetailScreen(
+                iconPrompt = iconPrompt,
+                agentProvider = provider,
+                agentModel = agent.model,
+                inputText = agent.responseBody.orEmpty(),
+                icon = agent.icon,
+                errorMessage = agent.iconErrorMessage,
+                cost = agent.iconInputCost + agent.iconOutputCost,
+                onBack = { agentIconDetailFor = null }
+            )
+            return
+        }
+        // Missing icon prompt / unknown agent / mirror not yet
+        // hydrated — drop the overlay and fall through so we don't
+        // sit on a blank screen.
+        agentIconDetailFor = null
     }
 
     // Scope screen — shown before the picker for chat-type Meta
@@ -2138,7 +2191,10 @@ fun ReportsScreen(
                 reportIconError = reportIconError,
                 reportIconCost = reportIconCost,
                 reportIconModel = reportIconModel,
-                onOpenIconDetail = { showIconDetail = true }
+                onOpenIconDetail = { showIconDetail = true },
+                onRunReportIcons = onRunReportIcons,
+                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
+                agentIconRows = agentIconRows
             )
         }
     }
@@ -2239,6 +2295,93 @@ private fun ReportIconDetailScreen(
                     if (hasActiveFanOut) "View alternative icons" else "Find alternative icons",
                     maxLines = 1, softWrap = false
                 )
+            }
+        }
+    }
+}
+
+/** Per-agent variant of [ReportIconDetailScreen] reached by tapping
+ *  the emoji that replaces a row's ✅ once Create → Report icons has
+ *  landed. Same three-card layout (Model / Prompt / Response) so the
+ *  user's mental model carries over from the report-level icon; the
+ *  Prompt card shows the icon template with @PROMPT@ substituted by
+ *  THIS agent's responseBody (not the report's prompt), and the
+ *  Model card identifies the agent that ran the call. No
+ *  "Find alternative icons" affordance — per-agent icons don't have
+ *  a fan-out variant by design. */
+@Composable
+private fun AgentIconDetailScreen(
+    iconPrompt: InternalPrompt,
+    agentProvider: AppService,
+    agentModel: String,
+    /** The agent's responseBody — substituted into @PROMPT@ when
+     *  rendering the Prompt card. Falls back to "(no response)"
+     *  when blank. */
+    inputText: String,
+    icon: String?,
+    errorMessage: String?,
+    cost: Double,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val resolvedPrompt = iconPrompt.text.replace(
+        "@PROMPT@",
+        if (inputText.isNotBlank()) inputText else "(no response)"
+    )
+    val running = icon == null && errorMessage == null
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "agent_icon_detail",
+            title = "Agent icon",
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold)
+                    Text(com.ai.ui.shared.modelLabel(agentProvider.id, agentModel),
+                        fontSize = 14.sp, color = Color.White)
+                    if (cost > 0.0) {
+                        Text("Cost: ${formatCents(cost)} ¢",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    Text(resolvedPrompt, fontSize = 13.sp, color = Color.White,
+                        lineHeight = 18.sp)
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Response", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    when {
+                        errorMessage != null -> Text(errorMessage,
+                            fontSize = 13.sp, color = AppColors.Red, lineHeight = 18.sp)
+                        running -> Text("(running…)",
+                            fontSize = 13.sp, color = AppColors.TextTertiary)
+                        icon != null -> Text(icon, fontSize = 36.sp, color = Color.White)
+                        else -> Text("(no response)",
+                            fontSize = 13.sp, color = AppColors.TextTertiary)
+                    }
+                }
             }
         }
     }

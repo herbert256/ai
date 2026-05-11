@@ -62,6 +62,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { iconFanOutJobs.remove(reportId, job) }
     }
 
+    // Sibling map for the per-agent "Report icons" run (Create →
+    // Report icons). Same cancel-prior-run-on-retap semantics as
+    // iconFanOutJobs; cleaned up by deleteReport.
+    private val reportIconsJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun registerReportIconsJob(reportId: String, job: Job) {
+        reportIconsJobs.put(reportId, job)?.cancel()
+        job.invokeOnCompletion { reportIconsJobs.remove(reportId, job) }
+    }
+
     // Tracks in-flight resumeStaleFanOutPairs scans per (reportId,
     // metaPromptId). The L1 screen fires resumeStaleFanOutPairs from a
     // LaunchedEffect that re-keys whenever fanOutPrompt changes
@@ -491,6 +500,102 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Fan-out the `internal/icon` prompt across every successful
+     *  agent in [reportId]. Each call uses that agent's own
+     *  (provider, model) and substitutes @PROMPT@ with that agent's
+     *  responseBody (not the report's prompt) — the icon is keyed to
+     *  the model's answer, not the question. Persisted per-agent via
+     *  [ReportStorage.updateReportAgentIcon]; the row's leftmost ✅
+     *  swaps to the emoji on success, stays ✅ on failure (failure
+     *  reason still saved on disk for the per-agent detail screen).
+     *
+     *  Wired to the Create → Report icons menu item. Re-runs cancel
+     *  any prior in-flight job via [reportIconsJobs] and wipe stale
+     *  per-agent icon values before kicking off so the second run
+     *  doesn't show emojis from the first while new calls land. */
+    fun runReportIcons(context: Context, reportId: String, aiSettings: Settings) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        } ?: return
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val targets = report.agents.filter {
+                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+            if (targets.isEmpty()) {
+                AppLog.i("ReportIcons", "no successful agents — skipping (report=$reportId)")
+                return@launch
+            }
+            AppLog.i("ReportIcons", "→ start (report=$reportId, ${targets.size} agent(s))")
+            ReportStorage.clearAllReportAgentIcons(context, reportId)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+            targets.forEach { ra ->
+                launch {
+                    val provider = AppService.findById(ra.provider) ?: return@launch
+                    val host = providerHost(provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "Report icons (per-agent)") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "report-icon-${ra.agentId}",
+                                        name = ra.agentName,
+                                        provider = provider,
+                                        model = ra.model,
+                                        apiKey = aiSettings.getApiKey(provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val resolved = iconPrompt.text.replace("@PROMPT@", ra.responseBody.orEmpty())
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, AgentParameters(),
+                                        null, context, baseUrl
+                                    )
+                                    val emoji = response.analysis?.trim().orEmpty().take(8)
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, provider, ra.model)
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    if (response.error == null && emoji.isNotEmpty()) {
+                                        ReportStorage.updateReportAgentIcon(
+                                            context, reportId, ra.agentId,
+                                            icon = emoji,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    } else {
+                                        ReportStorage.updateReportAgentIconError(
+                                            context, reportId, ra.agentId,
+                                            error = response.error ?: "empty response"
+                                        )
+                                    }
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }.onFailure { e ->
+                                    ReportStorage.updateReportAgentIconError(
+                                        context, reportId, ra.agentId,
+                                        error = e.message ?: "report-icon call failed"
+                                    )
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        registerReportIconsJob(reportId, outer)
+    }
+
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
         selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?,
@@ -898,6 +1003,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val fanOutPrefix = "$reportId|"
         fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         iconFanOutJobs.remove(reportId)?.cancel()
+        reportIconsJobs.remove(reportId)?.cancel()
         appViewModel.clearIconFanOut(reportId)
         ReportStorage.deleteReport(context, reportId)
         if (cleared) dismissGenericReportsDialog()
