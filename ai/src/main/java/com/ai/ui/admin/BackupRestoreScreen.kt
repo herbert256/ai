@@ -148,6 +148,18 @@ fun BackupRestoreScreen(
                         },
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
+                    // Red, unmissable: the backup zip is plaintext and
+                    // every API key in the app — provider keys + the
+                    // three external-service keys (HuggingFace,
+                    // OpenRouter, Artificial Analysis) — rides along.
+                    // Anyone with the zip can call your APIs at your
+                    // expense.
+                    Text(
+                        text = "⚠️ The backup contains every API key in plain text. Don't share it — anyone with the file can call the APIs on your accounts. Store the file like a password.",
+                        fontSize = 12.sp,
+                        color = AppColors.Red,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!restoreOnly) {
                             Button(
