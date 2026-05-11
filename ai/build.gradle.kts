@@ -66,7 +66,12 @@ android {
         buildConfigField("int", "NETWORK_CONNECT_TIMEOUT_SEC", "30")
         buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "600")
         buildConfigField("int", "NETWORK_WRITE_TIMEOUT_SEC", "30")
-        buildConfigField("int", "TEST_CONNECTION_READ_TIMEOUT_SEC", "120")
+        // Provider-test calls (Refresh-all per-provider tests, the
+        // per-provider Test button, the Developer screen's raw-JSON
+        // submit) get this read timeout instead of the 10-minute
+        // streaming default — a hung provider would otherwise gate the
+        // whole Refresh-all step on the slowest server.
+        buildConfigField("int", "TEST_CONNECTION_READ_TIMEOUT_SEC", "30")
     }
 
     buildTypes {

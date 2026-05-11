@@ -198,6 +198,14 @@ object ApiFactory {
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
+        // Provider-test calls (Refresh-all per-provider tests, Test
+        // button, raw-JSON submit) need a much shorter read timeout
+        // than streaming chat/report calls. This interceptor overrides
+        // per-call when the trace category is "Provider test"; every
+        // other call keeps the 10-minute streaming default. Placed
+        // ahead of TracingInterceptor so a timeout cancellation still
+        // produces a captured trace.
+        .addInterceptor(TestCallTimeoutInterceptor())
         .addInterceptor(TracingInterceptor())
         // Propagate ApiTracer.currentTags from the calling coroutine
         // onto the dispatcher worker thread so concurrent flows don't
