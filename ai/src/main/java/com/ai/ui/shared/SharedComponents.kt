@@ -802,7 +802,11 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             // Back glyph centered in a tight 36dp box so the slot
             // doesn't waste horizontal space. Previously a 56dp
             // CenterStart box left ~30dp of empty space to the right
-            // of the ← that the rest of the strip couldn't use.
+            // of the ← that the rest of the strip couldn't use. The
+            // weight(1f) Spacer below pushes the action strip flush
+            // to the right edge — adaptive scaling above ensures the
+            // strip is narrow enough to fit there without clipping
+            // the ❓ Help icon off the screen.
             if (onBack != null) {
                 Box(
                     modifier = Modifier.size(width = 36.dp, height = 48.dp).clickable(onClick = onBack),
@@ -810,8 +814,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 ) {
                     Text("←", color = Color.White, fontSize = 32.sp)
                 }
-                Spacer(modifier = Modifier.width(backGap.dp))
             }
+            Spacer(modifier = Modifier.weight(1f))
             // Right side: same TitleBarActionStrip the top bar would
             // render, with the same Home / Help wiring and per-icon
             // null-check rules.
