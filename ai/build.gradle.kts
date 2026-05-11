@@ -1,4 +1,7 @@
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -76,6 +79,12 @@ android {
         // streaming default — a hung provider would otherwise gate the
         // whole Refresh-all step on the slowest server.
         buildConfigField("int", "TEST_CONNECTION_READ_TIMEOUT_SEC", "30")
+        // Human-readable build time stamped into the APK at compile
+        // time. Surfaced in the app-start log line so a log file
+        // shared by the user identifies exactly which build produced
+        // it (versionName alone is the encoded yy.ddd.minutesOfDay).
+        val buildStamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date())
+        buildConfigField("String", "BUILD_TIMESTAMP", "\"$buildStamp\"")
     }
 
     buildTypes {

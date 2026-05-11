@@ -331,7 +331,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
             AppLog.threshold = bs.first.logLevel
-            AppLog.i("App", "App started — logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}")
+            val appLabel = runCatching {
+                application.packageManager.getApplicationLabel(application.applicationInfo).toString()
+            }.getOrDefault("AI")
+            AppLog.i(
+                "App",
+                "App started — $appLabel v${com.ai.BuildConfig.VERSION_NAME} " +
+                    "(built ${com.ai.BuildConfig.BUILD_TIMESTAMP}) " +
+                    "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
+            )
             // Drop any per-host semaphores left over from the cold-start
             // default (3) so the very first call uses the persisted cap.
             ProviderThrottle.resetForNewLimits()
