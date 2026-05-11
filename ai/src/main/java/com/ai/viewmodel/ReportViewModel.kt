@@ -65,10 +65,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // Sibling map for the per-agent "Report icons" run (Create →
     // Report icons). Same cancel-prior-run-on-retap semantics as
     // iconFanOutJobs; cleaned up by deleteReport.
+    // Per-agent "Report icons" 3-tier chain jobs. Each successful
+    // agent gets its own entry the moment its primary call finishes
+    // (so a fast row's icon search can start while a slow row is
+    // still generating). Keyed by "$reportId|$agentId" — same shape
+    // as the existing agentIconFanOutJobs map — so deleteReport's
+    // prefix sweep on "$reportId|" cancels them too.
     private val reportIconsJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    private fun registerReportIconsJob(reportId: String, job: Job) {
-        reportIconsJobs.put(reportId, job)?.cancel()
-        job.invokeOnCompletion { reportIconsJobs.remove(reportId, job) }
+    private fun reportIconJobKey(reportId: String, agentId: String) = "$reportId|$agentId"
+    private fun registerReportIconForAgentJob(reportId: String, agentId: String, job: Job) {
+        val key = reportIconJobKey(reportId, agentId)
+        reportIconsJobs.put(key, job)?.cancel()
+        job.invokeOnCompletion { reportIconsJobs.remove(key, job) }
     }
 
     // Per-agent alternative-icons fan-out jobs (Agent icon detail →
@@ -264,7 +272,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     coroutineScope {
                         reportTasks.map { task ->
                             async {
-                                semaphore.withPermit { executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime) }
+                                semaphore.withPermit {
+                                    executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
+                                }
+                                // Per-task auto-fire: kick off this
+                                // agent's 3-tier icon chain the moment
+                                // its primary call settles to SUCCESS,
+                                // instead of waiting for every other
+                                // agent in the report. The chain
+                                // launches on viewModelScope, registers
+                                // in reportIconsJobs, and runs
+                                // independently — the outer async
+                                // here returns as soon as the chain is
+                                // scheduled, so awaitAll below still
+                                // tracks only the primary calls.
+                                val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
+                                if (perModelOn) {
+                                    val ra = ReportStorage.getReport(context, reportId)
+                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                    if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
+                                        runReportIconsForAgent(context, reportId, ra, aiPrompt, aiSettings)
+                                    }
+                                }
                             }
                         }.awaitAll()
                     }
@@ -272,17 +301,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
                     val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
                     AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
-                    // Auto-fire the per-agent 3-tier icon chain when the
-                    // matching setting is on and at least one agent
-                    // succeeded. runReportIcons launches on
-                    // appViewModel.viewModelScope and registers its job
-                    // in reportIconsJobs, so it survives the user
-                    // navigating away from the result screen and gets
-                    // cancelled by deleteReport's prefix sweep.
-                    val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
-                    if (perModelOn && ok > 0) {
-                        runReportIcons(context, reportId, aiSettings)
-                    }
                     if (reportRunningInBackground) {
                         reportRunningInBackground = false
                         withContext(Dispatchers.Main) {
@@ -668,29 +686,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Fan-out the `internal/report_icon` prompt across every
-     *  successful agent in [reportId]. Each call uses that agent's
-     *  own (provider, model) and substitutes:
-     *     @PROMPT@   → the report's prompt (uniform across all agents),
-     *     @RESPONSE@ → that agent's responseBody (per-agent).
-     *  The icon is keyed to "what did THIS model answer to THIS
-     *  question", not just the answer alone — the new
-     *  report_icon prompt sees both halves of the exchange.
+    /** 3-tier fallback chain for ONE agent's report icon. Fires
+     *  immediately when an agent's primary call settles to SUCCESS
+     *  (per-task auto-fire hook in generateGenericReports /
+     *  regenerateReport), so a fast row's icon search starts while
+     *  a slow row is still generating its response.
      *
-     *  Persisted per-agent via [ReportStorage.updateReportAgentIcon];
-     *  the row's leftmost ✅ swaps to the emoji on success, stays ✅
-     *  on failure (reason still saved on disk for the per-agent
-     *  detail screen).
-     *
-     *  Wired to the Create → Report icons menu item. Re-runs cancel
-     *  any prior in-flight job via [reportIconsJobs] and wipe stale
-     *  per-agent icon values before kicking off so the second run
-     *  doesn't show emojis from the first while new calls land. */
-    /** 3-tier fallback chain for per-agent report icons. Reached from
-     *  the Create → Report icons menu. Each successful agent row gets
-     *  up to three API calls in sequence; the first one that returns
-     *  an extractable emoji wins, and the agent's icon + winning-tier
-     *  field are committed:
+     *  Each call runs in sequence on the agent's own dispatch path;
+     *  the first one that returns an extractable emoji wins:
      *
      *    Tier 1 — chat continuation against the agent's own
      *      (provider, model). user→assistant→user message chain with
@@ -710,8 +713,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *
      *  All three tiers fail → 📝 fallback (icon set, iconWinningTier
      *  null — matches the existing "result must always be just one
-     *  emoji" rule for the rest of the icon system). */
-    fun runReportIcons(context: Context, reportId: String, aiSettings: Settings) {
+     *  emoji" rule for the rest of the icon system).
+     *
+     *  The job registers in [reportIconsJobs] under
+     *  "$reportId|$agentId" so deleteReport's prefix sweep cancels
+     *  it; a re-fire for the same agent (regenerate path) cancels
+     *  the previous run. */
+    fun runReportIconsForAgent(
+        context: Context, reportId: String,
+        ra: ReportAgent, reportPrompt: String, aiSettings: Settings
+    ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "report_icon_chat"
         }
@@ -722,62 +733,54 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             it.category == "internal" && it.name == "report_icon_3th"
         }
         if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
-            AppLog.w("ReportIcons", "no icon prompts configured — skipping (report=$reportId)")
+            AppLog.w("ReportIcons", "no icon prompts configured — skipping (agent=${ra.agentId})")
             return
         }
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val reportPrompt = report.prompt
-            val targets = report.agents.filter {
-                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-            }
-            if (targets.isEmpty()) {
-                AppLog.i("ReportIcons", "no successful agents — skipping (report=$reportId)")
-                return@launch
-            }
-            AppLog.i("ReportIcons", "→ start 3-tier chain (report=$reportId, ${targets.size} agent(s))")
-            ReportStorage.clearAllReportAgentIcons(context, reportId)
+            val agentProvider = AppService.findById(ra.provider) ?: return@launch
+            val agentResponse = ra.responseBody.orEmpty()
+            if (agentResponse.isBlank()) return@launch
+            // Per-agent state reset — wipes this agent's icon fields
+            // and removes its rows from the iconCalls audit log so a
+            // regenerate re-fire starts clean. No-op on initial gen
+            // (everything's already null). Other agents' state is
+            // untouched.
+            ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
-            targets.forEach { ra ->
-                launch {
-                    val agentProvider = AppService.findById(ra.provider) ?: return@launch
-                    val agentResponse = ra.responseBody.orEmpty()
 
-                    // Tier 1 — chat continuation.
-                    val tier1Emoji = chatPrompt?.let { p ->
-                        runTier1(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
-                    }
-                    if (tier1Emoji != null) {
-                        commitChainResult(context, reportId, ra.agentId, tier1Emoji, winningTier = 1)
-                        return@launch
-                    }
-
-                    // Tier 2 — one-shot report_icon template.
-                    val tier2Emoji = tier2Prompt?.let { p ->
-                        runTier2(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
-                    }
-                    if (tier2Emoji != null) {
-                        commitChainResult(context, reportId, ra.agentId, tier2Emoji, winningTier = 2)
-                        return@launch
-                    }
-
-                    // Tier 3 — fixed bundled-agent fallback.
-                    val tier3Emoji = tier3Prompt?.let { p ->
-                        runTier3(context, reportId, ra, p, agentResponse, aiSettings)
-                    }
-                    if (tier3Emoji != null) {
-                        commitChainResult(context, reportId, ra.agentId, tier3Emoji, winningTier = 3)
-                        return@launch
-                    }
-
-                    // All three tiers failed — final 📝 fallback.
-                    commitChainResult(context, reportId, ra.agentId, "📝", winningTier = null)
-                }
+            // Tier 1 — chat continuation.
+            val tier1Emoji = chatPrompt?.let { p ->
+                runTier1(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
             }
+            if (tier1Emoji != null) {
+                commitChainResult(context, reportId, ra.agentId, tier1Emoji, winningTier = 1)
+                return@launch
+            }
+
+            // Tier 2 — one-shot report_icon template.
+            val tier2Emoji = tier2Prompt?.let { p ->
+                runTier2(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
+            }
+            if (tier2Emoji != null) {
+                commitChainResult(context, reportId, ra.agentId, tier2Emoji, winningTier = 2)
+                return@launch
+            }
+
+            // Tier 3 — fixed bundled-agent fallback.
+            val tier3Emoji = tier3Prompt?.let { p ->
+                runTier3(context, reportId, ra, p, agentResponse, aiSettings)
+            }
+            if (tier3Emoji != null) {
+                commitChainResult(context, reportId, ra.agentId, tier3Emoji, winningTier = 3)
+                return@launch
+            }
+
+            // All three tiers failed — final 📝 fallback.
+            commitChainResult(context, reportId, ra.agentId, "📝", winningTier = null)
         }
-        registerReportIconsJob(reportId, outer)
+        registerReportIconForAgentJob(reportId, ra.agentId, outer)
     }
 
     /** Tier 1 of [runReportIcons]: continue the conversation as a
@@ -1300,23 +1303,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
                                         finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
                                 }
+                                // Per-task auto-fire — same shape as
+                                // generateGenericReports. Each agent's
+                                // chain kicks off the moment its primary
+                                // call settles to SUCCESS; the agent's
+                                // own clearReportAgentIconState (at the
+                                // top of runReportIconsForAgent) wipes
+                                // any stale icon + iconCalls rows so
+                                // the re-fire is clean.
+                                val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
+                                if (perModelOn) {
+                                    val ra = ReportStorage.getReport(context, reportId)
+                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                    if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
+                                        runReportIconsForAgent(context, reportId, ra, finalReport.prompt, ai)
+                                    }
+                                }
                             }
                         }.awaitAll()
                     }
-                }
-
-                // Auto-fire the per-agent 3-tier icon chain on the
-                // regenerate path too — clearReportSpecificAgentState
-                // upstream already wiped per-agent icon fields, so the
-                // chain repopulates them with fresh emojis tied to the
-                // new responses. Gated on the same setting + ≥1
-                // successful agent rule the initial-generation hook
-                // uses.
-                val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
-                if (perModelOn) {
-                    val afterRegen = ReportStorage.getReport(context, reportId)
-                    val ok = afterRegen?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
-                    if (ok > 0) runReportIcons(context, reportId, ai)
                 }
 
                 // Cascade: prompt / params change invalidates every meta
@@ -1420,7 +1425,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val fanOutPrefix = "$reportId|"
         fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         iconFanOutJobs.remove(reportId)?.cancel()
-        reportIconsJobs.remove(reportId)?.cancel()
+        // reportIconsJobs is now keyed by "$reportId|$agentId" (one
+        // job per per-agent chain) — sweep by prefix like the fan-out
+        // pair jobs above.
+        reportIconsJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         // Per-agent alt-icon jobs also live under the same reportId
         // prefix — collect and cancel them by agentId so their
         // candidate maps clear too. Same prefix key as the fan-out

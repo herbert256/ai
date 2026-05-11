@@ -731,6 +731,36 @@ object ReportStorage {
         }
     }
 
+    /** Per-agent counterpart of [clearAllReportAgentIcons]: wipes
+     *  ONE agent's icon fields and removes its entries from the
+     *  report's iconCalls audit log. Called at the top of the
+     *  per-agent icon driver so a re-fire (regenerate) starts the
+     *  agent's chain on a clean slate without disturbing other
+     *  agents' icons. */
+    fun clearReportAgentIconState(context: Context, reportId: String, agentId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val cleared = report.agents[idx].copy(
+                icon = null, iconErrorMessage = null,
+                iconInputTokens = 0, iconOutputTokens = 0,
+                iconInputCost = 0.0, iconOutputCost = 0.0,
+                iconWinningTier = null
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = cleared }
+            val newCalls = report.iconCalls.filter { it.agentId != agentId }.toMutableList()
+            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
+                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
+            saveReport(report.copy(
+                agents = newAgents, iconCalls = newCalls, totalCost = newTotal,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     /** Wipe per-agent icon fields across every agent in the report.
      *  Used by Create → Report icons at the start of a re-run so the
      *  second run doesn't show stale emojis from the first while
