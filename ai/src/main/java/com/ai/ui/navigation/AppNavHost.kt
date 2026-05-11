@@ -52,7 +52,19 @@ fun AppNavHost(
         navController.navigate(NavRoutes.AI) { popUpTo(NavRoutes.AI) { inclusive = true } }
     }
 
-    // Handle external intent
+    // Handle external intent.
+    //
+    // ACTION_NEW_REPORT is exported, so any installed app can fire it.
+    // Bare-prompt intents (no `<instructions>` block) merely pre-fill
+    // the new-report editor — the user still picks models and taps
+    // Generate manually, so no API credits move without consent.
+    // Anything with instructions, however, can auto-generate, drive
+    // model selection, email/share/browser the result, and finish()
+    // the activity. That class of intent must pass through an explicit
+    // confirmation screen before any of those side effects run.
+    val pendingExternalReport = remember {
+        mutableStateOf<com.ai.ui.share.PendingExternalReport?>(null)
+    }
     LaunchedEffect(externalPrompt) {
         if (externalPrompt != null) {
             fun extractTag(tag: String, text: String): String? =
@@ -76,33 +88,64 @@ fun AppNavHost(
                 onExternalIntentHandled(); return@LaunchedEffect
             }
 
-            val openHtml = extractTag("open", instructions)
-            val closeHtml = extractTag("close", instructions)
-            val reportType = extractTag("type", instructions)
-            val email = extractTag("email", instructions)
-            val nextAction = extractTag("next", instructions)
-            val hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
-            val hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
-            val hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions)
-
-            val agentNames = extractAllTags("agent", instructions)
-            val flockNames = extractAllTags("flock", instructions)
-            val swarmNames = extractAllTags("swarm", instructions)
-            val modelSpecs = extractAllTags("model", instructions)
-
-            appViewModel.setExternalInstructions(closeHtml, reportType, email, nextAction, hasReturn, agentNames, flockNames, swarmNames, modelSpecs, hasEdit, hasSelect, openHtml, systemPrompt = externalSystem)
-
-            if (hasEdit) {
-                navController.navigate(NavRoutes.aiNewReportWithParams(externalTitle ?: "", aiPrompt)) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
-                }
-            } else {
-                val fullPrompt = if (openHtml != null) "$aiPrompt\n<user>$openHtml</user>" else aiPrompt
-                reportViewModel.showGenericAgentSelection(externalTitle ?: "", fullPrompt)
-                navController.navigate(NavRoutes.AI_REPORTS) { popUpTo(NavRoutes.AI) { inclusive = false } }
-            }
+            pendingExternalReport.value = com.ai.ui.share.PendingExternalReport(
+                title = externalTitle,
+                systemPrompt = externalSystem,
+                aiPrompt = aiPrompt,
+                openHtml = extractTag("open", instructions),
+                closeHtml = extractTag("close", instructions),
+                reportType = extractTag("type", instructions),
+                email = extractTag("email", instructions),
+                nextAction = extractTag("next", instructions),
+                hasReturn = Regex("<return>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
+                hasEdit = Regex("<edit>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
+                hasSelect = Regex("<select>", RegexOption.IGNORE_CASE).containsMatchIn(instructions),
+                agentNames = extractAllTags("agent", instructions),
+                flockNames = extractAllTags("flock", instructions),
+                swarmNames = extractAllTags("swarm", instructions),
+                modelSpecs = extractAllTags("model", instructions)
+            )
+            // Clear the source-of-truth extras so a configuration
+            // change doesn't re-stage the confirmation after the user
+            // has cancelled or confirmed it.
             onExternalIntentHandled()
         }
+    }
+
+    pendingExternalReport.value?.let { staged ->
+        com.ai.ui.share.ExternalIntentConfirmScreen(
+            intent = staged,
+            onCancel = { pendingExternalReport.value = null },
+            onConfirm = {
+                appViewModel.setExternalInstructions(
+                    closeHtml = staged.closeHtml,
+                    reportType = staged.reportType,
+                    email = staged.email,
+                    nextAction = staged.nextAction,
+                    returnAfterNext = staged.hasReturn,
+                    agentNames = staged.agentNames,
+                    flockNames = staged.flockNames,
+                    swarmNames = staged.swarmNames,
+                    modelSpecs = staged.modelSpecs,
+                    edit = staged.hasEdit,
+                    select = staged.hasSelect,
+                    openHtml = staged.openHtml,
+                    systemPrompt = staged.systemPrompt
+                )
+                if (staged.hasEdit) {
+                    navController.navigate(NavRoutes.aiNewReportWithParams(staged.title ?: "", staged.aiPrompt)) {
+                        popUpTo(NavRoutes.AI) { inclusive = false }
+                    }
+                } else {
+                    val fullPrompt = if (staged.openHtml != null)
+                        "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
+                    reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
+                    navController.navigate(NavRoutes.AI_REPORTS) { popUpTo(NavRoutes.AI) { inclusive = false } }
+                }
+                pendingExternalReport.value = null
+            }
+        )
+        return
     }
 
     // Share-target overlay — when the launching Intent was an
