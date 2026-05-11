@@ -753,44 +753,84 @@ private fun TitleBarIcon(
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
-    Row(
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+    // Estimate the strip's intrinsic width at scale = 1 so we can
+    // adapt the rendered scale to the available width. Mirrors the
+    // hard-coded slot widths inside TitleBarActionStrip. If the
+    // estimate is too generous we just stay at the design scale;
+    // if it's too tight we shrink the strip down (clamped at 0.9×)
+    // so the rightmost ❓ Help icon doesn't fall off the right edge
+    // on screens with a fat action strip (Model response, etc.).
+    val onBack = icons?.onBack
+    val onChat = icons?.onChat
+    val onInfo = icons?.onInfo
+    val onCopy = icons?.onCopy
+    val onShare = icons?.onShare
+    val onReload = icons?.onReload
+    val onDelete = icons?.onDelete
+    val onTrace = icons?.onTrace
+    val onMemo = icons?.onMemo
+    val extraGap = 2 // matches extraSpacing param below
+    var stripBase = 0
+    var slotCount = 0
+    fun slot(w: Int) { stripBase += w; slotCount++ }
+    if (onChat != null) slot(28)
+    if (onInfo != null) slot(28)
+    if (onCopy != null) slot(28)
+    if (onShare != null) slot(28)
+    if (onReload != null) slot(28)
+    if (onDelete != null) slot(22)
+    if (onDelete != null && onTrace != null) stripBase += 2
+    if (onTrace != null) slot(22)
+    if (onDelete != null && onTrace == null) stripBase += 2
+    if (onTrace != null && onMemo == null) stripBase += 4
+    if (onMemo != null) slot(28)
+    slot(22) // home (always)
+    slot(14) // help (always)
+    val stripIntrinsic = stripBase + (slotCount - 1).coerceAtLeast(0) * extraGap
+    androidx.compose.foundation.layout.BoxWithConstraints(
+        modifier = modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp)
     ) {
-        // Left side: back-arrow rendered inline (not via
-        // TitleBarIcon) so it can hug the screen's left edge with
-        // CenterStart alignment and cap its slot height at the
-        // right-strip's intrinsic height — keeps the bar short and
-        // the glyph flush left.
-        val onBack = icons?.onBack
-        if (onBack != null) {
-            Box(
-                modifier = Modifier.size(width = 56.dp, height = 48.dp).clickable(onClick = onBack),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text("←", color = Color.White, fontSize = 32.sp,
-                    modifier = Modifier.padding(start = 4.dp))
+        val backW = if (onBack != null) 36 else 0
+        val backGap = if (onBack != null) 4 else 0
+        val available = maxWidth.value
+        val desired = (available - backW - backGap) / stripIntrinsic
+        val scale = desired.coerceIn(0.9f, 1.5f)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Back glyph centered in a tight 36dp box so the slot
+            // doesn't waste horizontal space. Previously a 56dp
+            // CenterStart box left ~30dp of empty space to the right
+            // of the ← that the rest of the strip couldn't use.
+            if (onBack != null) {
+                Box(
+                    modifier = Modifier.size(width = 36.dp, height = 48.dp).clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("←", color = Color.White, fontSize = 32.sp)
+                }
+                Spacer(modifier = Modifier.width(backGap.dp))
             }
+            // Right side: same TitleBarActionStrip the top bar would
+            // render, with the same Home / Help wiring and per-icon
+            // null-check rules.
+            TitleBarActionStrip(
+                onHome = navigateHome,
+                onReload = onReload,
+                onChat = onChat,
+                onInfo = onInfo,
+                onCopy = onCopy,
+                onShare = onShare,
+                onDelete = onDelete,
+                onTrace = onTrace,
+                onHelp = { navigateHelp(icons?.helpTopic) },
+                onMemo = onMemo,
+                scale = scale,
+                compactSpacing = false,
+                extraSpacing = extraGap.dp
+            )
         }
-        Spacer(modifier = Modifier.weight(1f))
-        // Right side: same TitleBarActionStrip the top bar would
-        // render, with the same Home / Help wiring and per-icon
-        // null-check rules.
-        TitleBarActionStrip(
-            onHome = navigateHome,
-            onReload = icons?.onReload,
-            onChat = icons?.onChat,
-            onInfo = icons?.onInfo,
-            onCopy = icons?.onCopy,
-            onShare = icons?.onShare,
-            onDelete = icons?.onDelete,
-            onTrace = icons?.onTrace,
-            onHelp = { navigateHelp(icons?.helpTopic) },
-            onMemo = icons?.onMemo,
-            scale = 1.5f,
-            compactSpacing = false,
-            extraSpacing = 2.dp
-        )
     }
 }
 
