@@ -124,8 +124,9 @@ translate, rerank, moderation).
 | reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
 | category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
-| text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report). Model-scoped fan-in (`category` of `initiator` / `requester` / `model`) adds `@INITIATOR@` (active model's own report response), `@RESPONDERS@` (block of fan-out responses where the active model is the source), `@RESPONDER_PAIRS@` (iterable list of `***Report*** {body} ***Response*** {body}` pairs where the active model is the answerer) |
+| text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report). Model-scoped fan-in (`category` of `initiator` / `requester` / `model`) adds `@INITIATOR@` (active model's own report response), `@RESPONDERS@` (block of fan-out responses where the active model is the source), `@RESPONDER_PAIRS@` (iterable list of `***Report*** {body} ***Response*** {body}` pairs where the active model is the answerer) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
+| scope | `String` (default `"Default"`) | meta-prompt + fan-out launch scope. `"Default"` runs against every report agent / every present language with no extra picker step; `"Select"` routes the user through `SecondaryScopeScreen` first so they can pick a subset / top-N / language fan-out. Other categories carry the value verbatim so round-tripping through `prompts.json` and the export bundle is lossless |
 
 > The legacy `type` field is gone — routing is now derived from
 > `category`. `category="meta"` plus a `name` matching `"rerank"`,
@@ -224,6 +225,13 @@ Result of a single provider model-list fetch.
 | sourceReportId | `String?` (set when this report is a translated copy of another) |
 | knowledgeBaseIds | `List<String>` (KBs attached to this report) |
 | pinned | `Boolean` (user-pinned, surfaces on the Reports hub above Recent) |
+| costsFromDeletedItems | `Double` (sum of input+output cost of every deleted row — agent / secondary / fan-out / fan-in / translation. Surfaced as its own line above Total when non-zero so the user sees what the API actually billed even after trimming visible rows) |
+| icon | `String?` (per-report emoji, set by `kickOffIconGeneration` on report start. Null while running, on call failure, or on legacy reports created before the feature shipped. See [report-icons.md](report-icons.md)) |
+| iconErrorMessage | `String?` (failure reason from the icon-gen call; set instead of `icon` when the LLM returned an error or empty body) |
+| iconInputTokens, iconOutputTokens | `Int` |
+| iconInputCost, iconOutputCost | `Double` |
+| iconModel | `String?` (set when the current icon was picked manually via Find alternative icons, stored as `"<providerId>/<modelId>"`) |
+| iconCalls | `MutableList<IconCallRecord>` (per-call audit log for the 3-tier per-agent chain — every attempt, including failed earlier tiers) |
 
 ### `ReportAgent`
 | Field | Type |
@@ -239,6 +247,29 @@ Result of a single provider model-list fetch.
 | searchResults | `List<SearchResult>?` |
 | relatedQuestions | `List<String>?` |
 | rawUsageJson | `String?` |
+| icon | `String?` (per-agent emoji produced by `runReportIconsForAgent`. Null until the chain runs; null too on failure — see `iconErrorMessage`) |
+| iconErrorMessage | `String?` |
+| iconInputTokens, iconOutputTokens | `Int` |
+| iconInputCost, iconOutputCost | `Double` (cumulative cost across every tier attempt) |
+| iconWinningTier | `Int?` (1 = chat continuation, 2 = one-shot `internal/report_icon`, 3 = fixed-agent fallback against `internal/report_icon_3th`. Null when no tier succeeded and the icon is the 📝 fallback, or when the icon was manually picked via Find alternative icons) |
+
+### `IconCallRecord`
+One captured API call from the 3-tier per-agent icon chain
+([report-icons.md](report-icons.md)). Stored on
+`Report.iconCalls` so the per-call All-tab in the cost export
+renders every attempt — including failed earlier tiers the
+chain skipped past.
+
+| Field | Type |
+|---|---|
+| agentId | `String` |
+| tier | `Int` (1 / 2 / 3) |
+| provider, model, pricingTier | `String` |
+| inputTokens, outputTokens | `Int` |
+| inputCost, outputCost | `Double` |
+| durationMs | `Long?` |
+| success | `Boolean` |
+| timestamp | `Long` |
 
 ### `SecondaryResult`
 Meta-result tied to a parent report — rerank, chat-type Meta
@@ -459,6 +490,10 @@ per-provider table.
 | adaptiveThinkingPatterns | `List<ModelPattern>` | opts in to Anthropic's adaptive-thinking shape (claude-opus-4.6 / 4.7) |
 | maxTokensDefaults | `List<MaxTokensRule>` | per-family default `max_tokens` (Anthropic). First match wins, default 4096 |
 | builtInEndpoints | `List<Endpoint>` | bundled alternate endpoints (DeepSeek main + reasoner; Mistral chat + Codestral; Z.AI mainland + international). User can pick between them on the provider edit screen |
+| maxCallsPerProviderPerMinute | `Int?` | per-provider override for `GeneralSettings.maxCallsPerProviderPerMinute`. Null → inherit. Read by `ProviderThrottle.acquire` when this provider's hostname matches. See [throttle.md](throttle.md) |
+| maxConcurrentCallsPerProvider | `Int?` | per-provider override for the concurrency cap. Null → inherit |
+| maxRetriesOn429 | `Int?` | per-provider override for the 429-retry cap (0 = disable in-line retries). Null → inherit |
+| retryBackoffMs | `Long?` | per-provider override for the wait between 429 retries. Null → inherit |
 
 There is also a synthetic singleton `AppService.LOCAL` (`id =
 "Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
@@ -540,6 +575,7 @@ Costs page and the layered-costs CSV export.
 | createdAt, updatedAt | `Long` |
 | pinned | `Boolean` (surfaces above Recent on the AI Chat hub) |
 | knowledgeBaseIds | `List<String>` (KBs attached to this chat) |
+| title | `String` (default empty) | Display title. Seeded with the first 10 words of the first user message on send; replaced asynchronously by the bundled `internal/chat_title` prompt against DeepSeek after the first assistant response. Blank for sessions saved before this field existed — display sites fall back to `preview` (first user message, first 50 chars) |
 
 Computed:
 - `preview: String` — first user message, truncated to 50 chars.
@@ -592,6 +628,94 @@ Two-models-talk-to-each-other configuration. Persisted to
 
 ---
 
+## Throttling (`com.ai.data` / declared in `ApiTracer.kt`)
+
+### `NetworkSettings`
+Live mirror of the user-tunable network knobs. Singleton so
+OkHttp interceptors can read the current value without
+threading a `Settings` reference through their constructors.
+`AppViewModel` writes here on bootstrap and on every
+`GeneralSettings` update.
+
+| Field | Type | Notes |
+|---|---|---|
+| streamingReadTimeoutSec | `Int` (default = BuildConfig) | SSE chat / report streams |
+| nonStreamingReadTimeoutSec | `Int` (default = BuildConfig) | analyze, meta, rerank, translate, model-list |
+| maxCallsPerProviderPerMinute | `Int` (default 30) | per-host sliding-window rate cap |
+| maxConcurrentCallsPerProvider | `Int` (default 3) | per-host concurrency cap |
+| maxRetriesOn429 | `Int` (default 3) | in-line 429 retries |
+| retryBackoffMs | `Long` (default 1000) | wait between retries |
+
+### `ProviderThrottle`
+Per-hostname rate + concurrency gate. One `Semaphore` + one
+`ConcurrentLinkedDeque<Long>` per host. `acquire(host)` is
+synchronous (blocks an OkHttp dispatcher worker, never the main
+thread) and returns a `Releaser` that must be called in
+`finally` to avoid leaking the permit. Caps are resolved per
+acquire from per-provider override → `NetworkSettings` global.
+
+`permitPreAcquired: ThreadLocal<Boolean>` lets coroutine-side
+flows (Fan-out, report-icon chain, alternative-icons fan-out)
+tell the inline `ProviderThrottleInterceptor` to skip its own
+acquire. Propagated across coroutine dispatcher hops via
+`asContextElement(true)` and onto OkHttp workers via
+`TagPropagatingExecutor`.
+
+See [throttle.md](throttle.md) for the full chain.
+
+---
+
+## Logging (`com.ai.data.AppLog`)
+
+### `LogLevel` (enum)
+`TRACE` (priority 2 = `Log.VERBOSE`), `DEBUG` (3), `INFO` (4),
+`WARN` (5), `ERROR` (6), `OFF` (99 — sentinel that disables the
+file appender; logcat still fires).
+
+### `AppLogFileInfo`
+One row of metadata for a log file under `<filesDir>/applog/`.
+Cached in `AppLog.cachedFiles` so the list view doesn't restat
+the directory on every navigation.
+
+| Field | Type | Notes |
+|---|---|---|
+| filename | `String` | `applog_yyyyMMdd.log` |
+| date | `String` | `yyyy-MM-dd` derived from filename |
+| sizeBytes | `Long` |  |
+| lastModified | `Long` |  |
+
+The `AppLog` singleton itself exposes `threshold`,
+`lastWriterError`, `droppedLineCount`, plus the `init` / `v` /
+`d` / `i` / `w` / `e` / file-management API. See
+[applog.md](applog.md).
+
+---
+
+## Per-provider field timestamps (`com.ai.data.ProviderFieldTimestamps`)
+
+Per-provider, per-field "user-touched-at" timestamps.
+Persisted in its own SharedPreferences entry
+(`provider_field_timestamps`) as a JSON map
+(`{ "OpenAI": { "baseUrl": 1715… }, … }`) so the `AppService`
+serialization shape stays untouched.
+
+Field names match `AppService` property names (e.g.
+`"baseUrl"`, `"modelFilter"`). Timestamps are set by
+`ProviderRegistry.update` when the new value differs from the
+existing one — the user just edited that field via the Settings
+UI. Asset-driven paths (`importFromAsset`, `upsertFromJson`,
+`syncFromAsset`) don't bump.
+
+The every-start sync uses these to decide which fields to
+refresh from `assets/providers.json`:
+- `timestamp == null` → field was never user-touched, refresh
+- `timestamp != null` → user edited this field, leave alone
+
+API: `get(providerId, field): Long?`, `bump(providerId,
+fields, now)`, `clearAll()`, `clear(providerId)`.
+
+---
+
 ## Share-target (`com.ai.data.SharedContent`)
 
 ### `SharedContent`
@@ -623,9 +747,18 @@ Computed:
 | tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
 | showBackButton | `Boolean` (default true) | when false hides the visible `< Back` button on every TitleBar; system back still works |
-| subjectToTitleBarMode | `SubjectToTitleBarMode` (default `HARDCODED`) | tri-state: `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` folds the dynamic subject into the title bar and drops the green line; `BOTH` joins them with `/` and drops the green line |
-| iconBarAtBottom | `Boolean` (default false) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen and the top bar shows only the title. Bar lives at AppNavHost scope so it survives nav transitions |
-| iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background LLM call that generates a fitting emoji, the icon row appears on the result page, the dynamic emoji shows in title bars / hub list / history / search hits, and the 📝 memo icon mirrors. When false the call is skipped and per-row icons fall back to the static 🕘 / 📌 |
+| subjectToTitleBarMode | `SubjectToTitleBarMode` (default `BOTH`) | tri-state: `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` folds the dynamic subject into the title bar and drops the green line; `BOTH` joins them with `/` and drops the green line (gracefully falls back to the title when the subject is blank) |
+| iconBarAtBottom | `Boolean` (default true) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen and the top bar shows only the title. Bar lives at AppNavHost scope so it survives nav transitions |
+| iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background LLM call (the bundled `internal/icon` prompt against its pinned agent) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and the title bar's leftmost icon. When false the call is skipped, the icon row is hidden, the leftmost title-bar icon and its mirrored 📝 memo are hidden, and per-row icons fall back to the static 🕘 / 📌. Persisted icon / iconCost values on existing reports stay on disk — re-enabling brings them back |
+| perModelIconGenEnabled | `Boolean` (default true) | master switch for the per-agent 3-tier icon chain. When true, every successful agent call (initial generation AND regenerate) auto-fires `runReportIconsForAgent` on `appViewModel.viewModelScope`. Each agent's leftmost ✅ flips to a returned emoji once the chain finishes. When false the chain never runs automatically; per-agent rows keep their plain ✅. See [report-icons.md](report-icons.md) |
+| recentReportModels | `List<String>` (default empty) | last 3 (provider, model) pairs picked from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings; surfaces in the Report Select Models picker as a "Recent" section (honors the active provider / type / search filters) |
+| streamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_READ_TIMEOUT_SEC`) | read timeout applied to streaming API calls (SSE chat / report streams). Mirrored to `NetworkSettings.streamingReadTimeoutSec` so the per-call OkHttp interceptor reads the live value |
+| nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
+| maxCallsPerProviderPerMinute | `Int` (default 30) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
+| maxConcurrentCallsPerProvider | `Int` (default 3) | per-provider concurrency cap. Replaces the prior hardcoded fan-out semaphore — applies globally across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
+| maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
+| retryBackoffMs | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
+| logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
 | showKnowledgeCard | `Boolean` (default false) | gates the AI Knowledge card on the home Hub. Default off keeps the Hub approachable on a fresh install; the Knowledge subsystem itself stays fully functional whether or not the card is visible |
 
 > The intro / model_info / translate / rerank / moderation prompt

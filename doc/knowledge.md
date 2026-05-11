@@ -162,6 +162,13 @@ so a crash mid-write can't leave the manifest pointing at half a
 chunk file. Source files are persisted via tmp + fsync + atomic
 rename.
 
+The store enforces a **canonical-containment guard** around every
+path join that uses `kbId` (and `saveSource` / `deleteSource`
+validate `source.id` with the same `isSafeFlatId` rule the
+storage writers use) — a corrupt id with a `..` segment, a `/`
+inside, or a symlinked target can't escape
+`<filesDir>/knowledge/`.
+
 ## UI
 
 - `ui/knowledge/KnowledgeListScreen.kt` — list of KBs + create button +

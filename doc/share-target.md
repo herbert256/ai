@@ -147,8 +147,14 @@ composition:
 
 The older `com.ai.ACTION_NEW_REPORT` external-intent contract
 (driven by `ExternalIntent` + `MainActivity.handleIntent`) is a
-separate flow with its own 13-field payload. See the in-app **Help**
-screen for the full contract; share-target handles only the
+separate flow with its own 13-field payload. The user **must
+confirm** before the cross-app launch fires the API calls — a
+short confirmation screen surfaces the prompt and the selected
+models, with Generate and Cancel buttons. Previously the report
+ran silently, which masked surprise spend; the explicit consent
+step matches the rest of the app's "no background billing
+without acknowledgement" posture. See the in-app **Help** screen
+for the full intent contract; share-target handles only the
 standard `ACTION_SEND` / `ACTION_SEND_MULTIPLE`.
 
 ## Files

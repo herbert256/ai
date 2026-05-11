@@ -34,7 +34,10 @@ The home screen has these big cards:
 
 - **AI Reports** — multi-model reports with rerank / chat-meta /
   fan-out / moderate / translate.
-- **AI Chat** — single-model conversation.
+- **AI Chat** — single-model conversation. Chat titles are
+  AI-generated (the bundled `chat_title` prompt fires after the
+  first assistant response); a first-10-words fallback fills the
+  row instantly so nothing is ever blank.
 - **AI Knowledge** — knowledge bases for retrieval-augmented
   generation. Attach to Reports / Chats. (Hidden by default on
   fresh installs — flip **Settings → Show AI Knowledge card on
@@ -44,6 +47,10 @@ The home screen has these big cards:
 - **AI Usage** — running token / cost statistics.
 - **AI API Traces** — every recent API call (cloud or local) as a
   JSON file. (Hidden when API tracing is disabled in Settings.)
+- **AI App log** — daily-rotating in-app log file with a
+  searchable / filterable viewer ([applog.md](applog.md)). Useful
+  when you want to hand a clean log to support without
+  needing `adb logcat`.
 
 Plus shortcut buttons for **Settings**, **Housekeeping**, **AI
 Setup**, **Help**.
@@ -62,10 +69,13 @@ Tapping **AI Reports** lands on a hub screen with several cards:
 
 - **Start** — `New AI Report`, `Start with an example prompt`,
   `Start with a previous prompt`.
-- **Pinned** (when present) — pinned reports surface above Recent so
-  the ones you keep coming back to are one tap away.
-- **Recent** — compact list of the last few reports with a 🕐 icon.
-  In-flight runs show a tiny spinner.
+- **Existing reports** — combined card with Pinned, Recent, and a
+  `View previous reports` row in one place. Pinned reports appear
+  first (when present), then the most recent few. Every row's
+  leading icon is the report's **generated emoji** (or the
+  static 🕘 / 📌 when icon-gen is off or the call failed). The
+  card is styled to match Start so the hub reads as two parallel
+  entry points.
 - **Search** — three options:
   - **Quick local search** — fast keyword scan across saved report
     prompts and bodies.
@@ -105,31 +115,73 @@ Tapping **AI Reports** lands on a hub screen with several cards:
 While the report runs:
 - A progress bar shows X/Y completed.
 - Each agent's status icon spins ⏳ until the call finishes (✅ / ❌).
-- Tap **Background** to send the run to the background and continue
-  using the app — you'll get a toast when it's done.
+- The full action row (Regenerate / Export / Copy / Translate /
+  Delete / Rerank) is available from the moment Generate is
+  tapped — you can navigate away and the run **continues in the
+  background** on `appViewModel.viewModelScope`. Coming back to
+  the screen recovers stale placeholders and shows finished
+  rows; a toast confirms completion if you stayed elsewhere.
 - Tap **STOP** to cancel.
+
+#### Per-report icon
+
+Right after Generate the app fires a background call to pick a
+fitting emoji for the report. The icon appears as the leftmost
+title-bar glyph and as the row icon on every list that
+references the report. If the call fails it shows ❌ with the
+error reason — the row stays usable; the icon just isn't there
+yet. Toggle this off under **Settings → Generate report icons**.
+
+#### Per-agent icons
+
+If **Generate per model icons** is on (default), each successful
+agent call kicks off a 3-tier icon-generation chain — chat
+continuation against the agent's own model, one-shot template,
+fixed-agent fallback. The result becomes the row's emoji on the
+**Icons** view (Create → View → Icons). Costs accumulate on the
+row's cost cell and show up under the Costs view's per-call
+**All** tab. See [report-icons.md](report-icons.md).
 
 ### Result phase
 
-When the report is complete, the top of the screen carries a single
-collapsed action card with three rows:
+When the report is complete, the top of the screen carries a
+two-tier toggle action bar:
 
-- **View** — Results / Prompt / Costs / Trace, plus one button per
-  Meta-prompt name with at least one row on this report.
-- **Edit** — Prompt / Title / Models / Parameters. Edits queue up;
-  tap **Regenerate** in the Actions row to re-run with the changes.
-  When only the model list changed, Regenerate is **additive** — it
-  runs only the new models and merges them in.
-- **Actions** — Regenerate / Export / Copy / Translate / Delete /
-  Rerank.
-- **Meta** — one orange button per Meta prompt configured under AI
-  Setup → Prompt management → Meta prompts. Empty state is hinted
-  when no Meta prompts exist.
+- **View** — Results / Prompt / Costs / **Icons** / Trace, plus
+  one button per Meta-prompt name with at least one row on this
+  report. The **every:** kinds (rerank / moderation / translate)
+  fold into the View row with a smart drill-in.
+- **Edit** — Prompt / Title / Models / Parameters. Edits queue
+  up; tap **Regenerate** in the Actions row to re-run with the
+  changes. When only the model list changed, Regenerate is
+  **additive** — it runs only the new models and merges them in.
+- **Create** — Regenerate / Export / Copy / Translate / Delete /
+  Rerank and other generators including **Report icons** when
+  per-model icons are enabled.
 
 The TitleBar above the result screen carries a 💬 Chat icon that
-starts a new chat session pre-populated with the report's prompt.
-The footer row mirrors the agent-row layout and shows the report's
-total cost on the right.
+starts a new chat session pre-populated with the report's
+prompt, a 📋 Copy icon, and a 📤 Share icon. The leftmost
+title-bar glyph is the report's generated emoji (when
+icon-gen is enabled). The footer row mirrors the agent-row
+layout and shows the report's total cost on the right; a
+**Costs from deleted items** line surfaces above the Total when
+non-zero so deleting rows doesn't lose visibility into what the
+API actually billed.
+
+#### View → Icons
+
+Minimal grid of every agent's generated emoji. Tap a glyph to
+open that agent's **Model response** detail screen; back returns
+to the grid. Grid spacing adapts down when not every icon fits
+at the default size.
+
+#### Per-agent prev/next on Model response
+
+Per-agent detail screens carry **Prev / Next** chevrons under
+the title bar that walk the agent list by model name. The
+chevrons live tight against the cost column so the eye stays in
+one place as you scan.
 
 ### Meta prompts and Translate
 
@@ -233,16 +285,30 @@ Tap **Export** in the Actions row. Choose:
   site (one folder per language, anchored cross-links, embedded CSS).
 - **Detail**: full per-agent results vs. condensed.
 - **Sections**: include / exclude prompt, costs, citations, traces.
-- **Action**: share-sheet, email, or open in a browser.
+- **Action**: share-sheet, email, or **open in app** (an in-app
+  WebView preview of the Complete/Short HTML — handy on phones
+  where the system browser handles `file://` poorly). Short
+  detail and Complete both honour the inline-preview path.
+
+The 📤 share-as icon on the title bar of result-screen siblings
+(per-agent detail, costs view, secondary results, …) opens the
+same Export sheet on those scopes.
 
 The HTML export contains:
 - A toggle to switch between **One by one** (tabbed) and **All
   together** (grid card layout).
-- The original prompt and a Costs table with **By type** and **By
-  model** rollup tables. Costs Type column reads the Meta-prompt
-  name lowercased — `compare`, `critique`, … — for chat-type
-  rows; structured kinds keep their fixed labels: `rerank`,
-  `meta`, `moderation`, `translate`.
+- The original prompt and a Costs view with three in-page tabs:
+  **By type** rollup, **By model** rollup, and **All** — every
+  individual call as its own row (including failed earlier tiers
+  of the per-agent icon chain, the per-report icon-gen call,
+  fan-out / fan-in rows, translation calls). Costs Type column
+  reads the Meta-prompt name lowercased — `compare`, `critique`,
+  … — for chat-type rows; structured kinds keep their fixed
+  labels: `rerank`, `meta`, `moderation`, `translate`, `icon`.
+  Provider and Model are split into separate columns; the
+  summary tabs include a **Calls** column. The Total row uses
+  the 💰 icon; a `deleted` row surfaces non-zero
+  `costsFromDeletedItems` alongside the active rows.
 - Stable `result-N` anchors on each agent's card.
 - One view-picker tab per chat-type Meta prompt name (e.g.
   Compare / Critique / Synthesize), plus Reranks / Moderations /
@@ -445,59 +511,102 @@ Every API call (request + response) is dumped as a JSON file under
 hostname, status code, model, or the report they belonged to.
 Local LLM and local embedder calls are traced too with hostname
 `local`. The Trace list **auto-collapses to detail when filters
-yield a single entry**.
+yield a single entry**. When the trace was captured inside a
+specific report, the icons-grid render appears in the trace
+detail so you can recognise the run at a glance.
 
 The Trace detail's TitleBar carries 🗑 (delete) and 🔄 (refresh)
 icons. The detail page surfaces the request body's first line in a
-Get-style preview, with an ℹ icon that falls back to the provider
+Get-style preview, with an ℹ️ icon that falls back to the provider
 help when no per-model help exists.
 
 API tracing is **on by default** but can be toggled off under
-Settings → API tracing — when off, no new traces are written, the
-Hub's AI API Traces card is hidden, and every 🐞 ladybug icon
-disappears from result screens.
+Settings → Privacy & backup → API tracing — when off, no new
+traces are written, the Hub's AI API Traces card is hidden, and
+every 🐞 ladybug icon disappears from result screens.
+
+## AI App log
+
+A daily-rotating in-app log file with a structured viewer
+(Hub → AI App log). Useful when you want to send a clean log to
+support without needing `adb`. The viewer offers search, level
+checkboxes (default WARN + ERROR), time-range pickers, and a tag
+dropdown. Tap any row to open the entry detail, with a 🐞 Trace
+link when the entry's tag + timestamp match a captured API
+trace. The Copy/Share dialog asks Filtered-only vs whole file
+and Last-N-lines vs Complete. Sensitive headers and API keys are
+redacted inline at write time, so a shared log never carries
+plain secrets. See [applog.md](applog.md).
 
 ## Settings
 
-The **Settings** main screen carries per-card preferences (each in
-its own card):
+The **Settings** main screen is split into three sub-screens.
+Each card on the main screen is collapsed by default and shows
+only the title; tapping expands it.
 
-- **Identity** — name + email (one card; the email pre-fills the
-  export sheet).
-- **API tracing** — master switch.
+### Preferences
+
+- **Identity** — name + email (the email pre-fills the export sheet).
 - **Model name layout** — model only / provider and model.
-- **Subject to title bar mode** — tri-state. **HARDCODED** keeps the
-  legacy fixed label + green sub-header; **SUBJECT** folds the
-  dynamic subject into the TitleBar and drops the green line;
-  **BOTH** joins them with `/` and drops the green line.
-- **Show < Back** — when off the visible Back button hides; system
-  / gesture back still works.
-- **Icon bar at bottom** — when on, the action icons + back arrow
-  move into a bar pinned at the bottom of the screen; the top bar
-  shows only the title. The bar lives at AppNavHost scope so it
-  survives nav transitions.
-- **Icon-gen** — master switch for the per-report emoji-generation
-  feature. When on (default) every new report kicks off a
-  background LLM call that picks a fitting emoji; the icon row
-  appears on the result page and the dynamic emoji shows in title
-  bars / hub list / history / search hits, with a 📝 memo icon
-  mirroring it. When off, the call is skipped and per-row icons
-  fall back to the static 🕘 / 📌. Existing icons stay on disk
-  for re-enable.
-- **Show AI Knowledge card on home page** — gates the Knowledge
-  card on the Hub. Default off; toggle on once you start using KBs.
+- **Subject to title bar mode** — tri-state. **HARDCODED** keeps
+  the legacy fixed label + green sub-header; **SUBJECT** folds
+  the dynamic subject into the TitleBar and drops the green
+  line; **BOTH** (default) joins them with `/` (and falls back
+  to the title when the subject is blank) and drops the green
+  line.
+- **Show < Back** — when off the visible Back button hides;
+  system / gesture back still works.
+- **Icon bar at bottom** — default on. When on, the action icons
+  + back arrow move into a bar pinned at the bottom of the
+  screen; the top bar shows only the title. The bar lives at
+  AppNavHost scope so it survives nav transitions.
+- **Generate report icons** — master switch for the per-report
+  emoji. Default on. See [report-icons.md](report-icons.md).
+- **Generate per model icons** — master switch for the per-agent
+  3-tier icon chain. Default on.
+- **Show AI Knowledge card on home page** — default off.
 
-Edits debounce 400 ms and flush on screen leave so a quick back
+### Privacy & backup
+
+- **API tracing** — master switch for `ApiTracer`.
+
+### Network
+
+- **Streaming read timeout (s)** — read timeout for SSE chat /
+  report streams (default = ~10 min). Shrink it on flaky networks.
+- **Non-streaming read timeout (s)** — read timeout for analyze /
+  meta / rerank / translate / model-list calls. Default is much
+  shorter than streaming so a hung provider can't gate a whole
+  batch for 10 minutes.
+- **Max calls per provider per minute** (default 30) — sliding
+  60 s rate cap per provider hostname. See
+  [throttle.md](throttle.md).
+- **Max concurrent calls per provider** (default 3) — concurrency
+  cap. Applies across overlapping flows (report + meta + chat).
+- **Max 429 retries** (default 3) — in-line retries on a 429
+  response. 0 disables.
+- **429 retry backoff (ms)** (default 1000).
+
+Each provider has its own override card on its edit screen that
+inherits these values when left blank.
+
+### Logging
+
+- **Log level** — threshold for the in-app file logger
+  (`AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` /
+  `ERROR` / `OFF`. Default `INFO`. See [applog.md](applog.md).
+
+Edits debounce and flush on screen leave so a quick back
 doesn't lose typed changes.
 
 ### AI Setup hub
 
 | Card | What it does |
 |---|---|
-| Providers | API keys, state, and default model per provider |
+| Providers | API keys, state, and default model per provider. The list sorts by state, and the **+ Add provider** entry is at the bottom. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
 | Models (sub-hub) | Models / Model Types / Manual model types overrides |
 | Workers (sub-hub) | Agents / Flocks / Swarms |
-| Prompt management (sub-hub) | System Prompts / Internal Prompts (Meta + Fan-out + Fan-in + Other) / Example prompts |
+| Prompt management | Top-level page (the legacy Internal Prompts sub-hub was collapsed): System Prompts / Internal Prompts grouped by category (Meta + Fan-out + Fan-in + Other internal — including the icon prompts) / Example prompts. Each row carries a per-card help icon |
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs (collapsed at the bottom) |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
@@ -523,27 +632,41 @@ and lists any failed providers with a one-tap nav-to-edit.
 
 ### Housekeeping
 
-A compact landing screen with six NavCards — each one drills into
-its own full screen with its own help topic.
+A compact landing screen — each drill-in is a full screen with
+its own help topic. **Refresh** and **Reset** are grouped next
+to each other on the landing page.
 
 | Card | What it does |
 |---|---|
-| Backup & Restore | Export the entire app to a `.zip`; restore from one |
-| Export & Import | Granular bundles for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / All (with or without API keys) |
+| Backup & Restore | Export the entire app to a `.zip`; restore from one. The Restore screen carries a red warning that the zip contains your API keys |
+| Export & Import | Collapsible cards for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / Runtime data / API keys / All (the All bundle has its own card; API keys are a dedicated card so they can be exported and shared separately) |
 | Refresh | Hand-off to the per-tier Refresh screen |
-| Trim by age | Drop reports / chats / traces older than a chosen cutoff |
+| Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hides "Trim by age" when there's nothing to trim |
 | Usage statistics | Reset the per-(provider, model, kind) counters |
-| Reset | Three full-reset variants (clear runtime data / clear configuration / reset application) plus per-section bundled-asset reseed buttons |
+| Reset | Five dedicated sub-screens (see below) |
 
-The Reset card holds:
-- **Clear all runtime data** — wipes reports, chats, traces, KBs,
-  the embeddings cache, the local-semantic-search cache, the
-  knowledge / pricing / model-list caches.
+**Reset** is split into five sub-screens (each is a collapsible
+card, all collapsed by default):
+
+- **Clear all runtime data** — narrower than before: wipes app
+  log, traces, chats, reports, prompt history, and usage stats.
+  Knowledge / pricing / model-list caches stay put.
+- **Clear Info providers** — wipes the seven external-info
+  caches (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
+  Artificial Analysis, HuggingFace) and their timestamps.
 - **Clear all configuration** — wipes provider config, prompts,
   Local LLMs, LiteRT models. Asks before destructive actions.
+- **Restore bundled assets** — re-merges `providers.json` /
+  `prompts.json` / `examples.json` from the APK. User edits to
+  existing rows are preserved.
 - **Reset application** — factory-style reset that preserves API
-  keys (written to a temp file, restored after the wipe), then
-  runs the full Refresh-all chain at the end.
+  keys (written to a temp file under `cacheDir/reset_keys_*`,
+  restored after the wipe). No longer runs a trailing
+  Refresh-all chain — fire it from Refresh if you want it.
+
+After any wholesale-state-replace op, a **Restart-app** dialog
+prompts you to relaunch so the in-memory state matches the
+fresh on-disk state.
 
 ### Export / Import
 
@@ -568,16 +691,15 @@ description.
 
 ## Tips
 
-- **Reports run in parallel up to 4 at a time.** Bigger reports
-  honour that limit, so you can queue 12 models without hammering any
-  single provider. Fan-out caps at 3 per provider, so a fan-out
-  spread across many providers can run more concurrently than a
-  single-provider run.
-- **Rate limits**: a 429 from any provider is automatically retried
-  with a short back-off, capped at a few attempts; permanent 4xx
-  failures and cancellations bail immediately. Each retry is a
-  separate trace with the originating call's `(reportId, category)`
-  tags propagated.
+- **Rate limits + concurrency**: every provider has a per-host
+  sliding-window rate cap (default 30 calls / minute) and a
+  per-host concurrency cap (default 3 in flight) enforced
+  globally across every flow — report, meta, fan-out, chat,
+  translate, model-list fetches. A 429 retries up to 3× with 1 s
+  back-off by default. All of these are configurable under
+  **Settings → Network**, and any provider can override them on
+  its own edit screen. Each retry is a separate trace with the
+  originating call's `(reportId, category)` tags propagated.
 - **Vision attachments** are stored on the Report so a Regenerate
   re-uses the same image. Images are downscaled + JPEG-encoded
   before base64.
@@ -595,3 +717,13 @@ description.
 - **Multiple translation runs at once** — the Translate flow lets
   you fire off several language batches concurrently; results land
   in their own rows on the Result screen.
+- **Background continuation** — Generate, Regenerate, secondary
+  launches (Rerank / Meta / Moderate / Translate), the
+  alternative-icons fan-out, and the per-agent icon chain all
+  continue running when you navigate away from the result page.
+  Cancelling a report (delete) cancels every in-flight call
+  for that report including any icon-chain jobs.
+- **Background ↔ chat from cross-app** — When another app
+  launches a report via `ACTION_NEW_REPORT`, the user gets a
+  one-tap confirmation before generation starts — no silent
+  background runs.

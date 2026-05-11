@@ -7,8 +7,10 @@ pages. The Help home page surfaces an icon legend rendered as a
 3-column table — every TitleBar icon you'll see in the app, with a
 one-line description.
 
-Code lives in `ui/admin/HelpScreen.kt` (~1,675 LOC, ~88 topics) and
-the `helpForTopic(topicId)` route helper in
+Code lives in `ui/admin/HelpContent.kt` (the topic catalog —
+~190 topics, one per full-screen overlay) and
+`ui/admin/HelpScreen.kt` (renderer + `HelpResolver`). The
+`helpForTopic(topicId)` route helper is in
 `ui/navigation/NavRoutes.kt`.
 
 ## Topic catalog
@@ -47,11 +49,13 @@ HelpCard("Overview", "What this screen does, in one paragraph.")
 HelpCard("Add card", "How to use the Add button, where it lands…")
 HelpCard("Tips", "Small surprises worth knowing.")
 HelpCard("Pitfalls", "Common mistakes / edge cases to avoid.")
-HelpCard("Related", "Links to neighbouring topics + system flows.")
 ```
 
 Each card is a (title, body) pair; the body is plain text or
-markdown-flavoured.
+markdown-flavoured. The "Related" card pattern was dropped
+across the catalog — link by deep-linking from the rest of the
+UI instead, so users discover related screens from where they
+actually are rather than from a list inside Help.
 
 ## Routing
 
@@ -68,14 +72,19 @@ markdown-flavoured.
 
 ## Authoring guidance
 
-- Reuse common card patterns (Overview / Add / Tips / Pitfalls /
-  Related) so users learn the structure once.
+- Reuse common card patterns (Overview / Add / Tips / Pitfalls)
+  so users learn the structure once. Don't bring back "Related"
+  cards.
 - Match the topic IDs in `NavRoutes` to the help screen's switch.
 - Per-provider pages share an infrastructure helper so each provider
   card has a uniform layout.
-- The 88 topic catalog was rewritten end-to-end with code-accurate
-  detail and tips — when changing a flow, the help text deserves the
-  same edit so the in-app docs stay in sync.
+- The topic catalog (~190 entries) is rewritten end-to-end with
+  code-accurate detail and tips — when changing a flow, the help
+  text deserves the same edit so the in-app docs stay in sync.
+  In particular, every full-screen overlay (model picker, scope
+  picker, viewer detail, agent icon detail, alternative-icons
+  list, icons grid, Find icons picker, etc.) gets its own
+  dedicated topic so help is always one tap away.
 
 ## Icon legend
 

@@ -49,7 +49,13 @@ stats, pricing tier blobs).
 │  ├── ApiTracer           — OkHttp interceptor + JSON file storage   │
 │  │                         + in-memory metadata cache               │
 │  │                         + thread-local (reportId, category) tags │
+│  │                         + NetworkSettings + ProviderThrottle     │
+│  │                         + 429 retry + read-timeout interceptors  │
+│  ├── AppLog              — log4j-style file appender + redaction    │
+│  ├── AtomicFileWrite     — fsync + ATOMIC_MOVE atomic writeText     │
+│  ├── EmojiExtract        — grapheme-cluster emoji isolation         │
 │  ├── ProviderRegistry    — runtime registry of AppService instances │
+│  ├── ProviderFieldTimestamps — per-provider per-field user-edit ts  │
 │  ├── PricingCache        — seven-tier pricing + capability lookup   │
 │  │                         (tier blobs in filesDir/pricing/)        │
 │  ├── ReportStorage       — per-report JSON file persistence         │
@@ -71,7 +77,7 @@ stats, pricing tier blobs).
 │  ├── KnowledgeService    — index + retrieve pipeline                │
 │  ├── EmbeddingsStore     — content-hashed per-doc embedding cache   │
 │  │                                                                  │
-│  │ — On-device runtime —                                            │
+│  │ — On-device runtime (data/local/) —                              │
 │  ├── LocalLlm            — MediaPipe Tasks GenAI .task runtime      │
 │  ├── LocalEmbedder       — MediaPipe Tasks TextEmbedder runtime     │
 │  │                                                                  │
@@ -89,17 +95,18 @@ stats, pricing tier blobs).
 
 ## Codebase shape
 
-~52,300 LOC across 112 Kotlin files:
-- `data/` — 30 files (HTTP, dispatch, streaming, tracer, registry,
-  pricing, storage, RAG, on-device runtime, atomic-write helpers,
-  bundled-asset seeds)
+~60,300 LOC across 123 Kotlin files:
+- `data/` — 34 files (HTTP, dispatch, streaming, tracer, rate
+  limit / throttle, registry, pricing, storage, RAG, in-app file
+  logger, atomic-write helpers, bundled-asset seeds), including
+  the `data/local/` subpackage (`LocalLlm`, `LocalEmbedder`).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 3 files (`AppViewModel`, `ChatViewModel`,
-  `ReportViewModel`)
-- `ui/` — 76 files across 13 sub-domains (`hub`, `report` × 21,
+- `viewmodel/` — 4 files (`AppViewModel`, `ChatViewModel`,
+  `ReportViewModel`, `ReportViewModelHelpers`)
+- `ui/` — 82 files across 13 sub-domains (`hub`, `report` × 26,
   `chat` × 5, `knowledge`, `models`, `search` × 4, `history` × 3,
-  `settings` × 18, `admin` × 10, `share`, `shared` × 8, `theme`,
-  `navigation` × 2)
+  `settings` × 17, `admin` × 10, `share` × 2, `shared` × 9,
+  `theme`, `navigation` × 2)
 - `MainActivity.kt`
 
 ## Key concepts
@@ -158,13 +165,22 @@ picker as a normal "Local" provider.
   models delegate to it for shared state. Mutators that race the
   UI (provider state flips on Refresh All, agent test flock
   population) use a CAS-style `compareAndSet` pattern so two
-  fan-out updates don't overwrite each other.
+  fan-out updates don't overwrite each other. Also owns the
+  in-memory `iconFanOutByReport: Map<reportId,
+  List<IconCandidate>>` map that `AlternativeIconsScreen`
+  consumes, and the `iconRefreshTick` counter on `UiState` that
+  forces icon-dependent recompositions when a background icon
+  call settles.
 - **`ChatViewModel`** — chat session state and streaming, including
-  per-turn KB retrieval and context-block injection.
+  per-turn KB retrieval and context-block injection. Also fires
+  the bundled `internal/chat_title` prompt asynchronously after
+  the first assistant response and stamps `ChatSession.title`
+  with the returned label.
 - **`ReportViewModel`** — report generation, secondary-result flows
   (RERANK / META / MODERATION / TRANSLATE), the multi-language
-  fan-out for chat-type META and TRANSLATE, **and** the Fan-out /
-  Fan-in flow. Holds an in-memory `_agentResults` flow separate from
+  fan-out for chat-type META and TRANSLATE, the Fan-out /
+  Fan-in flow, **and** the per-agent 3-tier report-icon chain.
+  Holds an in-memory `_agentResults` flow separate from
   `UiState` so per-task completions don't ripple equality checks
   across the rest of the UiState. Holds a `Map<String,
   TranslationRun>` keyed by runId so multiple concurrent Translate
@@ -172,7 +188,14 @@ picker as a normal "Local" provider.
   `_runningFanOutPairs: StateFlow<Set<String>>` carries the hot-
   mutating per-pair set so 5–15 Hz updates during a fan-out batch
   don't recompose every consumer that reads any other UiState
-  field.
+  field. Long-running flows (initial generate, regenerate,
+  secondary launches, report-icon chain) are launched on
+  `appViewModel.viewModelScope` rather than the report VM's own
+  scope so navigating away from the result screen doesn't cancel
+  the work — `_agentResults` and `Report.*` storage keep the
+  background results addressable when the screen recomposes
+  back. Pure helpers live in `ReportViewModelHelpers.kt`
+  (`providerHost`, etc.).
 
 ### Two-tier navigation
 
@@ -183,28 +206,49 @@ flocks, swarms, parameters, system prompts, internal-prompt hubs by
 category, example prompts, external services, local LiteRT models,
 local LLMs, import/export, refresh) and a `when` block — this keeps
 deep links into a single Settings overlay simple and lets
-back-navigation be a single state mutation.
+back-navigation be a single state mutation. The top-level Settings
+screen itself is split into three sub-pages (Preferences, Privacy
+& backup, Logging) and the Reset screen is split into five
+dedicated sub-pages — so the user lands on a short list rather
+than a wall of cards.
 
 ### TitleBar action strip
 
 Every screen's `TitleBar` is a standardised action strip — `< Back`
-plus a context-specific subset from {💬 Chat, ℹ Info, 📋 Copy,
+plus a context-specific subset from {💬 Chat, ℹ️ Info, 📋 Copy,
 📤 Share, 🔄 Refresh, 🗑 Delete, 🐞 Trace, 📝 Memo, 🏠 Home,
 ❓ Help}. Inactive icons hide; Home and Help are always last. The
 `< Back` button can be hidden via Settings (the system back /
 gesture back still works). `subjectToTitleBarMode` (tri-state:
-HARDCODED / SUBJECT / BOTH) folds the dynamic subject into the
-title bar in two flavours — SUBJECT replaces the static label,
-BOTH joins them with `/` — and drops the green sub-header line in
-both cases. `iconBarAtBottom` moves the action icons + back arrow
-into a bar pinned at the bottom of the screen so the top bar shows
-only the title; the bar lives at AppNavHost scope so it survives
-nav transitions. `iconGenEnabled` (default true) enables a
-background emoji-generation call on every new report whose result
-populates `Report.icon` — the Report Result screen, the AI Reports
-hub, history rows, and the title bar's leftmost icon all key off
-this. Toggling it off hides the icon row and the 📝 memo it
-mirrors; existing icons stay on disk for re-enable.
+HARDCODED / SUBJECT / BOTH; default BOTH) folds the dynamic
+subject into the title bar in two flavours — SUBJECT replaces
+the static label, BOTH joins them with `/` — and drops the
+green sub-header line in both cases. When BOTH is selected and
+the subject is empty (e.g. a report whose title is still being
+generated), the title bar gracefully falls back to the report's
+title rather than rendering a trailing `/`. `iconBarAtBottom`
+(default true) moves the action icons + back arrow into a bar
+pinned at the bottom of the screen so the top bar shows only the
+title; the bar lives at AppNavHost scope so it survives nav
+transitions. Report-scoped screens get the per-report icon as
+the leftmost glyph in the top title bar (propagated via
+`LocalReportIcon` so picker overlays inherit it).
+
+Two master switches drive icon generation:
+
+- `iconGenEnabled` (default true) — kicks off the per-report
+  `internal/icon` call on every new report. Its result populates
+  `Report.icon`; result page, AI Reports hub, history rows, and
+  the title bar's leftmost icon all key off this. Toggling it
+  off hides the icon row and the 📝 memo it mirrors; existing
+  icons stay on disk for re-enable.
+- `perModelIconGenEnabled` (default true) — auto-fires the
+  per-agent 3-tier chain (`runReportIconsForAgent`) whenever an
+  agent's primary call settles to SUCCESS — both on initial
+  generation and on regenerate. Toggling it off skips the chain
+  but leaves any persisted per-agent icons in place.
+
+See [report-icons.md](report-icons.md) for the full flow.
 
 ### Layered lookups
 
@@ -396,13 +440,19 @@ separate from `UiState`.
 ## Concurrency
 
 - Network calls happen on `Dispatchers.IO`.
-  `AnalysisRepository.analyzeWithAgent` runs each report agent
-  concurrently up to `REPORT_CONCURRENCY_LIMIT = 4`, controlled with
-  a `Semaphore`. The same semaphore caps the parallel fan-out inside
-  a chat-type Meta or Translate batch.
-- Fan-out runs cap at `FAN_OUT_PER_PROVIDER_LIMIT = 3` *per
-  provider* — a `Map<provider, Semaphore>`, not a single global
-  semaphore.
+- Per-provider rate + concurrency caps are enforced by
+  `ProviderThrottle` (one `Semaphore` + one sliding-window
+  `Deque` per hostname). Replaces the prior per-batch fan-out
+  semaphore — limits now hold across overlapping flows (report
+  + meta + fan-out + chat on the same provider). Caps come from
+  per-provider override → `NetworkSettings` global default
+  (defaults: 30 calls/min, 3 concurrent). User-tunable from
+  Settings → Network and per provider. See
+  [throttle.md](throttle.md).
+- Fan-out and the per-agent report-icon chain pre-acquire
+  permits on the coroutine side and set
+  `ProviderThrottle.permitPreAcquired` so the OkHttp
+  interceptor doesn't double-count.
 - `ApiTracer` and `ReportStorage` use `ReentrantLock` for thread-safe
   file writes; `KnowledgeStore` does the same for KB manifest +
   chunk files (chunks + manifest are also written atomically as a
@@ -410,19 +460,34 @@ separate from `UiState`.
   at half a chunk file).
 - `AtomicFileWrite.writeTextAtomic` uses `Files.move(ATOMIC_MOVE)`
   with an `fsync` of the temp file before the rename, and creates
-  the parent dir on demand so call sites don't have to.
+  the parent dir on demand so call sites don't have to. The
+  same stage-as-`.part` + atomic-rename pattern is used by the
+  export-share writer, the local-model import path, and several
+  other "write a complete artifact" call sites.
 - `usageStatsCache` is a `ConcurrentHashMap` with a 2-second debounced
   flush, so heavy concurrent updates don't serialize on disk I/O.
   The flush is forced from `ViewModel.onCleared` (off the main
   thread, on `NonCancellable`) so a Refresh-all auto-restart can't
   drop in-flight stats.
-- `RateLimitRetryInterceptor` retries 429s with a shortened
-  back-off, bails on coroutine cancellation, and has an explicit
-  main-thread guard so it can never ANR the UI. `withRetry` skips
+- `RateLimitRetryInterceptor` retries 429s with a configurable
+  back-off (`NetworkSettings.maxRetriesOn429` ×
+  `retryBackoffMs`, both per-provider overridable), bails on
+  coroutine cancellation, and has an explicit main-thread guard
+  so it can never ANR the UI. `withRetry` treats `408 / 425 /
+  429` as transient (in addition to network errors) and skips
   retries on permanent 4xx failures.
 - Multiple Translate batches can be in flight at once (one per
-  `runId`); they share the report-concurrency semaphore but their
+  `runId`); they share the per-provider throttle but their
   results land in their own rows.
+- Storage write APIs validate flat ids (`isSafeFlatId`: non-blank,
+  not `.` / `..`, no `/` or `\`) on `saveReport`, `deleteReport`,
+  `saveChatSession`, `saveSecondaryResult`, KB
+  `saveSource` / `deleteSource`. Knowledge writes also enforce a
+  canonical-containment guard around `kbId` path joins — a
+  symlink or `..` segment can't escape `<filesDir>/knowledge/`.
+- Backup restore caps per-entry and total bytes (large
+  attachments truncated) before writing into `filesDir` /
+  `cacheDir` from the zip.
 
 ## Streaming
 
@@ -458,6 +523,20 @@ Recovery mechanisms keep the app robust to process death:
 4. The Report Result screen recovers stale placeholders on entry,
    so the user never lands on a forever-spinning hourglass.
 
+## In-app logging
+
+`com.ai.data.AppLog` is a log4j-style file appender that
+mirrors `android.util.Log` and writes every call at or above
+`threshold` to `<filesDir>/applog/applog_<yyyyMMdd>.log`. Files
+rotate daily; a single `BufferedWriter` is held open and
+flushed per line so a process kill never loses the last few
+lines. Sensitive headers (`Bearer …`, raw `sk-/xai-/gsk_` keys,
+Google `?key=` params) are redacted inline before write. The
+viewer (`AppLogScreen`) lives under Hub → AI App log and
+supports search / level / time-range / tag filters with a
+Copy/Share dialog. Threshold is set from Settings → Logging
+(default INFO). See [applog.md](applog.md).
+
 ## Auto-restart
 
 After a "Refresh all" run on the Refresh screen, the app restarts
@@ -475,20 +554,39 @@ The same restart gate applies after restoring a backup so the
 in-memory state matches the freshly-restored on-disk state, and
 after the "Reset application" full reset.
 
-## First-run seeding
+## First-run seeding + every-start delta merge
 
-`AppViewModel.bootstrap` seeds two things from bundled assets on a
-fresh install (gated by the `first_run_bootstrapped` flag in
-prefs):
+`AppViewModel.bootstrap` runs through a sequence of structured
+DEBUG / TRACE log lines (under the `AppLifecycle` tag) so the
+AppLog viewer can render the entire start-up sequence for a
+support session. The bootstrap log line itself captures the
+app name, versionName, versionCode, and the BUILD_TIMESTAMP.
 
-- `assets/providers.json` — 42 providers imported into
-  `ProviderRegistry`.
+Two seed sources are **delta-merged on every app start**, not
+just on fresh install — both via
+`InternalPromptSeed.delta(...) {}` / equivalent that only adds
+missing entries by `(category, name)` for prompts and by stable
+id for providers:
+
+- `assets/providers.json` — entries import on first run, and
+  new entries are appended on subsequent starts.
+  Per-field timestamps in `ProviderFieldTimestamps` decide
+  which fields the every-start sync may overwrite — a field the
+  user has edited (timestamp non-null) is left alone; an
+  un-edited field tracks the asset.
 - `assets/prompts.json` — Internal Prompts (Meta / Fan-out /
   Fan-in / fixed Internal templates: intro / model_info /
-  translate / rerank / moderation) seeded into
-  `Settings.internalPrompts`.
+  translate / rerank / moderation / icon / report_icon /
+  report_icon_chat / report_icon_3th / chat_title / response /
+  …) seeded into `Settings.internalPrompts`. Same delta-merge
+  rule — new bundled entries appear on the next start, user
+  edits to existing entries survive.
 
-`assets/examples.json` is loaded on demand (Housekeeping → Reset →
-Load bundled prompts) — Example Prompts are merged by title
-case-insensitively. None of the three asset files overwrite
-existing rows, so a re-seed never destroys user edits.
+`assets/examples.json` is also delta-merged on every start
+(Example Prompts merged by title case-insensitively). The
+Housekeeping → Reset → "Restore bundled assets" path force-
+merges any missing rows back without resetting user-edited
+ones.
+
+None of the three asset files overwrite existing rows on the
+delta path, so a re-seed never destroys user edits.

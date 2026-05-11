@@ -101,9 +101,8 @@ Each entry has:
         │
         ▼
 [ Run — N independent calls in parallel,                    ]
-[ up to REPORT_CONCURRENCY_LIMIT (=4) for chat/rerank/      ]
-[ translate; FAN_OUT_PER_PROVIDER_LIMIT (=3) per provider   ]
-[ for fan-out                                               ]
+[ gated by ProviderThrottle per provider host               ]
+[ (default 30/min + 3 concurrent; see throttle.md)          ]
    • Multi-language fan-out for chat-type META and TRANSLATE:
      one batch per (language, model-pick)
    • Multiple TRANSLATE batches can run concurrently (one runId each)
@@ -349,11 +348,16 @@ points at the right captured API trace.
 - The Meta / Translate / Fan-out / Rerank buttons are **disabled**
   while the parent report is still streaming (the button row only
   shows on the result-phase UI, after `isComplete = true`).
-- chat-type Meta / Rerank / Moderation / Translate run their
-  picks in parallel, up to
-  `AppViewModel.REPORT_CONCURRENCY_LIMIT = 4` permits.
-- Fan-out runs at `FAN_OUT_PER_PROVIDER_LIMIT = 3` *per
-  provider*.
+- chat-type Meta / Rerank / Moderation / Translate are gated by
+  the per-provider throttle (`ProviderThrottle` — defaults 30
+  calls / min, 3 concurrent per provider host). The legacy
+  `REPORT_CONCURRENCY_LIMIT` global semaphore is gone — limits
+  now hold across every overlapping flow on the same provider.
+  See [throttle.md](throttle.md).
+- Fan-out pre-acquires the per-provider permit on the coroutine
+  side so the UI can distinguish queued vs running rows; the
+  inline interceptor skips its own acquire via the
+  `ProviderThrottle.permitPreAcquired` context element.
 - Multiple chat-type Meta batches AND multiple Translate batches
   can be in flight concurrently — each batch has its own
   `metaPromptId` (chat-type) or `translationRunId` (translate) and

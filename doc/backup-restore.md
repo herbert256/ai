@@ -18,6 +18,7 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 ├── prefs/
 │   ├── eval_prefs.json
 │   ├── provider_registry.json
+│   ├── provider_field_timestamps.json
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
 │   └── huggingface_cache.json
@@ -26,6 +27,7 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── secondary/<reportId>/<resultId>.json
 │   ├── chat-history.json
 │   ├── trace/<hostname>_<ts>_<seq>.json
+│   ├── applog/applog_<yyyyMMdd>.log
 │   ├── knowledge/<kbId>/manifest.json
 │   ├── knowledge/<kbId>/files/<localCopy>
 │   ├── knowledge/<kbId>/chunks/<sourceId>.json
@@ -48,7 +50,14 @@ Int silently coming back as a Double. Unknown type tags log a
 warning instead of silently dropping the entry.
 
 Symlinks under `filesDir` are skipped on backup so a maliciously
-linked external file can't end up in the zip.
+linked external file can't end up in the zip. The skip is
+applied by canonical-path comparison against the parent dir, so
+a directory whose child happens to be a regular file is not
+itself mistakenly dropped (an earlier bug).
+
+Restore caps both per-entry and total uncompressed bytes — a
+malformed zip can't blow up `filesDir` or `cacheDir` by claiming
+a 200 GB entry.
 
 ## What's included
 
@@ -58,6 +67,7 @@ linked external file can't end up in the zip.
 |---|---|
 | `eval_prefs` | All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (the legacy `ai_meta_prompts` key, kept for compat) / example prompts, and the various per-screen recents (last selections for Reports, the report title/prompt, the secondary-pickers per-(report, prompt) state) |
 | `provider_registry` | Custom provider definitions added or imported by the user — keyed by provider id, merged with `assets/providers.json` at runtime |
+| `provider_field_timestamps` | Per-provider per-field "user-touched-at" timestamps so the every-start `providers.json` sync knows which fields the user has edited. Loss here turns user edits into "asset values overwritten on next boot", so this prefs file is in the backup set |
 | `pricing_cache` | Timestamps for each pricing tier + the user's manual price overrides. The bulk pricing JSON itself lives in `files/pricing/` (see below) |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). Concurrent load-modify-save is serialised to prevent torn writes |
@@ -71,6 +81,10 @@ in `FILES_DIR_BACKUP_EXCLUDES` (see next section). Notable contents:
   `prompt-history.json` — the user's content
 - `trace/` — captured API traces (subject to whatever cutoff the
   user set). Auth headers redacted at write time
+- `applog/applog_<yyyyMMdd>.log` — daily-rotating app log
+  produced by `com.ai.data.AppLog`. Sensitive headers + raw API
+  keys are redacted inline before write so the backed-up logs
+  never carry plain secrets
 - `knowledge/<kbId>/` — KB manifests, chunk JSONs (with
   `FloatArray` embeddings serialised as numeric arrays), and
   the locally-persisted source files

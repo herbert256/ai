@@ -8,12 +8,13 @@ base, and running everything offline against an on-device model
 when you want to.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~52,300 LOC across 112 Kotlin files, MVVM with three view models,
-42 cloud providers across three API formats plus a synthetic
-on-device `Local` provider, seven external metadata repositories
-layered into one resolved view per `(provider, model)` pair, and a
-RAG layer that chunks documents and either embeds them on-device or
-against any provider's `/v1/embeddings`.
+~60,300 LOC across 123 Kotlin files, MVVM with three primary view
+models plus an extracted helpers file, 42 cloud providers across
+three API formats plus a synthetic on-device `Local` provider,
+seven external metadata repositories layered into one resolved
+view per `(provider, model)` pair, and a RAG layer that chunks
+documents and either embeds them on-device or against any
+provider's `/v1/embeddings`.
 
 ## Index
 
@@ -43,6 +44,22 @@ against any provider's `/v1/embeddings`.
   drill-in.
 - **[help.md](help.md)** — The in-app Help system: per-screen
   topics, per-provider pages, per-repository pages, icon legend.
+- **[applog.md](applog.md)** — In-app log4j-style file logger
+  ([`AppLog`](../ai/src/main/java/com/ai/data/AppLog.kt)),
+  daily-rotated files under `<filesDir>/applog/`, the AppLog
+  viewer screens, threshold/level settings, filter UX, and
+  Copy / Share dialog options.
+- **[report-icons.md](report-icons.md)** — The per-report emoji
+  + per-agent 3-tier icon chain: bundled prompts
+  (`internal/icon`, `internal/report_icon`, `report_icon_chat`,
+  `report_icon_3th`), generation flow, the alternative-icons
+  picker, the icons grid view, cost surfacing, and the two
+  `iconGenEnabled` / `perModelIconGenEnabled` master switches.
+- **[throttle.md](throttle.md)** — Per-provider rate-limit +
+  concurrency caps (`ProviderThrottle`,
+  `ProviderThrottleInterceptor`), the 429-retry interceptor,
+  user-tunable read timeouts, and the per-provider override
+  hierarchy.
 
 ### Subsystem deep dives
 - **[knowledge.md](knowledge.md)** — RAG: knowledge base structure,

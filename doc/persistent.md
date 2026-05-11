@@ -4,9 +4,9 @@ Everything the app keeps on disk, where it lives, and what's in each
 slot. All of this rounds-trip through `BackupManager` (Settings →
 Housekeeping → Backup & Restore) into a single `.zip`.
 
-## SharedPreferences (5 files)
+## SharedPreferences (6 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`. All five are
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. All six are
 captured in `BackupManager.PREFS_TO_BACKUP`.
 
 ### `eval_prefs` — main settings
@@ -24,11 +24,20 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
 | `show_back_button` | Boolean (default true) | when false hides the visible Back button |
-| `subject_to_title_bar_mode` | String (default `HARDCODED`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
-| `icon_bar_at_bottom` | Boolean (default false) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen |
-| `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background emoji-generation call on every new report) |
+| `subject_to_title_bar_mode` | String (default `BOTH`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
+| `icon_bar_at_bottom` | Boolean (default true) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen |
+| `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
+| `per_model_icon_gen_enabled` | Boolean (default true) | master switch for the per-agent 3-tier icon chain (auto-fires `runReportIconsForAgent` on every successful agent call) |
+| `recent_report_models` | String (newline-separated) | last 3 (provider, model) picks from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings |
+| `streaming_read_timeout_sec` | Int | read timeout for streaming API calls (SSE chat/report). Default = `BuildConfig.NETWORK_READ_TIMEOUT_SEC` |
+| `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Default = `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` |
+| `max_calls_per_provider_per_minute` | Int (default 30) | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
+| `max_concurrent_calls_per_provider` | Int (default 3) | per-host concurrency cap |
+| `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
+| `retry_backoff_ms` | Long (default 1000) | wait between 429 retry attempts in milliseconds |
+| `log_level` | String (default `INFO`) | threshold for the in-app file logger (`com.ai.data.AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly by `AppLog.init` from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start |
 | `show_knowledge_card` | Boolean (default false) | gates the AI Knowledge card on the home Hub. The Knowledge subsystem itself stays fully functional whether the card is visible or not |
-| `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed |
+| `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |
 
 > The intro / model_info / translate / rerank / moderation prompt
 > templates that used to live as dedicated `*_prompt` keys now live
@@ -89,6 +98,21 @@ Custom provider definitions added by the user (or imported via
 `assets/providers.json`). Keyed by provider id; serialized as
 `ProviderDefinition` JSON. Read by `ProviderRegistry` at startup;
 merges with the bundled `assets/providers.json` definitions.
+
+### `provider_field_timestamps`
+Per-provider, per-field "user-touched-at" timestamps that the
+every-start `assets/providers.json` sync consults to decide
+which fields to refresh.
+
+| Key | Type | Notes |
+|---|---|---|
+| `ts` | JSON Map<String, Map<String, Long>> | `{ "OpenAI": { "baseUrl": 1715…, "modelFilter": 1716… }, … }`. Set by `ProviderRegistry.update` whenever the new value differs from the existing one; asset-driven paths don't bump |
+
+Field names match `AppService` property names. A null lookup
+means "never user-touched, refresh on next start"; a non-null
+timestamp means "user edited this field, the asset sync should
+leave it alone". See [throttle.md](throttle.md) and
+[architecture.md](architecture.md).
 
 ### `pricing_cache`
 Bookkeeping (timestamps) plus the small manual-override map. The
@@ -200,6 +224,24 @@ path stays inside the configured directory (defence against
 fingerprint cache (`(name, mtime, length)` joined across every
 JSON file) to catch in-place edits, and invalidates the cache
 on delete.
+
+### `applog/applog_<yyyyMMdd>.log`
+Daily-rotating plain-text log files produced by
+`com.ai.data.AppLog`. One line per call, format:
+
+```
+yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message
+```
+
+The writer is held open across calls and flushed per line so a
+process kill never loses the last few lines. Sensitive headers
+(`Bearer …`, raw `sk-/xai-/gsk_/key-` keys, Google `?key=`
+params) are redacted inline before write. An in-memory
+`AppLog.cachedFiles` list mirrors the directory listing so the
+viewer's list screen is O(1) once warm.
+
+Reachable from Hub → AI App log. Threshold persisted in
+`eval_prefs` as `log_level`. See [applog.md](applog.md).
 
 ### `trace/<hostname>_<timestamp>_<seq>.json`
 One file per outbound API call (when `ApiTracer.isTracingEnabled` is
@@ -346,16 +388,33 @@ format and restore semantics.
 - `clearLastReportPrompt()` — clears the two `last_ai_report_*` keys
 - `clearUsageStats()` — empties `usage-stats.json` and the in-memory cache
 - `clearTraces()` — `ApiTracer.clearTraces()` deletes every file under `trace/`
+- `AppLog.clearLogs()` — deletes every file under `applog/`
 
-**Housekeeping → Reset** has three full-reset variants:
-- **Clear all runtime data** — wipes reports, chats, traces, KBs,
-  embeddings, the local-semantic-search cache, the
-  knowledge / pricing / model-list caches.
+**Housekeeping → Reset** is split into five dedicated sub-screens
+(each in its own `CollapsibleCard`, collapsed by default):
+
+- **Clear all runtime data** — wipes logs, chats, traces, usage
+  stats, plus AI reports and prompt history. Narrower than the
+  legacy single button: knowledge / pricing / model-list caches
+  stay put.
+- **Clear Info providers** — wipes the seven external-info
+  repository caches (LiteLLM, OpenRouter, models.dev, Helicone,
+  llm-prices, Artificial Analysis, HuggingFace) and their
+  per-tier timestamps in `pricing_cache`.
 - **Clear all configuration** — wipes provider config, prompts,
   Local LLMs, LiteRT models. Asks before destructive actions.
-- **Reset application** — factory-style reset that preserves API
-  keys (written to a temp file under `cacheDir/reset_keys_*`,
-  restored after the wipe), then runs the full Refresh-all chain.
+- **Restore bundled assets** — re-merges `providers.json` /
+  `prompts.json` / `examples.json` from the APK. User edits
+  on existing rows are preserved.
+- **Reset application** — factory-style reset that preserves
+  API keys (written to a temp file under `cacheDir/reset_keys_*`,
+  restored after the wipe). No longer runs a trailing
+  Refresh-all chain; the user can fire it from the Refresh
+  screen if they want it.
+
+After any wholesale-state-replace op, the **Restart-app dialog**
+prompts the user to relaunch so the in-memory state matches the
+freshly written on-disk state.
 
 None of these touch the on-device `.task` / `.tflite` files unless
 the "Clear all configuration" path is taken — those persist across

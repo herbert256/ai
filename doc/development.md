@@ -72,7 +72,7 @@ after explicit-commit prompts.
 ## Logs
 
 ```bash
-adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ReportExport|ReportStorage|SettingsExport"
+adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"
 ```
 
 The in-app **API Traces** screen (Hub → AI API Traces) is usually a
@@ -82,57 +82,80 @@ each call gets a JSON file under `<filesDir>/trace/` while
 toggled in Settings). On-device LLM and on-device embedder calls
 trace too with hostname `local`.
 
+There's also the **AI App log** in-app viewer (Hub → AI App log)
+— a log4j-style file appender (`com.ai.data.AppLog`) that
+mirrors `android.util.Log` and writes everything at or above
+`Settings → Logging → Level` to
+`<filesDir>/applog/applog_<yyyyMMdd>.log`. Lines are written
+through inline redaction (Bearer tokens, raw `sk-` / `xai-` /
+`gsk_` / `key-` API keys, Google `?key=` query params) so a
+shared log never carries plain secrets. The viewer supports
+search, level checkboxes, time-range pickers, tag dropdown, and
+a Copy/Share dialog with **Filtered only** + **Last N lines /
+Complete** options. See [applog.md](applog.md).
+
 ## Project layout
 
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt
-├── data/                              # 30 files
-│   ├── (HTTP, dispatch, streaming, tracer, registry, pricing, …)
+├── data/                              # 34 files (incl. data/local/)
+│   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
-│   ├── ApiTracer.kt            AppService.kt    AtomicFileWrite.kt
-│   ├── BackupManager.kt        ChatHistoryManager.kt   DataModels.kt
-│   ├── EmbeddingsStore.kt      ExamplePromptSeed.kt
+│   ├── ApiTracer.kt            AppLog.kt        AppService.kt
+│   ├── AtomicFileWrite.kt      BackupManager.kt
+│   ├── ChatHistoryManager.kt   DataModels.kt
+│   ├── EmbeddingsStore.kt      EmojiExtract.kt  ExamplePromptSeed.kt
 │   ├── HuggingFaceCache.kt     ImageAttach.kt
 │   ├── InternalPromptSeed.kt
 │   ├── Knowledge.kt + KnowledgeService.kt + KnowledgeExtractors.kt
-│   ├── LocalEmbedder.kt + LocalLlm.kt
 │   ├── ModelListCache.kt       ModelType.kt     PricingCache.kt
-│   ├── PromptCache.kt          ProviderRegistry.kt
+│   ├── PricingParsers.kt       PromptCache.kt
+│   ├── ProviderFieldTimestamps.kt    ProviderRegistry.kt
 │   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
+│   └── local/                         # 2 files
+│       ├── LocalEmbedder.kt + LocalLlm.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                         # 3 files
+├── viewmodel/                         # 4 files
 │   ├── AppViewModel.kt + ChatViewModel.kt + ReportViewModel.kt
-└── ui/                                # 75 files
+│   └── ReportViewModelHelpers.kt
+└── ui/                                # 82 files
     ├── navigation/  (2)               # AppNavHost, NavRoutes
     ├── hub/         (1)               # main hub + Reports / Chats hubs
-    ├── report/      (21)              # report flows, secondary results,
+    ├── report/      (26)              # report flows, secondary results,
     │                                  # Fan-out / Fan-in screens, exports
     │                                  # (PDF, DOCX/ODT, RTF, zipped HTML),
-    │                                  # translation screens
+    │                                  # translation screens, icon screens
+    │                                  # (FindAlternativeIcons, agent
+    │                                  # icon detail, icons grid),
+    │                                  # split SelectionPhase /
+    │                                  # GenerationPhase / Dialogs files
     ├── chat/        (5)               # chat + chat history + dual chat
     ├── knowledge/   (1)               # KB list + detail
     ├── search/      (4)               # Quick / Extended local + Local /
     │                                  # Remote semantic search screens
-    ├── share/       (1)               # ShareChooserScreen
+    ├── share/       (2)               # ShareChooserScreen + helpers
     ├── models/      (1)               # model search + Model Info
     ├── history/     (3)               # report history + prompt history
     │                                  # + example-prompt picker
-    ├── settings/    (18)              # all AI Setup sub-screens
+    ├── settings/    (17)              # all AI Setup sub-screens
     ├── admin/       (10)              # Housekeeping / Backup-Restore /
     │                                  # Reset / Trim by age / Usage stats /
     │                                  # statistics / traces / help /
-    │                                  # provider admin / developer
-    ├── shared/      (7)               # CrudListScreen, TitleBar,
-    │                                  # AppColors, CameraCapture,
-    │                                  # CsvHelpers, SelectionScreens,
+    │                                  # provider admin / developer +
+    │                                  # AppLogScreen
+    ├── shared/      (9)               # CrudListScreen, TitleBar +
+    │                                  # BottomIconBar, AppColors,
+    │                                  # CameraCapture, CsvHelpers,
+    │                                  # ExportShare, RestartAppDialog,
+    │                                  # SelectionScreens,
     │                                  # SharedComponents, UiFormatting
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **112 Kotlin files, ~52,300 LOC** total.
+Roughly **123 Kotlin files, ~60,300 LOC** total.
 
 ## Adding things
 
@@ -302,12 +325,15 @@ use today. Adding a new one means:
 
 ### A new Help topic / help page
 
-`ui/admin/HelpScreen.kt` has the full topic catalog (~88 topics).
-The TitleBar's ❓ takes a `helpTopic` string; help routes resolve
-it to an entry. Trace category → help topic mapping lives in the
-same file (`HelpResolver`) so a captured trace can deep-link from
-its ℹ to the most relevant page. Per-provider help pages share the
-infrastructure.
+`ui/admin/HelpContent.kt` has the full topic catalog (~190
+topics — each full-screen overlay has its own dedicated entry).
+The TitleBar's ❓ takes a `helpTopic` string; help routes
+resolve it to an entry. Trace category → help topic mapping
+lives in `HelpScreen.kt` (`HelpResolver`) so a captured trace
+can deep-link from its ℹ️ to the most relevant page. Per-provider
+help pages share the infrastructure. The viewer no longer
+renders "Related" cards — link by deep-linking from the rest of
+the UI instead.
 
 ## Testing
 
@@ -372,7 +398,46 @@ correctness here.
   preserves them across refreshes.
 - **Rate-limit retry is OFF main thread.** The interceptor has an
   explicit `Looper.myLooper() == getMainLooper()` guard. Don't
-  remove it.
+  remove it. Retry caps come from
+  `ProviderThrottle.retryLimitsFor(host)` — per-provider override
+  → `NetworkSettings.maxRetriesOn429 / retryBackoffMs`. Setting
+  `maxRetriesOn429 = 0` is valid (no in-line retries — outer
+  `withRetry` still applies). `withRetry` itself treats 408 /
+  425 / 429 as transient.
+- **Per-provider throttle**. `ProviderThrottle` keeps one
+  semaphore + sliding-window deque per host. Flows that
+  pre-acquire (Fan-out, report-icon chain, alternative-icons
+  fan-out) MUST also set
+  `ProviderThrottle.permitPreAcquired` on the coroutine so the
+  inline `ProviderThrottleInterceptor` doesn't double-count.
+  Propagation across coroutine dispatcher hops goes via
+  `withContext(asContextElement(true))`; onto OkHttp workers via
+  `TagPropagatingExecutor`. Provider edits go through
+  `ProviderRegistry.save` which calls
+  `ProviderThrottle.resetForNewLimits()` — overrides take
+  effect on the next acquire. See [throttle.md](throttle.md).
+- **Read-timeout interceptor split**. `ReadTimeoutInterceptor`
+  picks `streamingReadTimeoutSec` (default 10 min) vs
+  `nonStreamingReadTimeoutSec` (default short) based on the
+  request URL / body (`:streamGenerateContent`,
+  `"stream":true` in the body). Without this every call would
+  inherit the streaming timeout — a hung provider would gate a
+  whole batch for minutes.
+- **Storage flat-id validation.** `isSafeFlatId` (non-blank,
+  not `.` / `..`, no `/` or `\`) gates the write side of
+  `ReportStorage.saveReport / deleteReport`,
+  `ChatHistoryManager.saveChatSession`,
+  `SecondaryResultStorage.save…`, `KnowledgeStore.saveSource /
+  deleteSource`. Knowledge paths additionally enforce
+  canonical-containment around `kbId` joins so a symlink or
+  `..` segment can't escape `<filesDir>/knowledge/`.
+- **ProviderFieldTimestamps**. Per-provider per-field
+  user-edit timestamps live in a separate prefs file
+  (`provider_field_timestamps`). `ProviderRegistry.update`
+  bumps timestamps when the new value differs; the every-start
+  asset-sync paths skip fields with a non-null timestamp so a
+  bundled-asset refresh never overwrites a user edit. Backup
+  / restore mirrors this prefs file.
 - **Backup zip** mirrors `filesDir` (incl. `knowledge/`,
   `embeddings/`, `secondary/`, `trace/`, `pricing/`, `model_lists/`,
   `prompt_cache/`) and 5 SharedPreferences files. Two top-level
@@ -432,23 +497,53 @@ correctness here.
   (`Files.move ATOMIC_MOVE` + tmp file fsync + parent-dir auto-
   mkdir). Bare `File.writeText` leaves a half-written file on
   crash — the sweep across the codebase fixed this in dozens of
-  call sites.
+  call sites. The same stage-as-`.part` + atomic-rename pattern
+  is used by `ExportShare` (Copy / Share writes) and the
+  local-model import path (`.task` / `.tflite` files) so a
+  process kill mid-write can't surface a half-written artifact
+  to the user.
+- **Icons come in two flavours.** Per-report icon
+  (`Report.icon`, fired by `ReportViewModel.kickOffIconGeneration`
+  against the `internal/icon` pinned-agent prompt) and per-agent
+  3-tier chain (`ReportAgent.icon`, fired by
+  `runReportIconsForAgent` on every successful agent call).
+  Both bypass `extractFirstEmoji` to enforce one-glyph
+  normalisation; failures persist `iconErrorMessage` instead.
+  Bundled prompts: `icon`, `report_icon`, `report_icon_chat`,
+  `report_icon_3th`. See [report-icons.md](report-icons.md).
+- **Background continuation.** Initial report generation,
+  regenerate, secondary launches (rerank / meta / moderation /
+  translate), and the report-icon chain are all launched on
+  `appViewModel.viewModelScope` (not the report VM's scope) so
+  navigating away from the result screen doesn't cancel the
+  work. The result screen recovers stale placeholders on entry
+  via `restoreCompletedReport` /
+  `hydrateAgentResultsFromStorage`. `deleteReport` cancels
+  every job registered under its `reportId` prefix.
 
-## First-run seeding
+## First-run seeding + every-start delta-merge
 
-`AppViewModel.bootstrap` runs once per fresh install (gated by
-`first_run_bootstrapped` in eval_prefs):
+`AppViewModel.bootstrap` runs a delta merge of bundled assets on
+**every** app start (not just fresh install):
 
-- Imports `assets/providers.json` into `ProviderRegistry` (only
-  if the registry is empty AND `Settings.internalPrompts` is empty,
-  i.e. genuinely fresh).
-- Loads `assets/prompts.json` and merges any rows missing by
-  `(category, name)` into `Settings.internalPrompts`. Existing
-  rows are never overwritten — re-seeding is idempotent.
+- `assets/providers.json` — new entries are appended on every
+  start. Per-field updates are gated by
+  `ProviderFieldTimestamps` — a field the user has edited (the
+  timestamp is non-null) is left alone; an un-edited field
+  tracks the asset.
+- `assets/prompts.json` — bundled rows missing by
+  `(category, name)` are added; existing rows are never
+  overwritten. So shipping new bundled `internal/…` prompts
+  (e.g. the icon-prompt set, `chat_title`, …) reaches existing
+  installs the next time they cold-start.
+- `assets/examples.json` — same delta-merge by title
+  (case-insensitive).
 
-Example prompts are loaded **on demand** (Settings → AI Setup →
-Prompt management → Example prompts → Load bundled examples).
-Title match is case-insensitive.
+The entire bootstrap sequence emits structured DEBUG / TRACE
+log lines under the `AppLifecycle` tag, including a startup
+banner with `versionName` / `versionCode` /
+`BUILD_TIMESTAMP`. Tail the AppLog viewer (Hub → AI App log)
+during development to see the full path.
 
 ## Versioning the precompute migration
 
