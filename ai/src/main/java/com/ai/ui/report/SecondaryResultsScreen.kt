@@ -547,6 +547,12 @@ private fun ColumnScope.FanOutDrillInView(
     onBack: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    // "Subject to title bar" setting — when true, each L1/L2/L3
+    // TitleBar carries the dynamic subject (prompt name, model name,
+    // source-agent label) in-bar and the matching inline green
+    // sub-header is suppressed. HARDCODED keeps the legacy layout:
+    // static "Fan out" in the bar, big green subject below.
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     // Load the parent report once so L1 / L2 can label rows by the
     // agents' provider/model and L3 can pull source.responseBody.
     val report by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
@@ -800,21 +806,24 @@ private fun ColumnScope.FanOutDrillInView(
         TitleBar(
             helpTopic = "secondary_fan_out_l3",
             title = "Fan out - pair",
+            subject = sourceLabel,
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
             } else null
         )
-        Text(
-            text = sourceLabel,
-            fontSize = 18.sp,
-            color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        )
+        if (!foldSubject) {
+            Text(
+                text = sourceLabel,
+                fontSize = 18.sp,
+                color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(4.dp))
         // Source response (top) + answerer response (bottom). Top
         // wraps to its content but is capped at half the available
@@ -983,9 +992,11 @@ private fun ColumnScope.FanOutDrillInView(
         // only) → trace for this model's report-agent run. The
         // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
+        val l2Subject = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / ")
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - model",
+            subject = l2Subject,
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { selectedModelKey = null },
             onInfo = if (activeProviderService != null) {
@@ -996,17 +1007,19 @@ private fun ColumnScope.FanOutDrillInView(
                 { onNavigateToTraceFile(l2Trace) }
             } else null
         )
-        Text(
-            text = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / "),
-            fontSize = 18.sp,
-            color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-                .padding(top = 4.dp)
-                .modelInfoClickable(activeProviderService, activeMdl)
-        )
+        if (!foldSubject) {
+            Text(
+                text = l2Subject,
+                fontSize = 18.sp,
+                color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .modelInfoClickable(activeProviderService, activeMdl)
+            )
+        }
         // Row 1: role label + Switch role button.
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 4.dp)) {
@@ -1327,22 +1340,23 @@ private fun ColumnScope.FanOutDrillInView(
     var confirmFanOutDelete by remember { mutableStateOf(false) }
     // Static "Fan out" page title in the menu bar; the dynamic
     // prompt name + title surfaces as a green sub-header in the body
-    // so the user can tell which Fan out prompt this run came from
-    // without losing the screen identity.
-    TitleBar(
-        helpTopic = "secondary_fan_out_l1",
-        title = "Fan out",
-        reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
-        onBackClick = onBack,
-        onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
-        onDelete = { confirmFanOutDelete = true }
-    )
+    // (or folded into the TitleBar when "Subject to title bar" is
+    // anything other than HARDCODED).
     val l1SubHeader = when {
         fanOutPrompt == null -> ""
         fanOutPrompt.title.isBlank() -> fanOutPrompt.name
         else -> "${fanOutPrompt.name} — ${fanOutPrompt.title}"
     }
-    if (l1SubHeader.isNotBlank()) {
+    TitleBar(
+        helpTopic = "secondary_fan_out_l1",
+        title = "Fan out",
+        subject = l1SubHeader.takeIf { it.isNotBlank() },
+        reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+        onBackClick = onBack,
+        onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
+        onDelete = { confirmFanOutDelete = true }
+    )
+    if (!foldSubject && l1SubHeader.isNotBlank()) {
         Text(
             text = l1SubHeader,
             fontSize = 18.sp,
