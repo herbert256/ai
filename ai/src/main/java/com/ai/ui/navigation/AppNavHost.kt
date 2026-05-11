@@ -937,6 +937,8 @@ fun AppNavHost(
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
+            val traceDetailContext = LocalContext.current
+            val traceDetailScope = rememberCoroutineScope()
             TraceDetailScreen(
                 filename = filename, aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -944,7 +946,13 @@ fun AppNavHost(
                 onNavigateToProvider = { p -> navController.navigate(NavRoutes.settingsProviderEdit(p.id)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToEditAgent = { id -> navController.navigate(NavRoutes.settingsAgentEdit(id)) },
-                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                onOpenReport = { reportId ->
+                    traceDetailScope.launch {
+                        reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                }
             )
         }
         composable(NavRoutes.SETTINGS_PROVIDER_EDIT) { entry ->

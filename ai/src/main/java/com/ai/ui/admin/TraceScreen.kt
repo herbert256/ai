@@ -508,7 +508,12 @@ fun TraceDetailScreen(
     onNavigateToProvider: (AppService) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToEditAgent: (String) -> Unit = {},
-    onNavigateToHelpTopic: (String) -> Unit = {}
+    onNavigateToHelpTopic: (String) -> Unit = {},
+    /** Navigate to the AI Report this trace belongs to. Wired only
+     *  when the trace carries a non-null reportId (the bottom-bar 📝
+     *  button is hidden otherwise). The host is responsible for
+     *  restoring the report into ReportViewModel before navigating. */
+    onOpenReport: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -535,6 +540,17 @@ fun TraceDetailScreen(
     LaunchedEffect(currentFilename) {
         trace = ApiTracer.readTraceFile(currentFilename)
         rawJson = ApiTracer.readTraceFileRaw(currentFilename) ?: ""
+    }
+
+    // Resolve the AI Report this trace belongs to (if any), so the
+    // title bar can paint that report's AI-generated icon and the
+    // bottom bar can offer a 📝 jump-back button. Off-thread because
+    // ReportStorage.getReport parses the report JSON which can be
+    // multi-MB for image-heavy reports.
+    val reportIdForTrace = trace?.reportId
+    val reportForTrace by produceState<com.ai.data.Report?>(initialValue = null, reportIdForTrace) {
+        val rid = reportIdForTrace
+        value = if (rid != null) withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) } else null
     }
 
     val t = trace
@@ -688,6 +704,12 @@ fun TraceDetailScreen(
         TitleBar(
             helpTopic = "trace_detail",
             title = "Trace detail", onBackClick = onBack,
+            // When the trace belongs to a report, paint that report's
+            // AI-generated icon (the "retrieved" icon) as the leftmost
+            // glyph. Null when no icon has been generated yet OR the
+            // trace isn't report-scoped — the slot is hidden in both
+            // cases (the bottom-bar 📝 is the persistent indicator).
+            reportIcon = reportForTrace?.icon?.takeIf { it.isNotBlank() },
             onInfo = onInfoAction,
             // 🗑: confirm + delete this trace file, then pop back.
             onDelete = if (t != null) { { showDeleteConfirm = true } } else null,
@@ -843,6 +865,21 @@ fun TraceDetailScreen(
             }, enabled = hasPrev, contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+            // Fixed report indicator + jump-back button. Only rendered
+            // when this trace is report-scoped — paints the same 📝
+            // glyph every report-scoped screen uses, so the user has
+            // a persistent "this trace belongs to a report" signal
+            // independent of whether the report's AI-generated icon
+            // has resolved yet.
+            val tracedReportId = t?.reportId
+            if (tracedReportId != null) {
+                OutlinedButton(
+                    onClick = { onOpenReport(tracedReportId) },
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.width(36.dp).semantics { contentDescription = "Open report" },
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("📝", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+            }
             OutlinedButton(onClick = {
                 // Only copy when the trace structure is parsed; the
                 // redaction pass needs that. Falling back to displayContent
