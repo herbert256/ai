@@ -751,15 +751,31 @@ fun ReportCostTable(report: Report) {
     }
     val rows = (agentRows + secondaryRows + listOfNotNull(iconRow)).sortedByDescending { it.inputCents + it.outputCents }
 
-    data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
-    fun groupTotals(grouper: (CostRow) -> String): List<GroupTotal> =
-        rows.groupBy(grouper).map { (k, gs) ->
+    // GroupTotal carries an optional (provider, model) split so the
+    // "By model" table can render the two as separate columns (same
+    // shape as the All-calls list below); "By type" keeps the single
+    // key column.
+    data class GroupTotal(
+        val key: String,
+        val provider: String?, val model: String?,
+        val calls: Int,
+        val inputTokens: Int, val outputTokens: Int,
+        val inputCents: Double, val outputCents: Double
+    )
+    fun groupByType(): List<GroupTotal> =
+        rows.groupBy { it.type }.map { (k, gs) ->
             var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
             gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
-            GroupTotal(k, iT, oT, iC, oC)
+            GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
         }.sortedByDescending { it.inputCents + it.outputCents }
-    val byType = groupTotals { it.type }
-    val byModel = groupTotals { "${it.providerDisplay} · ${it.model}" }
+    fun groupByModel(): List<GroupTotal> =
+        rows.groupBy { it.providerDisplay to it.model }.map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
+            GroupTotal("${k.first} / ${k.second}", k.first, k.second, gs.size, iT, oT, iC, oC)
+        }.sortedByDescending { it.inputCents + it.outputCents }
+    val byType = groupByType()
+    val byModel = groupByModel()
 
     var totalIn = 0; var totalOut = 0; var totalInC = 0.0; var totalOutC = 0.0
     rows.forEach { totalIn += it.inputTokens; totalOut += it.outputTokens; totalInC += it.inputCents; totalOutC += it.outputCents }
@@ -779,11 +795,19 @@ fun ReportCostTable(report: Report) {
     // its own (key, ascending) state so the user can sort the type
     // rollup independently from the model rollup.
     val SUMMARY_TOTAL = "TOTAL"; val SUMMARY_KEY = "KEY"
+    val SUMMARY_CALLS = "CALLS"
     val SUMMARY_IN_TOK = "IN_TOK"; val SUMMARY_OUT_TOK = "OUT_TOK"
     val SUMMARY_IN_C = "IN_C"; val SUMMARY_OUT_C = "OUT_C"
 
     @Composable
-    fun SummaryTable(label: String, keyHeader: String, keyWidth: Dp, groups: List<GroupTotal>) {
+    fun SummaryTable(
+        label: String,
+        keyHeader: String,
+        groups: List<GroupTotal>,
+        // When true: key column splits into Provider + Model (matches
+        // the All-calls table). When false: single key column (Type).
+        isByModel: Boolean = false
+    ) {
         if (groups.isEmpty()) return
         // Default = Total ¢ DESC (matches the previous static order).
         // First click on a column → switches to that column DESC; the
@@ -798,6 +822,7 @@ fun ReportCostTable(report: Report) {
         val sortedGroups = remember(groups, sortKey, ascending) {
             val cmp: Comparator<GroupTotal> = when (sortKey) {
                 SUMMARY_KEY    -> compareBy { it.key.lowercase() }
+                SUMMARY_CALLS  -> compareBy { it.calls }
                 SUMMARY_IN_TOK -> compareBy { it.inputTokens }
                 SUMMARY_OUT_TOK-> compareBy { it.outputTokens }
                 SUMMARY_IN_C   -> compareBy { it.inputCents }
@@ -817,15 +842,34 @@ fun ReportCostTable(report: Report) {
                 textAlign = if (end) androidx.compose.ui.text.style.TextAlign.End else androidx.compose.ui.text.style.TextAlign.Start
             )
         }
+        // Column widths. Type stays narrow (short labels); Provider /
+        // Model in the "By model" layout get generous widths so the
+        // names sit on one line — and the maxLines/ellipsis is gone
+        // anyway so even longer names will wrap rather than be
+        // trimmed.
+        val typeColW = 100.dp
+        val providerColW = 120.dp
+        val modelColW = 220.dp
+        val callsColW = 48.dp
+        val totalsWidth = if (isByModel)
+            56.dp + providerColW + modelColW + callsColW + 64.dp + 64.dp + 56.dp + 56.dp + 8.dp
+        else
+            56.dp + typeColW + callsColW + 64.dp + 64.dp + 56.dp + 56.dp + 8.dp
+
         Spacer(modifier = Modifier.height(8.dp))
         Text(label, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 4.dp))
         Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
             Column(modifier = Modifier.padding(horizontal = 4.dp)) {
-                val totalsWidth = keyWidth + 56.dp + 64.dp + 64.dp + 56.dp + 56.dp + 8.dp
                 Row {
                     SortHeader(SUMMARY_TOTAL, "Total ¢", Modifier.width(56.dp), end = true)
-                    SortHeader(SUMMARY_KEY, keyHeader, Modifier.width(keyWidth).padding(start = 8.dp))
+                    if (isByModel) {
+                        SortHeader(SUMMARY_KEY, "Provider", Modifier.width(providerColW).padding(start = 8.dp))
+                        SortHeader(SUMMARY_KEY, "Model", Modifier.width(modelColW).padding(start = 8.dp))
+                    } else {
+                        SortHeader(SUMMARY_KEY, keyHeader, Modifier.width(typeColW).padding(start = 8.dp))
+                    }
+                    SortHeader(SUMMARY_CALLS, "Calls", Modifier.width(callsColW).padding(start = 8.dp), end = true)
                     SortHeader(SUMMARY_IN_TOK, "In tok", Modifier.width(64.dp), end = true)
                     SortHeader(SUMMARY_OUT_TOK, "Out tok", Modifier.width(64.dp), end = true)
                     SortHeader(SUMMARY_IN_C, "In ¢", Modifier.width(56.dp), end = true)
@@ -837,9 +881,25 @@ fun ReportCostTable(report: Report) {
                         Text(fmtC(g.inputCents + g.outputCents), fontSize = vSize, color = vColor,
                             modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             fontFamily = FontFamily.Monospace)
-                        Text(g.key, fontSize = vSize, color = vColor,
-                            modifier = Modifier.width(keyWidth).padding(start = 8.dp),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        if (isByModel) {
+                            // No ellipsis — long provider / model names
+                            // wrap to a second line rather than getting
+                            // chopped off.
+                            Text(g.provider ?: "", fontSize = vSize, color = vColor,
+                                modifier = Modifier.width(providerColW).padding(start = 8.dp),
+                                fontFamily = FontFamily.Monospace)
+                            Text(g.model ?: "", fontSize = vSize, color = vColor,
+                                modifier = Modifier.width(modelColW).padding(start = 8.dp),
+                                fontFamily = FontFamily.Monospace)
+                        } else {
+                            Text(g.key, fontSize = vSize, color = vColor,
+                                modifier = Modifier.width(typeColW).padding(start = 8.dp),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                        Text(fmtT(g.calls), fontSize = vSize, color = vColor,
+                            modifier = Modifier.width(callsColW).padding(start = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             fontFamily = FontFamily.Monospace)
                         Text(fmtT(g.inputTokens), fontSize = vSize, color = vColor,
                             modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
@@ -865,10 +925,18 @@ fun ReportCostTable(report: Report) {
                         Text(fmtC(deletedCents), fontSize = vSize, color = vColor,
                             modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                             fontFamily = FontFamily.Monospace)
-                        Text("deleted", fontSize = vSize, color = vColor,
-                            modifier = Modifier.width(keyWidth).padding(start = 8.dp),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            fontFamily = FontFamily.Monospace)
+                        if (isByModel) {
+                            Text("deleted", fontSize = vSize, color = vColor,
+                                modifier = Modifier.width(providerColW + modelColW).padding(start = 8.dp),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontFamily = FontFamily.Monospace)
+                        } else {
+                            Text("deleted", fontSize = vSize, color = vColor,
+                                modifier = Modifier.width(typeColW).padding(start = 8.dp),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontFamily = FontFamily.Monospace)
+                        }
+                        Text("", modifier = Modifier.width(callsColW))
                         Text("", modifier = Modifier.width(64.dp))
                         Text("", modifier = Modifier.width(64.dp))
                         Text("", modifier = Modifier.width(56.dp))
@@ -881,11 +949,21 @@ fun ReportCostTable(report: Report) {
                     val gOut = groups.sumOf { it.outputTokens }
                     val gInC = groups.sumOf { it.inputCents }
                     val gOutC = groups.sumOf { it.outputCents }
+                    val gCalls = groups.sumOf { it.calls }
                     Text(fmtC(gInC + gOutC + deletedCents), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         fontFamily = FontFamily.Monospace)
-                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(keyWidth).padding(start = 8.dp))
+                    if (isByModel) {
+                        Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(providerColW + modelColW).padding(start = 8.dp))
+                    } else {
+                        Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(typeColW).padding(start = 8.dp))
+                    }
+                    Text(fmtT(gCalls), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(callsColW).padding(start = 8.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        fontFamily = FontFamily.Monospace)
                     Text(fmtT(gIn), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         fontFamily = FontFamily.Monospace)
@@ -908,8 +986,8 @@ fun ReportCostTable(report: Report) {
         // followed by the full per-call detail. Rendering order
         // matches what the user asked for: glance at the type and
         // model rollups first, drill into the call list when needed.
-        SummaryTable("By type", "Type", 100.dp, byType)
-        SummaryTable("By model", "Model", 200.dp, byModel)
+        SummaryTable("By type", "Type", byType, isByModel = false)
+        SummaryTable("By model", "Model", byModel, isByModel = true)
         Spacer(modifier = Modifier.height(8.dp))
         Text("All calls", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 4.dp))
@@ -958,8 +1036,8 @@ fun ReportCostTable(report: Report) {
                 Row {
                     RowSortHeader(ROW_TOTAL, "Total \u00A2", Modifier.width(56.dp), end = true)
                     RowSortHeader(ROW_TYPE, "Type", Modifier.width(70.dp).padding(start = 8.dp))
-                    RowSortHeader(ROW_PROVIDER, "Provider", Modifier.width(90.dp))
-                    RowSortHeader(ROW_MODEL, "Model", Modifier.width(120.dp))
+                    RowSortHeader(ROW_PROVIDER, "Provider", Modifier.width(140.dp))
+                    RowSortHeader(ROW_MODEL, "Model", Modifier.width(220.dp))
                     RowSortHeader(ROW_TIER, "Tier", Modifier.width(80.dp))
                     RowSortHeader(ROW_SEC, "Sec", Modifier.width(48.dp), end = true)
                     RowSortHeader(ROW_IN_TOK, "In tok", Modifier.width(64.dp), end = true)
@@ -967,7 +1045,7 @@ fun ReportCostTable(report: Report) {
                     RowSortHeader(ROW_IN_C, "In \u00A2", Modifier.width(56.dp), end = true)
                     RowSortHeader(ROW_OUT_C, "Out \u00A2", Modifier.width(56.dp), end = true)
                 }
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(704.dp))
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp, modifier = Modifier.width(862.dp))
                 sortedRows.forEach { r ->
                     val typeColor = when (r.type) { "rerank" -> AppColors.Orange; "summarize" -> AppColors.Indigo; "compare" -> AppColors.Purple; else -> vColor }
                     val tierColor = when (r.tier) {
@@ -977,8 +1055,10 @@ fun ReportCostTable(report: Report) {
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(fmtC(r.inputCents + r.outputCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(r.type, fontSize = vSize, color = typeColor, modifier = Modifier.width(70.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(r.providerDisplay, fontSize = vSize, color = vColor, modifier = Modifier.width(90.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(r.model, fontSize = vSize, color = vColor, modifier = Modifier.width(120.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+                        // No ellipsis on Provider / Model — long names
+                        // wrap rather than getting truncated.
+                        Text(r.providerDisplay, fontSize = vSize, color = vColor, modifier = Modifier.width(140.dp))
+                        Text(r.model, fontSize = vSize, color = vColor, modifier = Modifier.width(220.dp), fontFamily = FontFamily.Monospace)
                         Text(r.tier, fontSize = vSize, color = tierColor, modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(fmtS(r.durationMs), fontSize = vSize, color = vColor, modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtT(r.inputTokens), fontSize = vSize, color = vColor, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
@@ -994,7 +1074,7 @@ fun ReportCostTable(report: Report) {
                 if (deletedCents > 0.0) {
                     Row(modifier = Modifier.padding(vertical = 2.dp)) {
                         Text(fmtC(deletedCents), fontSize = vSize, color = vColor, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
-                        Text("deleted", fontSize = vSize, color = vColor, modifier = Modifier.width(360.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
+                        Text("deleted", fontSize = vSize, color = vColor, modifier = Modifier.width(510.dp).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis, fontFamily = FontFamily.Monospace)
                         Text("", modifier = Modifier.width(48.dp))
                         Text("", modifier = Modifier.width(64.dp))
                         Text("", modifier = Modifier.width(64.dp))
@@ -1002,10 +1082,10 @@ fun ReportCostTable(report: Report) {
                         Text("", modifier = Modifier.width(56.dp))
                     }
                 }
-                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(704.dp))
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp, modifier = Modifier.width(862.dp))
                 Row(modifier = Modifier.padding(vertical = 2.dp)) {
                     Text(fmtC(totalInC + totalOutC + deletedCents), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
-                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(360.dp).padding(start = 8.dp))
+                    Text("Total", fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(510.dp).padding(start = 8.dp))
                     Text("", fontSize = vSize, modifier = Modifier.width(48.dp))
                     Text(fmtT(totalIn), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                     Text(fmtT(totalOut), fontSize = vSize, color = tColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
