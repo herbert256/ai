@@ -235,6 +235,53 @@ object SecondaryResultStorage {
         }
     }
 
+    /** True when a row for [resultId] exists on disk under [reportId].
+     *  Used by long-running fan-out / meta coroutines to drop their
+     *  final save when the user deleted the placeholder mid-flight.
+     *  Cheap on-disk check inside the same lock save / delete use. */
+    fun exists(context: Context, reportId: String, resultId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock false
+            File(dir, "$resultId.json").exists()
+        }
+    }
+
+    /** Conditional save — writes only if a row for [result.id] is still
+     *  on disk under [result.reportId]. Returns true on a successful
+     *  write, false when the row was deleted while the caller was
+     *  preparing the update (the user tapped a delete button while
+     *  a fan-out / meta HTTP call was in flight). The exists-check and
+     *  the write share the same lock so a concurrent
+     *  [delete] / [deleteAllForReport] can't race in between. */
+    fun saveIfStillPresent(context: Context, result: SecondaryResult): Boolean {
+        init(context)
+        if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
+                || result.id == "." || result.id == "..") {
+            AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
+            return false
+        }
+        lock.withLock {
+            val dir = rootDir?.let { File(it, result.reportId) } ?: return false
+            val target = File(dir, "${result.id}.json")
+            if (!target.exists()) {
+                // Row was deleted while the caller was running. Skip
+                // the write so the user-deleted placeholder doesn't
+                // resurrect from the just-completed HTTP call.
+                AppLog.d("SecondaryResultStorage",
+                    "saveIfStillPresent: row ${result.id} no longer on disk, skipping save")
+                return false
+            }
+            if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
+                return false
+            }
+            target.writeTextAtomic(gson.toJson(result))
+            listCache.remove(result.reportId)
+        }
+        return true
+    }
+
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {

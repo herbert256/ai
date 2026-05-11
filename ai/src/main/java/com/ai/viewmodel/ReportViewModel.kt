@@ -1102,6 +1102,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
+                                    // Bail if the user deleted this pair (via the
+                                    // L2 trash icon or deleteFanOutModel) while
+                                    // we were queued on the throttle. Without
+                                    // this, executeSecondaryTask still fires the
+                                    // HTTP call and the saveIfStillPresent check
+                                    // below would suppress the disk write — but
+                                    // we'd still burn the API call and the
+                                    // tokens. Checking here skips the call too.
+                                    if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) {
+                                        AppLog.d("FanOut", "skip pair ${item.placeholder.id} — deleted before launch")
+                                        return@async
+                                    }
                                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                         appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
                                         val pairStart = System.currentTimeMillis()
@@ -1183,6 +1195,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
+                                    if (!SecondaryResultStorage.exists(context, reportId, ph.id)) {
+                                        AppLog.d("FanOut", "skip rerun ${ph.id} — deleted before launch")
+                                        return@async
+                                    }
                                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                         appViewModel.updateRunningFanOutPairs { it + ph.id }
                                         val rerunStart = System.currentTimeMillis()
@@ -1441,6 +1457,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         val costDelta = toDelete.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
         toDelete.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        // Drop the deleted ids from runningFanOutPairs immediately so
+        // the UI flips them out of "running" / "queued" the moment the
+        // trash icon is tapped, instead of waiting for each in-flight
+        // coroutine to land in its finally block. The coroutines
+        // themselves bail at the exists-check inside the fan-out
+        // launch path (or have saveIfStillPresent suppress the final
+        // write); their finally-block removal is now a redundant
+        // no-op on these ids.
+        val deletedIds = toDelete.map { it.id }.toSet()
+        if (deletedIds.isNotEmpty()) {
+            appViewModel.updateRunningFanOutPairs { it - deletedIds }
+        }
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
@@ -1982,7 +2010,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val pricing = PricingCache.getPricing(context, provider, model)
             val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
             val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
-            SecondaryResultStorage.save(context, placeholder.copy(
+            val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
                 tokenUsage = tu,
@@ -1990,7 +2018,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 outputCost = outCost,
                 durationMs = r.durationMs
             ))
-            if (r.errorMessage == null) {
+            // Skip usage-stats too if the row was deleted while in
+            // flight — the user dropped this run, so we shouldn't bill
+            // the per-provider token counters for it either.
+            if (saved && r.errorMessage == null) {
                 val inT = tu?.inputTokens ?: 0
                 val outT = tu?.outputTokens ?: 0
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
@@ -2020,13 +2051,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val pricing = PricingCache.getPricing(context, provider, model)
             val units = r.billedSearchUnits ?: if (r.errorMessage == null) 1 else 0
             val rerankCost = if (units > 0) units * pricing.perQueryPrice else null
-            SecondaryResultStorage.save(context, placeholder.copy(
+            val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
                 inputCost = rerankCost,
                 durationMs = r.durationMs
             ))
-            if (r.errorMessage == null) {
+            if (saved && r.errorMessage == null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
                     provider, model, 0, 0, 0, kind = "rerank", searchUnits = units
                 )
@@ -2070,7 +2101,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 && !response.analysis.isNullOrBlank() && !referenceLegend.isNullOrBlank()) {
             "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$referenceLegend\n"
         } else response.analysis
-        SecondaryResultStorage.save(context, placeholder.copy(
+        val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
             content = finalContent,
             errorMessage = response.error,
             tokenUsage = tu,
@@ -2079,7 +2110,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             durationMs = duration
         ))
 
-        if (response.error == null && tu != null) {
+        if (saved && response.error == null && tu != null) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
                 kind = when (kind) {
