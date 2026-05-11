@@ -790,7 +790,7 @@ private fun TagDropdown(
             colors = AppColors.outlinedButtonColors(),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            val display = if (value == "(any)") "(any)" else "Tag: $value"
+            val display = if (value == "(any)") "Tag (any)" else "Tag: $value"
             Text(display, fontSize = 11.sp,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("▾", fontSize = 11.sp, color = AppColors.TextTertiary)
