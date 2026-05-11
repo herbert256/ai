@@ -1039,6 +1039,10 @@ fun ReportsScreen(
         ) {
             ReportIconsGridScreen(
                 reportId = currentReportId,
+                onOpenAgent = { agentId ->
+                    showIconsView = false
+                    singleResultAgentId = agentId
+                },
                 onBack = { showIconsView = false }
             )
         }
@@ -2605,10 +2609,11 @@ private fun AgentIconDetailScreen(
  *  large font and nothing else. Reached from View → Icons, gated by
  *  the perModelIconGenEnabled setting at the button level. Agents
  *  whose chain hasn't landed (icon null/blank) are skipped — the
- *  user only sees what actually resolved. */
+ *  user only sees what actually resolved. Tapping a glyph routes to
+ *  that agent's Model response page via [onOpenAgent]. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ReportIconsGridScreen(reportId: String, onBack: () -> Unit) {
+private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Unit, onBack: () -> Unit) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
@@ -2618,7 +2623,9 @@ private fun ReportIconsGridScreen(reportId: String, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = null, title = "Icons", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
-        val icons = report?.agents.orEmpty().mapNotNull { it.icon?.takeIf { g -> g.isNotBlank() } }
+        val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
+            a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }
+        }
         Box(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             contentAlignment = Alignment.Center
@@ -2628,10 +2635,12 @@ private fun ReportIconsGridScreen(reportId: String, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.Center,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                icons.forEach { glyph ->
+                iconAgents.forEach { (agentId, glyph) ->
                     Text(
                         glyph, fontSize = 72.sp, color = Color.White,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clickable { onOpenAgent(agentId) }
                     )
                 }
             }
