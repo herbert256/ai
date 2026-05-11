@@ -31,11 +31,18 @@ data class ApiTrace(
      *  the API call runs. Null on traces written before the field
      *  existed or from sites that don't bracket their calls. */
     val category: String? = null,
-    val request: TraceRequest, val response: TraceResponse
+    val request: TraceRequest, val response: TraceResponse,
+    /** True while a streaming response is still being read — the trace
+     *  was written speculatively before EOF/close so a process kill
+     *  mid-stream still leaves a record. The final overwrite at
+     *  EOF/close resets this to false. Old trace files (pre-field)
+     *  deserialise with the default `false`. */
+    val partial: Boolean = false
 )
 data class TraceFileInfo(
     val filename: String, val hostname: String, val timestamp: Long, val statusCode: Int,
-    val reportId: String? = null, val model: String? = null, val category: String? = null
+    val reportId: String? = null, val model: String? = null, val category: String? = null,
+    val partial: Boolean = false
 )
 
 /**
@@ -78,38 +85,89 @@ object ApiTracer {
         traceDir = File(context.filesDir, TRACE_DIR).also { if (!it.exists()) it.mkdirs() }
     }
 
-    fun saveTrace(trace: ApiTrace) {
-        if (!isTracingEnabled) return
+    /**
+     * Persist [trace] as a JSON file. Returns the resolved filename on
+     * success, or null when the write was skipped (tracing disabled, no
+     * trace dir initialised) or failed.
+     *
+     * When [filename] is null a fresh filename is generated and a new
+     * entry is appended to the in-memory cache. When [filename] is
+     * non-null the existing file is overwritten in place and the
+     * matching cache entry is replaced — used by the streaming
+     * partial → final upgrade path so a process kill mid-stream still
+     * leaves a partial trace on disk under its eventual filename.
+     *
+     * The disk write and the cache mutation are now in **separate**
+     * try-catches: a bug in the cache update can no longer silently
+     * desync the in-memory list from disk, because any exception there
+     * invalidates the cache (sets it back to null) so the next
+     * [getTraceFiles] re-reads from disk. We also honour
+     * [writeTextAtomic]'s Boolean return — a false-return (no file on
+     * disk) skips the cache update so the listing can't carry an entry
+     * for a file that isn't there.
+     */
+    fun saveTrace(trace: ApiTrace, filename: String? = null): String? {
+        if (!isTracingEnabled) return null
         lock.withLock {
-            val dir = traceDir ?: return
+            val dir = traceDir ?: return null
             if (!dir.exists()) dir.mkdirs()
-            val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
-            val seq = fileSequence.incrementAndGet().toString(36)
-            // Sanitise hostname so a `host:port` style host (some
-            // configurations pass a port through) doesn't produce a
-            // filename with `:` — Android's filesystem rejects that and
-            // the trace silently fails to land. Replace any
-            // non-alphanumeric / dot / dash with `_`.
-            val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-            val filename = "${safeHost}_${ts}_${seq}.json"
+            val resolvedFilename = filename ?: run {
+                val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
+                val seq = fileSequence.incrementAndGet().toString(36)
+                // Sanitise hostname so a `host:port` style host (some
+                // configurations pass a port through) doesn't produce a
+                // filename with `:` — Android's filesystem rejects that
+                // and the trace silently fails to land. Replace any
+                // non-alphanumeric / dot / dash with `_`.
+                val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
+                "${safeHost}_${ts}_${seq}.json"
+            }
+            val isUpdate = filename != null
+            // Step 1 — disk write. Atomic so a process death mid-write
+            // leaves no half-JSON behind. Both a throw and a `false`
+            // return count as failure — the cache must never reflect a
+            // file that isn't on disk.
+            val wrote = try {
+                File(dir, resolvedFilename).writeTextAtomic(gson.toJson(trace))
+            } catch (e: Exception) {
+                android.util.Log.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
+                false
+            }
+            if (!wrote) {
+                android.util.Log.w("ApiTracer", "writeTextAtomic returned false for $resolvedFilename — skipping cache update")
+                return null
+            }
+            // Step 2 — cache mutation. Independently caught so an
+            // exception here can't leave a stale cache that shadows the
+            // freshly-written file forever. On any failure we invalidate
+            // the cache so the next getTraceFiles() rebuilds it from
+            // disk and re-sees the new trace.
             try {
-                // Atomic so a process death mid-write leaves no
-                // half-JSON behind — the streaming parser silently
-                // drops corrupt trace files, which would otherwise
-                // make traces vanish from the listing.
-                File(dir, filename).writeTextAtomic(gson.toJson(trace))
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
-                        filename, trace.hostname, trace.timestamp,
-                        trace.response.statusCode, trace.reportId, trace.model, trace.category
+                        resolvedFilename, trace.hostname, trace.timestamp,
+                        trace.response.statusCode, trace.reportId, trace.model,
+                        trace.category, trace.partial
                     )
-                    // Re-sort rather than prepend: trace.timestamp is set at request-issue
-                    // time but saveTrace runs at response-complete time, so concurrent
-                    // calls can land out of order.
-                    cachedTraceFiles = (current + info).sortedByDescending { it.timestamp }
+                    val next = if (isUpdate) {
+                        // Streaming partial → final overwrite reuses the
+                        // filename; replace the existing cache entry in
+                        // place instead of duplicating it.
+                        current.map { if (it.filename == resolvedFilename) info else it }
+                    } else {
+                        current + info
+                    }
+                    // Re-sort rather than prepend: trace.timestamp is set
+                    // at request-issue time but saveTrace runs at
+                    // response-complete time, so concurrent calls can
+                    // land out of order.
+                    cachedTraceFiles = next.sortedByDescending { it.timestamp }
                 }
+            } catch (e: Exception) {
+                android.util.Log.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
+                cachedTraceFiles = null
             }
-            catch (e: Exception) { android.util.Log.e("ApiTracer", "Failed to save trace: ${e.message}") }
+            return resolvedFilename
         }
     }
 
@@ -156,6 +214,7 @@ object ApiTracer {
                 var model: String? = null
                 var category: String? = null
                 var statusCode = 0
+                var partial = false
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -164,6 +223,7 @@ object ApiTracer {
                         "reportId" -> reportId = readNullableString(reader)
                         "model" -> model = readNullableString(reader)
                         "category" -> category = readNullableString(reader)
+                        "partial" -> partial = reader.nextBoolean()
                         "response" -> {
                             reader.beginObject()
                             while (reader.hasNext()) {
@@ -176,7 +236,7 @@ object ApiTracer {
                     }
                 }
                 reader.endObject()
-                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category)
+                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category, partial)
             }
         } catch (_: Exception) { null }
     }
@@ -288,14 +348,11 @@ class TracingInterceptor : Interceptor {
             try { val buffer = Buffer(); body.writeTo(buffer); buffer.readUtf8() } catch (_: Exception) { null }
         }
         val requestHeaders = headersToMap(request.headers)
-
         val traceRequest = TraceRequest(request.url.toString(), request.method, requestHeaders, rawRequestBody)
-        val response = chain.proceed(request)
 
-        val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||
-            (response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true)
-        val responseHeaders = headersToMap(response.headers)
-
+        // Model + call-site tags resolved BEFORE chain.proceed so even
+        // a pre-response failure (DNS, TLS, connect timeout) produces a
+        // useful trace with the model and category attached.
         val modelFromBody = rawRequestBody?.let { body ->
             try {
                 @Suppress("DEPRECATION")
@@ -321,11 +378,36 @@ class TracingInterceptor : Interceptor {
         val capturedReportId = ApiTracer.currentReportId
         val capturedCategory = ApiTracer.currentCategory
 
-        fun saveWith(body: String?) {
+        // Wrap chain.proceed so a pre-response network failure still
+        // produces a visible trace instead of silently disappearing.
+        // Re-throw the original exception so caller-side error handling
+        // is unchanged.
+        val response = try {
+            chain.proceed(request)
+        } catch (e: Exception) {
             ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
-                traceRequest, TraceResponse(response.code, responseHeaders, body)
+                traceRequest,
+                TraceResponse(
+                    statusCode = 0,
+                    headers = emptyMap(),
+                    body = "[network failure] ${e.javaClass.simpleName}: ${e.message ?: ""}"
+                ),
+                partial = false
             ))
+            throw e
+        }
+
+        val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||
+            (response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true)
+        val responseHeaders = headersToMap(response.headers)
+
+        fun saveWith(body: String?, partial: Boolean = false, filename: String? = null): String? {
+            return ApiTracer.saveTrace(ApiTrace(
+                timestamp, hostname, capturedReportId, model, capturedCategory,
+                traceRequest, TraceResponse(response.code, responseHeaders, body),
+                partial = partial
+            ), filename = filename)
         }
 
         if (!isStreaming) {
@@ -346,12 +428,26 @@ class TracingInterceptor : Interceptor {
             return response
         }
 
-        // Streaming: wrap the source in a tee. The application reads as
-        // normal (SSE parser in ApiStreaming, etc.); reads also flow into
-        // [captured]. The trace is saved when the source signals EOF or
-        // is closed — whichever fires first wins via [saved] CAS, so a
-        // half-consumed cancelled stream still produces a partial trace.
-        val originalBody = response.body ?: run { saveWith(null); return response }
+        // Streaming: write an initial *partial* trace BEFORE the
+        // consumer starts reading so a process kill mid-stream still
+        // leaves a record on disk. The final EOF/close upgrade reuses
+        // this filename via saveTrace's `filename` parameter so the
+        // partial entry is overwritten in place (file + cache).
+        val partialFilename = saveWith(
+            body = "[partitial: stream in progress]",
+            partial = true
+        )
+
+        // Wrap the source in a tee. The application reads as normal
+        // (SSE parser in ApiStreaming, etc.); reads also flow into
+        // [captured]. The final trace is saved when the source signals
+        // EOF or is closed — whichever fires first wins via [saved]
+        // CAS, so a half-consumed cancelled stream still produces a
+        // (truncated but complete) trace.
+        val originalBody = response.body ?: run {
+            saveWith(null, partial = false, filename = partialFilename)
+            return response
+        }
         val captured = Buffer()
         val saved = AtomicBoolean(false)
         fun finishOnce() {
@@ -360,7 +456,7 @@ class TracingInterceptor : Interceptor {
                 val text = captured.clone().readUtf8(minOf(captured.size, BODY_CAP_BYTES))
                 if (captured.size >= BODY_CAP_BYTES) "$text\n…[trace truncated at ${BODY_CAP_BYTES / (1024 * 1024)} MiB]" else text
             } catch (_: Exception) { null }
-            saveWith(body)
+            saveWith(body, partial = false, filename = partialFilename)
         }
         val teedSource = object : ForwardingSource(originalBody.source()) {
             override fun read(sink: Buffer, byteCount: Long): Long {
