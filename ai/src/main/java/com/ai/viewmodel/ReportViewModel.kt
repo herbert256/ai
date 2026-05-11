@@ -1001,7 +1001,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
-        scopeChoice: SecondaryScope = SecondaryScope.AllReports
+        scopeChoice: SecondaryScope = SecondaryScope.AllReports,
+        /** Subset of report-agent ids that should act as "answerers"
+         *  (the model receiving the prompt with @RESPONSE@ filled in).
+         *  Null = use every successful agent — preserves the pre-feature
+         *  default for callers that haven't been updated. The fan-out
+         *  confirmation screen passes the user's checked Responder set
+         *  so picking 2 responders × 3 initiators yields exactly the
+         *  6-minus-self pairs the user expects, instead of always
+         *  fanning out every successful agent on the answerer side. */
+        responderAgentIds: Set<String>? = null
     ): Job? {
         // Dedupe against an already-running fan out for this
         // (report, metaPrompt) — a UI double-tap on the launch
@@ -1035,6 +1044,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }
                     if (sources.isEmpty()) return@withTracerTags
+                    // Apply the per-side Responder selection (when the
+                    // caller passed one). Null falls back to "every
+                    // successful agent" — the pre-feature default that
+                    // other call sites (e.g. rerunFanOutPlaceholders)
+                    // still rely on.
+                    val answerers = if (responderAgentIds == null) successful
+                        else successful.filter { it.agentId in responderAgentIds }
+                    if (answerers.isEmpty()) return@withTracerTags
                     // Pre-create every (answerer, source) placeholder
                     // up-front so the Report Result screen's fan out
                     // summary row and the fan out detail screen's L1/L2
@@ -1045,7 +1062,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // source per answerer had been seeded.
                     data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
                     val pending = mutableListOf<PendingPair>()
-                    for (answerer in successful) {
+                    for (answerer in answerers) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
                             if (source.agentId == answerer.agentId) continue

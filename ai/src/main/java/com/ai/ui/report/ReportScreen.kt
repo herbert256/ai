@@ -177,8 +177,8 @@ fun ReportsScreenNav(
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice ->
-            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds ->
+            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds)
         },
         onRunFanIn = { reportId, metaPrompt, pick ->
             reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick)
@@ -372,7 +372,7 @@ fun ReportsScreen(
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope) -> Unit = { _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?) -> Unit = { _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
      *  model, active provider id (the L2 page's), active model name. */
@@ -1068,43 +1068,33 @@ fun ReportsScreen(
     val fanOutMp = fanOutConfirmMetaPrompt
     if (fanOutMp != null && currentReportId != null) {
         val rid = currentReportId
-        data class FanOutCounts(
-            val answerers: Int,
-            val pairs: Int,
-            val answererNames: List<String>
-        )
-        val countsState = produceState<FanOutCounts?>(initialValue = null, rid, pendingSecondaryScope) {
+        // Load the successful agent list off-thread so the confirmation
+        // body can render two per-side selection cards over it. The
+        // pre-feature counts object is gone — pair count is derived
+        // live from the user's checkbox state instead.
+        val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, rid) {
             value = withContext(Dispatchers.IO) {
-                val report = com.ai.data.ReportStorage.getReport(context, rid) ?: return@withContext null
-                val successful = report.agents.filter {
+                com.ai.data.ReportStorage.getReport(context, rid)?.agents?.filter {
                     it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                 }
-                val sources = when (val sc = pendingSecondaryScope) {
-                    com.ai.data.SecondaryScope.AllReports -> successful
-                    is com.ai.data.SecondaryScope.TopRanked -> {
-                        val rerank = com.ai.data.SecondaryResultStorage.get(context, rid, sc.rerankResultId)
-                        val ids = com.ai.data.extractTopRankedIds(rerank?.content, sc.count)
-                        if (ids.isNullOrEmpty()) successful
-                        else ids.mapNotNull { successful.getOrNull(it - 1) }
-                    }
-                    is com.ai.data.SecondaryScope.Manual -> successful.filter { it.agentId in sc.agentIds }
-                }
-                val pairs = successful.sumOf { ans -> sources.count { it.agentId != ans.agentId } }
-                fun label(a: com.ai.data.ReportAgent): String =
-                    a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
-                FanOutCounts(
-                    answerers = successful.size,
-                    pairs = pairs,
-                    answererNames = successful.map(::label)
-                )
             }
         }
-        val counts = countsState.value
-        val scopeLabel = when (val sc = pendingSecondaryScope) {
-            com.ai.data.SecondaryScope.AllReports -> "All reports"
-            is com.ai.data.SecondaryScope.TopRanked -> "Top ${sc.count} ranked"
-            is com.ai.data.SecondaryScope.Manual -> "Manual selection (${sc.agentIds.size})"
+        val successful = successfulState.value
+        // Two checkbox sets — initiator (= source, whose response feeds
+        // @RESPONSE@) and responder (= answerer, receives the assembled
+        // prompt). Re-key on the agent-id list so a fresh report reseeds
+        // the defaults instead of carrying a stale subset.
+        val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
+        var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
+        var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
+        // Self-pairs are skipped at the runner — match the dispatch
+        // logic exactly so the displayed count never disagrees with
+        // what actually lands as placeholders.
+        val pairCount = selectedInitiators.sumOf { init ->
+            selectedResponders.count { resp -> resp != init }
         }
+        fun agentLabel(a: com.ai.data.ReportAgent): String =
+            a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
         BackHandler { fanOutConfirmMetaPrompt = null }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
@@ -1118,7 +1108,7 @@ fun ReportsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "Running ${fanOutMp.name} will call every model once for every other model's response. Each call uses the fan-out prompt with @RESPONSE@ filled in.",
+                    "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. Self-pairs are skipped.",
                     fontSize = 13.sp, color = AppColors.TextSecondary
                 )
                 if (fanOutMp.text.isNotBlank()) {
@@ -1138,36 +1128,66 @@ fun ReportsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (counts == null) {
+                        if (successful == null) {
                             Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
                         } else {
-                            val gridText = if (counts.answerers > 0 && counts.pairs % counts.answerers == 0) {
-                                val perReport = counts.pairs / counts.answerers
-                                "${counts.answerers} report${if (counts.answerers == 1) "" else "s"} × $perReport response${if (perReport == 1) "" else "s"} = ${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
-                            } else {
-                                "${counts.pairs} call${if (counts.pairs == 1) "" else "s"}"
-                            }
+                            val gridText = "${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} × ${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
                             Text(
                                 gridText, fontSize = 15.sp, color = Color.White,
                                 fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
                             )
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-                                Text(scopeLabel, fontSize = 12.sp, color = Color.White)
-                            }
                         }
                     }
                 }
-                if (counts != null && counts.answererNames.isNotEmpty()) {
-                    Text("Models in this fan-out (${counts.answerers})", fontSize = 13.sp,
-                        color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                        modifier = Modifier.fillMaxWidth()
+                if (successful != null && successful.isNotEmpty()) {
+                    // Two collapsible cards — both default collapsed
+                    // and all-ticked. Each row is the whole agent line
+                    // with a leading Checkbox; tap-target is the row,
+                    // not just the checkbox, so it's friendly on
+                    // touch. Header counts track the live ticked
+                    // subset, not the total — that's the number the
+                    // pair-count math actually uses.
+                    com.ai.ui.shared.CollapsibleCard(
+                        title = "Initiator models for this Fan-Out (${selectedInitiators.size})"
                     ) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            counts.answererNames.forEach { name ->
-                                Text(name, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        successful.forEach { agent ->
+                            val checked = agent.agentId in selectedInitiators
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    selectedInitiators = if (checked) selectedInitiators - agent.agentId
+                                        else selectedInitiators + agent.agentId
+                                }.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = checked, onCheckedChange = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                    com.ai.ui.shared.CollapsibleCard(
+                        title = "Responder models for this Fan-out (${selectedResponders.size})"
+                    ) {
+                        successful.forEach { agent ->
+                            val checked = agent.agentId in selectedResponders
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    selectedResponders = if (checked) selectedResponders - agent.agentId
+                                        else selectedResponders + agent.agentId
+                                }.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = checked, onCheckedChange = null)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                         }
                     }
@@ -1182,13 +1202,21 @@ fun ReportsScreen(
                 Button(
                     onClick = {
                         val mp = fanOutConfirmMetaPrompt ?: return@Button
-                        val sc = pendingSecondaryScope
+                        val initiators = selectedInitiators
+                        val responders = selectedResponders
                         fanOutConfirmMetaPrompt = null
                         pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                         pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                        onRunFanOut(rid, mp, sc)
+                        // Scope-screen output is now overridden by the
+                        // explicit checkbox state — Manual(initiators)
+                        // is the source of truth for the initiator side.
+                        onRunFanOut(
+                            rid, mp,
+                            com.ai.data.SecondaryScope.Manual(initiators),
+                            responders
+                        )
                     },
-                    enabled = counts != null && counts.pairs > 0,
+                    enabled = pairCount > 0,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
                 ) { Text("Run", maxLines = 1, softWrap = false) }
