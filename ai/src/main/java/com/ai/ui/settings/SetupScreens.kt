@@ -5,7 +5,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -81,7 +80,7 @@ fun SetupScreen(
             }
             run {
                 val promptsCount = aiSettings.systemPrompts.size + aiSettings.internalPrompts.size
-                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System prompts and Internal (Meta + Internal) prompts", "$promptsCount",
+                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System, Meta, Fan-out/in, Other and Example prompts", "$promptsCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
             SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
@@ -190,151 +189,16 @@ fun WorkersSetupScreen(
 
 // ===== Prompts Setup hub =====
 
-/** Sub-hub under AI Setup that groups the two prompt-management entry
- *  points (System Prompts and the Internal Prompts hub). Same pattern
- *  as [WorkersSetupScreen] and [ModelsSetupScreen]. */
+/** Sub-hub under AI Setup that groups every prompt-management entry
+ *  point: System Prompts, the three Internal Prompts category buckets
+ *  (Meta / Fan out-in / Other), and Example prompts. Same pattern as
+ *  [WorkersSetupScreen] and [ModelsSetupScreen]. */
 @Composable
 fun PromptsSetupScreen(
     aiSettings: Settings,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
-    /** On-demand merge of bundled assets/prompts.json into the Internal
-     *  prompts list (existing rows by category+name kept). Returns the
-     *  number of newly added rows. */
-    onLoadBundledPrompts: () -> Int = { 0 },
-    /** Drop every Internal prompt and reload from assets/prompts.json
-     *  fresh. Returns the number of rows loaded. */
-    onResetBundledPrompts: () -> Int = { 0 }
-,
-    /** On-demand merge of bundled assets/examples.json into the
-     *  Example prompts list (existing titles kept). Returns the number
-     *  of newly added rows. */
-    onLoadBundledExamples: () -> Int = { 0 }
-) {
-    BackHandler { onBack() }
-    var internalStatus by remember { mutableStateOf<String?>(null) }
-    var exampleStatus by remember { mutableStateOf<String?>(null) }
-    var showResetConfirm by remember { mutableStateOf(false) }
-    var internalMaintExpanded by rememberSaveable { mutableStateOf(false) }
-    var exampleMaintExpanded by rememberSaveable { mutableStateOf(false) }
-
-    if (showResetConfirm) {
-        AlertDialog(
-            onDismissRequest = { showResetConfirm = false },
-            title = { Text("Reset Internal prompts?") },
-            text = { Text("This deletes every Internal prompt (including any you customized) and reloads the bundled list from assets/prompts.json.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val loaded = onResetBundledPrompts()
-                        showResetConfirm = false
-                        internalStatus = if (loaded > 0) {
-                            "Reset complete — loaded $loaded prompt${if (loaded == 1) "" else "s"} from assets/prompts.json"
-                        } else {
-                            "Reset failed — assets/prompts.json could not be read"
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                ) { Text("Reset", maxLines = 1, softWrap = false) }
-            },
-            dismissButton = { TextButton(onClick = { showResetConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
-        )
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
-    ) {
-        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard("🧩", "Internal Prompts", "Meta, Fan-out, Fan-in, and Other internal prompts", "${aiSettings.internalPrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB) })
-            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
-
-            // Maintenance, lifted from the former Housekeeping → Prompts
-            // screen so prompt management lives in one place. Styled to
-            // match the NavCards above; tap to expand the body.
-            CollapsibleMaintenanceCard(
-                icon = "🛠️",
-                title = "Internal prompts maintenance",
-                description = "Load missing or reset to bundled defaults",
-                expanded = internalMaintExpanded,
-                onToggle = { internalMaintExpanded = !internalMaintExpanded }
-            ) {
-                Text(
-                    "Load merges any prompt in assets/prompts.json that's missing — matched by (category, name); existing rows with the same pair keep your edits. Reset wipes every Internal prompt (including ones you authored) and reloads the bundled set fresh.",
-                    fontSize = 11.sp, color = AppColors.TextTertiary
-                )
-                Button(
-                    onClick = {
-                        val added = onLoadBundledPrompts()
-                        internalStatus = when {
-                            added == 0 -> "No new prompts in assets/prompts.json"
-                            added == 1 -> "Added 1 new prompt"
-                            else -> "Added $added new prompts"
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("Load new prompts from assets/prompts.json", maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { showResetConfirm = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                ) { Text("Reset Internal Prompts to assets/prompts.json", maxLines = 1, softWrap = false) }
-                internalStatus?.let {
-                    Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-                }
-            }
-
-            CollapsibleMaintenanceCard(
-                icon = "🛠️",
-                title = "Example prompts maintenance",
-                description = "Add bundled example prompts",
-                expanded = exampleMaintExpanded,
-                onToggle = { exampleMaintExpanded = !exampleMaintExpanded }
-            ) {
-                Text(
-                    "Adds any prompt in assets/examples.json that's missing — matched by case-insensitive title. Existing prompts (including ones you authored) are left strictly alone, never overwritten or wiped.",
-                    fontSize = 11.sp, color = AppColors.TextTertiary
-                )
-                Button(
-                    onClick = {
-                        val added = onLoadBundledExamples()
-                        exampleStatus = when {
-                            added == 0 -> "No new prompts in assets/examples.json"
-                            added == 1 -> "Added 1 new example prompt"
-                            else -> "Added $added new example prompts"
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("Add new prompts from assets/examples.json", maxLines = 1, softWrap = false) }
-                exampleStatus?.let {
-                    Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-                }
-            }
-        }
-    }
-}
-
-/** Sub-hub under Prompt Management that groups the category-scoped
- *  Internal Prompts CRUDs. Three top-level buckets:
- *    - Meta prompts (single CRUD)
- *    - Fan out/in prompts (forwards to its own sub-hub holding the
- *      five fan-* category CRUDs — fan_out / fan_in / initiator /
- *      requester / model)
- *    - Other internal prompts (single fixed-list CRUD) */
-@Composable
-fun InternalPromptsHubScreen(
-    aiSettings: Settings,
-    onBack: () -> Unit,
-    onBackToHome: () -> Unit,
     /** Set the category that the AI_INTERNAL_PROMPTS list + edit
      *  screens filter on, then navigate to the list. */
     onOpenInternalPrompts: (String) -> Unit,
@@ -342,26 +206,28 @@ fun InternalPromptsHubScreen(
     onOpenFanInOutHub: () -> Unit
 ) {
     BackHandler { onBack() }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
-        TitleBar(helpTopic = "internal_prompts_hub", title = "Internal prompts", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
-        // Sum of every fan-* bucket — what the new Fan out/in card's
-        // count badge shows so the user can see at a glance how many
-        // templates total live in the sub-hub.
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
             countByCategory("fan-in-model")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs, combined reports, and per-model variants", "$fanTotal",
                 onClick = onOpenFanInOutHub)
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
+            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
         }
     }
 }
@@ -457,47 +323,6 @@ private fun ModelsSetupNavCard(icon: String, title: String, description: String,
                 Text(count, fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
             }
             if (enabled) Text(">", fontSize = 16.sp, color = AppColors.Blue)
-        }
-    }
-}
-
-/** Same visual shape as [ModelsSetupNavCard] but the chevron toggles
- *  an inline body rather than navigating away. Used for in-screen
- *  maintenance actions where the buttons are infrequently tapped and
- *  shouldn't dominate the screen. */
-@Composable
-private fun CollapsibleMaintenanceCard(
-    icon: String,
-    title: String,
-    description: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-    ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onToggle() }
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(icon, fontSize = 22.sp)
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
-                }
-                Text(if (expanded) "▴" else "▾", fontSize = 16.sp, color = AppColors.Blue)
-            }
-            if (expanded) {
-                Column(
-                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) { content() }
-            }
         }
     }
 }

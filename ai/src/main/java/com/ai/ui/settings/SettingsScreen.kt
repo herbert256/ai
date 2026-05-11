@@ -31,7 +31,6 @@ enum class SettingsSubScreen {
     AI_SWARMS, AI_SWARM_EDIT,
     AI_PARAMETERS, AI_PARAMETERS_EDIT,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
-    AI_INTERNAL_PROMPTS_HUB,
     AI_FAN_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
@@ -42,12 +41,13 @@ enum class SettingsSubScreen {
     AI_LOCAL_LLMS,
     AI_IMPORT_EXPORT,
     AI_REFRESH,
-    // Three preference buckets carved out of the main Settings screen
-    // so the top page stays compact. Each sub-screen owns its own
-    // help topic and renders only the cards from its bucket.
+    // Four preference buckets carved out of the main Settings screen
+    // so the top page stays a short nav list. Each sub-screen owns
+    // its own help topic and renders only the cards from its bucket.
     SETTINGS_NETWORK,
     SETTINGS_UI,
-    SETTINGS_LOGGING
+    SETTINGS_LOGGING,
+    SETTINGS_OTHER
 }
 
 @Composable
@@ -77,9 +77,6 @@ fun SettingsScreen(
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onLoadBundledPrompts: () -> Int = { 0 },
-    onResetBundledPrompts: () -> Int = { 0 },
-    onLoadBundledExamples: () -> Int = { 0 },
     refreshAllState: com.ai.viewmodel.RefreshAllState? = null,
     onStartRefreshAll: () -> Unit = {},
     onClearRefreshAllState: () -> Unit = {},
@@ -183,19 +180,18 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
-            SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB,
-            SettingsSubScreen.AI_EXAMPLE_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
-            SettingsSubScreen.AI_FAN_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
+            SettingsSubScreen.AI_EXAMPLE_PROMPTS,
+            SettingsSubScreen.AI_FAN_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
             // Back from a per-category list lands on whichever hub
-            // owns that category — Fan out/in for any of the five
-            // fan-* buckets, the main Internal Prompts hub for meta /
-            // internal. selectedInternalCategory is set when the list
-            // is opened, so it's authoritative here.
+            // owns that category — Fan out/in for any of the fan-*
+            // buckets, Prompt management for meta / internal.
+            // selectedInternalCategory is set when the list is opened,
+            // so it's authoritative here.
             SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen =
                 if (selectedInternalCategory in setOf("fan_out", "fan_in", "fan-in-model"))
                     SettingsSubScreen.AI_FAN_PROMPTS_HUB
                 else
-                    SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
+                    SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS_SETUP,
@@ -215,7 +211,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPTS }
             SettingsSubScreen.SETTINGS_NETWORK,
             SettingsSubScreen.SETTINGS_UI,
-            SettingsSubScreen.SETTINGS_LOGGING -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_LOGGING,
+            SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
 
@@ -350,15 +347,6 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it },
-                onLoadBundledPrompts = onLoadBundledPrompts,
-                onResetBundledPrompts = onResetBundledPrompts,
-                onLoadBundledExamples = onLoadBundledExamples
-            )
-        }
-        SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> {
-            InternalPromptsHubScreen(
-                aiSettings = aiSettings,
-                onBack = goBack, onBackToHome = onNavigateHome,
                 onOpenInternalPrompts = { cat ->
                     selectedInternalCategory = cat
                     currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS
@@ -645,6 +633,12 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_OTHER -> {
+            OtherSettingsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
 }
 
@@ -658,39 +652,9 @@ private fun SettingsMainScreen(
     onNavigateHome: () -> Unit,
     onOpenSubScreen: (SettingsSubScreen) -> Unit = {}
 ) {
-    var userName by remember { mutableStateOf(generalSettings.userName) }
-    var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
-
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled) {
-        val updated = generalSettings.copy(
-            userName = userName, defaultEmail = defaultEmail,
-            iconGenEnabled = iconGenEnabled
-        )
-        if (updated != generalSettings) {
-            // Debounce keystrokes — every character used to fire a
-            // disk write through onSave. Wait 400ms of quiet before
-            // persisting; cancellation on a re-key swallows the
-            // pending save automatically.
-            kotlinx.coroutines.delay(400)
-            onSave(updated)
-        }
-    }
-    // Flush any pending debounced edit when the screen leaves
-    // composition. Without this, a user typing then immediately
-    // tapping back within the 400ms debounce window loses the typed
-    // change — the LaunchedEffect's coroutine cancels before the
-    // delay returns, so onSave never fires.
-    DisposableEffect(Unit) {
-        onDispose {
-            val updated = generalSettings.copy(
-                userName = userName, defaultEmail = defaultEmail,
-                iconGenEnabled = iconGenEnabled
-            )
-            if (updated != generalSettings) onSave(updated)
-        }
-    }
-
+    // No local preference state on the main screen any more — every
+    // editable card lives in one of the four sub-screens reached via
+    // the nav rows below.
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -698,41 +662,11 @@ private fun SettingsMainScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
-                OutlinedTextField(
-                    value = userName, onValueChange = { userName = it },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-                OutlinedTextField(
-                    value = defaultEmail, onValueChange = { defaultEmail = it },
-                    label = { Text("Email address") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-
-            // Master switch for the per-report icon-gen feature.
-            // When off, no background LLM call is fired at report
-            // start, the icon row on the result page is hidden, the
-            // leftmost report icon (and its tied 📝 memo) drops from
-            // every title bar, and per-row icon prefixes on the hub /
-            // history / search hits / pickers fall back to the static
-            // 🕘 / 📌 (or no prefix). Persisted icon values stay on
-            // disk — turning the setting back on brings them back.
-            ToggleSettingCard(
-                title = "Generate report icons",
-                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
-                checked = iconGenEnabled,
-                onCheckedChange = { iconGenEnabled = it }
-            )
-
-            // Nav rows into the three carved-out preference buckets.
-            // Each opens its own full-screen sub-screen with its own
-            // TitleBar + help topic. Keeps the main Settings page
-            // compact: the user no longer has to scroll past 10 cards
-            // to find the one they want to tweak.
+            // Nav rows into the four preference buckets. Each opens
+            // its own full-screen sub-screen with its own TitleBar +
+            // help topic. The main Settings page is now purely a
+            // table-of-contents — every actual control lives one tap
+            // deeper.
             SettingsNavCard(
                 icon = "🌐",
                 title = "Network settings",
@@ -750,6 +684,12 @@ private fun SettingsMainScreen(
                 title = "Logging and tracing",
                 description = "API tracing master switch and application log level.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
+            )
+            SettingsNavCard(
+                icon = "⚙️",
+                title = "Other settings",
+                description = "Identity (Name + Email) and Generate report icons.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
         }
     }
@@ -1024,6 +964,71 @@ private fun UiTweaksSubScreen(
                 description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
                 checked = showKnowledgeCard,
                 onCheckedChange = { showKnowledgeCard = it }
+            )
+        }
+    }
+}
+
+/** Everything that doesn't fit the network / UI / logging buckets:
+ *  the user's Name + Email used for outbound prompts and email
+ *  exports, plus the master switch for the per-report icon-gen
+ *  feature. Keeps Settings main as a pure nav list. */
+@Composable
+private fun OtherSettingsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var userName by remember { mutableStateOf(generalSettings.userName) }
+    var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        userName = userName,
+        defaultEmail = defaultEmail,
+        iconGenEnabled = iconGenEnabled
+    )
+
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_other", title = "Other settings", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
+                OutlinedTextField(
+                    value = userName, onValueChange = { userName = it },
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defaultEmail, onValueChange = { defaultEmail = it },
+                    label = { Text("Email address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            ToggleSettingCard(
+                title = "Generate report icons",
+                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                checked = iconGenEnabled,
+                onCheckedChange = { iconGenEnabled = it }
             )
         }
     }

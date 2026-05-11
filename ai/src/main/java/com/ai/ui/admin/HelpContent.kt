@@ -1023,14 +1023,23 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "settings_main" to HelpContent(
         title = "Settings",
         cards = listOf(
-            HelpCard("Overview", "Identity + report icon toggle stay on the main screen; everything else has been carved into three sub-screens reached via the three nav rows. Edits autosave with a 400 ms debounce, so you don't need a Save button — just type and back out."),
-            HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
-            HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When off, no background LLM call runs at report start, the icon row on the result page is hidden, and every report-icon affordance across the app falls back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk so turning the setting back on restores them."),
+            HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 retry policy. Tap the row to open the dedicated sub-screen."),
             HelpCard("UI tweaks", "Model name layout, title-bar mode, icon-bar position, < Back visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
-            HelpCard("Tips", "Settings has no Save button on purpose — every keystroke restarts the 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
+            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
+            HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
             HelpCard("Related", "Tap the AI Setup card on the Hub (Settings sub-hub) for the rest of the configuration; Housekeeping → Reset application reverts everything here to factory defaults.")
+        )
+    ),
+    "settings_other" to HelpContent(
+        title = "Other settings",
+        cards = listOf(
+            HelpCard("Overview", "Catch-all bucket for the few preferences that don't fit the network / UI / logging buckets. Two cards — Identity and Generate report icons. Both autosave with a 400 ms debounce."),
+            HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
+            HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When on, a small LLM call fires at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. When off, the icon row on the result page is hidden, the leftmost report icon (and its tied 📝 memo) drops from every title bar, and per-row icon prefixes on the hub / history / search hits / pickers fall back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk — turning the setting back on brings them back."),
+            HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
+            HelpCard("Related", "Settings → UI tweaks → Show AI Knowledge card on home page hides the Knowledge card on the Hub if you don't use RAG.")
         )
     ),
     "settings_network" to HelpContent(
@@ -1071,7 +1080,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Providers", "Per-provider API keys, state, default model, and the catalog editor. Count = number of registered providers (39 ship by default plus any you have added)."),
             HelpCard("Models", "Sub-hub: per-provider Models, Model Types (default API paths), and Manual model types overrides. Count = total models across active providers only."),
             HelpCard("Workers", "Sub-hub for Agents, Flocks, Swarms. Disabled until at least one provider has an API key. Count = active agents + flocks + swarms."),
-            HelpCard("Prompt management", "Sub-hub: System Prompts plus the four Internal Prompts category buckets (Meta / Fan-out / Fan-in / Other). Count = system prompts + internal prompts."),
+            HelpCard("Prompt management", "Sub-hub: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts. Count = system prompts + internal prompts."),
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
@@ -1253,26 +1262,15 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Use placeholders like @QUESTION@ here at your peril — substitution only happens for Internal Prompts, not System Prompts.")
         )
     ),
-    "internal_prompts_hub" to HelpContent(
-        title = "Internal prompts (hub)",
-        cards = listOf(
-            HelpCard("Overview", "Sub-hub under Prompt Management. Three cards: Meta prompts (single CRUD), Fan out/in prompts (forwards to its own sub-hub with three fan-* category CRUDs), and Other internal prompts (fixed list)."),
-            HelpCard("Meta prompts", "Summarize, Compare — run on the full report (one final call). category=\"meta\"."),
-            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the three fan-* category CRUDs (fan_out, fan_in, fan-in-model). The badge count is the sum across all three buckets."),
-            HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
-            HelpCard("Tips", "Names need to be unique within a category — \"Compare\" can exist under both meta and fan_in without collision."),
-            HelpCard("Related", "Housekeeping → Internal prompts has a one-shot \"Load new prompts from assets/prompts.json\" merge that adds bundled rows you don't yet have.")
-        )
-    ),
     "fan_in_out_prompts_hub" to HelpContent(
         title = "Fan out/in prompts (hub)",
         cards = listOf(
-            HelpCard("Overview", "Sub-sub-hub two levels deep under AI Setup → Prompt management → Internal prompts → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
+            HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
             HelpCard("Fan Out", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
             HelpCard("Fan in, total", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
             HelpCard("Fan In, model", "category=\"fan-in-model\". Per-(provider, model) scoped fan-in. Reached from the L2 \"Fan out — model\" page's New Fan In button. Both @RESPONDERS@ (other models' fan-out responses to the active model) and @RESPONDER_PAIRS@ (pairs where active is the responder — `***Report***` + `***Response***` per pair) are populated; the prompt body opts in by reference. Empty state — no fan-out rows touching the active model — produces a placeholder error row instead of running."),
             HelpCard("Tips", "All three fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — the same name can exist in fan_out and fan-in-model without collision."),
-            HelpCard("Related", "Settings → AI Setup → Prompt management → Internal prompts → Fan out/in prompts. Each card opens the same list screen pinned to one category — counts show how many entries are in each bucket.")
+            HelpCard("Related", "Settings → AI Setup → Prompt management → Fan out/in prompts. Each card opens the same list screen pinned to one category — counts show how many entries are in each bucket.")
         )
     ),
     "internal_prompts" to HelpContent(
@@ -1537,14 +1535,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "setup_prompts" to HelpContent(
         title = "Prompt management (setup)",
         cards = listOf(
-            HelpCard("Overview", "Three NavCards (System Prompts, Internal Prompts, Example prompts) plus two maintenance cards lifted from the former Housekeeping → Prompts screen."),
+            HelpCard("Overview", "Five NavCards: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
-            HelpCard("Internal Prompts", "Drills into the Internal Prompts hub which splits further into Meta / Fan-out / Fan-in / Other. Count = total across all four categories."),
+            HelpCard("Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report (one final call). category=\"meta\"."),
+            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the three fan-* category CRUDs (fan_out, fan_in, fan-in-model). The badge count is the sum across all three buckets."),
+            HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
             HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
-            HelpCard("Internal prompts maintenance", "Load merges any (category, name) pair missing from assets/prompts.json — existing rows keep your edits. Reset wipes every Internal prompt and reloads the bundled set fresh; confirmation dialog gates it."),
-            HelpCard("Example prompts maintenance", "Adds any prompt in assets/examples.json whose title (case-insensitive) is missing. Existing prompts are NEVER overwritten — there is no Reset for examples."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
-            HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not. Internal-prompt Reset is destructive; Backup & Restore is the only undo.")
+            HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not.")
         )
     ),
     "setup_local_models" to HelpContent(
