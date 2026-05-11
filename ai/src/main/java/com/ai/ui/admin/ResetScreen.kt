@@ -97,7 +97,7 @@ fun ResetScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Factory-style reset: API keys are preserved (per-provider plus HuggingFace, OpenRouter, Artificial Analysis); everything else is wiped and providers + internal prompts are reloaded fresh from app assets. Finishes by running the Refresh-all chain (catalogs, provider tests, model lists, default agents)."
+                        "Factory-style reset: API keys are preserved (per-provider plus HuggingFace, OpenRouter, Artificial Analysis); everything else is wiped and providers + internal prompts are reloaded fresh from app assets. Run Housekeeping → Refresh afterwards if you want to repopulate pricing catalogs, model lists, and the default agents flock."
                     )
                     Text(
                         "Lost: agents, flocks, swarms, parameters, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports, chats, traces, knowledge bases, embeddings, prompt history, usage stats, pricing/model-list caches, Local LLM and LiteRT models.",
@@ -179,7 +179,7 @@ fun ResetScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Reset application", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) are preserved; everything else is wiped, providers and internal prompts are reloaded from assets, then the Refresh-all chain runs. Type-to-confirm dialog.",
+                        "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) are preserved; everything else is wiped and providers + internal prompts are reloaded from assets. Type-to-confirm dialog. Run Housekeeping → Refresh afterwards to repopulate catalogs.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Button(
