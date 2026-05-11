@@ -168,6 +168,52 @@ private fun formatBytes(b: Long): String = when {
 
 // ===== App Log detail =====
 
+/** One log entry = a header line (with the ISO timestamp) plus any
+ *  indented continuation lines that follow it (stack trace dump from
+ *  AppLog.appendLine). Grouped so the viewer can show one entry per
+ *  row without scattering the stack trace lines across the list. */
+private data class LogEntry(val lines: List<String>) {
+    val header: String get() = lines.firstOrNull().orEmpty()
+    val text: String get() = lines.joinToString("\n")
+}
+
+/** Regex that detects an entry-starting line — same shape AppLog
+ *  writes: `YYYY-MM-DD HH:MM:SS.SSS LEVEL TAG: …`. Anything else is
+ *  treated as a continuation (typically stack trace lines that
+ *  AppLog indents with 4 spaces). */
+private val LOG_HEADER_RE = Regex("""^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} """)
+
+private fun parseLogEntries(content: String): List<LogEntry> {
+    if (content.isBlank()) return emptyList()
+    val out = mutableListOf<LogEntry>()
+    var buf = mutableListOf<String>()
+    for (line in content.lines()) {
+        if (line.isEmpty() && buf.isEmpty()) continue
+        if (LOG_HEADER_RE.containsMatchIn(line)) {
+            if (buf.isNotEmpty()) out.add(LogEntry(buf.toList()))
+            buf = mutableListOf(line)
+        } else {
+            // Stack trace continuation or a one-off raw line written
+            // before AppLog existed. Either way it belongs to the
+            // previous entry if there is one; otherwise it's a
+            // standalone entry.
+            if (buf.isEmpty()) buf.add(line) else buf.add(line)
+        }
+    }
+    if (buf.isNotEmpty()) out.add(LogEntry(buf.toList()))
+    return out
+}
+
+/** Pick a render colour per entry based on its level token. */
+private fun colorForEntry(header: String): Color = when {
+    " ERROR " in header -> AppColors.Red
+    " WARN " in header -> AppColors.Orange
+    " INFO " in header -> AppColors.Green
+    " DEBUG " in header -> AppColors.Blue
+    " TRACE " in header -> AppColors.TextTertiary
+    else -> Color(0xFFCCCCCC)
+}
+
 @Composable
 fun AppLogDetailScreen(
     filename: String,
@@ -192,6 +238,26 @@ fun AppLogDetailScreen(
 
     LaunchedEffect(currentFilename) {
         content = withContext(Dispatchers.IO) { AppLog.readLogFile(currentFilename) ?: "" }
+    }
+
+    // Reverse-chronological so the most recent entry is at the top.
+    val entries = remember(content) { parseLogEntries(content).asReversed() }
+
+    // In-screen overlay: tap an entry → full-screen view of just that
+    // entry, with prev/next buttons that walk the same reversed list.
+    // Uses the existing "overlay + return" idiom so the parent
+    // screen's scroll position survives.
+    var selectedEntryIndex by remember(content) { mutableStateOf<Int?>(null) }
+    val selIdx = selectedEntryIndex
+    if (selIdx != null && selIdx in entries.indices) {
+        AppLogEntryScreen(
+            entries = entries,
+            startIndex = selIdx,
+            filename = currentFilename,
+            onIndexChange = { selectedEntryIndex = it },
+            onBack = { selectedEntryIndex = null }
+        )
+        return
     }
 
     var confirmDelete by remember { mutableStateOf(false) }
@@ -235,28 +301,31 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Plain monospace text. Lines are pre-redacted at append time
-        // (AppLog.redactSecret), so display + share use the same bytes.
+        // Reversed entry list (most recent first). Tap a row → full
+        // screen view of that one entry with prev/next within this
+        // file's entry list. Stack-trace continuation lines stay
+        // glued to their header by parseLogEntries.
         Box(modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)) {
-            if (content.isBlank()) {
+            if (entries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("(empty)", color = AppColors.TextTertiary)
                 }
             } else {
-                val lines = remember(content) { content.lines() }
-                LazyColumn {
-                    items(lines.size) { i ->
-                        val line = lines[i]
-                        val color = when {
-                            " ERROR " in line -> AppColors.Red
-                            " WARN " in line -> AppColors.Orange
-                            " INFO " in line -> AppColors.Green
-                            line.startsWith("    ") -> AppColors.TextTertiary  // stack-trace continuation
-                            else -> Color(0xFFCCCCCC)
-                        }
-                        Text(line, fontSize = 11.sp, color = color,
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    items(entries.size) { i ->
+                        val entry = entries[i]
+                        val color = colorForEntry(entry.header)
+                        val suffix = if (entry.lines.size > 1) "  (+${entry.lines.size - 1})" else ""
+                        Text(
+                            entry.header + suffix,
+                            fontSize = 11.sp, color = color,
                             fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 1.dp))
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedEntryIndex = i }
+                                .padding(vertical = 2.dp)
+                        )
                     }
                 }
             }
@@ -278,6 +347,78 @@ fun AppLogDetailScreen(
             )
             OutlinedButton(
                 onClick = { if (hasNext) currentFilename = files[currentIndex + 1] },
+                enabled = hasNext, contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.width(36.dp),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
+@Composable
+private fun AppLogEntryScreen(
+    entries: List<LogEntry>,
+    startIndex: Int,
+    filename: String,
+    onIndexChange: (Int) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val total = entries.size
+    val hasPrev = startIndex > 0
+    val hasNext = startIndex < total - 1
+    val entry = entries[startIndex]
+    val color = colorForEntry(entry.header)
+    val text = entry.text
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "applog_detail",
+            title = "Log entry",
+            subject = filename,
+            onBackClick = onBack,
+            onCopy = { copyToClipboard(context, text, "log entry") },
+            onShare = { shareText(context, text, "Log entry from $filename") }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Box(modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                items(entry.lines.size) { i ->
+                    val line = entry.lines[i]
+                    Text(
+                        line,
+                        fontSize = 12.sp,
+                        color = if (i == 0) color else AppColors.TextTertiary,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(vertical = 1.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Prev/Next walks the same reverse-chronological list the
+        // parent screen displayed: < moves toward the most recent
+        // entry, > moves toward older ones. The middle text shows
+        // "n / total" so the user knows where they are.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedButton(
+                onClick = { if (hasPrev) onIndexChange(startIndex - 1) },
+                enabled = hasPrev, contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.width(36.dp),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+            Text(
+                "${startIndex + 1} / $total",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.weight(1f), textAlign = TextAlign.Center
+            )
+            OutlinedButton(
+                onClick = { if (hasNext) onIndexChange(startIndex + 1) },
                 enabled = hasNext, contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.width(36.dp),
                 colors = AppColors.outlinedButtonColors()
