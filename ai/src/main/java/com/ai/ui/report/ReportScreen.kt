@@ -1555,7 +1555,17 @@ fun ReportsScreen(
     // fan_out prompts have their own button + popup and are routed
     // via launchFanOutPrompt below.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        secondaryScopeMetaPrompt = mp
+        if (mp.scope.equals("Default", ignoreCase = true)) {
+            // Skip SecondaryScopeScreen — run against every report
+            // agent (AllReports) and every present language (AllPresent),
+            // the same defaults the scope screen's Continue would have
+            // written for "All". Jump straight to the model picker.
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            secondaryPickerMetaPrompt = mp
+        } else {
+            secondaryScopeMetaPrompt = mp
+        }
     }
     // fan_out prompts always run the scope screen → confirm dialog
     // → runFanOutPrompt path. The scope screen hides the language

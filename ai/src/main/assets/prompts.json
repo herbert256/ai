@@ -4,6 +4,7 @@
     "title": "Synthesize all responses into one answer",
     "reference": false,
     "category": "meta",
+    "scope": "Default",
     "agent": "*select",
     "text": "The following are @COUNT@ AI responses to the same question. Synthesize a single,\nauthoritative answer that captures the best of all responses.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nGuidelines:\n- Combine the strongest, most accurate points from each response.\n- Resolve contradictions explicitly; if responses disagree on a fact, say so.\n- Drop redundancy. Do not repeat the question.\n- Match the tone and depth of the original responses.\n- Do not mention that you are summarizing or reference the source responses by number."
   },
@@ -12,22 +13,25 @@
     "title": "Find points of agreement and disagreement",
     "reference": false,
     "category": "meta",
+    "scope": "Default",
     "agent": "*select",
-    "text": "You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nReference rules \u2014 follow them exactly:\n- Each response is identified by ONLY a bracketed number \u2014 `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.\n- When ALL @COUNT@ responses agree on a point, write \"all responses agree\" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] \u2026 [@COUNT@] is noise.\n- Only enumerate IDs when a subset (not all) of the responses share a position \u2014 then list just that subset, e.g. \"[1] and [3] argue \u2026\".\n\nProduce a comparative analysis with these sections:\n\n## Points of agreement\nClaims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.\n\n## Points of disagreement\nWhere responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.\n\n## Unique contributions\nFacts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.\n\n## Overall takeaway\nOne paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."
+    "text": "You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nReference rules — follow them exactly:\n- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.\n- When ALL @COUNT@ responses agree on a point, write \"all responses agree\" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.\n- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. \"[1] and [3] argue …\".\n\nProduce a comparative analysis with these sections:\n\n## Points of agreement\nClaims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.\n\n## Points of disagreement\nWhere responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.\n\n## Unique contributions\nFacts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.\n\n## Overall takeaway\nOne paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."
   },
   {
     "name": "rerank",
     "title": "Rank every response by quality",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "*select",
-    "text": "You are an impartial judge ranking @COUNT@ AI responses to the same question.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nEvaluate each response on accuracy, completeness, clarity, and usefulness.\nOutput ONLY a JSON array \u2014 no prose, no code fences \u2014 of the form:\n\n[\n  {\"id\": 1, \"rank\": 1, \"score\": 92, \"reason\": \"...\"},\n  {\"id\": 2, \"rank\": 2, \"score\": 78, \"reason\": \"...\"}\n]\n\n`id` must match the bracketed [N] in RESPONSES.\n`rank` is 1 for the best response, 2 for second, etc. \u2014 every id appears exactly once.\n`score` is 0-100. `reason` is one sentence."
+    "text": "You are an impartial judge ranking @COUNT@ AI responses to the same question.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nEvaluate each response on accuracy, completeness, clarity, and usefulness.\nOutput ONLY a JSON array — no prose, no code fences — of the form:\n\n[\n  {\"id\": 1, \"rank\": 1, \"score\": 92, \"reason\": \"...\"},\n  {\"id\": 2, \"rank\": 2, \"score\": 78, \"reason\": \"...\"}\n]\n\n`id` must match the bracketed [N] in RESPONSES.\n`rank` is 1 for the best response, 2 for second, etc. — every id appears exactly once.\n`score` is 0-100. `reason` is one sentence."
   },
   {
     "name": "moderation",
     "title": "Flag policy-violating responses",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "*select",
     "text": ""
   },
@@ -36,6 +40,7 @@
     "title": "Brief two-sentence model introduction",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "*select",
     "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
   },
@@ -44,22 +49,25 @@
     "title": "Detailed model self-description",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "*select",
-    "text": "Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3\u20136 sentences.\n\nYou are: @MODEL@ from @PROVIDER@."
+    "text": "Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.\n\nYou are: @MODEL@ from @PROVIDER@."
   },
   {
     "name": "translate",
     "title": "Translate text into another language",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "*select",
-    "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation \u2014 output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
+    "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
   },
   {
     "name": "icon",
     "title": "Find a fitting title for a report",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
   },
@@ -68,6 +76,7 @@
     "title": "Decide the chat title",
     "reference": false,
     "category": "internal",
+    "scope": "Default",
     "agent": "DeepSeek",
     "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
   },
@@ -76,6 +85,7 @@
     "title": "Just the response",
     "reference": false,
     "category": "fan_out",
+    "scope": "Default",
     "agent": "*n/a",
     "text": "@RESPONSE@"
   },
@@ -84,6 +94,7 @@
     "title": "Combine cross factchecks into one report",
     "reference": false,
     "category": "fan_out",
+    "scope": "Default",
     "agent": "*n/a",
     "text": "Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@"
   },
@@ -92,6 +103,7 @@
     "title": "Combine fan-out factcheck responses into one report",
     "reference": false,
     "category": "fan_in",
+    "scope": "Default",
     "agent": "*select",
     "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
   },
@@ -100,6 +112,7 @@
     "title": "Combine fan-out factchecks into one report",
     "reference": false,
     "category": "fan_in",
+    "scope": "Default",
     "agent": "*select",
     "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
   },
@@ -108,6 +121,7 @@
     "title": "model (a)",
     "reference": false,
     "category": "fan-in-model",
+    "scope": "Default",
     "agent": "*select",
     "text": "model (a)"
   },
@@ -116,6 +130,7 @@
     "title": "model (b)",
     "reference": false,
     "category": "fan-in-model",
+    "scope": "Default",
     "agent": "*select",
     "text": "model (b)"
   }

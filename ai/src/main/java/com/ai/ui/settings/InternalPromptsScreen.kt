@@ -121,7 +121,13 @@ fun InternalPromptEditScreen(
     // fixedCategory for new prompts. Stops a deep-link with the wrong
     // category from silently moving the prompt across buckets.
     val category = internalPrompt?.category ?: fixedCategory
+    val isMeta = category.equals("meta", ignoreCase = true)
     var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
+    // Meta-only: "Default" runs against every report agent (no
+    // SecondaryScopeScreen); "Select" routes the user through the
+    // scope picker before the model picker. Other categories carry
+    // the field verbatim so export/import round-trips don't drop it.
+    var scope by remember { mutableStateOf(internalPrompt?.scope?.ifBlank { "Default" } ?: "Default") }
     var agent by remember {
         mutableStateOf(
             when {
@@ -189,6 +195,31 @@ fun InternalPromptEditScreen(
                 }
             }
 
+            if (isMeta) {
+                Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("Default", "Select").forEach { opt ->
+                        val selected = scope.equals(opt, ignoreCase = true)
+                        OutlinedButton(
+                            onClick = { scope = opt },
+                            modifier = Modifier.weight(1f),
+                            colors = if (selected)
+                                ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Blue, contentColor = Color.White)
+                            else AppColors.outlinedButtonColors()
+                        ) { Text(opt, fontSize = 13.sp, maxLines = 1, softWrap = false) }
+                    }
+                }
+                Text(
+                    if (scope.equals("Default", ignoreCase = true))
+                        "Runs against every successful report agent — the scope picker is skipped."
+                    else "Opens the scope picker so the user can pick a subset / top-N from a rerank / language fan-out before the model picker.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+            }
+
             Text("Agent", fontSize = 12.sp, color = AppColors.TextTertiary)
             Box {
                 OutlinedButton(
@@ -253,7 +284,7 @@ fun InternalPromptEditScreen(
         Button(
             onClick = {
                 val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
+                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim(), scope))
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),

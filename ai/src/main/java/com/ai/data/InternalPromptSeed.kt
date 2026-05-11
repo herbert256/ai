@@ -25,7 +25,8 @@ object InternalPromptSeed {
         val reference: Boolean = false,
         val category: String = "internal",
         val agent: String = "*select",
-        val text: String = ""
+        val text: String = "",
+        val scope: String = "Default"
     )
 
     /** Read prompts.json and return every row as an [InternalPrompt]
@@ -44,7 +45,8 @@ object InternalPromptSeed {
                     category = it.category.ifBlank { "internal" },
                     agent = it.agent.ifBlank { "*select" },
                     text = it.text,
-                    title = it.title
+                    title = it.title,
+                    scope = it.scope.ifBlank { "Default" }
                 )
             }
         } catch (e: Exception) {
@@ -99,7 +101,8 @@ object InternalPromptSeed {
                         category = cat,
                         agent = e.agent.ifBlank { "*select" },
                         text = e.text,
-                        title = e.title
+                        title = e.title,
+                        scope = e.scope.ifBlank { "Default" }
                     )
                 } else {
                     result.add(
@@ -110,7 +113,8 @@ object InternalPromptSeed {
                             category = cat,
                             agent = e.agent.ifBlank { "*select" },
                             text = e.text,
-                            title = e.title
+                            title = e.title,
+                            scope = e.scope.ifBlank { "Default" }
                         )
                     )
                 }
