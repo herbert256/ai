@@ -177,7 +177,6 @@ fun ReportsHubScreen(
     onNavigateToLocalSemanticSearch: () -> Unit = {},
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
-    onNavigateToManage: () -> Unit = {},
     onOpenReport: (String) -> Unit = {},
     /** Called when the user has just taken a photo via the
      *  "📸 Start with photo" entry. Caller stages the (mime, base64)
@@ -259,10 +258,6 @@ fun ReportsHubScreen(
             onRemoteSemantic = onNavigateToSearch,
             onLocalSemantic = onNavigateToLocalSemanticSearch
         )
-        if (hasPreviousReports) {
-            Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "🧹", title = "Manage", onClick = onNavigateToManage)
-        }
     }
 }
 
@@ -321,6 +316,16 @@ private fun ExistingReportsCard(
                 SearchHubItem(icon = (if (iconGenEnabled) r.icon else null) ?: "📌",
                     title = r.title.ifBlank { "(untitled)" },
                     enabled = true, onClick = { onOpenReport(r.id) })
+            }
+            // Visual break between the per-report rows above and the
+            // catch-all "All AI reports" link below — without it the
+            // 📚 line reads as just another pinned/recent entry.
+            if (recent.isNotEmpty() || pinned.isNotEmpty()) {
+                HorizontalDivider(
+                    color = AppColors.TextDisabled,
+                    thickness = 1.dp,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
             }
             SearchHubItem(icon = "📚", title = "All AI reports", enabled = true, onClick = onHeaderClick)
         }

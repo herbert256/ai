@@ -301,7 +301,6 @@ fun AppNavHost(
                 onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
                 onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
-                onNavigateToManage = { navController.navigate(NavRoutes.AI_REPORT_MANAGE) },
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
