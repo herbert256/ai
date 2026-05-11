@@ -44,8 +44,16 @@ fun AppLogListScreen(
     // the detail view after a delete).
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     var files by remember { mutableStateOf<List<AppLogFileInfo>>(emptyList()) }
+    // Pulled into Compose state alongside the file list so the
+    // empty-state branch can distinguish "writer broken" from
+    // "nothing logged yet". Refreshed on resume — that's enough
+    // granularity here; sub-second updates aren't useful.
+    var writerError by remember { mutableStateOf<String?>(null) }
+    var droppedLines by remember { mutableStateOf(0L) }
     LaunchedEffect(refreshTick) {
         files = withContext(Dispatchers.IO) { AppLog.getLogFiles() }
+        writerError = AppLog.lastWriterError
+        droppedLines = AppLog.droppedLineCount
     }
 
     var confirmClearAll by remember { mutableStateOf(false) }
@@ -70,7 +78,31 @@ fun AppLogListScreen(
 
         if (files.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                Text("(no log files yet)", color = AppColors.TextTertiary)
+                if (writerError != null) {
+                    // Distinct path: AppLog tried to write but the
+                    // BufferedWriter open / flush threw. Show the
+                    // reason + dropped-line count so the user can
+                    // act on it (free up disk space, restart the app)
+                    // instead of assuming logging is just quiet.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Log writer failed",
+                            color = AppColors.Red,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(writerError ?: "", color = AppColors.Red, fontSize = 12.sp)
+                        if (droppedLines > 0L) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "$droppedLines line${if (droppedLines == 1L) "" else "s"} dropped since the last successful write.",
+                                color = AppColors.TextTertiary, fontSize = 11.sp
+                            )
+                        }
+                    }
+                } else {
+                    Text("(no log files yet)", color = AppColors.TextTertiary)
+                }
             }
         } else {
             // Table header

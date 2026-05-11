@@ -48,6 +48,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { fanOutJobs.remove(key, job) }
     }
 
+    // Outer Jobs for "Find alternative icons" fan-outs, keyed by
+    // reportId. Cancelling the entry cascades to every per-pair child
+    // launch inside startIconFanOut so a deleteReport can stop the
+    // whole search in one call instead of leaving N orphan HTTP-calls
+    // running on viewModelScope.
+    private val iconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun registerIconFanOutJob(reportId: String, job: Job) {
+        // Cancel any prior in-flight run for the same report — a user
+        // who hits Find Icons twice in a row should get the latest
+        // selection, not two overlapping searches.
+        iconFanOutJobs.put(reportId, job)?.cancel()
+        job.invokeOnCompletion { iconFanOutJobs.remove(reportId, job) }
+    }
+
     // Tracks in-flight resumeStaleFanOutPairs scans per (reportId,
     // metaPromptId). The L1 screen fires resumeStaleFanOutPairs from a
     // LaunchedEffect that re-keys whenever fanOutPrompt changes
@@ -367,7 +381,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             unique.forEach { item ->
                 // One async per model. Throttle pre-acquire matches
                 // runFanOutPrompt's pattern so the OkHttp interceptor
@@ -443,6 +457,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
+        registerIconFanOutJob(reportId, outer)
     }
 
     /** Commit a user-picked icon from the "Alternative icons" list:
@@ -850,6 +865,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
     fun deleteReport(context: Context, reportId: String) {
         val cleared = appViewModel.uiState.value.currentReportId == reportId
+        // Cancel every in-flight coroutine attached to this report
+        // BEFORE deleting it from disk. Otherwise:
+        //   - Fan-out pair coroutines (up to N×(N-1) of them) keep
+        //     consuming the per-provider throttle + Dispatchers.IO
+        //     threads, racing to write to a SecondaryResultStorage row
+        //     that's already gone. With a 33-model fan-out that's
+        //     >1000 orphan coroutines, enough to starve the dispatcher
+        //     so the next Generate button press queues forever.
+        //   - The "Find alternative icons" fan-out has the same shape
+        //     and gets the same treatment.
+        //   - reportGenerationJob is the agent-fanout for the initial
+        //     generation; if the user trashes mid-generation it needs
+        //     to die too. We only cancel it when the deleted report
+        //     is the currently-active one — a delete from the hub
+        //     while a different report is generating mustn't kill the
+        //     active run.
+        if (cleared) reportGenerationJob?.cancel()
+        val fanOutPrefix = "$reportId|"
+        fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
+        iconFanOutJobs.remove(reportId)?.cancel()
+        appViewModel.clearIconFanOut(reportId)
         ReportStorage.deleteReport(context, reportId)
         if (cleared) dismissGenericReportsDialog()
     }

@@ -387,6 +387,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             current + (reportId to next)
         }
     }
+    /** Drop the entire candidate list for [reportId] — used when the
+     *  report is deleted so the map doesn't retain a stale entry for
+     *  a no-longer-existing report id. */
+    internal fun clearIconFanOut(reportId: String) {
+        _iconFanOutByReport.update { it - reportId }
+    }
 
     // Refresh-all in-flight state. null = idle (nothing running, nothing to
     // resume). When non-null the user can navigate away from the

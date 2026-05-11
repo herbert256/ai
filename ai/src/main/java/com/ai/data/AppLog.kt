@@ -79,6 +79,22 @@ object AppLog {
 
     @Volatile private var cachedFiles: List<AppLogFileInfo>? = null
 
+    /** Last exception message seen by [appendLine]'s catch block, or
+     *  null when the file appender is healthy. Surfaced by the
+     *  Application log viewer in the empty-state branch so a user
+     *  can tell "logging is broken" apart from "nothing was logged
+     *  yet" — these used to be indistinguishable when the writer
+     *  failed silently (disk full, file-handle exhaustion, etc.). */
+    @Volatile var lastWriterError: String? = null
+        private set
+
+    /** Count of [appendLine] calls that hit the catch block since
+     *  the last successful flush. Reset to 0 on every successful
+     *  write — non-zero means a fresh failure burst since the last
+     *  good line was persisted. */
+    @Volatile var droppedLineCount: Long = 0L
+        private set
+
     fun init(context: Context) = lock.withLock {
         logDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
         // Apply the persisted threshold immediately so DEBUG/TRACE
@@ -262,9 +278,20 @@ object AppLog {
                 // possibly the file was just created. The next viewer
                 // open does an O(N) restat — cheap with ~daily-sized N.
                 cachedFiles = null
+                // Reset the writer-error state — a successful flush
+                // means whatever was broken before isn't anymore.
+                if (lastWriterError != null || droppedLineCount > 0L) {
+                    lastWriterError = null
+                    droppedLineCount = 0L
+                }
             } catch (e: Exception) {
                 // Bury — logging failures must never throw into caller
-                // code. logcat still has the original line.
+                // code. logcat still has the original line. Record
+                // *what* failed so the viewer's empty-state branch can
+                // surface "writer is broken" instead of the ambiguous
+                // "(no log files yet)" message.
+                lastWriterError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+                droppedLineCount += 1L
                 android.util.Log.w("AppLog", "appendLine failed: ${e.message}")
             }
         }
