@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.launch
 
 data class TraceRequest(val url: String, val method: String, val headers: Map<String, String>, val body: String?)
@@ -622,27 +623,38 @@ inline fun <R> withTraceCategory(category: String, block: () -> R): R {
  *  duration of [block], restoring both on exit. A null argument leaves
  *  that side untouched (useful for flows that only set one of the two).
  *
- *  Backed by a ThreadLocal that [TagPropagatingExecutor] copies onto
- *  OkHttp's dispatcher worker threads, so concurrent flows on
- *  different coroutines no longer race a process-wide volatile pair.
- *  The historical bare-`= null` reset pattern is also replaced — both
- *  sides are saved and restored on block exit, making nested calls
- *  safe (an inner withTracerTags doesn't clobber an enclosing one). */
-inline fun <R> withTracerTags(
+ *  Propagation: backed by a ThreadLocal plus a
+ *  [kotlinx.coroutines.asContextElement] context element so the
+ *  ThreadLocal is set on *every* thread the coroutine resumes on, not
+ *  just the one that initially called this function. Without the
+ *  context element a sibling `async { … }` inside [block] that
+ *  dispatches onto a different IO worker thread would not see the
+ *  thread-local, and any OkHttp call it submits would land with
+ *  reportId=null — that's exactly why report fan-outs (meta /
+ *  fan-out / fan-in / translate) used to drop traces from "Report
+ *  scope" on some fraction of their per-pair calls.
+ *
+ *  [TagPropagatingExecutor] still snapshots tags onto OkHttp's worker
+ *  threads at submission time; the context element guarantees the
+ *  submission thread (the coroutine's current dispatcher thread) has
+ *  the right value to snapshot.
+ *
+ *  Inline + suspend, so non-local `return@withTracerTags` from the
+ *  block continues to work and we don't pay an allocation on every
+ *  per-task wrap. */
+suspend fun <R> withTracerTags(
     reportId: String? = null,
     category: String? = null,
-    block: () -> R
+    block: suspend () -> R
 ): R {
     val tl = ApiTracer.currentTags
     val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
-    tl.set(ApiTracer.TraceTags(
+    val newTags = ApiTracer.TraceTags(
         reportId = reportId ?: previous.reportId,
         category = category ?: previous.category
-    ))
-    return try {
+    )
+    return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
         block()
-    } finally {
-        tl.set(previous)
     }
 }
 

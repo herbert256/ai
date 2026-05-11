@@ -1018,12 +1018,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
                     val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
-                    if (successful.size < 2) return@launch
+                    if (successful.size < 2) return@withTracerTags
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
                         is SecondaryScope.TopRanked -> {
@@ -1034,7 +1034,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                         is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
                     }
-                    if (sources.isEmpty()) return@launch
+                    if (sources.isEmpty()) return@withTracerTags
                     // Pre-create every (answerer, source) placeholder
                     // up-front so the Report Result screen's fan out
                     // summary row and the fan out detail screen's L1/L2
@@ -1133,7 +1133,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
                     val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -1429,7 +1429,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
                     val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successful = report.agents.filter {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -1556,7 +1556,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
                     val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     // Wait for in-flight fan-out runs on this report —
                     // same race-free pattern as runFanInPrompt.
@@ -1776,7 +1776,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
               withTracerTags(reportId = reportId, category = cat) {
                 val state = appViewModel.uiState.value
                 val aiSettings = state.aiSettings
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                 val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
                 // Bump the parent report's timestamp so it sorts to the top
                 // of the History list — adding a meta result is a real
@@ -2144,9 +2144,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // navigates away before the new response lands.
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
-            val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val ra = report.agents.find { it.agentId == agentId } ?: return@launch
-            val provider = AppService.findById(ra.provider) ?: return@launch
+            val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+            val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
+            val provider = AppService.findById(ra.provider) ?: return@withTracerTags
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
 
@@ -2407,8 +2407,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // so the History list resorts. Skipped on cancel —
                 // the cancelled item stays unpersisted and the
                 // timestamp bump is moot.
-                val finalState = _translationRuns.value[runId] ?: return@launch
-                if (finalState.cancelled) return@launch
+                val finalState = _translationRuns.value[runId] ?: return@withTracerTags
+                if (finalState.cancelled) return@withTracerTags
                 ReportStorage.bumpReportTimestamp(context, sourceReportId)
                 _translationRuns.update { runs ->
                     val cur = runs[runId] ?: return@update runs
