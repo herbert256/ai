@@ -1074,7 +1074,12 @@ fun ReportsScreen(
     }
     val singleAgentId = singleResultAgentId
     if (singleAgentId != null && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { singleResultAgentId = null }) {
+        // navigate-to-report shortcut (top-left report-icon tap) skips
+        // every layered overlay above the result screen. Clears the
+        // icons-grid flag in addition to singleResultAgentId so a user
+        // who reached Model response via View → Icons lands on the
+        // result screen in one tap, not back at the grid.
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { singleResultAgentId = null; showIconsView = false }) {
             ReportSingleResultScreen(
                 reportId = currentReportId,
                 agentId = singleAgentId,
