@@ -272,35 +272,42 @@ internal fun ColumnScope.GenerationPhase(
         CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
         CompactButton(onClick = { toggleBar("action") }, color = rowOneColor("action", actionColor), text = "Action")
         Spacer(modifier = Modifier.weight(1f))
-        // Inner Row so the two chevrons sit at zero spacing (the
+        // Inner Row so the two chevrons sit at zero spacing — the
         // outer Row's spacedBy(6.dp) would otherwise add a gap
-        // between them). IconButton sized to the Icon's native
-        // 24 dp so the visible chevron sits flush against the row's
-        // right edge — same column as every cost cell below. The
-        // 48 dp Material touch-target enforcement still applies via
-        // LocalMinimumInteractiveComponentSize, so tap-accuracy
-        // doesn't suffer.
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // between them. Bigger glyphs (32 dp) so they read clearly
+        // as nav arrows, and a +6 dp rightward offset so the icon's
+        // visible-glyph right edge lines up with the cost column on
+        // the result-list rows below (the chevron SVG has built-in
+        // whitespace on each side of the stroke, so an icon flush
+        // to the right edge of the row still LOOKS left of the cost
+        // numbers — the offset compensates). 48 dp Material touch
+        // target stays via LocalMinimumInteractiveComponentSize.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.offset(x = 6.dp)
+        ) {
             IconButton(
                 onClick = onPrevReport,
                 enabled = hasPrevReport,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowLeft,
                     contentDescription = "Previous AI report",
-                    tint = if (hasPrevReport) AppColors.Blue else AppColors.TextDisabled
+                    tint = if (hasPrevReport) AppColors.Blue else AppColors.TextDisabled,
+                    modifier = Modifier.size(32.dp)
                 )
             }
             IconButton(
                 onClick = onNextReport,
                 enabled = hasNextReport,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(32.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowRight,
                     contentDescription = "Next AI report",
-                    tint = if (hasNextReport) AppColors.Blue else AppColors.TextDisabled
+                    tint = if (hasNextReport) AppColors.Blue else AppColors.TextDisabled,
+                    modifier = Modifier.size(32.dp)
                 )
             }
         }
