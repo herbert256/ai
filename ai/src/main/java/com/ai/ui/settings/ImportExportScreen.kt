@@ -916,60 +916,6 @@ fun ImportExportScreen(
                 }
             }
 
-            if (!importOnly) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
-                        // Bundle-shape exports: provider catalog and internal
-                        // prompts. Drop-in shape for assets/providers.json
-                        // and assets/prompts.json so a developer can ship the
-                        // user's tuned catalog as the new bundled defaults.
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportProvidersJson() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportPromptsJson() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportWorkers() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportExamplePrompts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportSettings() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportModelLists() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportParameters() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportSystemPrompts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportEndpoints() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            OutlinedButton(onClick = { exportModelTypeOverrides() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { exportCosts() },
-                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                            Spacer(modifier = Modifier.weight(1f))
-                        }
-                        // "All": single JSON file bundling every section
-                        // above. API keys are excluded — they ship via the
-                        // dedicated API keys card.
-                        OutlinedButton(onClick = { exportAll() },
-                            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                }
-            }
-
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Import", fontWeight = FontWeight.Bold, color = Color.White)
@@ -1028,6 +974,60 @@ fun ImportExportScreen(
                         importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                     }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
                         Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+
+            if (!importOnly) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Export", fontWeight = FontWeight.Bold, color = Color.White)
+                        // Bundle-shape exports: provider catalog and internal
+                        // prompts. Drop-in shape for assets/providers.json
+                        // and assets/prompts.json so a developer can ship the
+                        // user's tuned catalog as the new bundled defaults.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportProvidersJson() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportPromptsJson() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportWorkers() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportExamplePrompts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportSettings() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportModelLists() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportParameters() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportSystemPrompts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportEndpoints() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            OutlinedButton(onClick = { exportModelTypeOverrides() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { exportCosts() },
+                                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
+                        // "All": single JSON file bundling every section
+                        // above. API keys are excluded — they ship via the
+                        // dedicated API keys card.
+                        OutlinedButton(onClick = { exportAll() },
+                            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
+                            Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                        }
                     }
                 }
             }
