@@ -500,14 +500,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Fan-out the `internal/icon` prompt across every successful
-     *  agent in [reportId]. Each call uses that agent's own
-     *  (provider, model) and substitutes @PROMPT@ with that agent's
-     *  responseBody (not the report's prompt) — the icon is keyed to
-     *  the model's answer, not the question. Persisted per-agent via
-     *  [ReportStorage.updateReportAgentIcon]; the row's leftmost ✅
-     *  swaps to the emoji on success, stays ✅ on failure (failure
-     *  reason still saved on disk for the per-agent detail screen).
+    /** Fan-out the `internal/report_icon` prompt across every
+     *  successful agent in [reportId]. Each call uses that agent's
+     *  own (provider, model) and substitutes:
+     *     @PROMPT@   → the report's prompt (uniform across all agents),
+     *     @RESPONSE@ → that agent's responseBody (per-agent).
+     *  The icon is keyed to "what did THIS model answer to THIS
+     *  question", not just the answer alone — the new
+     *  report_icon prompt sees both halves of the exchange.
+     *
+     *  Persisted per-agent via [ReportStorage.updateReportAgentIcon];
+     *  the row's leftmost ✅ swaps to the emoji on success, stays ✅
+     *  on failure (reason still saved on disk for the per-agent
+     *  detail screen).
      *
      *  Wired to the Create → Report icons menu item. Re-runs cancel
      *  any prior in-flight job via [reportIconsJobs] and wipe stale
@@ -515,10 +520,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  doesn't show emojis from the first while new calls land. */
     fun runReportIcons(context: Context, reportId: String, aiSettings: Settings) {
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "icon"
-        } ?: return
+            it.category == "internal" && it.name == "report_icon"
+        } ?: run {
+            AppLog.w("ReportIcons", "internal/report_icon prompt not found — skipping (report=$reportId)")
+            return
+        }
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val reportPrompt = report.prompt
             val targets = report.agents.filter {
                 it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
             }
@@ -548,7 +557,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         apiKey = aiSettings.getApiKey(provider)
                                     )
                                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
-                                    val resolved = iconPrompt.text.replace("@PROMPT@", ra.responseBody.orEmpty())
+                                    val resolved = iconPrompt.text
+                                        .replace("@PROMPT@", reportPrompt)
+                                        .replace("@RESPONSE@", ra.responseBody.orEmpty())
                                     val response = appViewModel.repository.analyzeWithAgent(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl

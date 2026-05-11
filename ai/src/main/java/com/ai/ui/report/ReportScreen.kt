@@ -589,6 +589,10 @@ fun ReportsScreen(
     // disk read so we don't double-IO when the overlay opens.
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
+    // The saved Report's prompt — source of truth for the @PROMPT@
+    // substitution on the per-agent icon detail. Pulled from the same
+    // IO read so the overlay doesn't have to refetch.
+    var loadedReportPrompt by remember { mutableStateOf("") }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
@@ -598,6 +602,7 @@ fun ReportsScreen(
             reportIconModel = null
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
+            loadedReportPrompt = ""
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
@@ -608,6 +613,7 @@ fun ReportsScreen(
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
             } ?: emptyMap()
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
+            loadedReportPrompt = r?.prompt.orEmpty()
         }
     }
     // Provided to every inline overlay below via LocalReportIcon so
@@ -1228,7 +1234,7 @@ fun ReportsScreen(
     // was the agent's responseBody, not the report's prompt).
     agentIconDetailFor?.let { agentId ->
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "icon"
+            it.category == "internal" && it.name == "report_icon"
         }
         val agent = agentRecordsByAgentId[agentId]
         val provider = agent?.let { AppService.findById(it.provider) }
@@ -1237,7 +1243,8 @@ fun ReportsScreen(
                 iconPrompt = iconPrompt,
                 agentProvider = provider,
                 agentModel = agent.model,
-                inputText = agent.responseBody.orEmpty(),
+                reportPrompt = loadedReportPrompt,
+                agentResponse = agent.responseBody.orEmpty(),
                 icon = agent.icon,
                 errorMessage = agent.iconErrorMessage,
                 cost = agent.iconInputCost + agent.iconOutputCost,
@@ -2314,20 +2321,21 @@ private fun AgentIconDetailScreen(
     iconPrompt: InternalPrompt,
     agentProvider: AppService,
     agentModel: String,
-    /** The agent's responseBody — substituted into @PROMPT@ when
-     *  rendering the Prompt card. Falls back to "(no response)"
-     *  when blank. */
-    inputText: String,
+    /** The report's prompt — substituted for @PROMPT@. Uniform
+     *  across every agent in the report. */
+    reportPrompt: String,
+    /** The agent's responseBody — substituted for @RESPONSE@.
+     *  Per-agent. Falls back to "(no response)" when blank. */
+    agentResponse: String,
     icon: String?,
     errorMessage: String?,
     cost: Double,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    val resolvedPrompt = iconPrompt.text.replace(
-        "@PROMPT@",
-        if (inputText.isNotBlank()) inputText else "(no response)"
-    )
+    val resolvedPrompt = iconPrompt.text
+        .replace("@PROMPT@", reportPrompt)
+        .replace("@RESPONSE@", if (agentResponse.isNotBlank()) agentResponse else "(no response)")
     val running = icon == null && errorMessage == null
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
