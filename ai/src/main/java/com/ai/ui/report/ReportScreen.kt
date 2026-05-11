@@ -110,6 +110,53 @@ private val AppServiceSaver: Saver<AppService?, String> = Saver(
     restore = { s -> if (s.isBlank()) null else AppService.findById(s) }
 )
 
+/** Saver for the per-screen selected-models list (and the parallel
+ *  Find-icons list). The list backs the SelectionPhase's selected-
+ *  rows column, which is `modelInfoClickable` — tapping a row pops
+ *  out to Model Info. That nav removes AI_REPORTS from the active
+ *  composition; without a Saver, plain `remember { mutableStateOf }`
+ *  loses the list and the user comes back to an empty picker. Each
+ *  ReportModel is flattened to 10 strings; lists with un-resolvable
+ *  provider ids (deleted between save and restore) drop those rows
+ *  silently. */
+private val ReportModelListSaver: Saver<List<ReportModel>, Any> = listSaver(
+    save = { list ->
+        list.flatMap { m ->
+            listOf(
+                m.provider.id, m.model, m.type, m.sourceType, m.sourceName,
+                m.sourceId ?: "", m.agentId ?: "", m.endpointId ?: "",
+                m.agentApiKey ?: "", m.paramsIds.joinToString(",")
+            )
+        }
+    },
+    restore = { saved ->
+        val out = mutableListOf<ReportModel>()
+        var i = 0
+        while (i + 10 <= saved.size) {
+            val providerId = saved[i] as? String
+            val provider = providerId?.let { AppService.findById(it) }
+            if (provider != null) {
+                out.add(
+                    ReportModel(
+                        provider = provider,
+                        model = saved[i + 1] as? String ?: "",
+                        type = saved[i + 2] as? String ?: "",
+                        sourceType = saved[i + 3] as? String ?: "",
+                        sourceName = saved[i + 4] as? String ?: "",
+                        sourceId = (saved[i + 5] as? String)?.takeIf { it.isNotEmpty() },
+                        agentId = (saved[i + 6] as? String)?.takeIf { it.isNotEmpty() },
+                        endpointId = (saved[i + 7] as? String)?.takeIf { it.isNotEmpty() },
+                        agentApiKey = (saved[i + 8] as? String)?.takeIf { it.isNotEmpty() },
+                        paramsIds = (saved[i + 9] as? String)?.takeIf { it.isNotEmpty() }?.split(",") ?: emptyList()
+                    )
+                )
+            }
+            i += 10
+        }
+        out.toList()
+    }
+)
+
 // ===== Navigation Wrapper =====
 
 @Composable
@@ -676,7 +723,7 @@ fun ReportsScreen(
     var showIconDetail by rememberSaveable { mutableStateOf(false) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
-    var findIconsModels by remember { mutableStateOf(emptyList<ReportModel>()) }
+    var findIconsModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     // Which model-picker target the next +Add overlay confirm should
     // deposit into. NEW_REPORT = the SelectionPhase's `models` list
     // (existing behavior); FIND_ICONS = the [findIconsModels] list
@@ -705,7 +752,11 @@ fun ReportsScreen(
     // Translate flow state.
     var showTranslateLanguagePicker by rememberSaveable { mutableStateOf(false) }
     var showTranslateModelPicker by rememberSaveable(stateSaver = TargetLanguageSaver) { mutableStateOf<TargetLanguage?>(null) }
-    var models by remember { mutableStateOf(initialModels) }
+    // rememberSaveable so a nav-hop out of AI_REPORTS (Model Info from
+    // a selected-models row, Help, etc.) and back doesn't clear the
+    // selection — the user was just inspecting one row, not abandoning
+    // the picker.
+    var models by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
     var showInfoPicker by rememberSaveable { mutableStateOf(false) }
