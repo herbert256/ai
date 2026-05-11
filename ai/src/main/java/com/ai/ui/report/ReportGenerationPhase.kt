@@ -133,6 +133,12 @@ internal fun ColumnScope.GenerationPhase(
      *  menu — one icon-prompt call per successful agent in the
      *  report, each against the agent's own (provider, model). */
     onRunReportIcons: () -> Unit = {},
+    /** Fires the experimental "Test" variant — same per-agent
+     *  target set as Report icons, but the model is asked via a
+     *  multi-turn chat continuation ("Please give your previous
+     *  response back as an emoji, …") instead of a one-shot
+     *  template substitution. */
+    onRunReportIconsTest: () -> Unit = {},
     /** Tap-handler for the per-row emoji that replaced the leftmost
      *  ✅ status cell once a Report icons run lands. Opens the
      *  per-agent icon detail screen for the tapped agent. */
@@ -348,6 +354,15 @@ internal fun ColumnScope.GenerationPhase(
                     // Only meaningful when at least one row succeeded
                     // — the dispatcher filters to result.isSuccess
                     // agents and would no-op otherwise.
+                    enabled = reportsAgentResults.values.any { it.isSuccess }
+                )
+                CompactButton(
+                    onClick = { close(); onRunReportIconsTest() },
+                    color = createColor, text = "Test",
+                    // Experimental — same target row set as Report
+                    // icons (any successful agent). Continues the
+                    // conversation as a chat and asks the model to
+                    // emoji-fy its own previous answer.
                     enabled = reportsAgentResults.values.any { it.isSuccess }
                 )
             }

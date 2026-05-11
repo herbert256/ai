@@ -253,6 +253,10 @@ fun ReportsScreenNav(
             val rid = uiState.currentReportId
             if (rid != null) reportViewModel.runReportIcons(context, rid, aiSettings)
         },
+        onRunReportIconsTest = {
+            val rid = uiState.currentReportId
+            if (rid != null) reportViewModel.runReportIconsTest(context, rid, aiSettings)
+        },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -459,6 +463,9 @@ fun ReportsScreen(
     /** Kick off Create → Report icons — one icon-prompt call per
      *  successful agent in the active report. */
     onRunReportIcons: () -> Unit = {},
+    /** Kick off Create → Test — multi-turn chat continuation
+     *  variant of Report icons. Same per-agent persistence target. */
+    onRunReportIconsTest: () -> Unit = {},
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -2270,6 +2277,7 @@ fun ReportsScreen(
                 reportIconModel = reportIconModel,
                 onOpenIconDetail = { showIconDetail = true },
                 onRunReportIcons = onRunReportIcons,
+                onRunReportIconsTest = onRunReportIconsTest,
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 agentIconRows = agentIconRows
             )

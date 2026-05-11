@@ -497,6 +497,101 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.clearIconFanOut(reportId)
     }
 
+    /** Experimental sibling of [runReportIcons] reached from the
+     *  Create → Test menu. Instead of a one-shot report_icon prompt
+     *  with @PROMPT@ / @RESPONSE@ substitution, this continues the
+     *  conversation with each successful model as if the user were
+     *  chatting: a three-message exchange — user → assistant → user
+     *  — where the second user turn asks the model to convert its
+     *  own previous response into a single emoji.
+     *
+     *  Hypothesis being tested: a model reflecting on its own answer
+     *  in chat context may produce more accurate emojis than a
+     *  one-shot prompt that quotes the answer back to it.
+     *
+     *  Writes through the same per-agent storage as runReportIcons
+     *  (icon + cost on [ReportAgent]) — re-runs of either flow
+     *  overwrite the other. Job registered in [reportIconsJobs] so
+     *  it inherits the same cancel-on-delete + cancel-on-retap
+     *  semantics. */
+    fun runReportIconsTest(context: Context, reportId: String, aiSettings: Settings) {
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val targets = report.agents.filter {
+                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+            if (targets.isEmpty()) {
+                AppLog.i("ReportIconsTest", "no successful agents — skipping (report=$reportId)")
+                return@launch
+            }
+            AppLog.i("ReportIconsTest", "→ start chat-continuation (report=$reportId, ${targets.size} agent(s))")
+            ReportStorage.clearAllReportAgentIcons(context, reportId)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+            val followUp = "Please give your previous response back as an emoji, just one emoji, nothing more."
+            val reportPrompt = report.prompt
+            targets.forEach { ra ->
+                launch {
+                    val provider = AppService.findById(ra.provider) ?: return@launch
+                    val host = providerHost(provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "Report icons (test chat)") {
+                                runCatching {
+                                    val messages = listOf(
+                                        ChatMessage(role = "user", content = reportPrompt),
+                                        ChatMessage(role = "assistant", content = ra.responseBody.orEmpty()),
+                                        ChatMessage(role = "user", content = followUp)
+                                    )
+                                    val apiKey = aiSettings.getApiKey(provider)
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
+                                    val responseText = appViewModel.repository.sendChat(
+                                        service = provider, apiKey = apiKey, model = ra.model,
+                                        messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                                    )
+                                    // sendChat returns the body as a plain String — no
+                                    // tokenUsage from the wire. Use the same character-
+                                    // length heuristic ChatViewModel.sendDualChatMessage
+                                    // already uses for usage-stats accounting, so the
+                                    // per-agent cost is in the same ballpark as the
+                                    // chat session screen reports.
+                                    val emoji = extractFirstEmoji(responseText) ?: "📝"
+                                    val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+                                    val outT = AppViewModel.estimateTokens(responseText)
+                                    val pricing = PricingCache.getPricing(context, provider, ra.model)
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    ReportStorage.updateReportAgentIcon(
+                                        context, reportId, ra.agentId,
+                                        icon = emoji,
+                                        inputTokens = inT, outputTokens = outT,
+                                        inputCost = inC, outputCost = outC
+                                    )
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }.onFailure { e ->
+                                    ReportStorage.updateReportAgentIconError(
+                                        context, reportId, ra.agentId,
+                                        error = e.message ?: "test chat call failed"
+                                    )
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        registerReportIconsJob(reportId, outer)
+    }
+
     /** Per-agent counterpart of [startIconFanOut]. Drives the Agent
      *  icon detail screen's "Find alternative icons" button: the user
      *  picks alternative models, and each one is asked to iconify
