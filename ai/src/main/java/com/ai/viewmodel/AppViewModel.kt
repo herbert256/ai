@@ -90,6 +90,13 @@ data class GeneralSettings(
      *  iconCost values on existing reports stay on disk — re-enabling
      *  brings them back. */
     val iconGenEnabled: Boolean = true,
+    /** Last 3 (provider, model) pairs the user picked from the Report
+     *  section's model pickers, most-recent first. Encoded as
+     *  `"providerId|model"` strings for trivial round-trip through
+     *  SharedPreferences. Surfaced by the picker as a "Recent" section
+     *  above the main list; AppViewModel.recordRecentReportModel
+     *  pushes new picks onto the front, deduplicates, and trims to 3. */
+    val recentReportModels: List<String> = emptyList(),
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub
@@ -543,6 +550,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ApiTracer.isTracingEnabled = settings.tracingEnabled
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
+    }
+
+    /** Push (provider, model) onto the front of the Report-section
+     *  recent-models list, dedupe, and trim to 3. Called by the
+     *  Report-section model pickers right before they fire the
+     *  caller's onConfirm so the next picker render surfaces this
+     *  pick at the top under "Recent". */
+    fun recordRecentReportModel(providerId: String, model: String) {
+        if (providerId.isBlank() || model.isBlank()) return
+        val entry = "$providerId|$model"
+        val current = _uiState.value.generalSettings.recentReportModels
+        if (current.firstOrNull() == entry) return  // already at front, nothing to do
+        val next = (listOf(entry) + current.filter { it != entry }).take(3)
+        updateGeneralSettings(_uiState.value.generalSettings.copy(recentReportModels = next))
+    }
+
+    /** Resolve [GeneralSettings.recentReportModels] strings back into
+     *  (AppService, model) pairs, dropping any entry whose provider id
+     *  no longer maps to a known AppService (e.g. a custom provider
+     *  the user deleted). Order preserved. */
+    fun recentReportModelPairs(): List<Pair<AppService, String>> {
+        return _uiState.value.generalSettings.recentReportModels.mapNotNull { entry ->
+            val parts = entry.split("|", limit = 2)
+            if (parts.size != 2) return@mapNotNull null
+            val service = AppService.findById(parts[0]) ?: return@mapNotNull null
+            service to parts[1]
+        }
     }
 
     fun updateSettings(settings: Settings) {

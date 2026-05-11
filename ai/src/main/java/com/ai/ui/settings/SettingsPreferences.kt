@@ -68,7 +68,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             } ?: SubjectToTitleBarMode.HARDCODED,
             iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, false),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
-            showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false)
+            showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
+            recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
+                ?.split("\n")?.filter { it.isNotBlank() }
+                ?: emptyList()
         )
     }
 
@@ -87,6 +90,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_ICON_BAR_AT_BOTTOM, settings.iconBarAtBottom)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
+            // Newline-joined: entries are "providerId|model" so newline
+            // is a safe delimiter — neither side can contain it.
+            putString(KEY_RECENT_REPORT_MODELS, settings.recentReportModels.joinToString("\n"))
         }
     }
 
@@ -431,6 +437,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_ICON_BAR_AT_BOTTOM = "icon_bar_at_bottom"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
+        private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

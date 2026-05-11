@@ -141,7 +141,19 @@ internal fun ReportSelectProviderDialog(aiSettings: Settings, onSelectProvider: 
 }
 
 @Composable
-internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings, onSelectModel: (String) -> Unit, onDismiss: () -> Unit) {
+internal fun ReportSelectModelDialog(
+    provider: AppService,
+    aiSettings: Settings,
+    onSelectModel: (String) -> Unit,
+    onDismiss: () -> Unit,
+    /** Models recently picked from a Report-section picker, filtered
+     *  to this provider. Surfaced as a "Recent" section above the
+     *  main alphabetical list. Empty = no Recent section. */
+    recentModels: List<String> = emptyList(),
+    /** Optional record hook fired right before [onSelectModel]. Lets
+     *  callers persist the pick into the shared recents list. */
+    onRecordRecent: ((String) -> Unit)? = null
+) {
     val context = LocalContext.current
     var search by remember { mutableStateOf("") }
     val all = aiSettings.getModels(provider)
@@ -166,30 +178,64 @@ internal fun ReportSelectModelDialog(provider: AppService, aiSettings: Settings,
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
                     colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("\u2715", color = AppColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(filtered, key = { it }) { model ->
-                        val p = PricingCache.getPricing(context, provider, model)
-                        val real = p.source != "DEFAULT"
-                        // Deprecation badge: Mistral ships an ISO date on
-                        // entries past their EOL, OpenRouter ships
-                        // expiration_date on its detailed list. Either
-                        // one trips a tiny ⚠ in the row so the user
-                        // sees "this still works but the upstream
-                        // plans to pull it" before they pin it to a
-                        // saved Agent / Swarm.
-                        val deprecation = capsByModel[model]?.deprecationDate
-                        Row(modifier = Modifier.fillMaxWidth().clickable { onSelectModel(model) }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            if (deprecation != null) {
-                                Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
-                            }
-                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
-                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
-                            com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                            Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                // Shared row renderer so the Recent section and the
+                // main list stay byte-identical in look-and-feel.
+                @Composable
+                fun ModelRow(model: String) {
+                    val p = PricingCache.getPricing(context, provider, model)
+                    val real = p.source != "DEFAULT"
+                    // Deprecation badge: Mistral ships an ISO date on
+                    // entries past their EOL, OpenRouter ships
+                    // expiration_date on its detailed list. Either
+                    // one trips a tiny ⚠ in the row so the user
+                    // sees "this still works but the upstream
+                    // plans to pull it" before they pin it to a
+                    // saved Agent / Swarm.
+                    val deprecation = capsByModel[model]?.deprecationDate
+                    Row(modifier = Modifier.fillMaxWidth().clickable {
+                        onRecordRecent?.invoke(model)
+                        onSelectModel(model)
+                    }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (deprecation != null) {
+                            Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
                         }
-                        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                        com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+                        com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
+                        com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
+                        Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                     }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+                // Filter recents to this provider's catalog so we don't
+                // surface a model the user deleted / the provider
+                // dropped, and don't trim by the live search box —
+                // recents are a quick-access shortcut.
+                val recentForProvider = recentModels.filter { it in all }
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    if (recentForProvider.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Recent",
+                                fontSize = 11.sp,
+                                color = AppColors.TextTertiary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
+                            )
+                        }
+                        items(recentForProvider, key = { "recent:$it" }) { model -> ModelRow(model) }
+                        item {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "All",
+                                fontSize = 11.sp,
+                                color = AppColors.TextTertiary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
+                            )
+                        }
+                    }
+                    items(filtered, key = { it }) { model -> ModelRow(model) }
                 }
                 TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
             }
@@ -224,7 +270,18 @@ internal fun ReportSelectModelsScreen(
      *  the catalog to that ModelType. Defaults to ON when shown — Rerank
      *  / Moderation flows almost always want the typed catalog; the user
      *  can untick to widen. Pass one of the ModelType.* string constants. */
-    modelTypeFilter: String? = null
+    modelTypeFilter: String? = null,
+    /** Recently picked (provider, model) entries to surface as a
+     *  "Recent" section above the main alphabetical list. Empty = no
+     *  Recent section is drawn. The caller is responsible for
+     *  persisting picks; the picker just calls [onRecordRecent]
+     *  before [onConfirm] when set. */
+    recentEntries: List<Pair<AppService, String>> = emptyList(),
+    /** Optional record hook fired right before [onConfirm] when the
+     *  user picks a row (from either Recent or the main list). Lets
+     *  Report-section call sites bump their entry to the front of
+     *  the persisted recents without changing onConfirm signatures. */
+    onRecordRecent: ((Pair<AppService, String>) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -322,37 +379,76 @@ internal fun ReportSelectModelsScreen(
         Text("${sorted.size} of ${all.size} models", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
 
         Spacer(modifier = Modifier.height(8.dp))
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(sorted, key = { "${it.first.id}:${it.second}" }) { entry ->
-                val (provider, model) = entry
-                val isAlreadyAdded = entry in alreadyAdded
-                val pricing = aiSettings.getModelPricing(provider, model)
-                    ?: PricingCache.getPricing(context, provider, model)
-                val real = pricing.source != "DEFAULT"
-                val rowAlpha = if (isAlreadyAdded) 0.4f else 1f
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable(enabled = !isAlreadyAdded) { onConfirm(entry) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).alpha(rowAlpha)) {
-                        Text(provider.id, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
-                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
-                            com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                            if (isAlreadyAdded) {
-                                Text(" · already added", fontSize = 10.sp, color = AppColors.TextTertiary)
-                            }
+        // Common row renderer for both the Recent section and the main
+        // alphabetical list. Hoisted so the picker body stays compact
+        // and the two sections stay byte-identical in behaviour.
+        @Composable
+        fun ModelRow(entry: Pair<AppService, String>) {
+            val (provider, model) = entry
+            val isAlreadyAdded = entry in alreadyAdded
+            val pricing = aiSettings.getModelPricing(provider, model)
+                ?: PricingCache.getPricing(context, provider, model)
+            val real = pricing.source != "DEFAULT"
+            val rowAlpha = if (isAlreadyAdded) 0.4f else 1f
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable(enabled = !isAlreadyAdded) {
+                        onRecordRecent?.invoke(entry)
+                        onConfirm(entry)
+                    }
+                    .padding(vertical = 8.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).alpha(rowAlpha)) {
+                    Text(provider.id, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+                        com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
+                        com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
+                        if (isAlreadyAdded) {
+                            Text(" · already added", fontSize = 10.sp, color = AppColors.TextTertiary)
                         }
                     }
-                    Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                        color = if (real) AppColors.Red else AppColors.SurfaceDark,
-                        modifier = (if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier).alpha(rowAlpha))
                 }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                    modifier = (if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier).alpha(rowAlpha))
+            }
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        }
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            // Recent section — surfaces the last 3 picks for the
+            // Report flow above the main alphabetical list. Filters
+            // and the search box don't trim it: the user's recent
+            // picks are a quick-access shortcut, not a slice of the
+            // current filter view.
+            if (recentEntries.isNotEmpty()) {
+                item {
+                    Text(
+                        "Recent",
+                        fontSize = 11.sp,
+                        color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
+                    )
+                }
+                items(recentEntries, key = { "recent:${it.first.id}:${it.second}" }) { entry ->
+                    ModelRow(entry)
+                }
+                item {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "All",
+                        fontSize = 11.sp,
+                        color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
+                    )
+                }
+            }
+            items(sorted, key = { "${it.first.id}:${it.second}" }) { entry ->
+                ModelRow(entry)
             }
         }
     }

@@ -273,6 +273,9 @@ fun ReportsScreenNav(
         onNavigateToFlocksEdit = onNavigateToFlocksEdit,
         onNavigateToSwarmsEdit = onNavigateToSwarmsEdit,
         onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
+        onRecordRecentReportModel = { providerId, model ->
+            viewModel.recordRecentReportModel(providerId, model)
+        },
         onResumeStaleFanOut = { rid, mp ->
             reportViewModel.resumeStaleFanOutPairs(context, rid, mp)
         },
@@ -429,12 +432,32 @@ fun ReportsScreen(
     onNavigateToAgentsEdit: () -> Unit = {},
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
-    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
+    onNavigateToInternalPromptsByCategory: (String) -> Unit = {},
+    /** Bump (providerId, model) to the front of the Report-section
+     *  recent-models list. Every report-section model picker fires
+     *  this just before its onConfirm so the next picker render
+     *  surfaces the pick under "Recent". */
+    onRecordRecentReportModel: (String, String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
     val aiSettings = uiState.aiSettings
     val scope = rememberCoroutineScope()
+
+    // Decoded view of GeneralSettings.recentReportModels — the
+    // strings are stored as "providerId|model" so they round-trip
+    // through prefs trivially; here we resolve the provider half
+    // back to AppService for the picker rows. Recomputes when the
+    // user picks a new model (the underlying list is mutated by
+    // onRecordRecentReportModel, which bumps GeneralSettings).
+    val recentReportPairs = remember(uiState.generalSettings.recentReportModels) {
+        uiState.generalSettings.recentReportModels.mapNotNull { entry ->
+            val parts = entry.split("|", limit = 2)
+            if (parts.size != 2) return@mapNotNull null
+            val service = AppService.findById(parts[0]) ?: return@mapNotNull null
+            service to parts[1]
+        }
+    }
 
     val reportsTotal = uiState.genericReportsTotal
     val reportsProgress = uiState.genericReportsProgress
@@ -925,12 +948,30 @@ fun ReportsScreen(
         return
     }
     if (showSelectProvider) { ReportSelectProviderDialog(aiSettings, onSelectProvider = { pendingProvider = it; showSelectProvider = false }, onDismiss = { showSelectProvider = false }); return }
-    if (pendingProvider != null) { ReportSelectModelDialog(pendingProvider!!, aiSettings, onSelectModel = { models = deduplicateModels(models + toReportModel(pendingProvider!!, it)); pendingProvider = null }, onDismiss = { pendingProvider = null }); return }
+    if (pendingProvider != null) {
+        val prov = pendingProvider!!
+        val recentForProv = remember(uiState.generalSettings.recentReportModels, prov) {
+            recentReportPairs.filter { it.first == prov }.map { it.second }
+        }
+        ReportSelectModelDialog(
+            prov, aiSettings,
+            onSelectModel = {
+                models = deduplicateModels(models + toReportModel(prov, it))
+                pendingProvider = null
+            },
+            onDismiss = { pendingProvider = null },
+            recentModels = recentForProv,
+            onRecordRecent = { onRecordRecentReportModel(prov.id, it) }
+        )
+        return
+    }
     if (showSelectAllModels) {
         val already = remember(models) { models.map { it.provider to it.model }.toSet() }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadyAdded = already,
+            recentEntries = recentReportPairs,
+            onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { (prov, m) ->
                 models = deduplicateModels(models + toReportModel(prov, m))
                 showSelectAllModels = false
@@ -1164,6 +1205,8 @@ fun ReportsScreen(
             // Single-pick: tap fires the meta run for one model and pops
             // back. Users wanting two runs just open the picker twice.
             titleText = "${pickerMetaPrompt.name} — pick model",
+            recentEntries = recentReportPairs,
+            onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { pick ->
                 onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
                 secondaryPickerMetaPrompt = null
@@ -1188,6 +1231,8 @@ fun ReportsScreen(
             aiSettings = aiSettings,
             titleText = "${fanInPicker.name} — pick model",
             modelTypeFilter = null,
+            recentEntries = recentReportPairs,
+            onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { pick ->
                 onRunFanIn(rid, fanInPicker, pick)
                 fanInPickerPrompt = null
@@ -1245,6 +1290,8 @@ fun ReportsScreen(
                 aiSettings = aiSettings,
                 titleText = "${modelFanInPicker.name} — pick model",
                 modelTypeFilter = null,
+                recentEntries = recentReportPairs,
+                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { pick ->
                     onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl)
                     modelFanInActivePid = null
@@ -1285,6 +1332,8 @@ fun ReportsScreen(
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
                 titleText = "Pick translation model",
+                recentEntries = recentReportPairs,
+                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { (prov, m) ->
                     onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
                     showTranslateModelPicker = null
@@ -1302,6 +1351,8 @@ fun ReportsScreen(
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
                 titleText = "Pick rerank model",
+                recentEntries = recentReportPairs,
+                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { pick ->
                     showRerankPicker = false
                     onRunRerank(rid, pick)
