@@ -598,7 +598,7 @@ fun ProviderSettingsScreen(
     onTestModelWithPrompt: (suspend (String) -> Pair<Boolean, String?>)? = null,
     onNavigateToTrace: ((String) -> Unit)? = null,
     onNavigateToModels: () -> Unit = {},
-    /** Open the per-provider help page (ℹ on the TitleBar). The
+    /** Open the per-provider help page (ℹ️ on the TitleBar). The
      *  derived topic id is `provider_<lowercased+alnum-only id>`;
      *  a missing [com.ai.ui.admin.HELP_TOPICS] entry falls through
      *  to the home Help page. */

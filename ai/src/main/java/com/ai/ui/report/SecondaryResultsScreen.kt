@@ -466,7 +466,7 @@ private fun ColumnScope.MetaResultsPickerView(
         }
     }
     // The bottom Delete / Model action row collapsed into the
-    // parent's title-bar 🗑 / ℹ icons; the trace 🐞 lives there
+    // parent's title-bar 🗑 / ℹ️ icons; the trace 🐞 lives there
     // too. The confirm dialog moved up alongside.
 }
 
@@ -987,7 +987,7 @@ private fun ColumnScope.FanOutDrillInView(
                     .maxByOrNull { it.timestamp }?.filename
             }
         }
-        // Static "Fan out - model" page title in the menu bar; ℹ → Model
+        // Static "Fan out - model" page title in the menu bar; ℹ️ → Model
         // Info, 🗑 → drop the model from this Fan out, 🐞 (Initiator
         // only) → trace for this model's report-agent run. The
         // active model name surfaces as a green sub-header below.
@@ -1819,7 +1819,7 @@ private fun OnePageView(
     Column(modifier = Modifier.fillMaxSize()) {
         // Full-screen TitleBar replacing the previous inline header.
         // Back arrow / system back closes the page (no separate
-        // "Close" button needed). ℹ → Model Info for the active
+        // "Close" button needed). ℹ️ → Model Info for the active
         // model, mirroring the L2 page's TitleBar slot.
         TitleBar(
             helpTopic = "secondary_fan_out_onepage",

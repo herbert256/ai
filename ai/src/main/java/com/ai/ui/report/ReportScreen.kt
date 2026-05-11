@@ -2126,7 +2126,7 @@ private fun ColumnScope.GenerationPhase(
     // Two-tier toggle: Row 1 has View / Edit / Create / Action; tapping
     // a Row 1 button opens Row 2 (its sub-actions) inline; tapping the
     // same Row 1 button again closes Row 2. Sub-actions fire and then
-    // collapse Row 2. The TitleBar 🔄 / 🗑 / 📤 / 💬 / ℹ icons stay
+    // collapse Row 2. The TitleBar 🔄 / 🗑 / 📤 / 💬 / ℹ️ icons stay
     // wired in parallel — duplicates with Row "Action" are intentional.
     @OptIn(ExperimentalLayoutApi::class)
     @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {

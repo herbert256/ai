@@ -171,15 +171,15 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
  *  providers" the app fetches model + pricing data from. The same
  *  set is surfaced as the Sources card on Model Info; this table is
  *  the single source of truth that the home Help directory, the
- *  Source detail page, the External Services / Refresh ℹ icons, and
- *  the Trace detail's ℹ override all consult.
+ *  Source detail page, the External Services / Refresh ℹ️ icons, and
+ *  the Trace detail's ℹ️ override all consult.
  *
  *  [hostnames] match against `URI.host` of the called URL.
  *  [urlPathPrefix] disambiguates two providers that share a hostname
  *  (LiteLLM and llm-prices both live on raw.githubusercontent.com).
  *  [requiresChatCategoryGate] is true for OpenRouter — it doubles as
  *  an AppService, so a chat-completion trace shouldn't hijack the
- *  ℹ; the resolver only matches when the trace category is one of
+ *  ℹ️; the resolver only matches when the trace category is one of
  *  the info-fetch categories. */
 data class InfoProviderRef(
     val topicId: String,
@@ -370,7 +370,7 @@ fun infoProviderForUrl(url: String?): InfoProviderRef? {
 /** Resolve a captured trace's URL + category to one of the 7
  *  providers. For dual-purpose services (OpenRouter), the category
  *  must be one of [INFO_FETCH_CATEGORIES]; otherwise a chat
- *  completion would hijack the ℹ. */
+ *  completion would hijack the ℹ️. */
 fun infoProviderForTrace(url: String?, category: String?): InfoProviderRef? {
     val ref = infoProviderForUrl(url) ?: return null
     if (ref.requiresChatCategoryGate && category !in INFO_FETCH_CATEGORIES) return null
@@ -563,10 +563,10 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help (this screen)",
         cards = listOf(
             HelpCard("Overview", "You're looking at one help topic. Each topic is a stack of cards — Overview / What we use it for / Endpoint / Freshness / Pitfalls / Related is the typical shape, but topics differ in detail. Card titles are blue; bodies are dim."),
-            HelpCard("Title bar — ◀ Back", "Returns to wherever you came from — the home Help page if you tapped a row in the Info-providers table; otherwise the screen whose ℹ icon brought you here."),
+            HelpCard("Title bar — ◀ Back", "Returns to wherever you came from — the home Help page if you tapped a row in the Info-providers table; otherwise the screen whose ℹ️ icon brought you here."),
             HelpCard("Title bar — 🏠 Home", "Returns to the AI Hub. Skips the back stack."),
             HelpCard("Title bar — ❓ Help", "Opens this page (help for the help-topic screen). Hidden on the home Help page and on this meta-topic itself."),
-            HelpCard("Reaching this", "Three doors: home Help → Info-providers table tap; any screen's title-bar ℹ when it points at one of the 7 info providers (Source detail, Trace detail for a pricing fetch, External Services card, Refresh row); inline links such as the source labels on Model Info → Costs and Capabilities cards."),
+            HelpCard("Reaching this", "Three doors: home Help → Info-providers table tap; any screen's title-bar ℹ️ when it points at one of the 7 info providers (Source detail, Trace detail for a pricing fetch, External Services card, Refresh row); inline links such as the source labels on Model Info → Costs and Capabilities cards."),
             HelpCard("Pitfalls", "Topics don't cross-link inside cards yet — the seven Info-provider topics are reachable only through the entry points listed above. Use the device back arrow / ◀ to navigate.")
         )
     ),
@@ -679,7 +679,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Per-answerer drilldown. Shows the sources fed into the chosen answerer (or, in Initiator role, every pair where this model was the source). Tap a source row → L3 pair detail."),
             HelpCard("Role toggle", "Responder = the active model received others' sources (default). Initiator = the active model's report fed into others. The role chip swaps the row list between the two views."),
-            HelpCard("Title bar — ℹ", "Opens Model Info for the active (provider, model) pair."),
+            HelpCard("Title bar — ℹ️", "Opens Model Info for the active (provider, model) pair."),
             HelpCard("Title bar — 🗑", "Deletes every fan-out cell where this answerer participated. Pops back to L1."),
             HelpCard("Title bar — 🐞", "When tracing is on and the answerer's own report run was traced (Initiator role only), opens that trace file."),
             HelpCard("Tap a source", "Opens L3 with the source content on top and the fan-out response underneath."),
@@ -701,7 +701,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Concatenates every (source, response) pair under the active answerer onto one page so you can scan the whole drilldown without tapping each cell."),
             HelpCard("Layout", "Per pair: source label + body, then the fan-out response body. Sources render in the order activeAgents (the row stack visible on L2)."),
             HelpCard("Initiator role", "When the parent L2 was on Initiator role, the page lists every (answerer, source) where the active model was the source — same shape, opposite direction."),
-            HelpCard("Title bar — ℹ", "Opens Model Info for the active (provider, model) pair."),
+            HelpCard("Title bar — ℹ️", "Opens Model Info for the active (provider, model) pair."),
             HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
@@ -1079,7 +1079,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reasoning chip", "Only shown when LiteLLM, models.dev, or the model id family (o1/o3/o4/gpt-5, anything with thinking/reasoning in the name) marks the model as supporting it. Levels come from the provider's self-reported capabilities when available, otherwise the legacy low/medium/high set."),
             HelpCard("Validate input chip", "Tap once to pick a moderation model; while set, every Send first runs the input through callModerationApi. A clean classification proceeds silently. A flagged result pops a Proceed-anyway / Cancel dialog with the fired categories. API errors fail-open: the message is still sent and the orange Moderation: error line is shown."),
             HelpCard("Attach + send", "📎 opens the SAF picker for an image; the thumbnail + mime type appears above the input row with a Remove button. A red warning fires when the model isn't flagged vision-capable. Send is disabled while streaming, while moderation runs, and when the input is empty without an image."),
-            HelpCard("Trace icons", "Title bar's ℹ︎ jumps to Model Info. Each finished assistant bubble carries a 🐞 that opens the matching trace (closest timestamp, same model, no reportId). The flagged-input dialog also shows a 🐞 when a moderation trace was captured. All trace icons are suppressed when API tracing is off in Settings."),
+            HelpCard("Trace icons", "Title bar's ℹ️ jumps to Model Info. Each finished assistant bubble carries a 🐞 that opens the matching trace (closest timestamp, same model, no reportId). The flagged-input dialog also shows a 🐞 when a moderation trace was captured. All trace icons are suppressed when API tracing is off in Settings."),
             HelpCard("Cost meter", "Live total in cents shown next to the Back button after the first turn — running sum of input tokens × promptPrice + output tokens × completionPrice for this session."),
             HelpCard("Pitfalls", "Cancellation on back-press deliberately doesn't append a [Stream interrupted] line — the partial chunks aren't an error from your perspective. Real exceptions during streaming do append the partial response with the error message. System-prompt changes from Parameters now apply mid-session — the previous flow only seeded on an empty messages list.")
         )
@@ -1120,7 +1120,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Toggles you can flip", "Web search and reasoning effort chips are read from the persisted ChatParameters and are saved back on every turn — the next save uses your current chip state, not the original preset."),
             HelpCard("System prompt update", "If the underlying Settings system-prompt template changed since you last opened the session, the system message is rewritten in-place on the next turn so the new prompt takes effect."),
             HelpCard("Session id", "AI_CHAT_CONTINUE/{sessionId} carries the id; the screen treats it as the current session id so saves overwrite the same record. New messages append to the existing JSON."),
-            HelpCard("Title-bar icons", "Same as a fresh chat — ℹ︎ jumps to Model Info, Help and Home are always present. The Back button shows the running cost-in-cents for this session next to it."),
+            HelpCard("Title-bar icons", "Same as a fresh chat — ℹ️ jumps to Model Info, Help and Home are always present. The Back button shows the running cost-in-cents for this session next to it."),
             HelpCard("Tips", "Trace icons on existing assistant bubbles probe the on-disk trace store by closest timestamp + same model + no reportId; old assistant turns from before tracing was on still have no icon."),
             HelpCard("Pitfalls", "Switching the underlying model is not supported mid-session — start a new chat instead. Editing a Parameters preset elsewhere doesn't migrate into the resumed session because the persisted ChatParameters record was built at Start Chat time."),
             HelpCard("Related", "Use the Pin chip to keep a frequently-resumed session at the top of the hub. Use Continue in chat from a Report to start a fresh chat that inherits a multi-agent run.")
@@ -1163,7 +1163,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Thinking pill", "While a model is in flight, a small \"Model N is thinking…\" pill renders aligned to that side. Replaced by the actual reply once received."),
             HelpCard("Stop button", "Fires while running — cancels the chat job. The job's withTracerTags finally restores the previous tracer tag pair on its way out, so no manual cleanup is needed."),
             HelpCard("Continue more", "After Stop or after the round budget is reached, an Extra chats field + \"Chat N more\" button appears. The new total is currentInteraction + N; the loop resumes from where it stopped."),
-            HelpCard("Title-bar icons", "ℹ︎ pops a two-row picker (\"Provider — model\" for each side); tapping a row jumps to that model's Model Info. Help and Home are always-on."),
+            HelpCard("Title-bar icons", "ℹ️ pops a two-row picker (\"Provider — model\" for each side); tapping a row jumps to that model's Model Info. Help and Home are always-on."),
             HelpCard("Per-bubble 🐞", "Each bubble's ladybug opens the trace tagged with this session id and the bubble's model, with the closest timestamp — same model speaking again gets a different trace. Suppressed entirely when API tracing is off in Settings."),
             HelpCard("Tips", "Provider / model labels in each bubble are click-targets for Model Info too. The session id is prefixed with dualchat_ + start time so traces from this run are easy to find."),
             HelpCard("Pitfalls", "If either provider has no API key configured the call will error and the loop stops. Errors render in red below the message list and the run flips to the stopped state.")
@@ -1267,9 +1267,9 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Pretty-printed JSON view of one of the seven info providers for a single model. Reached from the Sources buttons on Model Info."),
             HelpCard("Layout", "Title bar reads \"Info provider\". Below it, in green, the provider's display name (LiteLLM / OpenRouter / …) and beneath that the actual URL the app called. Then a single full-screen card containing the JSON, scrollable in both axes — long lines aren't wrapped or truncated."),
             HelpCard("JSON colouring", "Keys blue, strings green, numbers orange, true/false purple, null grey, punctuation white. Falls back to plain white for non-JSON inputs (e.g. a \"(no data)\" placeholder)."),
-            HelpCard("Title bar — ℹ", "Opens the help page for the info provider this view belongs to (e.g. tapping ℹ on the LiteLLM source detail opens the LiteLLM help topic). The same destination is also reachable by tapping the green provider name on the home Help page's Info-providers table."),
+            HelpCard("Title bar — ℹ️", "Opens the help page for the info provider this view belongs to (e.g. tapping ℹ️ on the LiteLLM source detail opens the LiteLLM help topic). The same destination is also reachable by tapping the green provider name on the home Help page's Info-providers table."),
             HelpCard("Title bar — ❓", "Opens this page (help for the source-detail screen)."),
-            HelpCard("Show all", "When opened from the Show all button on Model Info, the body concatenates every source's raw JSON with === Source === headers between sections. Title bar drops the green name + URL and shows the legacy \"All sources · model\" title; the ℹ icon is hidden because there's no single provider to point at."),
+            HelpCard("Show all", "When opened from the Show all button on Model Info, the body concatenates every source's raw JSON with === Source === headers between sections. Title bar drops the green name + URL and shows the legacy \"All sources · model\" title; the ℹ️ icon is hidden because there's no single provider to point at."),
             HelpCard("Tips", "The JSON is pre-pretty-printed via createAppGson(prettyPrint = true). Field-name colouring relies on a string being followed by ':' after whitespace, which means escape sequences inside strings won't accidentally re-tokenise."),
             HelpCard("Related", "Capability and pricing rows on Model Info already distill the most useful fields out of these dumps — only dive into the raw view when something looks off or you want to file a catalog issue.")
         )
@@ -1649,7 +1649,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("llm-prices.com", "Pulls Simon Willison's curated per-vendor pricing tables (10 vendors). Useful as a tiebreaker on the major commercial providers."),
             HelpCard("Artificial Analysis", "Pulls pricing + intelligence_index + output speed. Disabled until the Artificial Analysis key is set under External Services."),
             HelpCard("Capability recompute", "LiteLLM and models.dev refreshes call aiSettings.recomputeAllCapabilities() so vision / web-search precomputed sets pick up the new catalog. Helicone is pricing-only — no recompute."),
-            HelpCard("Tips", "Each card has its own ℹ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
+            HelpCard("Tips", "Each card has its own ℹ️ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
         )
     ),
     "refresh_runtime_workers" to HelpContent(
@@ -1792,7 +1792,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "housekeeping" to HelpContent(
         title = "Housekeeping",
         cards = listOf(
-            HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ for the per-screen detail."),
+            HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ️ for the per-screen detail."),
             HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear all runtime data, and Clear all configuration are not undoable."),
             HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
@@ -1909,12 +1909,12 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Trace detail",
         cards = listOf(
             HelpCard("Overview", "One trace's full request/response. First line: \"<HTTP status> - <url>\" with query params stripped (they can carry API keys — see the Get view). Background turns dark red on >=300. Body content is rendered as a colored JSON tree (auto-expands depth 0 and 1) when valid JSON, otherwise plain text."),
-            HelpCard("Agent button", "Indigo, only when a saved Agent matches the trace's (provider, model) pair. Drills into the agent's edit screen. Provider drill-in lives on the title-bar ℹ instead — directly when there is no model, or via Model Info → Provider when the trace carries a model."),
+            HelpCard("Agent button", "Indigo, only when a saved Agent matches the trace's (provider, model) pair. Drills into the agent's edit screen. Provider drill-in lives on the title-bar ℹ️ instead — directly when there is no model, or via Model Info → Provider when the trace carries a model."),
             HelpCard("Translation result", "Translation traces (category == Translation) get a side-by-side compare view of the user's text and the model's translation."),
             HelpCard("View selector", "All / Get / Req Hdr / Rsp Hdr / Req / Rsp. Get is only present when the request URL had query parameters — same renderer as the header views. Active view highlights blue."),
             HelpCard("Bottom action row", "< (prev trace, fixed 36dp width) — Copy — Edit — Share — > (next). Copy and Share use a redacted variant (URL query params, sensitive headers, sensitive JSON keys → [REDACTED]) so secrets don't leave the device. The on-screen tree always shows raw bytes."),
             HelpCard("Edit", "Persists the trace's request body + url + model into eval_prefs, then opens EditApiRequestScreen with that JSON loaded — fast \"replay this request\" path."),
-            HelpCard("Title bar — ℹ", "When the trace has a model: opens Model Info for (provider, model). When the trace has only a provider (e.g. /v1/models list calls): opens the Provider edit screen in AI Setup."),
+            HelpCard("Title bar — ℹ️", "When the trace has a model: opens Model Info for (provider, model). When the trace has only a provider (e.g. /v1/models list calls): opens the Provider edit screen in AI Setup."),
             HelpCard("Title bar — 🗑", "Confirm dialog → permanently deletes this trace file from disk and pops back to the trace list. Cannot be undone."),
             HelpCard("Title bar — 🔄", "Same plumbing as the bottom-row Edit button — stages the trace's request into eval_prefs and opens EditApiRequestScreen so you can re-fire (and edit on the way)."),
             HelpCard("Tips", "Translation extraction looks for \"TEXT TO TRANSLATE:\" in the user prompt and walks OpenAI / Anthropic / Gemini response shapes to find the assistant text. Best-effort only — null hides the button."),
@@ -1972,7 +1972,7 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     // ===== Per-cloud-provider help pages (42) =====
     // Topic id derived via providerHelpTopicId() — lowercased,
     // alphanumeric only. Cards: Overview / Setup / Models / Pricing
-    // & quirks / Pitfalls / Related. Reached from the ℹ icon on the
+    // & quirks / Pitfalls / Related. Reached from the ℹ️ icon on the
     // ProviderSettingsScreen TitleBar and the Cloud providers
     // directory on the home Help page.
 

@@ -1113,13 +1113,13 @@ private fun ModelRawInfoScreen(
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
             // detail layout). The convention from the home-help icon
-            // legend: ❓ = help for the current screen, ℹ = drill
+            // legend: ❓ = help for the current screen, ℹ️ = drill
             // into a details target (here, the per-provider help).
             helpTopic = "model_raw",
             title = if (provider != null) "Info provider" else title,
             subject = provider?.displayName,
             onBackClick = onBack,
-            // ℹ → per-provider help page (LiteLLM, OpenRouter, …).
+            // ℹ️ → per-provider help page (LiteLLM, OpenRouter, …).
             onInfo = if (provider != null) {
                 { onNavigateToHelpTopic(provider.topicId) }
             } else null,

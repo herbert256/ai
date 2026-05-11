@@ -669,7 +669,7 @@ fun TraceDetailScreen(
         )
     }
 
-    // ℹ Info target. Order:
+    // ℹ️ Info target. Order:
     //  1. The trace's URL maps to one of the seven info providers
     //     (LiteLLM / models.dev / Helicone / llm-prices / AA /
     //     OpenRouter pricing fetch / HuggingFace) → open that
@@ -680,7 +680,7 @@ fun TraceDetailScreen(
     //     Model Info for that pair.
     //  3. The trace has only an AppService match (e.g. /v1/models
     //     list call) → open the Provider edit screen.
-    //  4. None of the above → no ℹ icon.
+    //  4. None of the above → no ℹ️ icon.
     val infoProviderHelp = remember(t?.request?.url, t?.category) {
         com.ai.ui.admin.infoProviderForTrace(t?.request?.url, t?.category)
     }
@@ -747,7 +747,7 @@ fun TraceDetailScreen(
         )
 
         // Per-trace deep-link: matching Agent only (Provider is
-        // reachable via the title-bar ℹ icon — directly when no
+        // reachable via the title-bar ℹ️ icon — directly when no
         // model, or via Model Info → Provider when a model exists).
         val provider = remember(t?.hostname) {
             t?.hostname?.let { host ->

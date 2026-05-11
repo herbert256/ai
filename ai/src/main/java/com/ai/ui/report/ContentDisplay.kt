@@ -359,7 +359,7 @@ private fun ReportsViewerScreenLoaded(
         && selectedReportAgent.errorMessage.isNullOrBlank()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Static page title; the agent picker dropdown below shows
-        // the active model. ℹ on the title bar opens Model Info for
+        // the active model. ℹ️ on the title bar opens Model Info for
         // the selected agent's model.
         TitleBar(
             helpTopic = "content_model_response",

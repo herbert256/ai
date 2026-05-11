@@ -1050,7 +1050,7 @@ private fun RefreshAction(
     description: String,
     enabled: Boolean,
     onClick: () -> Unit,
-    /** When set, an ℹ icon appears on the description row that
+    /** When set, an ℹ️ icon appears on the description row that
      *  navigates to the matching info-provider help topic. Null for
      *  rows that aren't info providers (Providers / Models / Default
      *  agents). */

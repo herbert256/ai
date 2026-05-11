@@ -663,7 +663,7 @@ private fun TitleBarActionStrip(
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
         // 📋 Copy — slots into the "act on this content" cluster
-        // alongside 💬 and ℹ. Hidden when the screen has nothing
+        // alongside 💬 and ℹ️. Hidden when the screen has nothing
         // copyable (callsites pass a null callback in that case).
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = w(28.dp), scale = scale)
         // 📤 Share — fires the Android share sheet with the same body

@@ -466,7 +466,7 @@ internal fun ReportSelectModelsScreen(
  *  with more breathing room: each row shows the flock name, the
  *  per-flock cost estimate (sum across active agents), the number of
  *  active vs total members, and the comma-joined agent names. Each
- *  row also carries an ℹ icon that pops a per-flock detail screen
+ *  row also carries an ℹ️ icon that pops a per-flock detail screen
  *  listing every agent with its provider, model, capabilities, cost,
  *  and configured system-prompt / parameters presets. */
 @Composable
@@ -484,7 +484,7 @@ internal fun ReportSelectFlockScreen(
         if (search.isBlank()) all
         else all.filter { it.name.lowercase(java.util.Locale.ROOT).contains(search.lowercase(java.util.Locale.ROOT)) }
     }
-    // Set when the user taps the ℹ icon on a flock row; cleared on
+    // Set when the user taps the ℹ️ icon on a flock row; cleared on
     // the info screen's back arrow / gesture.
     var infoFlock by remember { mutableStateOf<Flock?>(null) }
     infoFlock?.let { f ->
@@ -535,11 +535,11 @@ internal fun ReportSelectFlockScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // ℹ icon: stays separate from the row's main
+                        // ℹ️ icon: stays separate from the row's main
                         // tap target so the user can preview members
                         // without accidentally adding the flock.
                         Text(
-                            "ℹ", fontSize = 18.sp, color = AppColors.Blue,
+                            "ℹ️", fontSize = 18.sp, color = AppColors.Blue,
                             modifier = Modifier
                                 .clickable { infoFlock = flock }
                                 .padding(end = 12.dp, start = 2.dp)
@@ -586,7 +586,7 @@ internal fun ReportSelectFlockScreen(
 
 /** Full-screen swarm picker. Mirror of ReportSelectFlockScreen — shows
  *  member count, cost estimate, and the comma-joined provider/model
- *  list for context. Each row carries an ℹ icon that pops a per-swarm
+ *  list for context. Each row carries an ℹ️ icon that pops a per-swarm
  *  detail screen listing every member with provider, model,
  *  capabilities, and cost. */
 @Composable
@@ -653,7 +653,7 @@ internal fun ReportSelectSwarmScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "ℹ", fontSize = 18.sp, color = AppColors.Blue,
+                            "ℹ️", fontSize = 18.sp, color = AppColors.Blue,
                             modifier = Modifier
                                 .clickable { infoSwarm = swarm }
                                 .padding(end = 12.dp, start = 2.dp)

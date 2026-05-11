@@ -727,7 +727,7 @@ fun ExternalServicesScreen(
     onSaveArtificialAnalysisApiKey: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    /** Open the per-info-provider help topic. Each card's ℹ icon
+    /** Open the per-info-provider help topic. Each card's ℹ️ icon
      *  routes through this; AppNavHost wires it to the help nav. */
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
@@ -796,7 +796,7 @@ fun ExternalServicesScreen(
     }
 }
 
-/** One External-Services card: name + ℹ that opens the matching
+/** One External-Services card: name + ℹ️ that opens the matching
  *  info-provider help topic, blurb, and the API-key text field. */
 @Composable
 private fun ExternalServiceCard(
