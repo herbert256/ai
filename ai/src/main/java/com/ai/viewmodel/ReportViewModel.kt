@@ -326,8 +326,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         agent, "", resolved, AgentParameters(),
                         null, context, baseUrl
                     )
-                    val emoji = response.analysis?.trim().orEmpty().take(8)
-                    if (response.error == null && emoji.isNotEmpty()) {
+                    // Always end with exactly one emoji glyph:
+                    //  - many emojis: pick the first one.
+                    //  - emoji + extra text: strip the prose.
+                    //  - 200 OK with no emoji in the body: fall back to 📝.
+                    // Non-200 / network failures still take the error path.
+                    if (response.error == null) {
+                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
                         val tu = response.tokenUsage
                         val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
                         val inT = tu?.inputTokens ?: 0
@@ -341,8 +346,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         )
                     } else {
                         ReportStorage.updateReportIconError(
-                            context, reportId,
-                            response.error ?: "empty response"
+                            context, reportId, response.error
                         )
                     }
                 }.onFailure {
@@ -564,14 +568,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
-                                    val emoji = response.analysis?.trim().orEmpty().take(8)
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, provider, ra.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
                                     val inC = inT * pricing.promptPrice
                                     val outC = outT * pricing.completionPrice
-                                    if (response.error == null && emoji.isNotEmpty()) {
+                                    // Always end with exactly one emoji glyph
+                                    // — same rule as the main report-icon
+                                    // path. Many emojis: first wins. Prose
+                                    // around the emoji: prose dropped. 200
+                                    // OK with no emoji at all: 📝 fallback.
+                                    // Non-200 / network errors still take
+                                    // the error branch.
+                                    if (response.error == null) {
+                                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
                                         ReportStorage.updateReportAgentIcon(
                                             context, reportId, ra.agentId,
                                             icon = emoji,
@@ -581,7 +592,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     } else {
                                         ReportStorage.updateReportAgentIconError(
                                             context, reportId, ra.agentId,
-                                            error = response.error ?: "empty response"
+                                            error = response.error
                                         )
                                     }
                                     appViewModel.updateUiState {
