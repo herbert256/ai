@@ -288,6 +288,38 @@ data class ExternalIntent(
     val modelSpecs: List<String> = emptyList()
 )
 
+// ===== Refresh-all state (lives on AppViewModel so the run survives
+// navigation away from the Refresh-all screen and so re-entry sees
+// the live progress instead of restarting the chain). =====
+
+sealed class RefreshStepStatus {
+    object Pending : RefreshStepStatus()
+    data class Running(val detail: String? = null) : RefreshStepStatus()
+    data class Done(val detail: String? = null) : RefreshStepStatus()
+    data class Failed(val detail: String? = null) : RefreshStepStatus()
+    object Skipped : RefreshStepStatus()
+}
+
+data class CatalogStep(val id: String, val label: String, val status: RefreshStepStatus = RefreshStepStatus.Pending)
+
+sealed class WorkerStage {
+    object Pending : WorkerStage()
+    object TestingKey : WorkerStage()
+    object FetchingModels : WorkerStage()
+    object WritingAgent : WorkerStage()
+    object Done : WorkerStage()
+    data class Failed(val reason: String) : WorkerStage()
+}
+
+data class WorkerRow(val serviceId: String, val stage: WorkerStage = WorkerStage.Pending)
+
+data class RefreshAllState(
+    val catalogSteps: List<CatalogStep>,
+    val workerRows: List<WorkerRow>,
+    val overallError: String? = null,
+    val isFinished: Boolean = false
+)
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -306,6 +338,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal fun updateRunningFanOutPairs(block: (Set<String>) -> Set<String>) {
         _runningFanOutPairs.update(block)
     }
+
+    // Refresh-all in-flight state. null = idle (nothing running, nothing to
+    // resume). When non-null the user can navigate away from the
+    // Refresh-all screen and come back to a live view of the same run.
+    private val _refreshAllState = MutableStateFlow<RefreshAllState?>(null)
+    val refreshAllState: StateFlow<RefreshAllState?> = _refreshAllState.asStateFlow()
 
     init {
         // Tracing default is true; the bootstrap below overrides it with
@@ -949,6 +987,255 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             AppLog.d("RefreshAll", "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms")
             results.associate { it.first.id to it.second }
+        }
+    }
+
+    // ===== Refresh-all orchestrator =====
+
+    fun clearRefreshAllState() { _refreshAllState.value = null }
+
+    /** Kick off a Refresh-all run on viewModelScope so the work survives
+     *  navigation. Idempotent: a call while a run is in flight is a no-op
+     *  (the caller should observe [refreshAllState] instead). The six
+     *  catalog fetches run in parallel with the Workers phase (per-provider
+     *  key test → optional model-list fetch → default-agent write); both
+     *  phases join before the popup-forcing finish flag flips. */
+    fun startRefreshAll() {
+        if (_refreshAllState.value != null && _refreshAllState.value?.isFinished == false) return
+
+        val app: Application = getApplication()
+        val gs0 = _uiState.value.generalSettings
+        val openRouterKey = gs0.openRouterApiKey
+        val aaKey = gs0.artificialAnalysisApiKey
+        val openRouterEnabled = openRouterKey.isNotBlank()
+        val aaEnabled = aaKey.isNotBlank()
+
+        val catalogSteps = listOf(
+            CatalogStep("openrouter", "OpenRouter", if (openRouterEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped),
+            CatalogStep("litellm", "LiteLLM"),
+            CatalogStep("modelsdev", "models.dev"),
+            CatalogStep("helicone", "Helicone"),
+            CatalogStep("llmprices", "llm-prices.com"),
+            CatalogStep("aa", "Artificial Analysis", if (aaEnabled) RefreshStepStatus.Pending else RefreshStepStatus.Skipped)
+        )
+        // Snapshot the testable provider set up-front. The clean-slate
+        // step below rewrites flocks/agents, but the testable list is
+        // derived purely from API key + provider state, neither of which
+        // the clean-slate touches.
+        val snapshot0 = _uiState.value.aiSettings
+        val testable = AppService.entries
+            .sortedBy { it.id }
+            .filter { snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
+
+        _refreshAllState.value = RefreshAllState(
+            catalogSteps = catalogSteps,
+            workerRows = testable.map { WorkerRow(it.id) }
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // ---- Clean slate: delete every agent whose name matches a
+                // provider id and whose provider id matches the same id
+                // (i.e. the "default agent for provider X" rows this run
+                // is about to rebuild) and empty the `default agents` flock.
+                // Custom agents the user authored survive untouched.
+                run {
+                    val current = _uiState.value.aiSettings
+                    val keptAgents = current.agents.filterNot { it.provider.id == it.name }
+                    val droppedIds = current.agents.filter { it !in keptAgents }.map { it.id }.toSet()
+                    val flocks = current.flocks.map { f ->
+                        when {
+                            f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME -> f.copy(agentIds = emptyList())
+                            droppedIds.isEmpty() -> f
+                            else -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds })
+                        }
+                    }
+                    val cleaned = current.copy(agents = keptAgents, flocks = flocks)
+                    _uiState.update { it.copy(aiSettings = cleaned) }
+                    settingsPrefs.saveSettings(cleaned)
+                }
+
+                // ---- Run catalogs + workers in parallel.
+                coroutineScope {
+                    val catJob = launch { runCatalogPhase(app, openRouterKey, aaKey, openRouterEnabled, aaEnabled) }
+                    val wrkJob = launch { runWorkerPhase(testable) }
+                    catJob.join(); wrkJob.join()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _refreshAllState.update { it?.copy(overallError = e.message?.takeIf { m -> m.isNotBlank() } ?: e.javaClass.simpleName) }
+            } finally {
+                _refreshAllState.update { it?.copy(isFinished = true) }
+            }
+        }
+    }
+
+    private fun setCatalogStep(id: String, status: RefreshStepStatus) {
+        _refreshAllState.update { st ->
+            st ?: return@update null
+            st.copy(catalogSteps = st.catalogSteps.map { if (it.id == id) it.copy(status = status) else it })
+        }
+    }
+
+    private fun setWorkerStage(serviceId: String, stage: WorkerStage) {
+        _refreshAllState.update { st ->
+            st ?: return@update null
+            st.copy(workerRows = st.workerRows.map { if (it.serviceId == serviceId) it.copy(stage = stage) else it })
+        }
+    }
+
+    private suspend fun runCatalogPhase(
+        app: Application,
+        openRouterKey: String,
+        aaKey: String,
+        openRouterEnabled: Boolean,
+        aaEnabled: Boolean
+    ) {
+        // Snapshot every tier's previous cache state BEFORE any fetch
+        // starts — so the "kept previous N from Xago" detail on a failed
+        // step reflects what was there at refresh-all-start, not what's
+        // been overwritten by a sibling success that's already landed.
+        fun previousDetail(source: String): String {
+            val info = PricingCache.previousCacheInfo(app, source) ?: return "no previous to keep"
+            return "kept previous ${info.entryCount} from ${info.ageString()}"
+        }
+        coroutineScope {
+            val jobs = mutableListOf<kotlinx.coroutines.Deferred<*>>()
+            if (openRouterEnabled) jobs += async(Dispatchers.IO) {
+                setCatalogStep("openrouter", RefreshStepStatus.Running())
+                val prev = previousDetail("openrouter")
+                try {
+                    val pricing = PricingCache.fetchOpenRouterPricing(openRouterKey)
+                    if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(app, pricing)
+                    val specs = PricingCache.fetchAndSaveModelSpecifications(app, openRouterKey)
+                    if (pricing.isEmpty()) setCatalogStep("openrouter", RefreshStepStatus.Failed("no entries · $prev"))
+                    else setCatalogStep("openrouter", RefreshStepStatus.Done("${pricing.size} priced · ${specs?.first ?: 0} specs"))
+                } catch (e: Exception) {
+                    setCatalogStep("openrouter", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs += async(Dispatchers.IO) {
+                setCatalogStep("litellm", RefreshStepStatus.Running())
+                val prev = previousDetail("litellm")
+                try {
+                    val n = PricingCache.fetchLiteLLMPricingOnline(app)
+                    if (n != null && n > 0) setCatalogStep("litellm", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("litellm", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("litellm", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs += async(Dispatchers.IO) {
+                setCatalogStep("modelsdev", RefreshStepStatus.Running())
+                val prev = previousDetail("modelsdev")
+                try {
+                    val n = PricingCache.fetchModelsDevOnline(app)
+                    if (n != null && n > 0) setCatalogStep("modelsdev", RefreshStepStatus.Done("$n priced"))
+                    else setCatalogStep("modelsdev", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("modelsdev", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs += async(Dispatchers.IO) {
+                setCatalogStep("helicone", RefreshStepStatus.Running())
+                val prev = previousDetail("helicone")
+                try {
+                    val n = PricingCache.fetchHeliconeOnline(app)
+                    if (n != null && n > 0) setCatalogStep("helicone", RefreshStepStatus.Done("$n entries"))
+                    else setCatalogStep("helicone", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("helicone", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs += async(Dispatchers.IO) {
+                setCatalogStep("llmprices", RefreshStepStatus.Running())
+                val prev = previousDetail("llmprices")
+                try {
+                    val n = PricingCache.fetchLLMPricesOnline(app)
+                    if (n != null && n > 0) setCatalogStep("llmprices", RefreshStepStatus.Done("$n entries"))
+                    else setCatalogStep("llmprices", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("llmprices", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            if (aaEnabled) jobs += async(Dispatchers.IO) {
+                setCatalogStep("aa", RefreshStepStatus.Running())
+                val prev = previousDetail("aa")
+                try {
+                    val n = PricingCache.fetchArtificialAnalysisOnline(app, aaKey)
+                    if (n != null && n > 0) setCatalogStep("aa", RefreshStepStatus.Done("$n entries"))
+                    else setCatalogStep("aa", RefreshStepStatus.Failed("no entries · $prev"))
+                } catch (e: Exception) {
+                    setCatalogStep("aa", RefreshStepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
+                }
+            }
+            jobs.awaitAll()
+        }
+        // Catalog answers may have shifted — refresh the precomputed
+        // vision / web-search sets so list renders pick up the new state.
+        _uiState.update { it.copy(aiSettings = it.aiSettings.recomputeAllCapabilities()) }
+        settingsPrefs.saveSettings(_uiState.value.aiSettings)
+    }
+
+    /** Per-provider worker phase. Each provider runs in parallel:
+     *  test key → (if ModelSource.API) fetch model list → write default
+     *  agent + add to `default agents` flock. The settings copy-on-write
+     *  is serialised through [_uiState.update]'s CAS lambda which already
+     *  handles concurrent mutators (same pattern as updateProviderState). */
+    private suspend fun runWorkerPhase(testable: List<AppService>) {
+        if (testable.isEmpty()) return
+        kotlinx.coroutines.supervisorScope {
+            testable.map { service ->
+                async(Dispatchers.IO) {
+                    val snapshot = _uiState.value.aiSettings
+                    val apiKey = snapshot.getApiKey(service)
+                    val model = snapshot.getModel(service)
+
+                    setWorkerStage(service.id, WorkerStage.TestingKey)
+                    val testError = try { testAiModel(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
+                    val passed = testError == null
+                    updateProviderState(service, if (passed) "ok" else "error")
+                    if (!passed) {
+                        setWorkerStage(service.id, WorkerStage.Failed(testError ?: "error"))
+                        return@async
+                    }
+
+                    if (resolveModelSource(service) == ModelSource.API) {
+                        setWorkerStage(service.id, WorkerStage.FetchingModels)
+                        // Model-list fetch failures are non-fatal — we still
+                        // create the default agent against the saved model.
+                        runCatching { fetchModelsAwait(service, apiKey, flipToApiOnSuccess = false) }
+                            .onFailure { AppLog.w("RefreshAll", "model fetch failed for ${service.id}: ${it.message}") }
+                    }
+
+                    setWorkerStage(service.id, WorkerStage.WritingAgent)
+                    val currentModel = _uiState.value.aiSettings.getModel(service)
+                    val agentId = java.util.UUID.randomUUID().toString()
+                    val newAgent = com.ai.model.Agent(agentId, service.id, service, currentModel, "")
+                    _uiState.update { st ->
+                        val cur = st.aiSettings
+                        val withAgent = cur.copy(agents = cur.agents + newAgent)
+                        val flocks = withAgent.flocks
+                        val existing = flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
+                        val withFlock = if (existing != null) {
+                            withAgent.copy(flocks = flocks.map {
+                                if (it.id == existing.id) it.copy(agentIds = it.agentIds + agentId) else it
+                            })
+                        } else {
+                            val flock = com.ai.model.Flock(
+                                java.util.UUID.randomUUID().toString(),
+                                com.ai.model.DEFAULT_AGENTS_FLOCK_NAME,
+                                listOf(agentId)
+                            )
+                            withAgent.copy(flocks = withAgent.flocks + flock)
+                        }
+                        st.copy(aiSettings = withFlock)
+                    }
+                    settingsPrefs.saveSettings(_uiState.value.aiSettings)
+                    setWorkerStage(service.id, WorkerStage.Done)
+                }
+            }.awaitAll()
         }
     }
 

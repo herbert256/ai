@@ -1767,26 +1767,15 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Each card has its own ℹ️ button that deep-links to that catalog's per-provider help page (the same one you reach from Model Info → Source button).")
         )
     ),
-    "refresh_runtime_workers" to HelpContent(
-        title = "AI Runtime workers",
+    "refresh_all" to HelpContent(
+        title = "Refresh all",
         cards = listOf(
-            HelpCard("Overview", "Refresh-screen sub-page for per-AppService work — the things that actually call your providers' APIs. Inactive and unkeyed providers are filtered out at every step (no point testing or fetching against a provider that can't authenticate)."),
-            HelpCard("All runtime workers", "Runs Providers → Models → Default agents in sequence on the Refresh-all progress page. Skips the catalog refresh (use \"All info providers\" or \"Refresh all\" for that)."),
-            HelpCard("Providers", "Tests each active or errored provider's saved API key with a small live model call. Marks each as ok / error. Inactive and unkeyed providers are filtered out before the popup so the result list only shows providers that could actually be tested."),
-            HelpCard("Models", "Calls every active working provider's /models endpoint with forceRefresh=true. Replaces the cached lists used by the model pickers. Errored / inactive / unkeyed providers are skipped — refreshing them just hits 401."),
-            HelpCard("Default agents", "Per active working provider: ensures an agent named after the provider exists (using its current default model), then ensures the \"default agents\" flock contains exactly those agents. The standalone button runs the test step too; the All-runtime-workers chain reuses results from the Providers step instead of re-testing."),
-            HelpCard("Pitfalls", "If a model-list fetch fails for a provider, its existing model list is preserved (no destructive overwrite). Failed default-agent tests log to logcat but don't block other providers' agents from being created.")
-        )
-    ),
-    "refresh_all_progress" to HelpContent(
-        title = "Refresh all — progress",
-        cards = listOf(
-            HelpCard("Overview", "Live progress for the orchestrated 'Refresh all' run. One row per step in the sequence: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, Providers, Models, Default agents, then a final auto-restart."),
-            HelpCard("Step rows", "Each row shows ⏳ pending, 🔄 running (with a live counter for sub-steps when applicable), ✅ done, or ❌ failed. The previous step's outcome is visible while the next runs."),
-            HelpCard("Failed providers", "On completion, providers that errored during the Providers step list at the bottom with a tap-target that opens that provider's settings page so you can fix the key / endpoint and retry."),
-            HelpCard("Auto-restart", "When every step finished, an automatic kill+relaunch fires via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK so freshly-loaded catalogs and capabilities take effect cleanly. The 'Restart now' button forces it earlier."),
-            HelpCard("Cancel", "System back / ‹ pops back to the Refresh hub. The in-flight step finishes (it's already running on Dispatchers.IO); no rollback. Subsequent steps are skipped."),
-            HelpCard("Pitfalls", "If a catalog step errors (e.g. network), subsequent steps still run with the previous catalog. The 'overall error' line at the top surfaces the message.")
+            HelpCard("Overview", "Refreshes the six pricing/spec catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis) AND the per-provider Workers in parallel. The two phases are independent — neither blocks the other."),
+            HelpCard("Workers", "For every provider that has an API key and isn't marked Inactive, in parallel: tests the API key, fetches the model list (only when the model source is API — MANUAL providers skip the fetch), writes a default agent named after the provider id, and appends that agent to the `default agents` flock."),
+            HelpCard("Clean slate", "At the start of the run the `default agents` flock is emptied and every existing default agent (any agent whose name matches its provider id) is deleted. Custom agents — anything you renamed away from a provider id — survive untouched. The flock and its agents are then rebuilt from the workers that pass."),
+            HelpCard("Re-entry", "Tasks continue in the background if you back-gesture out. Open Refresh again while a run is in flight and the live progress screen comes back. Tap the help icon on the progress screen to read this page without stopping anything."),
+            HelpCard("Failed providers", "Workers that fail the key test list at the bottom with a tap-target that opens that provider's settings so you can fix the key / endpoint."),
+            HelpCard("Auto-restart", "When both phases finish, a non-dismissible popup forces an app restart so freshly-loaded catalogs, capabilities, and rebuilt agents take effect cleanly.")
         )
     ),
     "import_export" to HelpContent(

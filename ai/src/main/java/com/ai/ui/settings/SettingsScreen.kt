@@ -74,6 +74,9 @@ fun SettingsScreen(
     onLoadBundledPrompts: () -> Int = { 0 },
     onResetBundledPrompts: () -> Int = { 0 },
     onLoadBundledExamples: () -> Int = { 0 },
+    refreshAllState: com.ai.viewmodel.RefreshAllState? = null,
+    onStartRefreshAll: () -> Unit = {},
+    onClearRefreshAllState: () -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
@@ -597,9 +600,9 @@ fun SettingsScreen(
                 openRouterApiKey = generalSettings.openRouterApiKey,
                 artificialAnalysisApiKey = generalSettings.artificialAnalysisApiKey,
                 onSave = onSaveAi,
-                onRefreshAllModels = onRefreshAllModels,
-                onTestApiKey = onTestAiModel,
-                onProviderStateChange = onProviderStateChange,
+                refreshAllState = refreshAllState,
+                onStartRefreshAll = onStartRefreshAll,
+                onClearRefreshAllState = onClearRefreshAllState,
                 onOpenProvider = { svc ->
                     selectedProviderId = svc.id
                     currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT

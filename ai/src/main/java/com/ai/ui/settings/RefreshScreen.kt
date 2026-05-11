@@ -19,12 +19,13 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
+import com.ai.viewmodel.CatalogStep
+import com.ai.viewmodel.RefreshAllState
+import com.ai.viewmodel.RefreshStepStatus
+import com.ai.viewmodel.WorkerRow
+import com.ai.viewmodel.WorkerStage
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -33,9 +34,9 @@ fun RefreshScreen(
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
     onSave: (Settings) -> Unit,
-    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int>,
-    onTestApiKey: suspend (AppService, String, String) -> String?,
-    onProviderStateChange: (AppService, String) -> Unit,
+    refreshAllState: RefreshAllState?,
+    onStartRefreshAll: () -> Unit,
+    onClearRefreshAllState: () -> Unit,
     /** Navigate the parent settings screen to AI Setup → Providers →
      *  edit page for a specific provider. Used by the Refresh-all
      *  progress screen's "Failed providers" list so the user can jump
@@ -54,42 +55,18 @@ fun RefreshScreen(
     val isAnyRunning by remember { derivedStateOf { progressTitle.isNotBlank() } }
     var taskError by remember { mutableStateOf<String?>(null) }
 
-    // Refresh-all chain — full-screen progress instead of the small
-    // per-task popup. Lists every planned step up front and updates
-    // each as work proceeds; the 6 catalog sources at the top run in
-    // parallel via coroutineScope { ... awaitAll() }, then the
-    // dependent provider/model/agent steps run sequentially.
-    val refreshAllSteps = remember { mutableStateListOf<RefreshAllStep>() }
-    var refreshAllInProgress by remember { mutableStateOf(false) }
-    var refreshAllFinished by remember { mutableStateOf(false) }
-    var refreshAllError by remember { mutableStateOf<String?>(null) }
-    fun setStep(id: String, status: StepStatus) {
-        val i = refreshAllSteps.indexOfFirst { it.id == id }
-        if (i >= 0) refreshAllSteps[i] = refreshAllSteps[i].copy(status = status)
-    }
-
-    var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
     var openRouterResult by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) }
     var litellmResult by remember { mutableStateOf<Int?>(null) }
     var modelsDevResult by remember { mutableStateOf<Int?>(null) }
     var heliconeResult by remember { mutableStateOf<Int?>(null) }
     var llmPricesResult by remember { mutableStateOf<Int?>(null) }
     var aaResult by remember { mutableStateOf<Int?>(null) }
-    var showResultsDialog by remember { mutableStateOf(false) }
-    var showProviderStateDialog by remember { mutableStateOf(false) }
     var showOpenRouterDialog by remember { mutableStateOf(false) }
     var showLiteLLMDialog by remember { mutableStateOf(false) }
     var showModelsDevDialog by remember { mutableStateOf(false) }
     var showHeliconeDialog by remember { mutableStateOf(false) }
     var showLLMPricesDialog by remember { mutableStateOf(false) }
     var showAaDialog by remember { mutableStateOf(false) }
-    // (providerName, state) where state == null means "pending" (still being tested);
-    // any other string is the final state ("ok"/"error"/"inactive"/"not-used").
-    val providerStateRows = remember { mutableStateListOf<Pair<String, String?>>() }
-    // Ordered list of (providerName, result) where result: null = pending, true = ok, false = failed.
-    // SnapshotStateList of Pair so the dialog recomposes on each incremental update.
-    val generationRows = remember { mutableStateListOf<Pair<String, Boolean?>>() }
-    var showGenerationDialog by remember { mutableStateOf(false) }
 
     fun launchTask(title: String, initialText: String = "", block: suspend () -> Unit) {
         scope.launch {
@@ -121,19 +98,14 @@ fun RefreshScreen(
             text = { Text(error) }, confirmButton = { TextButton(onClick = { taskError = null }) { Text("OK", maxLines = 1, softWrap = false) } })
     }
 
-    if (refreshAllInProgress) {
-        // Resolve failed-provider rows back to AppService so the
-        // "Failed providers" list can drive a direct nav to each
-        // provider's edit page. The displayName lookup is safe
-        // because the same AppService.entries iteration produced
-        // the row in runProvidersWithProgress.
-        val failedProviders = remember(refreshAllSteps.toList(), providerStateRows.toList()) {
-            providerStateRows
-                .filter { it.second == "error" }
-                .mapNotNull { (name, _) -> AppService.entries.find { it.id == name } }
+    // Refresh-all takes over the screen whenever a run is in flight or
+    // just finished. Lives in AppViewModel so it survives navigation —
+    // user can back-gesture out, come back, and pick up the live view.
+    refreshAllState?.let { state ->
+        val failedProviders = remember(state) {
+            state.workerRows.filter { it.stage is WorkerStage.Failed }
+                .mapNotNull { row -> AppService.entries.find { it.id == row.serviceId } }
         }
-        // Same flush-then-process-kill pattern the legacy in-screen
-        // button used; now reached only via the completion popup.
         fun doRestart() {
             scope.launch {
                 withContext(Dispatchers.IO) {
@@ -146,78 +118,22 @@ fun RefreshScreen(
             }
         }
         RefreshAllProgressScreen(
-            steps = refreshAllSteps.toList(),
-            overallError = refreshAllError,
+            state = state,
             failedProviders = failedProviders,
             onOpenProvider = { svc ->
                 // Tear down the in-progress overlay before navigating
                 // so a back-press from the provider edit screen
                 // doesn't drop the user back into a stale refresh-all
-                // view that'll auto-clear on its next render anyway.
-                refreshAllInProgress = false
-                refreshAllSteps.clear()
-                refreshAllError = null
+                // view. Background work in the VM continues regardless.
+                onClearRefreshAllState()
                 onOpenProvider(svc)
             },
-            onBack = {
-                // Don't allow leaving while work is in flight — keeps
-                // the per-step status reachable for the user.
-                if (refreshAllFinished) {
-                    refreshAllInProgress = false
-                    refreshAllSteps.clear()
-                    refreshAllError = null
-                }
-            }
+            onNavigateToHelpTopic = onNavigateToHelpTopic,
+            onBack = onBack
         )
-        // Force a restart at completion. The popup overlays the
-        // step-results screen — the user can still read which step
-        // produced which outcome through the dialog backdrop, but the
-        // only action available is OK → restart.
-        if (refreshAllFinished) {
+        if (state.isFinished) {
             RestartAppDialog(message = "Refresh all done", onConfirm = { doRestart() })
         }
-        return
-    }
-
-    if (showResultsDialog && refreshResults != null) {
-        val rows = refreshResults!!.entries.sortedBy { it.key }.map { (name, count) ->
-            RefreshResultRow(
-                label = name,
-                value = if (count > 0) "$count models" else "failed",
-                color = if (count > 0) AppColors.Green else AppColors.Red
-            )
-        }
-        val total = rows.size
-        val ok = rows.count { it.color == AppColors.Green }
-        RefreshResultScreen(
-            titleText = "Model Refresh Results",
-            description = "$ok of $total providers returned a model list. Failed providers usually mean a missing key, an inactive state, or a transient network error.",
-            rows = rows,
-            onBack = { showResultsDialog = false },
-            onNavigateHome = onNavigateHome
-        )
-        return
-    }
-
-    if (showProviderStateDialog) {
-        val doneCount = providerStateRows.count { it.second != null }
-        val totalCount = providerStateRows.size
-        val rows = providerStateRows.map { (name, state) ->
-            val (text, color) = when (state) {
-                null -> "pending" to AppColors.TextTertiary
-                "ok" -> "ok" to AppColors.Green
-                "error" -> "error" to AppColors.Red
-                else -> state to AppColors.TextTertiary
-            }
-            RefreshResultRow(name, text, color)
-        }
-        RefreshResultScreen(
-            titleText = if (totalCount > 0 && doneCount < totalCount) "Provider State — $doneCount / $totalCount" else "Provider State Results",
-            description = "Each provider's saved API key was tested with a small live call. Inactive and unkeyed providers are filtered out before this list.",
-            rows = rows,
-            onBack = { showProviderStateDialog = false },
-            onNavigateHome = onNavigateHome
-        )
         return
     }
 
@@ -394,32 +310,9 @@ fun RefreshScreen(
         return
     }
 
-    if (showGenerationDialog) {
-        val doneCount = generationRows.count { it.second != null }
-        val totalCount = generationRows.size
-        val rows = generationRows.map { (name, result) ->
-            val (text, color) = when (result) {
-                null  -> "pending" to AppColors.TextTertiary
-                true  -> "OK" to AppColors.Green
-                false -> "failed" to AppColors.Red
-            }
-            RefreshResultRow(name, text, color)
-        }
-        RefreshResultScreen(
-            titleText = if (totalCount > 0 && doneCount < totalCount) "Default Agents — $doneCount / $totalCount" else "Default Agent Generation",
-            description = "Each active provider was probed with its current default model. On success the provider gets a default agent (if missing) and joins the \"default agents\" flock.",
-            rows = rows,
-            onBack = { showGenerationDialog = false },
-            onNavigateHome = onNavigateHome
-        )
-        return
-    }
-
-    // Each refresh's core work lives in a suspend lambda that captures the
-    // surrounding state — keeps individual buttons and the "Refresh all"
-    // chain pointing at the same code path. The Boolean parameter controls
-    // whether the per-step result dialog opens at the end (true for the
-    // dedicated button, false during a chained Refresh all).
+    // Each per-catalog refresh's core work lives in a suspend lambda
+    // that captures the surrounding state. The Boolean parameter controls
+    // whether the per-step result dialog opens at the end.
     val runOpenRouter: suspend (Boolean) -> Unit = { showDialogAtEnd ->
         progressText = "Pulling OpenRouter catalog…"
         withContext(Dispatchers.IO) {
@@ -465,375 +358,16 @@ fun RefreshScreen(
         aaResult = n
         if (showDialogAtEnd) showAaDialog = true
     }
-    val runProviders: suspend (Boolean) -> Unit = { showProgressDialog ->
-        // Only test providers that are actually configured: skip
-        // inactive providers and providers without an API key. Both
-        // would always end in the same place (no test possible) and
-        // listing them in the popup with a "skipped" badge clutters
-        // the result for no diagnostic gain.
-        val testable = AppService.entries.sortedBy { it.id }.filter { service ->
-            aiSettings.getProviderState(service) != "inactive" &&
-                aiSettings.getApiKey(service).isNotBlank()
-        }
-        providerStateRows.clear()
-        providerStateRows.addAll(testable.map { it.id to null })
-        val total = testable.size
-        // Avoid flashing an empty "0 / 0" dialog when no provider is
-        // testable — the supervisorScope below would exit immediately.
-        if (showProgressDialog && total > 0) showProviderStateDialog = true
-        val completed = java.util.concurrent.atomic.AtomicInteger(0)
-        progressText = "0 / $total"
-        supervisorScope {
-            testable.mapIndexed { idx, service ->
-                val apiKey = aiSettings.getApiKey(service)
-                val model = aiSettings.getModel(service)
-                async(Dispatchers.IO) {
-                    val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
-                    val newState = if (error == null) "ok" else "error"
-                    withContext(Dispatchers.Main) {
-                        if (idx < providerStateRows.size) providerStateRows[idx] = service.id to newState
-                    }
-                    onProviderStateChange(service, newState)
-                    val done = completed.incrementAndGet()
-                    progressText = "$done / $total — ${service.id}"
-                }
-            }.awaitAll()
-        }
-    }
-    val runModels: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        refreshResults = onRefreshAllModels(aiSettings, true) { msg: String -> progressText = msg }
-        if (showDialogAtEnd) showResultsDialog = true
-    }
-    val runDefaultAgents: suspend (Boolean) -> Unit = { showProgressDialog ->
-        val candidates = aiSettings.getActiveServices().map { s ->
-            Triple(s, aiSettings.getApiKey(s), aiSettings.getModel(s))
-        }
-        generationRows.clear()
-        generationRows.addAll(candidates.map { it.first.id to null })
-        if (showProgressDialog) showGenerationDialog = true
-        val total = candidates.size
-        val completed = java.util.concurrent.atomic.AtomicInteger(0)
-        progressText = "0 / $total"
-        val results: List<Pair<String, Boolean>> = supervisorScope {
-            candidates.mapIndexed { idx, (service, key, model) ->
-                async(Dispatchers.IO) {
-                    val error = try { onTestApiKey(service, key, model) } catch (e: Exception) { e.message ?: "error" }
-                    val success = error == null
-                    withContext(Dispatchers.Main) {
-                        if (idx < generationRows.size) generationRows[idx] = service.id to success
-                    }
-                    val done = completed.incrementAndGet()
-                    progressText = "$done / $total — ${service.id}"
-                    service.id to success
-                }
-            }.awaitAll()
-        }
-        withContext(Dispatchers.IO) {
-            var updatedSettings = aiSettings
-            for ((service, _, model) in candidates) {
-                val success = results.find { it.first == service.id }?.second == true
-                if (success) {
-                    val existing = updatedSettings.agents.find { it.name == service.id && it.provider.id == service.id }
-                    if (existing == null) {
-                        val agent = Agent(java.util.UUID.randomUUID().toString(), service.id, service, model, "")
-                        updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
-                    }
-                }
-            }
-            val defaultAgentIds = updatedSettings.agents.filter { a -> results.any { it.first == a.provider.id && it.second } }.map { it.id }
-            // Skip flock creation when no agent passed — an empty
-            // "Default agents" flock is just clutter the user has to
-            // delete by hand.
-            if (defaultAgentIds.isNotEmpty()) {
-                val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
-                updatedSettings = if (existingFlock != null) {
-                    updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
-                } else {
-                    val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
-                    updatedSettings.copy(flocks = updatedSettings.flocks + flock)
-                }
-            }
-            onSave(updatedSettings)
-        }
-    }
 
-    // Refresh-all variants: same work as runProviders / runDefaultAgents
-    // but route progress through a callback (the full-screen progress
-    // page's per-step detail) instead of mutating progressText (which
-    // would no-op since the per-task popup is suppressed during the
-    // refresh-all flow).
-    val runProvidersWithProgress: suspend ((String) -> Unit) -> Unit = { onProgress ->
-        // Skip inactive / unkeyed providers — same gate as runProviders.
-        val testable = AppService.entries.sortedBy { it.id }.filter { service ->
-            aiSettings.getProviderState(service) != "inactive" &&
-                aiSettings.getApiKey(service).isNotBlank()
-        }
-        providerStateRows.clear()
-        providerStateRows.addAll(testable.map { it.id to null })
-        val total = testable.size
-        val completed = java.util.concurrent.atomic.AtomicInteger(0)
-        onProgress("0 / $total")
-        supervisorScope {
-            testable.mapIndexed { idx, service ->
-                val apiKey = aiSettings.getApiKey(service)
-                val model = aiSettings.getModel(service)
-                async(Dispatchers.IO) {
-                    val error = try { onTestApiKey(service, apiKey, model) } catch (e: Exception) { e.message ?: "error" }
-                    val newState = if (error == null) "ok" else "error"
-                    withContext(Dispatchers.Main) {
-                        if (idx < providerStateRows.size) providerStateRows[idx] = service.id to newState
-                    }
-                    onProviderStateChange(service, newState)
-                    val done = completed.incrementAndGet()
-                    onProgress("$done / $total — ${service.id}")
-                }
-            }.awaitAll()
-        }
-    }
-    /** Refresh-all variant of runDefaultAgents that takes the providers
-     *  that already passed the preceding "Provider key tests" step
-     *  instead of re-testing them. Two reasons:
-     *    1. Re-testing every provider seconds after a successful test
-     *       wastes a round-trip and quota per provider.
-     *    2. The second test occasionally fails (rate-limit 429,
-     *       transient network) on a provider that passed the first —
-     *       producing the surface bug "N active providers but only
-     *       N-1 agents in the default flock" where the user has no
-     *       way to tell which one slipped. */
-    val runDefaultAgentsFromPassed: suspend (List<AppService>, (String) -> Unit) -> Unit = { passedProviders, onProgress ->
-        generationRows.clear()
-        generationRows.addAll(passedProviders.map { it.id to true })
-        onProgress("${passedProviders.size} / ${passedProviders.size} (already tested)")
-        withContext(Dispatchers.IO) {
-            var updatedSettings = aiSettings
-            for (service in passedProviders) {
-                val model = aiSettings.getModel(service)
-                val existing = updatedSettings.agents.find { it.name == service.id && it.provider.id == service.id }
-                if (existing == null) {
-                    val agent = Agent(java.util.UUID.randomUUID().toString(), service.id, service, model, "")
-                    updatedSettings = updatedSettings.copy(agents = updatedSettings.agents + agent)
-                }
-            }
-            // Match the legacy behaviour: every agent whose provider's
-            // displayName matches a passed provider goes into the
-            // flock. Includes user-renamed agents pointing at a passed
-            // provider (mirrors the prior runDefaultAgents semantics).
-            val passedNames = passedProviders.map { it.id }.toSet()
-            val defaultAgentIds = updatedSettings.agents
-                .filter { it.provider.id in passedNames }
-                .map { it.id }
-            if (defaultAgentIds.isNotEmpty()) {
-                val existingFlock = updatedSettings.flocks.find { it.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME }
-                updatedSettings = if (existingFlock != null) {
-                    updatedSettings.copy(flocks = updatedSettings.flocks.map { if (it.id == existingFlock.id) it.copy(agentIds = defaultAgentIds) else it })
-                } else {
-                    val flock = Flock(java.util.UUID.randomUUID().toString(), com.ai.model.DEFAULT_AGENTS_FLOCK_NAME, defaultAgentIds)
-                    updatedSettings.copy(flocks = updatedSettings.flocks + flock)
-                }
-            }
-            onSave(updatedSettings)
-        }
-    }
-
-    /** Kick off the full-screen-progress chain with a configurable subset
-     *  of steps. The original "Refresh all" runs every step; the
-     *  "All" buttons inside the AI Providers / AI Models cards
-     *  populate only their relevant slice so the progress page
-     *  matches what the user actually clicked. */
-    fun startRefreshChain(includeCatalogs: Boolean, includeProviders: Boolean, includeModels: Boolean, includeAgents: Boolean) {
-        refreshAllSteps.clear()
-        val openRouterEnabled = openRouterApiKey.isNotBlank()
-        val aaEnabled = artificialAnalysisApiKey.isNotBlank()
-        if (includeCatalogs) {
-            refreshAllSteps += RefreshAllStep("openrouter", "OpenRouter",
-                if (openRouterEnabled) StepStatus.Pending else StepStatus.Skipped)
-            refreshAllSteps += RefreshAllStep("litellm", "LiteLLM")
-            refreshAllSteps += RefreshAllStep("modelsdev", "models.dev")
-            refreshAllSteps += RefreshAllStep("helicone", "Helicone")
-            refreshAllSteps += RefreshAllStep("llmprices", "llm-prices.com")
-            refreshAllSteps += RefreshAllStep("aa", "Artificial Analysis",
-                if (aaEnabled) StepStatus.Pending else StepStatus.Skipped)
-        }
-        if (includeProviders) refreshAllSteps += RefreshAllStep("providers", "Provider key tests")
-        if (includeModels) refreshAllSteps += RefreshAllStep("models", "Model lists")
-        if (includeAgents) refreshAllSteps += RefreshAllStep("agents", "Default agents")
-        refreshAllError = null
-        refreshAllFinished = false
-        refreshAllInProgress = true
-
-        scope.launch {
-            try {
-                if (includeCatalogs) {
-                    // Six catalog sources in parallel — they're
-                    // independent network fetches with no shared
-                    // mutable state, so awaitAll() collapses
-                    // wall-clock from sum-of-latencies to
-                    // max-of-latencies.
-                    // Snapshot every tier's previous cache state BEFORE
-                    // any fetch starts — so the "kept previous N from Xago"
-                    // detail on a failed step reflects what was there at
-                    // refresh-all-start, not what's been overwritten by
-                    // a sibling success that's already landed.
-                    fun previousDetail(source: String): String {
-                        val info = PricingCache.previousCacheInfo(context, source) ?: return "no previous to keep"
-                        return "kept previous ${info.entryCount} from ${info.ageString()}"
-                    }
-                    coroutineScope {
-                        val jobs = mutableListOf<kotlinx.coroutines.Deferred<*>>()
-                        if (openRouterEnabled) jobs += async(Dispatchers.IO) {
-                            setStep("openrouter", StepStatus.Running())
-                            val prev = previousDetail("openrouter")
-                            try {
-                                val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                                if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
-                                val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
-                                openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
-                                if (pricing.isEmpty()) setStep("openrouter", StepStatus.Failed("no entries · $prev"))
-                                else setStep("openrouter", StepStatus.Done("${pricing.size} priced · ${specs?.first ?: 0} specs"))
-                            } catch (e: Exception) {
-                                setStep("openrouter", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        jobs += async(Dispatchers.IO) {
-                            setStep("litellm", StepStatus.Running())
-                            val prev = previousDetail("litellm")
-                            try {
-                                val n = PricingCache.fetchLiteLLMPricingOnline(context)
-                                litellmResult = n
-                                if (n != null && n > 0) setStep("litellm", StepStatus.Done("$n priced"))
-                                else setStep("litellm", StepStatus.Failed("no entries · $prev"))
-                            } catch (e: Exception) {
-                                setStep("litellm", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        jobs += async(Dispatchers.IO) {
-                            setStep("modelsdev", StepStatus.Running())
-                            val prev = previousDetail("modelsdev")
-                            try {
-                                val n = PricingCache.fetchModelsDevOnline(context)
-                                modelsDevResult = n
-                                if (n != null && n > 0) setStep("modelsdev", StepStatus.Done("$n priced"))
-                                else setStep("modelsdev", StepStatus.Failed("no entries · $prev"))
-                            } catch (e: Exception) {
-                                setStep("modelsdev", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        jobs += async(Dispatchers.IO) {
-                            setStep("helicone", StepStatus.Running())
-                            val prev = previousDetail("helicone")
-                            try {
-                                val n = PricingCache.fetchHeliconeOnline(context)
-                                heliconeResult = n
-                                if (n != null && n > 0) setStep("helicone", StepStatus.Done("$n entries"))
-                                else setStep("helicone", StepStatus.Failed("no entries · $prev"))
-                            } catch (e: Exception) {
-                                setStep("helicone", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        jobs += async(Dispatchers.IO) {
-                            setStep("llmprices", StepStatus.Running())
-                            val prev = previousDetail("llmprices")
-                            try {
-                                val n = PricingCache.fetchLLMPricesOnline(context)
-                                llmPricesResult = n
-                                if (n != null && n > 0) setStep("llmprices", StepStatus.Done("$n entries"))
-                                else setStep("llmprices", StepStatus.Failed("no entries · $prev"))
-                            } catch (e: Exception) {
-                                setStep("llmprices", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        if (aaEnabled) jobs += async(Dispatchers.IO) {
-                            setStep("aa", StepStatus.Running())
-                            val prev = previousDetail("aa")
-                            try {
-                                val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
-                                aaResult = n
-                                if (n != null && n > 0) setStep("aa", StepStatus.Done("$n entries"))
-                                else setStep("aa", StepStatus.Failed("no entries · $prev"))
-                            } catch (e: Exception) {
-                                setStep("aa", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
-                            }
-                        }
-                        jobs.awaitAll()
-                    }
-                    // Catalog answers may have shifted — refresh the
-                    // precomputed vision / web-search sets so list
-                    // renders pick up the new state. Single onSave
-                    // covers all the catalogs that ran.
-                    withContext(Dispatchers.Main) { onSave(aiSettings.recomputeAllCapabilities()) }
-                }
-
-                if (includeProviders) {
-                    setStep("providers", StepStatus.Running())
-                    try {
-                        runProvidersWithProgress { detail -> setStep("providers", StepStatus.Running(detail)) }
-                        val okCount = providerStateRows.count { it.second == "ok" }
-                        val errCount = providerStateRows.count { it.second == "error" }
-                        setStep("providers", StepStatus.Done("$okCount ok · $errCount failed"))
-                    } catch (e: Exception) {
-                        setStep("providers", StepStatus.Failed(e.message?.take(80)))
-                    }
-                }
-
-                if (includeModels) {
-                    setStep("models", StepStatus.Running())
-                    try {
-                        refreshResults = onRefreshAllModels(aiSettings, true) { msg ->
-                            setStep("models", StepStatus.Running(msg))
-                        }
-                        val total = refreshResults?.size ?: 0
-                        val ok = refreshResults?.count { it.value > 0 } ?: 0
-                        setStep("models", StepStatus.Done("$ok / $total providers"))
-                    } catch (e: Exception) {
-                        setStep("models", StepStatus.Failed(e.message?.take(80)))
-                    }
-                }
-
-                if (includeAgents) {
-                    // Default-agent generation. When the Providers step
-                    // ran in this same chain, reuse its passed list (no
-                    // re-test). Otherwise (Default agents kicked off on
-                    // its own from the AI Models card), derive the
-                    // active providers from current settings.
-                    setStep("agents", StepStatus.Running())
-                    try {
-                        val passedProviders = if (includeProviders) {
-                            providerStateRows
-                                .filter { it.second == "ok" }
-                                .mapNotNull { (name, _) -> AppService.entries.find { it.id == name } }
-                        } else {
-                            aiSettings.getActiveServices()
-                        }
-                        runDefaultAgentsFromPassed(passedProviders) { detail ->
-                            setStep("agents", StepStatus.Running(detail))
-                        }
-                        setStep("agents", StepStatus.Done("${passedProviders.size} agents"))
-                    } catch (e: Exception) {
-                        setStep("agents", StepStatus.Failed(e.message?.take(80)))
-                    }
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                refreshAllError = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
-            } finally {
-                refreshAllFinished = true
-            }
-        }
-    }
-
-    // The two grouped sections are full-screen sub-pages, navigated
-    // via NavCards on the main Refresh screen. Each sub-page has its
-    // own TitleBar + help topic. State lives in [subPage] using the
-    // standard early-return overlay pattern so the parent Refresh
-    // screen's remember state survives the round-trip.
+    // AI Info Providers sub-page lives as a full-screen overlay reached
+    // via a NavCard on the main Refresh screen. Same early-return idiom
+    // as before so the parent's remember state survives the round-trip.
     var subPage by remember { mutableStateOf<RefreshSubPage?>(null) }
     if (subPage == RefreshSubPage.INFO_PROVIDERS) {
         InfoProvidersRefreshPage(
             isAnyRunning = isAnyRunning,
             openRouterApiKey = openRouterApiKey,
             artificialAnalysisApiKey = artificialAnalysisApiKey,
-            onAllInfoProviders = { startRefreshChain(includeCatalogs = true, includeProviders = false, includeModels = false, includeAgents = false) },
             onOpenRouter = { launchTask("Refreshing OpenRouter") { runOpenRouter(true) } },
             onLiteLLM = { launchTask("Refreshing LiteLLM") { runLiteLLM(true) } },
             onModelsDev = { launchTask("Refreshing models.dev") { runModelsDev(true) } },
@@ -846,69 +380,46 @@ fun RefreshScreen(
         )
         return
     }
-    if (subPage == RefreshSubPage.RUNTIME_WORKERS) {
-        RuntimeWorkersRefreshPage(
-            isAnyRunning = isAnyRunning,
-            onAllRuntimeWorkers = { startRefreshChain(includeCatalogs = false, includeProviders = true, includeModels = true, includeAgents = true) },
-            onProviders = { launchTask("Testing Providers") { runProviders(true) } },
-            onModels = { launchTask("Refreshing Models") { runModels(true) } },
-            onDefaultAgents = { launchTask("Generating Agents") { runDefaultAgents(true) } },
-            onBack = { subPage = null },
-            onNavigateHome = onNavigateHome
-        )
-        return
-    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Fresh-install gate: with no keyed provider, the runtime
-        // workers (key tests / model lists / default agents) have
-        // nothing to act on, and "Refresh all" would just run the
-        // catalogs. Hide both so the user is steered to AI Info
+        // Fresh-install gate: with no keyed provider, the Workers phase
+        // has nothing to act on, so "Refresh all" would just run the
+        // catalog phase. Hide it so the user is steered to AI Info
         // Providers (catalogs only) until they've configured a key.
         val hasAnyKeyedProvider = AppService.entries.any { aiSettings.getApiKey(it).isNotBlank() }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Refresh all — runs catalogs first (six in parallel) so
-            // the per-provider Models fetch and the Providers /
-            // Default-agents tests see fresh capability data, then the
-            // dependent steps run sequentially. Status is rendered on
-            // a full-screen progress page rather than the small
-            // per-task popup the individual buttons below use.
+            // Refresh all — runs the six catalog sources and the
+            // per-provider Workers phase in parallel. Status renders on
+            // a full-screen progress page owned by AppViewModel, so the
+            // user can navigate away and come back to a live view.
             if (hasAnyKeyedProvider) {
                 RefreshAction(
                     label = "Refresh all",
-                    description = "Run all six catalog sources in parallel (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis), then provider keys, model lists, and default agents in sequence.",
+                    description = "Refresh the six catalog sources and the per-provider workers (key test, model list, default agent) in parallel. Continues in the background if you navigate away.",
                     enabled = !isAnyRunning,
-                    onClick = { startRefreshChain(includeCatalogs = true, includeProviders = true, includeModels = true, includeAgents = true) }
+                    onClick = { onStartRefreshAll() }
                 )
             }
 
-            // The two grouped sections live as full-screen sub-pages
-            // each with its own TitleBar / help topic. Tapping a
-            // NavCard sets [subPage] above; the early-return at the
-            // top of the composable swaps in the sub-page composable.
+            // AI Info Providers sub-page — lets the user run a single
+            // catalog refresh at a time. Workers / Refresh-all is the
+            // way to test/seed providers and agents.
             RefreshNavCard(
                 title = "AI Info Providers",
                 description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis).",
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
-            if (hasAnyKeyedProvider) {
-                RefreshNavCard(
-                    title = "AI Runtime workers",
-                    description = "Provider key tests, model lists, and default-agent generation.",
-                    onClick = { subPage = RefreshSubPage.RUNTIME_WORKERS }
-                )
-            }
 
         }
     }
 }
 
-private enum class RefreshSubPage { INFO_PROVIDERS, RUNTIME_WORKERS }
+private enum class RefreshSubPage { INFO_PROVIDERS }
 
 @Composable
 private fun RefreshNavCard(title: String, description: String, onClick: () -> Unit) {
@@ -934,7 +445,6 @@ private fun InfoProvidersRefreshPage(
     isAnyRunning: Boolean,
     openRouterApiKey: String,
     artificialAnalysisApiKey: String,
-    onAllInfoProviders: () -> Unit,
     onOpenRouter: () -> Unit,
     onLiteLLM: () -> Unit,
     onModelsDev: () -> Unit,
@@ -950,12 +460,6 @@ private fun InfoProvidersRefreshPage(
         TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            RefreshAction(
-                label = "All info providers",
-                description = "Run all six catalog sources in parallel — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. No per-provider tests.",
-                enabled = !isAnyRunning,
-                onClick = onAllInfoProviders
-            )
             RefreshAction(
                 label = "OpenRouter",
                 description = "Pull OpenRouter's catalog (pricing, capability flags, supported parameters). Needs the OpenRouter External Services key.",
@@ -1008,49 +512,6 @@ private fun InfoProvidersRefreshPage(
     }
 }
 
-@Composable
-private fun RuntimeWorkersRefreshPage(
-    isAnyRunning: Boolean,
-    onAllRuntimeWorkers: () -> Unit,
-    onProviders: () -> Unit,
-    onModels: () -> Unit,
-    onDefaultAgents: () -> Unit,
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) {
-    BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "refresh_runtime_workers", title = "AI Runtime workers", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            RefreshAction(
-                label = "All runtime workers",
-                description = "Run Providers, Models, and Default agents in sequence. Skips the catalog refresh.",
-                enabled = !isAnyRunning,
-                onClick = onAllRuntimeWorkers
-            )
-            RefreshAction(
-                label = "Providers",
-                description = "Test the saved API key for every active or errored provider against a small live model call. Inactive / unkeyed providers are skipped. Marks each as ok / error.",
-                enabled = !isAnyRunning,
-                onClick = onProviders
-            )
-            RefreshAction(
-                label = "Models",
-                description = "Fetch the latest model list from every active working provider's /models endpoint. Replaces the cached lists used by the model pickers.",
-                enabled = !isAnyRunning,
-                onClick = onModels
-            )
-            RefreshAction(
-                label = "Default agents",
-                description = "Create a default agent per active working provider (using its current default model) and a \"default agents\" flock that includes them.",
-                enabled = !isAnyRunning,
-                onClick = onDefaultAgents
-            )
-        }
-    }
-}
-
 
 @Composable
 private fun RefreshAction(
@@ -1060,8 +521,7 @@ private fun RefreshAction(
     onClick: () -> Unit,
     /** When set, an ℹ️ icon appears on the description row that
      *  navigates to the matching info-provider help topic. Null for
-     *  rows that aren't info providers (Providers / Models / Default
-     *  agents). */
+     *  rows that aren't info providers. */
     helpTopic: String? = null,
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
@@ -1072,10 +532,6 @@ private fun RefreshAction(
     }
 }
 
-/** Card-less variant of [RefreshAction] used inside the AI Info
- *  Providers / AI Runtime workers collapsibles — those wrap their
- *  own outer Card, so dropping the per-action Card wrapper avoids
- *  the cards-within-a-card look. */
 @Composable
 private fun RefreshActionRow(
     label: String,
@@ -1108,86 +564,80 @@ private fun RefreshActionRow(
 
 // ===== Refresh-all full-screen progress =====
 
-/** Status of a single step in the chained Refresh all run. */
-private sealed class StepStatus {
-    object Pending : StepStatus()
-    data class Running(val detail: String? = null) : StepStatus()
-    data class Done(val detail: String? = null) : StepStatus()
-    data class Failed(val detail: String? = null) : StepStatus()
-    object Skipped : StepStatus()
-}
-
-private data class RefreshAllStep(
-    val id: String,
-    val label: String,
-    val status: StepStatus = StepStatus.Pending
-)
-
-/** Full-screen progress page used by the Refresh all chain. Lists
- *  every planned step up front with a status icon + sub-detail, so
- *  the user can see what's been done, what's running, and what's
- *  still queued. On completion the caller overlays a forcing
- *  RestartAppDialog — no per-screen action buttons here. */
+/** Full-screen progress page for the Refresh-all chain. State is owned
+ *  by AppViewModel so the run survives navigation; this composable is
+ *  a thin observer. Back-gesture pops the screen but the work keeps
+ *  going; re-entering the Refresh screen drops the user back here
+ *  while the run is in flight or freshly finished. */
 @Composable
 private fun RefreshAllProgressScreen(
-    steps: List<RefreshAllStep>,
-    overallError: String?,
+    state: RefreshAllState,
     failedProviders: List<AppService>,
     onOpenProvider: (AppService) -> Unit,
+    onNavigateToHelpTopic: (String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "refresh_all_progress", title = "Refresh all", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_all", title = "Refresh all", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
-        val done = steps.count { it.status is StepStatus.Done || it.status is StepStatus.Skipped || it.status is StepStatus.Failed }
-        Text(
-            "Step $done / ${steps.size}",
-            fontSize = 12.sp, color = AppColors.TextSecondary
-        )
+        val totalSteps = state.catalogSteps.size + state.workerRows.size
+        val doneCatalogs = state.catalogSteps.count {
+            it.status is RefreshStepStatus.Done || it.status is RefreshStepStatus.Skipped || it.status is RefreshStepStatus.Failed
+        }
+        val doneWorkers = state.workerRows.count {
+            it.stage is WorkerStage.Done || it.stage is WorkerStage.Failed
+        }
+        val done = doneCatalogs + doneWorkers
+        Text("Step $done / $totalSteps", fontSize = 12.sp, color = AppColors.TextSecondary)
         Spacer(modifier = Modifier.height(4.dp))
         LinearProgressIndicator(
-            progress = { if (steps.isEmpty()) 0f else done.toFloat() / steps.size },
+            progress = { if (totalSteps == 0) 0f else done.toFloat() / totalSteps },
             modifier = Modifier.fillMaxWidth().height(6.dp),
             color = AppColors.Orange,
             trackColor = AppColors.DividerDark
         )
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            steps.forEach { step ->
+
+            Text("Info providers", fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
+            state.catalogSteps.forEach { step ->
                 val (icon, statusText, color) = when (val s = step.status) {
-                    StepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
-                    is StepStatus.Running -> Triple("▶", s.detail ?: "running…", AppColors.Orange)
-                    is StepStatus.Done -> Triple("✓", s.detail ?: "done", AppColors.Green)
-                    is StepStatus.Failed -> Triple("✗", s.detail ?: "failed", AppColors.Red)
-                    StepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
+                    RefreshStepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
+                    is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running…", AppColors.Orange)
+                    is RefreshStepStatus.Done -> Triple("✓", s.detail ?: "done", AppColors.Green)
+                    is RefreshStepStatus.Failed -> Triple("✗", s.detail ?: "failed", AppColors.Red)
+                    RefreshStepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
                 }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (step.status is StepStatus.Pending) {
-                        com.ai.ui.shared.AnimatedHourglass(fontSize = 14.sp, modifier = Modifier.width(20.dp))
-                    } else {
-                        Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+                CatalogProgressRow(label = step.label, icon = icon, statusText = statusText, color = color, isPending = step.status is RefreshStepStatus.Pending)
+            }
+
+            if (state.workerRows.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Workers (per provider)", fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
+                state.workerRows.forEach { row ->
+                    val (icon, statusText, color, isPending) = when (val stage = row.stage) {
+                        WorkerStage.Pending -> WorkerStageView("⏳", "queued", AppColors.TextTertiary, true)
+                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key…", AppColors.Orange, false)
+                        WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models…", AppColors.Orange, false)
+                        WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent…", AppColors.Orange, false)
+                        WorkerStage.Done -> WorkerStageView("✓", "done", AppColors.Green, false)
+                        is WorkerStage.Failed -> WorkerStageView("✗", stage.reason.take(60).ifBlank { "failed" }, AppColors.Red, false)
                     }
-                    Text(step.label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-                    Text(statusText, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 220.dp))
+                    CatalogProgressRow(label = row.serviceId, icon = icon, statusText = statusText, color = color, isPending = isPending)
                 }
             }
-            if (overallError != null) {
+
+            if (state.overallError != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Refresh aborted", fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
-                        Text(overallError, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
+                        Text(state.overallError, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
-            // Failed-providers shortcut — appears after the Provider
-            // key tests step has run, so the user can jump straight
+            // Failed-providers shortcut so the user can jump straight
             // into AI Setup → Providers → <name> to fix the API key /
             // model / endpoint and re-test.
             if (failedProviders.isNotEmpty()) {
@@ -1215,6 +665,26 @@ private fun RefreshAllProgressScreen(
                 }
             }
         }
+    }
+}
+
+private data class WorkerStageView(val icon: String, val statusText: String, val color: Color, val isPending: Boolean)
+
+@Composable
+private fun CatalogProgressRow(label: String, icon: String, statusText: String, color: Color, isPending: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (isPending) {
+            com.ai.ui.shared.AnimatedHourglass(fontSize = 14.sp, modifier = Modifier.width(20.dp))
+        } else {
+            Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+        }
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Text(statusText, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 220.dp))
     }
 }
 

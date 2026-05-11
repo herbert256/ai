@@ -1144,6 +1144,7 @@ fun SettingsScreenNav(
     initialInternalPromptCategory: String? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val refreshAllState by viewModel.refreshAllState.collectAsState()
     SettingsScreen(
         generalSettings = uiState.generalSettings, aiSettings = uiState.aiSettings,
         loadingModelsFor = uiState.loadingModelsFor,
@@ -1158,6 +1159,9 @@ fun SettingsScreenNav(
         onProviderTestedOkNoFetch = { s, m -> viewModel.markProviderTestedOk(s, m, fetchAfter = false) },
         onReplaceDefaultAgent = { s, m -> viewModel.replaceDefaultAgent(s, m) },
         onRefreshAllModels = { settings, force, progress -> viewModel.refreshAllModelLists(settings, force, progress) },
+        refreshAllState = refreshAllState,
+        onStartRefreshAll = { viewModel.startRefreshAll() },
+        onClearRefreshAllState = { viewModel.clearRefreshAllState() },
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
         onSaveArtificialAnalysisApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(artificialAnalysisApiKey = it)) },
