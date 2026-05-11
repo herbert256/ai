@@ -80,6 +80,10 @@ internal fun ColumnScope.GenerationPhase(
     onViewReports: () -> Unit = {},
     onViewPrompt: () -> Unit = {},
     onViewCosts: () -> Unit = {},
+    /** Open the per-agent icons grid overlay. Only surfaced when
+     *  the user enabled "Generate per model icons" in Settings —
+     *  see the conditional render of the View → Icons button. */
+    onViewIcons: () -> Unit = {},
     /** Direct sub-actions for the Edit row. */
     onEditTitle: () -> Unit = {},
     onEditPromptInline: () -> Unit = {},
@@ -334,6 +338,13 @@ internal fun ColumnScope.GenerationPhase(
                 CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
                 CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
                 CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
+                // Icons grid — only surfaced when the user enabled the
+                // per-agent icon chain in Settings. The chain populates
+                // each agent.icon; the overlay just renders them in a
+                // big font. With the toggle off there's nothing to show.
+                if (uiState.generalSettings.perModelIconGenEnabled) {
+                    CompactButton(onClick = { close(); onViewIcons() }, color = viewColor, text = "Icons")
+                }
                 // Conditional per-kind buttons. Order matches the user's
                 // mental list (Meta / Rerank / Fan-out / Fan-in /
                 // Fan-in-model / Translate); FlowRow wraps as needed.

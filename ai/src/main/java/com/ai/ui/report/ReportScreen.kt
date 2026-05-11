@@ -809,6 +809,12 @@ fun ReportsScreen(
     var openTranslationRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
     var showViewer by rememberSaveable { mutableStateOf(false) }
+    // View → Icons overlay state. Surfaces a tiny screen rendering
+    // every agent's emoji (from the 3-tier per-model icon chain) at
+    // very large font. Button gated on perModelIconGenEnabled at
+    // GenerationPhase level — this state stays false when the toggle
+    // is off so the overlay can never be invoked through other paths.
+    var showIconsView by rememberSaveable { mutableStateOf(false) }
     var showIconDetail by rememberSaveable { mutableStateOf(false) }
     var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
@@ -1026,6 +1032,18 @@ fun ReportsScreen(
     }
 
     // Full-screen overlays
+    if (showIconsView && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            LocalNavigateToCurrentReport provides { showIconsView = false }
+        ) {
+            ReportIconsGridScreen(
+                reportId = currentReportId,
+                onBack = { showIconsView = false }
+            )
+        }
+        return
+    }
     if (showViewer && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
             ReportsViewerScreen(
@@ -2289,6 +2307,7 @@ fun ReportsScreen(
                 onViewCosts = {
                     selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
                 },
+                onViewIcons = { showIconsView = true },
                 onEditTitle = { showEditTitle = true },
                 onEditPromptInline = { showEditPrompt = true },
                 onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
@@ -2576,6 +2595,45 @@ private fun AgentIconDetailScreen(
                     if (hasActiveFanOut) "View alternative icons" else "Find alternative icons",
                     maxLines = 1, softWrap = false
                 )
+            }
+        }
+    }
+}
+
+/** Minimal viewer: every agent's per-model icon (populated by the
+ *  3-tier chain on [com.ai.data.ReportAgent.icon]) rendered at very
+ *  large font and nothing else. Reached from View → Icons, gated by
+ *  the perModelIconGenEnabled setting at the button level. Agents
+ *  whose chain hasn't landed (icon null/blank) are skipped — the
+ *  user only sees what actually resolved. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun ReportIconsGridScreen(reportId: String, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+    }
+    val report = reportState.value
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(helpTopic = null, title = "Icons", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        val icons = report?.agents.orEmpty().mapNotNull { it.icon?.takeIf { g -> g.isNotBlank() } }
+        Box(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                icons.forEach { glyph ->
+                    Text(
+                        glyph, fontSize = 72.sp, color = Color.White,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
             }
         }
     }
