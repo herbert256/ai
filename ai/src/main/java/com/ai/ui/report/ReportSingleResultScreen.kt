@@ -246,17 +246,25 @@ fun ReportSingleResultScreen(
         }
 
         // Previous / Next — step through every agent on this report
-        // (success and error rows alike, in stored order). Disabled at
-        // the ends. Updating currentAgentId rekeys the trace lookup
-        // and the source-agent body produceState so they re-fetch.
-        val agentIdx = report.agents.indexOfFirst { it.agentId == currentAgentId }
+        // (success and error rows alike). Ordering is by model name
+        // (case-insensitive, with provider id as a tiebreaker so two
+        // entries with the same model on different providers stay
+        // adjacent and deterministic). Updating currentAgentId rekeys
+        // the trace lookup and the source-agent body produceState so
+        // they re-fetch.
+        val orderedAgents = remember(report.agents) {
+            report.agents.sortedWith(
+                compareBy({ it.model.lowercase() }, { it.provider.lowercase() })
+            )
+        }
+        val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Button(
                 onClick = {
-                    report.agents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
+                    orderedAgents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
                 },
                 enabled = agentIdx > 0,
                 modifier = Modifier.weight(1f),
@@ -264,9 +272,9 @@ fun ReportSingleResultScreen(
             ) { Text("Previous", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
-                    report.agents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
+                    orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
                 },
-                enabled = agentIdx >= 0 && agentIdx < report.agents.size - 1,
+                enabled = agentIdx >= 0 && agentIdx < orderedAgents.size - 1,
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) { Text("Next", fontSize = 13.sp, maxLines = 1, softWrap = false) }
