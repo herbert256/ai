@@ -3,6 +3,7 @@ package com.ai.ui.admin
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -522,6 +524,30 @@ fun AppLogDetailScreen(
     }
 }
 
+/** Split an entry's header into (timestamp, levelToken, tagAndRest).
+ *  AppLog writes the line as "YYYY-MM-DD HH:MM:SS.SSS LEVEL TAG: rest"
+ *  via appendLine; this regex matches that shape, falling back to a
+ *  best-effort parse on legacy or hand-written lines. */
+private data class HeaderParts(val timestamp: String, val level: String, val tag: String, val rest: String)
+
+private fun parseHeader(header: String): HeaderParts {
+    // Fast path: AppLog's exact format. Anchored so a misshapen line
+    // (no timestamp, raw stack trace at line 0, etc.) falls through.
+    val re = Regex("""^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}) (\w+) ([^:]+): (.*)$""", RegexOption.DOT_MATCHES_ALL)
+    val m = re.matchEntire(header)
+    if (m != null) {
+        return HeaderParts(
+            timestamp = m.groupValues[1],
+            level = m.groupValues[2],
+            tag = m.groupValues[3],
+            rest = m.groupValues[4]
+        )
+    }
+    // Legacy / corrupt line: render verbatim under "rest" so nothing
+    // is lost, leave the other slots blank.
+    return HeaderParts(timestamp = "", level = "", tag = "", rest = header)
+}
+
 @Composable
 private fun AppLogEntryScreen(
     entries: List<LogEntry>,
@@ -538,6 +564,11 @@ private fun AppLogEntryScreen(
     val entry = entries[startIndex]
     val color = colorForEntry(entry.header)
     val text = entry.text
+    val parts = remember(entry.header) { parseHeader(entry.header) }
+    // Stack-trace / continuation lines: every line after the header.
+    val continuation = remember(entry) {
+        if (entry.lines.size <= 1) emptyList() else entry.lines.drop(1)
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -551,45 +582,85 @@ private fun AppLogEntryScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Box(modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)) {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                items(entry.lines.size) { i ->
-                    val line = entry.lines[i]
-                    Text(
-                        line,
-                        fontSize = 12.sp,
-                        color = if (i == 0) color else AppColors.TextTertiary,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(vertical = 1.dp)
-                    )
+        // Body: tap left half → previous entry, tap right half → next
+        // entry. detectTapGestures + verticalScroll cohabit cleanly —
+        // drags are consumed by the scroll modifier, taps fall through
+        // to the gesture detector. Disabled at the ends so the user
+        // gets visible feedback (no nav) instead of silent no-op via
+        // the page counter.
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(AppColors.CardBackground)
+                .pointerInput(hasPrev, hasNext, startIndex) {
+                    detectTapGestures { offset ->
+                        if (offset.x < size.width / 2f) {
+                            if (hasPrev) onIndexChange(startIndex - 1)
+                        } else {
+                            if (hasNext) onIndexChange(startIndex + 1)
+                        }
+                    }
+                }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Line 1: timestamp.
+                Text(
+                    parts.timestamp.ifBlank { "(no timestamp)" },
+                    fontSize = 13.sp,
+                    color = AppColors.TextTertiary,
+                    fontFamily = FontFamily.Monospace
+                )
+                // Line 2: log level + tag. Level-coloured + bold so
+                // the severity is unmissable.
+                Text(
+                    listOf(parts.level, parts.tag).filter { it.isNotBlank() }.joinToString("  "),
+                    fontSize = 14.sp,
+                    color = color,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                // Line 3: the data / message itself. SelectionContainer
+                // would be nice eventually for partial copy-paste; for
+                // now the title-bar Copy button grabs the whole entry.
+                Text(
+                    parts.rest,
+                    fontSize = 13.sp,
+                    color = Color(0xFFCCCCCC),
+                    fontFamily = FontFamily.Monospace
+                )
+                // Stack-trace continuation, if any.
+                if (continuation.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    for (line in continuation) {
+                        Text(
+                            line,
+                            fontSize = 12.sp,
+                            color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Prev/Next walks the same reverse-chronological list the
-        // parent screen displayed: < moves toward the most recent
-        // entry, > moves toward older ones. The middle text shows
-        // "n / total" so the user knows where they are.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(
-                onClick = { if (hasPrev) onIndexChange(startIndex - 1) },
-                enabled = hasPrev, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-            Text(
-                "${startIndex + 1} / $total",
-                fontSize = 12.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-            )
-            OutlinedButton(
-                onClick = { if (hasNext) onIndexChange(startIndex + 1) },
-                enabled = hasNext, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-        }
+        // Position indicator below the tap zone. Buttons would
+        // duplicate the tap zone above — keep just the counter so the
+        // user knows where they are without a second control to ignore.
+        Text(
+            "${startIndex + 1} / $total  (tap left ← prev, tap right → next)",
+            fontSize = 11.sp,
+            color = AppColors.TextTertiary,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
     }
 }
