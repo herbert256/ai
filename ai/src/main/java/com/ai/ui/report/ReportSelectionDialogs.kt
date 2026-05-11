@@ -474,7 +474,12 @@ internal fun ReportSelectFlockScreen(
     aiSettings: Settings,
     onSelectFlock: (Flock) -> Unit,
     onBack: () -> Unit,
-    onEditFlocks: () -> Unit
+    onEditFlocks: () -> Unit,
+    /** Drill into Model Info from a row inside the per-flock info
+     *  screen. Caller (ReportsScreen) forwards the screen's existing
+     *  onNavigateToModelInfo so taps land on the same Model Info
+     *  page the rest of the app uses. */
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -488,7 +493,7 @@ internal fun ReportSelectFlockScreen(
     // the info screen's back arrow / gesture.
     var infoFlock by remember { mutableStateOf<Flock?>(null) }
     infoFlock?.let { f ->
-        FlockInfoScreen(aiSettings, f) { infoFlock = null }
+        FlockInfoScreen(aiSettings, f, onNavigateToModelInfo) { infoFlock = null }
         return
     }
 
@@ -594,7 +599,11 @@ internal fun ReportSelectSwarmScreen(
     aiSettings: Settings,
     onSelectSwarm: (Swarm) -> Unit,
     onBack: () -> Unit,
-    onEditSwarms: () -> Unit
+    onEditSwarms: () -> Unit,
+    /** Drill into Model Info from a row inside the per-swarm info
+     *  screen. Same shape as the equivalent on
+     *  [ReportSelectFlockScreen]. */
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -606,7 +615,7 @@ internal fun ReportSelectSwarmScreen(
     }
     var infoSwarm by remember { mutableStateOf<Swarm?>(null) }
     infoSwarm?.let { s ->
-        SwarmInfoScreen(aiSettings, s) { infoSwarm = null }
+        SwarmInfoScreen(aiSettings, s, onNavigateToModelInfo) { infoSwarm = null }
         return
     }
 
@@ -1083,13 +1092,17 @@ private fun ModelInfoRow(
     provider: AppService,
     model: String,
     paramsLabels: List<String> = emptyList(),
-    systemPromptLabel: String? = null
+    systemPromptLabel: String? = null,
+    onClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val pricing = aiSettings.getModelPricing(provider, model)
         ?: PricingCache.getPricing(context, provider, model)
     val real = pricing.source != "DEFAULT"
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
+    val rowMod = Modifier.fillMaxWidth()
+        .let { if (onClick != null) it.clickable { onClick() } else it }
+        .padding(vertical = 8.dp, horizontal = 4.dp)
+    Column(modifier = rowMod,
         verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(provider.id, fontSize = 12.sp, color = AppColors.Blue,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1123,7 +1136,12 @@ private fun ModelInfoRow(
  *  via early-return on the local `infoSwarm` state. Lists every
  *  member with provider, model, capability badges, and cost. */
 @Composable
-private fun SwarmInfoScreen(aiSettings: Settings, swarm: Swarm, onBack: () -> Unit) {
+private fun SwarmInfoScreen(
+    aiSettings: Settings,
+    swarm: Swarm,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    onBack: () -> Unit
+) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -1140,7 +1158,10 @@ private fun SwarmInfoScreen(aiSettings: Settings, swarm: Swarm, onBack: () -> Un
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(swarm.members, key = { "${it.provider.id}|${it.model}" }) { m ->
-                    ModelInfoRow(aiSettings, m.provider, m.model)
+                    ModelInfoRow(
+                        aiSettings, m.provider, m.model,
+                        onClick = { onNavigateToModelInfo(m.provider, m.model) }
+                    )
                 }
             }
         }
@@ -1154,7 +1175,12 @@ private fun SwarmInfoScreen(aiSettings: Settings, swarm: Swarm, onBack: () -> Un
  *  so the user can tell which presets the report run will actually
  *  use after merging. */
 @Composable
-private fun FlockInfoScreen(aiSettings: Settings, flock: Flock, onBack: () -> Unit) {
+private fun FlockInfoScreen(
+    aiSettings: Settings,
+    flock: Flock,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    onBack: () -> Unit
+) {
     BackHandler { onBack() }
     val agents = aiSettings.getAgentsForFlock(flock)
     val flockParamNames = aiSettings.getParametersByIds(flock.paramsIds).map { it.name }
@@ -1196,7 +1222,10 @@ private fun FlockInfoScreen(aiSettings: Settings, flock: Flock, onBack: () -> Un
                     val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
                     val paramNames = aiSettings.getParametersByIds(agent.paramsIds).map { it.name }
                     val systemName = agent.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-                    ModelInfoRow(aiSettings, agent.provider, effectiveModel, paramNames, systemName)
+                    ModelInfoRow(
+                        aiSettings, agent.provider, effectiveModel, paramNames, systemName,
+                        onClick = { onNavigateToModelInfo(agent.provider, effectiveModel) }
+                    )
                 }
             }
         }

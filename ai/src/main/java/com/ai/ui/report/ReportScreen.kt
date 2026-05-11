@@ -918,6 +918,7 @@ fun ReportsScreen(
                 models = deduplicateModels(models + expandFlockToModels(it, aiSettings))
                 showSelectFlock = false
             },
+            onNavigateToModelInfo = onNavigateToModelInfo,
             onBack = { showSelectFlock = false },
             onEditFlocks = onNavigateToFlocksEdit
         )
@@ -942,6 +943,7 @@ fun ReportsScreen(
                 models = deduplicateModels(models + expandSwarmToModels(it, aiSettings))
                 showSelectSwarm = false
             },
+            onNavigateToModelInfo = onNavigateToModelInfo,
             onBack = { showSelectSwarm = false },
             onEditSwarms = onNavigateToSwarmsEdit
         )
