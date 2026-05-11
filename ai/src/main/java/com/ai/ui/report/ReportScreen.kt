@@ -237,6 +237,7 @@ fun ReportsScreenNav(
         onPickAlternativeIcon = { rid, emoji, iconModel ->
             reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
         },
+        onRestartIconFanOut = { rid -> reportViewModel.restartIconFanOut(rid) },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -423,6 +424,11 @@ fun ReportsScreen(
     onStartIconFanOut: (reportId: String, promptText: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
     /** Commit a picked icon from the Alternative icons screen. */
     onPickAlternativeIcon: (reportId: String, emoji: String, iconModel: String) -> Unit = { _, _, _ -> },
+    /** Cancel + drop all candidates for a report's icon fan-out. Used
+     *  by the Alternative icons screen's Restart button — the user
+     *  wants to start over. Costs already bumped on the Report by
+     *  completed calls stay; they accumulate by design. */
+    onRestartIconFanOut: (reportId: String) -> Unit = { _ -> },
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -1104,6 +1110,7 @@ fun ReportsScreen(
         val rid = currentReportId
         val candidates = iconFanOutByReport[rid].orEmpty()
         AlternativeIconsScreen(
+            reportId = rid,
             candidates = candidates,
             onPickIcon = { emoji, iconModel ->
                 onPickAlternativeIcon(rid, emoji, iconModel)
@@ -1111,6 +1118,16 @@ fun ReportsScreen(
                 showFindIconsPicker = false
                 showIconDetail = false
             },
+            onRestart = {
+                // Cancel + drop the current list and re-open the
+                // picker so the user can choose a new set of models.
+                // Costs already bumped onto the Report stay.
+                onRestartIconFanOut(rid)
+                findIconsModels = emptyList()
+                showAlternativeIcons = false
+                showFindIconsPicker = true
+            },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = { showAlternativeIcons = false }
         )
         return

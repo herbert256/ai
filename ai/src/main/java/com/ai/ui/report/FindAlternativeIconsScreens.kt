@@ -154,21 +154,16 @@ fun FindIconsSelectionScreen(
 @Composable
 fun AlternativeIconsScreen(
     candidates: List<IconCandidate>,
+    reportId: String,
     onPickIcon: (emoji: String, iconModel: String) -> Unit,
+    onRestart: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
-
-        if (candidates.isEmpty()) {
-            androidx.compose.material3.Text(
-                "Nothing here yet. Pick models on the previous screen and tap Find Icons.",
-                fontSize = 12.sp, color = AppColors.TextTertiary
-            )
-            return@Column
-        }
 
         // Stable order: by provider id, then model id — so re-renders
         // as candidates flip Running → Done/Error don't reshuffle rows.
@@ -177,9 +172,34 @@ fun AlternativeIconsScreen(
         }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ordered.forEach { candidate ->
-                CandidateRow(candidate = candidate, onPickIcon = onPickIcon)
+            if (ordered.isEmpty()) {
+                androidx.compose.material3.Text(
+                    "Nothing here yet. Pick models on the previous screen and tap Find Icons.",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
+            } else {
+                ordered.forEach { candidate ->
+                    CandidateRow(
+                        candidate = candidate,
+                        reportId = reportId,
+                        onPickIcon = onPickIcon,
+                        onNavigateToTraceFile = onNavigateToTraceFile
+                    )
+                }
             }
+        }
+
+        // Restart sits at the bottom — destructive ish (drops the
+        // current list + cancels in-flight calls) so it lives away
+        // from the per-row tap target. Costs from completed calls
+        // stay bumped on the Report by design.
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onRestart,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) {
+            androidx.compose.material3.Text("Restart", maxLines = 1, softWrap = false)
         }
     }
 }
@@ -187,17 +207,39 @@ fun AlternativeIconsScreen(
 @Composable
 private fun CandidateRow(
     candidate: IconCandidate,
-    onPickIcon: (emoji: String, iconModel: String) -> Unit
+    reportId: String,
+    onPickIcon: (emoji: String, iconModel: String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit
 ) {
-    val (label, status, clickable) = when (candidate) {
-        is IconCandidate.Running -> Triple("⏳", null, false)
-        is IconCandidate.Done -> Triple(candidate.emoji, null, true)
-        is IconCandidate.Error -> Triple("❌", candidate.reason, false)
-    }
+    val context = LocalContext.current
     val iconModel = "${candidate.provider.id}/${candidate.model}"
+    val cost = when (candidate) {
+        is IconCandidate.Done -> candidate.cost
+        is IconCandidate.Error -> candidate.cost
+        is IconCandidate.Running -> 0.0
+    }
+    // 🐞 lookup — most recent trace for this (reportId, model) pair
+    // tagged with the icon fan-out category. Only triggered when
+    // tracing is on AND the call has actually run; for Running rows
+    // we keep the slot empty so the row layout stays stable when
+    // the candidate flips to Done.
+    val tracingEnabled = com.ai.data.ApiTracer.isTracingEnabled
+    val traceFilenameState = if (!tracingEnabled || candidate is IconCandidate.Running) null
+        else androidx.compose.runtime.produceState<String?>(
+            initialValue = null, reportId, candidate.model, candidate::class
+        ) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ai.data.ApiTracer.getTraceFiles()
+                    .filter { it.reportId == reportId && it.model == candidate.model && it.category == "Report icon (alt)" }
+                    .maxByOrNull { it.timestamp }
+                    ?.filename
+            }
+        }
+    val traceFilename = traceFilenameState?.value
+    val isTappable = candidate is IconCandidate.Done
     Card(
         modifier = Modifier.fillMaxWidth().then(
-            if (clickable && candidate is IconCandidate.Done)
+            if (isTappable && candidate is IconCandidate.Done)
                 Modifier.clickable { onPickIcon(candidate.emoji, iconModel) }
             else Modifier
         ),
@@ -207,20 +249,53 @@ private fun CandidateRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            androidx.compose.material3.Text(label, fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp))
+            // Left status cell — animated ⏳ for Running, the emoji for
+            // Done, ❌ for Error. The AnimatedHourglass rotates at the
+            // same 1500 ms cadence the rest of the app uses so the
+            // visual idiom is consistent.
+            when (candidate) {
+                is IconCandidate.Running -> com.ai.ui.shared.AnimatedHourglass(
+                    fontSize = 28.sp,
+                    modifier = Modifier.padding(end = 12.dp)
+                )
+                is IconCandidate.Done -> androidx.compose.material3.Text(
+                    candidate.emoji, fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp)
+                )
+                is IconCandidate.Error -> androidx.compose.material3.Text(
+                    "❌", fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp)
+                )
+            }
             Column(modifier = Modifier.weight(1f)) {
                 androidx.compose.material3.Text(iconModel, fontSize = 13.sp, color = Color.White)
-                if (status != null) {
-                    androidx.compose.material3.Text(
-                        status, fontSize = 11.sp, color = AppColors.Red,
+                when (candidate) {
+                    is IconCandidate.Error -> androidx.compose.material3.Text(
+                        candidate.reason, fontSize = 11.sp, color = AppColors.Red,
                         maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
-                } else if (candidate is IconCandidate.Done) {
-                    androidx.compose.material3.Text(
+                    is IconCandidate.Done -> androidx.compose.material3.Text(
                         "Tap to use this icon",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
+                    is IconCandidate.Running -> { /* no subtitle while running */ }
                 }
+            }
+            // Right side — 🐞 trace icon (when tracing is on and a
+            // matching trace exists) then the per-call USD cost.
+            if (traceFilename != null) {
+                androidx.compose.material3.Text(
+                    "🐞", fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { onNavigateToTraceFile(traceFilename) }
+                        .padding(horizontal = 6.dp)
+                )
+            }
+            if (cost > 0.0) {
+                androidx.compose.material3.Text(
+                    "${com.ai.ui.shared.formatCents(cost)} ¢",
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = AppColors.TextTertiary
+                )
             }
         }
     }

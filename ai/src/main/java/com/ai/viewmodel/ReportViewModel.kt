@@ -423,11 +423,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputCost = inC, outputCost = outC
                                         )
                                     }
+                                    val totalCost = inC + outC
                                     if (response.error == null && emoji.isNotEmpty()) {
                                         appViewModel.updateIconFanOut(reportId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
-                                                    IconCandidate.Done(item.provider, item.model, emoji)
+                                                    IconCandidate.Done(item.provider, item.model, emoji, totalCost)
                                                 else c
                                             }
                                         }
@@ -435,7 +436,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         appViewModel.updateIconFanOut(reportId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
-                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "empty response")
+                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "empty response", totalCost)
                                                 else c
                                             }
                                         }
@@ -444,7 +445,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     appViewModel.updateIconFanOut(reportId) { list ->
                                         list.map { c ->
                                             if (c.provider.id == item.provider.id && c.model == item.model)
-                                                IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed")
+                                                IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed", 0.0)
                                             else c
                                         }
                                     }
@@ -458,6 +459,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         }
         registerIconFanOutJob(reportId, outer)
+    }
+
+    /** Cancel any in-flight "Find alternative icons" fan-out for
+     *  [reportId] and drop every candidate from the in-memory map.
+     *  Costs already bumped on the Report by completed pair calls
+     *  stay — additive cost bookkeeping is the whole point. Wired
+     *  to the Restart button on the Alternative icons screen so the
+     *  user can wipe the list and re-open the picker with a fresh
+     *  model selection without losing what they've already paid for. */
+    fun restartIconFanOut(reportId: String) {
+        iconFanOutJobs.remove(reportId)?.cancel()
+        appViewModel.clearIconFanOut(reportId)
     }
 
     /** Commit a user-picked icon from the "Alternative icons" list:

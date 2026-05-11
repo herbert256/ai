@@ -349,8 +349,13 @@ sealed interface IconCandidate {
     val provider: com.ai.data.AppService
     val model: String
     data class Running(override val provider: com.ai.data.AppService, override val model: String) : IconCandidate
-    data class Done(override val provider: com.ai.data.AppService, override val model: String, val emoji: String) : IconCandidate
-    data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String) : IconCandidate
+    /** Done / Error carry the per-call USD cost (input + output)
+     *  computed against the (provider, model) pricing tier at write
+     *  time — same value the report's icon-cost field was bumped by
+     *  for this call. Surfaces on the Alternative icons row so the
+     *  user can see what each candidate cost. */
+    data class Done(override val provider: com.ai.data.AppService, override val model: String, val emoji: String, val cost: Double = 0.0) : IconCandidate
+    data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : IconCandidate
 }
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
