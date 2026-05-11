@@ -465,7 +465,10 @@ internal fun ReportSelectModelsScreen(
 /** Full-screen flock picker. Replaces the popup ReportSelectFlockDialog
  *  with more breathing room: each row shows the flock name, the
  *  per-flock cost estimate (sum across active agents), the number of
- *  active vs total members, and the comma-joined agent names. */
+ *  active vs total members, and the comma-joined agent names. Each
+ *  row also carries an ℹ icon that pops a per-flock detail screen
+ *  listing every agent with its provider, model, capabilities, cost,
+ *  and configured system-prompt / parameters presets. */
 @Composable
 internal fun ReportSelectFlockScreen(
     aiSettings: Settings,
@@ -480,6 +483,13 @@ internal fun ReportSelectFlockScreen(
     val filtered = remember(all, search) {
         if (search.isBlank()) all
         else all.filter { it.name.lowercase(java.util.Locale.ROOT).contains(search.lowercase(java.util.Locale.ROOT)) }
+    }
+    // Set when the user taps the ℹ icon on a flock row; cleared on
+    // the info screen's back arrow / gesture.
+    var infoFlock by remember { mutableStateOf<Flock?>(null) }
+    infoFlock?.let { f ->
+        FlockInfoScreen(aiSettings, f) { infoFlock = null }
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -521,31 +531,44 @@ internal fun ReportSelectFlockScreen(
                     val countLabel = if (active.size != allAgents.size)
                         "${active.size}/${allAgents.size} agents"
                     else "${allAgents.size} agents"
-                    Column(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelectFlock(flock) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                flock.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
-                                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
-                                modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
-                            )
-                        }
-                        Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
-                        if (allAgents.isNotEmpty()) {
-                            Text(
-                                allAgents.joinToString(", ") { it.name },
-                                fontSize = 11.sp, color = AppColors.TextDim,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
+                        // ℹ icon: stays separate from the row's main
+                        // tap target so the user can preview members
+                        // without accidentally adding the flock.
+                        Text(
+                            "ℹ", fontSize = 18.sp, color = AppColors.Blue,
+                            modifier = Modifier
+                                .clickable { infoFlock = flock }
+                                .padding(end = 12.dp, start = 2.dp)
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f).clickable { onSelectFlock(flock) },
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    flock.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                    color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                    modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                                )
+                            }
+                            Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
+                            if (allAgents.isNotEmpty()) {
+                                Text(
+                                    allAgents.joinToString(", ") { it.name },
+                                    fontSize = 11.sp, color = AppColors.TextDim,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -563,7 +586,9 @@ internal fun ReportSelectFlockScreen(
 
 /** Full-screen swarm picker. Mirror of ReportSelectFlockScreen — shows
  *  member count, cost estimate, and the comma-joined provider/model
- *  list for context. */
+ *  list for context. Each row carries an ℹ icon that pops a per-swarm
+ *  detail screen listing every member with provider, model,
+ *  capabilities, and cost. */
 @Composable
 internal fun ReportSelectSwarmScreen(
     aiSettings: Settings,
@@ -578,6 +603,11 @@ internal fun ReportSelectSwarmScreen(
     val filtered = remember(all, search) {
         if (search.isBlank()) all
         else all.filter { it.name.lowercase(java.util.Locale.ROOT).contains(search.lowercase(java.util.Locale.ROOT)) }
+    }
+    var infoSwarm by remember { mutableStateOf<Swarm?>(null) }
+    infoSwarm?.let { s ->
+        SwarmInfoScreen(aiSettings, s) { infoSwarm = null }
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -618,31 +648,41 @@ internal fun ReportSelectSwarmScreen(
                     val countLabel = if (activeMembers.size != swarm.members.size)
                         "${activeMembers.size}/${swarm.members.size} members"
                     else "${swarm.members.size} members"
-                    Column(
-                        modifier = Modifier.fillMaxWidth().clickable { onSelectSwarm(swarm) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                swarm.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
-                                fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
-                                modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
-                            )
-                        }
-                        Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
-                        if (swarm.members.isNotEmpty()) {
-                            Text(
-                                swarm.members.joinToString(", ") { "${it.provider.id}/${it.model}" },
-                                fontSize = 11.sp, color = AppColors.TextDim,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
+                        Text(
+                            "ℹ", fontSize = 18.sp, color = AppColors.Blue,
+                            modifier = Modifier
+                                .clickable { infoSwarm = swarm }
+                                .padding(end = 12.dp, start = 2.dp)
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f).clickable { onSelectSwarm(swarm) },
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    swarm.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                    color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                    modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
+                                )
+                            }
+                            Text(countLabel, fontSize = 12.sp, color = AppColors.TextTertiary)
+                            if (swarm.members.isNotEmpty()) {
+                                Text(
+                                    swarm.members.joinToString(", ") { "${it.provider.id}/${it.model}" },
+                                    fontSize = 11.sp, color = AppColors.TextDim,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -1026,6 +1066,137 @@ internal fun ReportSelectFromReportScreen(
                             modifier = Modifier.padding(start = 8.dp))
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
+            }
+        }
+    }
+}
+
+/** Single row of the Swarm / Flock info screens. Renders provider id,
+ *  model id, capability badges (vision / web search / reasoning), and
+ *  the per-million-token price pair on the right. Flock rows also pass
+ *  the configured params / system-prompt preset names, which surface
+ *  as dim lines below the model row when present. */
+@Composable
+private fun ModelInfoRow(
+    aiSettings: Settings,
+    provider: AppService,
+    model: String,
+    paramsLabels: List<String> = emptyList(),
+    systemPromptLabel: String? = null
+) {
+    val context = LocalContext.current
+    val pricing = aiSettings.getModelPricing(provider, model)
+        ?: PricingCache.getPricing(context, provider, model)
+    val real = pricing.source != "DEFAULT"
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(provider.id, fontSize = 12.sp, color = AppColors.Blue,
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(model, fontSize = 13.sp, color = Color.White,
+                modifier = Modifier.weight(1f),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
+            com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
+            Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}",
+                fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+        }
+        if (paramsLabels.isNotEmpty()) {
+            Text("Parameters: ${paramsLabels.joinToString(", ")}",
+                fontSize = 11.sp, color = AppColors.TextDim,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (systemPromptLabel != null) {
+            Text("System prompt: $systemPromptLabel",
+                fontSize = 11.sp, color = AppColors.TextDim,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+}
+
+/** Detail screen for a single swarm. Pops over [ReportSelectSwarmScreen]
+ *  via early-return on the local `infoSwarm` state. Lists every
+ *  member with provider, model, capability badges, and cost. */
+@Composable
+private fun SwarmInfoScreen(aiSettings: Settings, swarm: Swarm, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "report_pick_swarm",
+            title = "Swarm",
+            subject = swarm.name,
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        if (swarm.members.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No members", color = AppColors.TextTertiary, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(swarm.members, key = { "${it.provider.id}|${it.model}" }) { m ->
+                    ModelInfoRow(aiSettings, m.provider, m.model)
+                }
+            }
+        }
+    }
+}
+
+/** Detail screen for a single flock. Lists every agent with provider,
+ *  model, capability badges, cost, and the configured params /
+ *  system-prompt preset names. Flock-level overrides (presets pinned
+ *  on the flock itself rather than the agent) surface once at the top
+ *  so the user can tell which presets the report run will actually
+ *  use after merging. */
+@Composable
+private fun FlockInfoScreen(aiSettings: Settings, flock: Flock, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val agents = aiSettings.getAgentsForFlock(flock)
+    val flockParamNames = aiSettings.getParametersByIds(flock.paramsIds).map { it.name }
+    val flockSystemPromptName = flock.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "report_pick_flock",
+            title = "Flock",
+            subject = flock.name,
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        if (flockParamNames.isNotEmpty() || flockSystemPromptName != null) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Flock overrides", fontSize = 11.sp, color = AppColors.TextTertiary,
+                    fontWeight = FontWeight.Bold)
+                if (flockParamNames.isNotEmpty()) {
+                    Text("Parameters: ${flockParamNames.joinToString(", ")}",
+                        fontSize = 11.sp, color = AppColors.TextDim,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (flockSystemPromptName != null) {
+                    Text("System prompt: $flockSystemPromptName",
+                        fontSize = 11.sp, color = AppColors.TextDim,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp,
+                modifier = Modifier.padding(bottom = 8.dp))
+        }
+        if (agents.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No agents", color = AppColors.TextTertiary, fontSize = 13.sp)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(agents, key = { it.id }) { agent ->
+                    val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
+                    val paramNames = aiSettings.getParametersByIds(agent.paramsIds).map { it.name }
+                    val systemName = agent.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
+                    ModelInfoRow(aiSettings, agent.provider, effectiveModel, paramNames, systemName)
                 }
             }
         }
