@@ -309,12 +309,15 @@ fun AppLogDetailScreen(
     // Search: free-text substring match across the entire entry
     // (header + continuation lines). Case-insensitive.
     var searchQuery by remember(currentFilename) { mutableStateOf("") }
-    // Levels: every level enabled by default. Tapping a chip toggles
-    // it. Headers without a recognised level token (legacy /
-    // pre-AppLog) are kept visible — the user can't filter them out
-    // explicitly, but a search query still narrows them.
+    // Levels: only WARN + ERROR enabled by default — the log file is
+    // most useful for triage of failures, so the initial view shows
+    // the failure surface first and the user can opt into INFO /
+    // DEBUG / TRACE to dig further. Headers without a recognised
+    // level token (legacy / pre-AppLog) are kept visible — the user
+    // can't filter them out explicitly, but a search query still
+    // narrows them.
     var enabledLevels by remember(currentFilename) {
-        mutableStateOf(setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR))
+        mutableStateOf(setOf(LogLevel.WARN, LogLevel.ERROR))
     }
     // Time range — strings so partial / blank inputs don't fight the
     // user mid-keystroke. Parsed via normaliseTimeFilter; an
@@ -474,25 +477,22 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Time range — HH:mm or HH:mm:ss within this log file's day.
-        // Blank / unparseable = no constraint, so a partial mid-edit
-        // doesn't blank the list.
+        // Time range — Material3 clock pickers. Tap a button to open
+        // the dialog; the displayed value is "HH:mm" or "(any)" when
+        // no constraint is set. Each dialog also has a Clear button
+        // to drop the filter without typing.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
+            TimeFilterButton(
+                label = "Start",
                 value = startTimeText,
-                onValueChange = { startTimeText = it.filter { ch -> ch.isDigit() || ch == ':' } },
-                label = { Text("Start HH:mm", fontSize = 11.sp) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedFieldColors()
+                onChange = { startTimeText = it },
+                modifier = Modifier.weight(1f)
             )
-            OutlinedTextField(
+            TimeFilterButton(
+                label = "End",
                 value = endTimeText,
-                onValueChange = { endTimeText = it.filter { ch -> ch.isDigit() || ch == ':' } },
-                label = { Text("End HH:mm", fontSize = 11.sp) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedFieldColors()
+                onChange = { endTimeText = it },
+                modifier = Modifier.weight(1f)
             )
         }
 
@@ -563,6 +563,71 @@ fun AppLogDetailScreen(
                 colors = AppColors.outlinedButtonColors()
             ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
+    }
+}
+
+/** Tap-to-open clock-style time picker used for the Start / End
+ *  filter on the log file viewer. The on-screen button shows the
+ *  current HH:mm or "(any)" when unset; tapping opens a Material 3
+ *  TimePicker inside a dialog. The dialog has an explicit Clear
+ *  button so the user can drop the filter without typing — much
+ *  more usable than the text field this replaces, which forced
+ *  thumb-typed digits + colons.
+ *
+ *  Two-way state: [value] is the canonical HH:mm string the rest of
+ *  the screen filters by (empty = no constraint). [onChange] writes
+ *  back, called with empty on Clear and "HH:mm" on OK. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeFilterButton(
+    label: String,
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var open by remember { mutableStateOf(false) }
+    val displayValue = value.takeIf { it.isNotBlank() } ?: "(any)"
+    OutlinedButton(
+        onClick = { open = true },
+        modifier = modifier,
+        colors = AppColors.outlinedButtonColors(),
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Text("$label: $displayValue", fontSize = 11.sp,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("⏱", fontSize = 11.sp, color = AppColors.TextTertiary)
+    }
+    if (open) {
+        // Seed the picker with the current value when set, otherwise
+        // start at 00:00. Parsing is lenient — anything we can't read
+        // falls through to 00:00.
+        val seedParts = if (value.isNotBlank()) value.split(":") else emptyList()
+        val seedHour = seedParts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 0
+        val seedMinute = seedParts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+        val state = rememberTimePickerState(initialHour = seedHour, initialMinute = seedMinute, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text("$label time") },
+            text = { TimePicker(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val hh = state.hour.toString().padStart(2, '0')
+                    val mm = state.minute.toString().padStart(2, '0')
+                    onChange("$hh:$mm")
+                    open = false
+                }) { Text("OK", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { onChange(""); open = false }) {
+                        Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(onClick = { open = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        )
     }
 }
 
