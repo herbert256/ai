@@ -1032,17 +1032,20 @@ fun ReportsScreen(
     }
 
     // Full-screen overlays
-    if (showIconsView && currentReportId != null) {
+    // Grid render is gated on singleResultAgentId == null so a tap on
+    // an icon (which sets singleResultAgentId without clearing
+    // showIconsView) falls through to the Model response overlay
+    // below. Back from Model response clears singleResultAgentId and
+    // the grid re-renders — Android back lands on the grid instead of
+    // popping all the way out to the result screen.
+    if (showIconsView && singleResultAgentId == null && currentReportId != null) {
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             LocalNavigateToCurrentReport provides { showIconsView = false }
         ) {
             ReportIconsGridScreen(
                 reportId = currentReportId,
-                onOpenAgent = { agentId ->
-                    showIconsView = false
-                    singleResultAgentId = agentId
-                },
+                onOpenAgent = { agentId -> singleResultAgentId = agentId },
                 onBack = { showIconsView = false }
             )
         }
