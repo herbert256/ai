@@ -60,6 +60,18 @@ import java.util.zip.ZipOutputStream
 object BackupManager {
 
     private const val MANIFEST_VERSION = 1
+
+    /** Per-entry uncompressed cap during restore. Embeddings-heavy
+     *  knowledge-base files are the realistic worst case; 256 MB is
+     *  well above a fully populated KB but bails before a single
+     *  oversized entry can blow the heap. */
+    private const val MAX_RESTORE_ENTRY_BYTES: Long = 256L * 1024L * 1024L
+
+    /** Total uncompressed cap across all kept entries. Backups are
+     *  typically 10–50 MB; 1 GB is generous enough for users with a
+     *  large RAG corpus and tight enough to refuse a zip bomb. */
+    private const val MAX_RESTORE_TOTAL_BYTES: Long = 1024L * 1024L * 1024L
+
     private const val MAIN_PREFS = SettingsPreferences.PREFS_NAME
     private const val PROVIDER_REGISTRY_PREFS = "provider_registry"
     /** Cached pricing tables (OpenRouter + LiteLLM downloads + manual overrides).
@@ -242,9 +254,17 @@ object BackupManager {
      *  clearFilesDirForRestore step in [restore]. Memory cost: full
      *  uncompressed payload — acceptable since backups are typically
      *  10–50 MB and the device already had to load that much during
-     *  the SAF copy into the temp file. */
+     *  the SAF copy into the temp file.
+     *
+     *  A maliciously-crafted or just unusually-large backup could
+     *  otherwise OOM the app. Enforce a per-entry and total
+     *  uncompressed cap — generous enough for real backups (an
+     *  embeddings-heavy KB can be tens of MB), tight enough to
+     *  bail before the heap blows. Cap is enforced during the read
+     *  by counting bytes against a cumulative budget. */
     private fun readAllEntriesValidated(context: Context, zipFile: File): Map<String, ByteArray> {
         val out = LinkedHashMap<String, ByteArray>()
+        var totalBytes = 0L
         ZipInputStream(zipFile.inputStream()).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
@@ -285,11 +305,39 @@ object BackupManager {
                         zip.closeEntry(); continue
                     }
                 }
-                out[name] = zip.readBytes()
+                val remaining = MAX_RESTORE_TOTAL_BYTES - totalBytes
+                val capped = readBytesCapped(zip, MAX_RESTORE_ENTRY_BYTES, remaining, name)
+                totalBytes += capped.size
+                out[name] = capped
                 zip.closeEntry()
             }
         }
         return out
+    }
+
+    /** Read up to [perEntryCap] bytes (or [remainingTotal], whichever
+     *  is lower) from [zip] for the current entry. Throws if the entry
+     *  exceeds either cap, so the destructive clearFilesDirForRestore
+     *  step never runs against an oversized payload. */
+    private fun readBytesCapped(zip: ZipInputStream, perEntryCap: Long, remainingTotal: Long, name: String): ByteArray {
+        val cap = minOf(perEntryCap, remainingTotal)
+        if (cap <= 0L) throw IllegalStateException(
+            "Backup exceeds total cap (${MAX_RESTORE_TOTAL_BYTES / (1024L * 1024L)} MB) at entry $name")
+        val buf = java.io.ByteArrayOutputStream()
+        val chunk = ByteArray(64 * 1024)
+        var total = 0L
+        while (true) {
+            val n = zip.read(chunk)
+            if (n < 0) break
+            total += n
+            if (total > cap) {
+                throw IllegalStateException(
+                    "Backup entry $name exceeds cap " +
+                        "(${if (cap == perEntryCap) "per-entry" else "remaining total"} = $cap bytes)")
+            }
+            buf.write(chunk, 0, n)
+        }
+        return buf.toByteArray()
     }
 
     /** Write [bytes] to [target] and fsync the file descriptor before
