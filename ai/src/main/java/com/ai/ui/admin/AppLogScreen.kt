@@ -394,12 +394,14 @@ fun AppLogDetailScreen(
     }
 
     // Copy / Share use the same "how much to include" dialog —
-    // last N lines from the file, or the whole file. The actor is
-    // stored alongside so the OK branch knows whether to copy to
-    // clipboard or fire the share sheet.
+    // last N lines from the file, the whole file, or only what's
+    // currently visible under the active on-screen filters. The
+    // actor is stored alongside so the OK branch knows whether to
+    // copy to clipboard or fire the share sheet.
     var shareAction by remember { mutableStateOf<ShareAction?>(null) }
     var shareLinesText by remember { mutableStateOf("1000") }
     var shareEntireLog by remember { mutableStateOf(false) }
+    var shareFilteredOnly by remember { mutableStateOf(false) }
 
     val sa = shareAction
     if (sa != null) {
@@ -409,7 +411,7 @@ fun AppLogDetailScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Take only the most recent activity — the tail of the file — or the whole log.",
+                        "Pick how much to include. Filtered only honours the current search / level / tag / time filters; the others ignore the on-screen filter and read straight from the file.",
                         fontSize = 12.sp, color = AppColors.TextTertiary
                     )
                     OutlinedTextField(
@@ -417,22 +419,58 @@ fun AppLogDetailScreen(
                         onValueChange = { shareLinesText = it.filter { ch -> ch.isDigit() }.take(7) },
                         label = { Text("Number of last lines") },
                         singleLine = true,
-                        enabled = !shareEntireLog,
+                        enabled = !shareEntireLog && !shareFilteredOnly,
                         modifier = Modifier.fillMaxWidth(),
                         colors = AppColors.outlinedFieldColors()
                     )
+                    // Two checkboxes, mutually exclusive — ticking
+                    // either unticks the other so the user can't
+                    // pick a nonsensical "filtered AND complete"
+                    // pair. Either checkbox disables the line-count
+                    // field above.
                     Row(
-                        modifier = Modifier.fillMaxWidth().clickable { shareEntireLog = !shareEntireLog },
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            val next = !shareFilteredOnly
+                            shareFilteredOnly = next
+                            if (next) shareEntireLog = false
+                        },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Checkbox(checked = shareEntireLog, onCheckedChange = { shareEntireLog = it })
+                        Checkbox(
+                            checked = shareFilteredOnly,
+                            onCheckedChange = { v ->
+                                shareFilteredOnly = v
+                                if (v) shareEntireLog = false
+                            }
+                        )
+                        Text("Filtered only (${entries.size} entries)", fontSize = 13.sp, color = Color.White)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            val next = !shareEntireLog
+                            shareEntireLog = next
+                            if (next) shareFilteredOnly = false
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = shareEntireLog,
+                            onCheckedChange = { v ->
+                                shareEntireLog = v
+                                if (v) shareFilteredOnly = false
+                            }
+                        )
                         Text("Complete log", fontSize = 13.sp, color = Color.White)
                     }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    val payload = if (shareEntireLog) content else tailLines(content, shareLinesText.toIntOrNull()?.coerceAtLeast(1) ?: 1000)
+                    val payload = when {
+                        shareFilteredOnly -> entries.asReversed().joinToString("\n") { it.text }
+                        shareEntireLog -> content
+                        else -> tailLines(content, shareLinesText.toIntOrNull()?.coerceAtLeast(1) ?: 1000)
+                    }
                     when (sa) {
                         ShareAction.COPY -> copyToClipboard(context, payload, "log")
                         ShareAction.SHARE -> shareText(context, payload, currentFilename)
