@@ -64,6 +64,15 @@ class AnalysisRepository {
         internal const val RETRY_DELAY_MS = 500L
         internal const val TEST_PROMPT = "Reply with exactly: OK"
         internal const val XAI_COST_TICKS_DIVISOR = 10_000_000_000.0
+
+        /** Set of 4xx codes that withRetry treats as deterministic
+         *  client errors — a retry just burns another call + tokens.
+         *  408 (Request Timeout), 425 (Too Early), and 429 (Too Many
+         *  Requests) are NOT in the set: they're transient and the
+         *  outer retry is the user's only safety net once the
+         *  in-OkHttp 429 loop has exhausted itself. */
+        internal val PERMANENT_CLIENT_ERROR_CODES: Set<Int> =
+            (400..499).toSet() - setOf(408, 425, 429)
     }
 
     internal val gson = createAppGson(prettyPrint = true)
@@ -267,7 +276,7 @@ class AnalysisRepository {
             label = "Agent ${agent.name}",
             makeCall = { makeApiCall() },
             isSuccess = { it.isSuccess },
-            isPermanentFailure = { it.httpStatusCode in 400..499 },
+            isPermanentFailure = { it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
             errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
         )
     }
@@ -292,7 +301,7 @@ class AnalysisRepository {
             label = "Agent ${agent.name} player",
             makeCall = { makeApiCall() },
             isSuccess = { it.isSuccess },
-            isPermanentFailure = { it.httpStatusCode in 400..499 },
+            isPermanentFailure = { it.httpStatusCode in PERMANENT_CLIENT_ERROR_CODES },
             errorResult = { e -> AnalysisResponse(agent.provider, null, "Network error after retry: ${e.message}", agentName = agent.name) }
         )
     }
