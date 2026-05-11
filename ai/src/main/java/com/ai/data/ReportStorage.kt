@@ -568,7 +568,12 @@ object ReportStorage {
                 // at the default false: a copy shouldn't inherit pin
                 // status, that's a fresh user choice on the new entry.
                 knowledgeBaseIds = src.knowledgeBaseIds,
-                costsFromDeletedItems = src.costsFromDeletedItems
+                // No history of deletions on the brand-new copy — the
+                // running tally on the source reflected rows the user
+                // had trimmed from THAT report. Starting it at 0 lets
+                // the user trim the copy and have its tally reflect
+                // only what they deleted there.
+                costsFromDeletedItems = 0.0
             )
             // Mirror the icon + its error from the source. The copy
             // makes no new API call, so without this the copy sits
