@@ -16,7 +16,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.PricingCache
-import com.ai.data.ProviderRegistry
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -70,7 +69,7 @@ fun SetupScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS_SETUP) })
+                onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
             SetupNavCard("\uD83E\uDDE0", "Models", "Models, types, and manual overrides", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SETUP) })
             run {
@@ -327,86 +326,6 @@ private fun ModelsSetupNavCard(icon: String, title: String, description: String,
     }
 }
 
-// ===== Providers Setup hub =====
-
-/** Sub-hub under AI Setup that groups the three provider-related
- *  entry points: Provider configuration (the per-provider list /
- *  edit screen), Provider administration (the catalog admin), and
- *  the on-demand `assets/providers.json` import. */
-@Composable
-fun ProvidersSetupScreen(
-    onBack: () -> Unit,
-    onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit,
-    onNavigateToProviderAdmin: () -> Unit
-) {
-    BackHandler { onBack() }
-    val context = LocalContext.current
-    var refreshTick by remember { mutableStateOf(0) }
-    var importStatus by remember { mutableStateOf<String?>(null) }
-    var showRestartConfirm by remember { mutableStateOf(false) }
-    val providerCount = remember(refreshTick) { AppService.entries.size }
-
-    if (showRestartConfirm) {
-        AlertDialog(
-            onDismissRequest = { showRestartConfirm = false },
-            title = { Text("Restart from assets/providers.json?") },
-            text = {
-                Text(
-                    "This DROPS every provider definition currently in the registry " +
-                        "(including any hand-edited fields) and reloads the bundled " +
-                        "assets/providers.json verbatim. Per-provider API keys, model " +
-                        "lists and agents are stored separately and will survive."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val n = ProviderRegistry.restartFromAsset(context)
-                    importStatus = if (n >= 0) "Reloaded $n providers from asset." else "Asset reload failed — registry is empty."
-                    showRestartConfirm = false
-                    refreshTick++
-                }) { Text("Restart", color = AppColors.Red) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestartConfirm = false }) { Text("Cancel") }
-            }
-        )
-    }
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
-    ) {
-        TitleBar(helpTopic = "setup_providers", title = "Providers", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("⚙️", "Provider configuration", "API key, state, and default model per provider", "$providerCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
-            ModelsSetupNavCard("🛠️", "Provider administration", "Catalog admin: rename, redirect, deactivate", "",
-                onClick = onNavigateToProviderAdmin)
-            ModelsSetupNavCard("📥", "Import new providers from assets/providers.json",
-                "Adds any provider in the bundled catalog that isn't yet registered", "",
-                onClick = {
-                    val added = com.ai.data.ProviderRegistry.importFromAsset(context)
-                    importStatus = when {
-                        added < 0 -> "Could not read assets/providers.json"
-                        added == 0 -> "No new providers in assets/providers.json"
-                        added == 1 -> "Added 1 new provider"
-                        else -> "Added $added new providers"
-                    }
-                    if (added > 0) refreshTick++
-                })
-            ModelsSetupNavCard("♻️", "Restart again from assets/providers.json",
-                "Drops every provider in the registry and reloads the bundled JSON verbatim. " +
-                    "API keys, model lists and agents are kept.",
-                "",
-                onClick = { showRestartConfirm = true })
-            importStatus?.let {
-                Text(it, fontSize = 12.sp, color = AppColors.TextTertiary)
-            }
-        }
-    }
-}
-
 // ===== Providers List =====
 
 @Composable
@@ -423,6 +342,7 @@ fun ProvidersScreen(
     scrollState: androidx.compose.foundation.ScrollState = androidx.compose.foundation.rememberScrollState()
 ) {
     BackHandler { onBackToAiSetup() }
+    val context = LocalContext.current
     val allProviders = AppService.entries
 
     // Sort by state bucket (ok → error → inactive → other), then by id
@@ -468,10 +388,10 @@ fun ProvidersScreen(
                     colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
                             Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                             if (state == "ok") {
                                 val model = aiSettings.getModel(provider)
@@ -479,6 +399,16 @@ fun ProvidersScreen(
                             }
                         }
                         Text(stateEmoji, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
+                        IconButton(
+                            onClick = { openProviderAdminUrl(context, provider) },
+                            enabled = provider.adminUrl.isNotBlank()
+                        ) {
+                            Text(
+                                "🛠️",
+                                fontSize = 18.sp,
+                                modifier = if (provider.adminUrl.isNotBlank()) Modifier else Modifier.alpha(0.3f)
+                            )
+                        }
                     }
                 }
             }
@@ -493,6 +423,31 @@ fun ProvidersScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
+    }
+}
+
+/** Open the per-provider admin / signup web console. Mirrors the
+ *  guard from the former ProviderAdminScreen: empty adminUrl falls
+ *  back to a toast (also reflected by the disabled icon state on the
+ *  list row), and non-http(s) schemes are refused so a user-imported
+ *  provider entry can't smuggle in a javascript: or intent: URL via
+ *  an unguarded ACTION_VIEW. */
+private fun openProviderAdminUrl(context: android.content.Context, provider: AppService) {
+    val url = provider.adminUrl
+    if (url.isBlank()) {
+        android.widget.Toast.makeText(context, "No admin URL configured for ${provider.id}", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = runCatching { android.net.Uri.parse(url) }.getOrNull()
+    val scheme = uri?.scheme?.lowercase()
+    if (scheme != "http" && scheme != "https") {
+        android.widget.Toast.makeText(context, "Refusing non-http(s) admin URL: $scheme", android.widget.Toast.LENGTH_SHORT).show()
+        return
+    }
+    try {
+        context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Couldn't open: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
     }
 }
 

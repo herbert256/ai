@@ -46,7 +46,6 @@ object NavRoutes {
     const val AI_REFRESH = "ai_refresh"
     const val AI_APPLOG_LIST = "ai_applog_list"
     const val AI_APPLOG_DETAIL = "ai_applog_detail/{filename}"
-    const val AI_PROVIDER_ADMIN = "ai_provider_admin"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
     const val AI_CHAT_WITH_AGENT = "ai_chat_with_agent/{agentId}"

@@ -1311,9 +1311,9 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "List of every registered provider (42 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
-            HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen."),
+            HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
             HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped; \"Local\" reserved). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
-            HelpCard("Related", "Provider configuration card on AI Setup → Providers also leads here. ProviderAdminScreen is the deep-link to each provider's web console.")
+            HelpCard("Related", "AI Setup → Providers leads straight here. The 🛠️ admin icon on each row is the per-provider deep-link to its web console.")
         )
     ),
     "provider_edit" to HelpContent(
@@ -1493,19 +1493,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "AppService.LOCAL is synthetic — not in ProviderRegistry, only reachable via findById(\"LOCAL\"). Once you have at least one .task installed, Local appears as a normal provider in every picker."),
             HelpCard("Pitfalls", "Empty / corrupt extractions are detected (target.length() == 0L) and the partial file is deleted; the toast says \"Could not import model\". Backup excludes local_llms/."),
             HelpCard("Related", "Local LLM dispatch routes to LocalLlm.generate instead of Retrofit — no network, no cost, but token speed is bound by your device.")
-        )
-    ),
-    "setup_providers" to HelpContent(
-        title = "Providers (setup)",
-        cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Three cards: per-provider configuration list, the catalog admin (web consoles), and a one-shot import of bundled providers from assets/providers.json."),
-            HelpCard("Provider configuration", "Drills into the Providers list — set keys, default models, parameters, and edit catalog definitions per provider."),
-            HelpCard("Provider administration", "Opens ProviderAdminScreen — one row per provider with state emoji and a deep-link to its admin / signup web URL."),
-            HelpCard("Import new providers from assets/providers.json", "Tapping calls ProviderRegistry.importFromAsset(context). Adds providers in the bundle that aren't yet registered. Status text underneath reports how many were added (or that no new ones were found)."),
-            HelpCard("Refresh tick", "providerCount is keyed on a refreshTick that increments after a successful import — so the count badge above updates immediately."),
-            HelpCard("Tips", "If you've forked or extended the bundle, this is the cheap way to add new entries without touching settings.json."),
-            HelpCard("Pitfalls", "Existing providers with the same id are NOT overwritten by this card — use Export / Import → providers.json with upsertFromJson for that."),
-            HelpCard("Related", "Provider edit's Definition cards modify already-registered entries in place.")
         )
     ),
     "setup_models" to HelpContent(
@@ -1735,18 +1722,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Trace Detail → Edit jumps here pre-populated with the trace's request — fast \"replay with tweaks\" loop.")
         )
     ),
-    "provider_admin" to HelpContent(
-        title = "Provider administration",
-        cards = listOf(
-            HelpCard("Overview", "One row per provider showing state plus its configured Admin URL. Tap a row to open the URL in the system browser — useful for sign-up, top-up, key rotation, or usage check."),
-            HelpCard("Sort order", "ok first, then error, then not-used, then inactive. Within each bucket alphabetical by display name. Counts every registered provider, not just active ones."),
-            HelpCard("Per-row card", "Display name in white + state emoji on the right (🔑 ok / ❌ error / 💤 inactive / ⭕ not-used / unknown for anything else). Admin URL line beneath in blue underlined monospace, or \"(no admin URL configured)\" when blank."),
-            HelpCard("Tap behavior", "Fires Intent.ACTION_VIEW with the URL. Toast on missing URL or browser-launch exception."),
-            HelpCard("Tips", "Reached from AI Setup → Providers → Provider administration."),
-            HelpCard("Pitfalls", "Admin URL is part of the catalog — if it's wrong / missing for a custom provider, edit it under Provider edit → Definition · Basics. Edits to that field flow into the catalog directly; there is no longer a separate per-config override layer.")
-        )
-    ),
-
     // ===== Per-cloud-provider help pages (42) =====
     // Topic id derived via providerHelpTopicId() — lowercased,
     // alphanumeric only. Cards: Overview / Setup / Models / Pricing

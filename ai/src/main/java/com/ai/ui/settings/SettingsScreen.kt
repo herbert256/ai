@@ -20,7 +20,7 @@ import com.ai.viewmodel.GeneralSettings
 
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_SETUP,
-    AI_PROVIDERS_SETUP, AI_PROVIDERS,
+    AI_PROVIDERS,
     AI_MODELS_SETUP,
     AI_MODELS, AI_MODEL_EDIT,
     AI_MODEL_TYPES,
@@ -72,7 +72,6 @@ fun SettingsScreen(
     onSaveOpenRouterApiKey: (String) -> Unit = {},
     onSaveArtificialAnalysisApiKey: (String) -> Unit = {},
     onNavigateToCostConfig: () -> Unit = {},
-    onNavigateToProviderAdmin: () -> Unit = {},
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
@@ -169,7 +168,6 @@ fun SettingsScreen(
             SettingsSubScreen.MAIN -> onBack()
             SettingsSubScreen.AI_SETUP -> if (initialSubScreen == SettingsSubScreen.AI_SETUP) onBack() else currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.AI_PROVIDER_EDIT -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS
-            SettingsSubScreen.AI_PROVIDERS -> currentSubScreen = SettingsSubScreen.AI_PROVIDERS_SETUP
             SettingsSubScreen.AI_MODEL_EDIT -> {
                 val from = modelEditFromProvider
                 modelEditFromProvider = false
@@ -194,7 +192,7 @@ fun SettingsScreen(
                     SettingsSubScreen.AI_PROMPTS_SETUP
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
-            SettingsSubScreen.AI_PROVIDERS_SETUP,
+            SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_WORKERS_SETUP,
             SettingsSubScreen.AI_PROMPTS_SETUP,
@@ -236,13 +234,6 @@ fun SettingsScreen(
                 onSaveHuggingFaceApiKey = onSaveHuggingFaceApiKey, onSaveOpenRouterApiKey = onSaveOpenRouterApiKey,
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onNavigateToCostConfig = onNavigateToCostConfig
-            )
-        }
-        SettingsSubScreen.AI_PROVIDERS_SETUP -> {
-            ProvidersSetupScreen(
-                onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it },
-                onNavigateToProviderAdmin = onNavigateToProviderAdmin
             )
         }
         SettingsSubScreen.AI_PROVIDERS -> {
