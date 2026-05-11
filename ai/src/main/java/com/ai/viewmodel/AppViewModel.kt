@@ -553,29 +553,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // resetApplication() orchestrator route through these helpers, so
     // the wipe sets stay in lockstep when one is later extended.
 
-    data class RuntimeWipeResult(val reports: Int, val chats: Int, val knowledgeBases: Int)
+    data class RuntimeWipeResult(val logs: Int, val chats: Int, val traces: Int)
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
+    /** Wipe the narrow set of activity logs the user almost always
+     *  wants gone together: app logs, chat history, API traces, and
+     *  usage statistics. Everything else — reports, knowledge bases,
+     *  prompt history, the six Info-provider caches, model-list cache,
+     *  embeddings — is preserved. Use Clear all configuration or
+     *  Reset application for wider wipes. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear all runtime data")
-        val reports = ReportStorage.getAllReports(context).also { list ->
-            list.forEach { ReportStorage.deleteReport(context, it.id) }
-        }
+        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / usage stats")
         val chats = ChatHistoryManager.deleteAllSessions()
+        val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
-        PromptCache.clearAll()
-        settingsPrefs.clearPromptHistory()
-        settingsPrefs.clearLastReportPrompt()
-        // Usage statistics are runtime data — wiped alongside reports
-        // and chats so a single "Clear all runtime data" leaves no
-        // historical activity behind.
         settingsPrefs.clearUsageStats()
-        val kbs = KnowledgeStore.clearAll(context)
-        PricingCache.clearAll(context)
-        ModelListCache.clearAll(context)
-        EmbeddingsStore.clearAll(context)
-        AppLog.i("Housekeeping", "← Clear all runtime data: reports=${reports.size} chats=$chats kbs=$kbs")
-        return RuntimeWipeResult(reports.size, chats, kbs)
+        // AppLog last — the prior log lines for this method will be
+        // dropped along with everything else. Recorded count is what
+        // was on disk at clear-time.
+        val logs = AppLog.clearLogs()
+        return RuntimeWipeResult(logs, chats, traces)
     }
 
     fun clearAllConfiguration(context: Context): ConfigWipeResult {
@@ -614,8 +611,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 tempFile.writeText(keysJson)
 
-                // 2. Clear runtime data (now also wipes usage stats)
+                // 2. Wipe activity logs / chats / traces / usage stats.
                 clearAllRuntimeData(context)
+                // 3. Additional wipes Reset needs that the narrowed
+                //    Clear-all-runtime-data button no longer does:
+                //    reports, prompt history/cache, knowledge bases,
+                //    every cached Info-provider tier, per-provider
+                //    /models cache, and the semantic-search embeddings.
+                //    Reset is "factory style", so all of this goes.
+                ReportStorage.getAllReports(context).forEach { ReportStorage.deleteReport(context, it.id) }
+                PromptCache.clearAll()
+                settingsPrefs.clearPromptHistory()
+                settingsPrefs.clearLastReportPrompt()
+                KnowledgeStore.clearAll(context)
+                PricingCache.clearAll(context)
+                ModelListCache.clearAll(context)
+                EmbeddingsStore.clearAll(context)
                 // 4. Wipe provider registry
                 ProviderRegistry.resetToDefaults(context)
                 // 5. Reload providers.json from assets

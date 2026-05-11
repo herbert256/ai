@@ -54,8 +54,8 @@ fun ResetScreen(
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text("Clear all runtime data?") },
-            text = { Text("This permanently deletes all reports, chat history, API traces, prompt history, usage statistics, knowledge bases, pricing cache (manual overrides plus cached tier blobs), the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is kept.") },
+            title = { Text("Clear activity logs?") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -63,12 +63,12 @@ fun ResetScreen(
                         showClearAllConfirm = false
                         Toast.makeText(
                             context,
-                            "Cleared ${r.reports} reports, ${r.chats} chats, traces, prompt cache & history, ${r.knowledgeBases} knowledge bases, pricing cache, model-list cache, semantic-search cache",
+                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, usage statistics",
                             Toast.LENGTH_LONG
                         ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                ) { Text("Clear all", maxLines = 1, softWrap = false) }
+                ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
@@ -159,9 +159,9 @@ fun ResetScreen(
 
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Clear all runtime data", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Clear activity logs", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Wipes reports, chats, API traces, prompt history, usage statistics, knowledge bases, pricing cache, model-list cache, and the semantic-search cache. Configuration and API keys are kept.",
+                        "Wipes the app logs, chats, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, model-list cache, and semantic-search cache are kept.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Button(
@@ -169,7 +169,7 @@ fun ResetScreen(
                         enabled = busyLabel == null,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                    ) { Text("Clear all runtime data", maxLines = 1, softWrap = false) }
+                    ) { Text("Clear activity logs", maxLines = 1, softWrap = false) }
                 }
             }
 
