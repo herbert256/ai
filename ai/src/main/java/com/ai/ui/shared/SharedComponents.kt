@@ -849,7 +849,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     Text(
                         "←", color = Color.White, fontSize = 40.sp,
                         fontWeight = FontWeight.Black,
-                        modifier = Modifier.offset(y = (-6).dp)
+                        modifier = Modifier.offset(y = (-12).dp)
                     )
                 }
             }
