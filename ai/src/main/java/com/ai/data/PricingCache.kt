@@ -816,8 +816,8 @@ object PricingCache {
      * failure. Values are cached in pricing_cache prefs (round-trips
      * through BackupManager via the existing PREFS_TO_BACKUP entry).
      */
-    suspend fun fetchModelsDevOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
-      withTraceCategory("Pricing fetch") {
+    suspend fun fetchModelsDevOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             // Route through the shared OkHttp client (TracingInterceptor +
             // proper timeouts) instead of java.net.URL.openStream — so a
@@ -1047,8 +1047,8 @@ object PricingCache {
         return exact to patterns
     }
 
-    suspend fun fetchHeliconeOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
-      withTraceCategory("Pricing fetch") {
+    suspend fun fetchHeliconeOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val json = ApiFactory.fetchUrlAsString("https://www.helicone.ai/api/llm-costs")
             if (json.isNullOrBlank()) {
@@ -1165,8 +1165,8 @@ object PricingCache {
         return out
     }
 
-    suspend fun fetchLLMPricesOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
-      withTraceCategory("Pricing fetch") {
+    suspend fun fetchLLMPricesOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val combined = mutableMapOf<String, ModelPricing>()
             for (vendor in llmPricesVendors) {
@@ -1273,8 +1273,8 @@ object PricingCache {
         return pricing to meta
     }
 
-    suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
-      withTraceCategory("Pricing fetch") {
+    suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withTraceCategory("Pricing fetch") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (apiKey.isBlank()) {
             AppLog.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
             return@withContext null
@@ -1670,26 +1670,29 @@ object PricingCache {
             try {
                 val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
                 val response = api.listModelsDetailed("Bearer $apiKey")
-                if (!response.isSuccessful) return@withTraceCategory null
-                val models = response.body()?.data ?: emptyList()
-                val pricingEntries = mutableListOf<ModelPricingEntry>()
-                val parametersEntries = mutableListOf<ModelSupportedParametersEntry>()
-                for (model in models) {
-                    val parts = model.id.split("/", limit = 2)
-                    if (parts.size != 2) continue
-                    val aiService = AppService.entries.find { it.openRouterName == parts[0] } ?: continue
-                    if (model.pricing != null) pricingEntries.add(ModelPricingEntry(aiService.id, parts[1], model.pricing))
-                    if (model.supported_parameters != null) parametersEntries.add(ModelSupportedParametersEntry(aiService.id, parts[1], model.supported_parameters))
+                if (!response.isSuccessful) {
+                    null
+                } else {
+                    val models = response.body()?.data ?: emptyList()
+                    val pricingEntries = mutableListOf<ModelPricingEntry>()
+                    val parametersEntries = mutableListOf<ModelSupportedParametersEntry>()
+                    for (model in models) {
+                        val parts = model.id.split("/", limit = 2)
+                        if (parts.size != 2) continue
+                        val aiService = AppService.entries.find { it.openRouterName == parts[0] } ?: continue
+                        if (model.pricing != null) pricingEntries.add(ModelPricingEntry(aiService.id, parts[1], model.pricing))
+                        if (model.supported_parameters != null) parametersEntries.add(ModelSupportedParametersEntry(aiService.id, parts[1], model.supported_parameters))
+                    }
+                    // Atomic — process death mid-write would otherwise
+                    // truncate the cache; the supported-parameters loader
+                    // catches the parse exception and falls back to an
+                    // empty map, so every report would send every parameter
+                    // regardless of model support until the next refresh.
+                    java.io.File(context.filesDir, "model_pricing.json").writeTextAtomic(gson.toJson(pricingEntries))
+                    java.io.File(context.filesDir, "model_supported_parameters.json").writeTextAtomic(gson.toJson(parametersEntries))
+                    clearSupportedParametersCache()
+                    Pair(pricingEntries.size, parametersEntries.size)
                 }
-                // Atomic — process death mid-write would otherwise
-                // truncate the cache; the supported-parameters loader
-                // catches the parse exception and falls back to an
-                // empty map, so every report would send every parameter
-                // regardless of model support until the next refresh.
-                java.io.File(context.filesDir, "model_pricing.json").writeTextAtomic(gson.toJson(pricingEntries))
-                java.io.File(context.filesDir, "model_supported_parameters.json").writeTextAtomic(gson.toJson(parametersEntries))
-                clearSupportedParametersCache()
-                Pair(pricingEntries.size, parametersEntries.size)
             } catch (e: Exception) { AppLog.e("PricingCache", "Failed: ${e.message}"); null }
         }
     }

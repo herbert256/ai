@@ -825,15 +825,24 @@ class TestCallTimeoutInterceptor : Interceptor {
     }
 }
 
-/** Set the trace category for the duration of [block], restoring
- *  whatever was there before. Use to bracket a top-level flow's API
- *  calls — works fine inside suspend lambdas because the function is
- *  inlined at the call site. */
-inline fun <R> withTraceCategory(category: String, block: () -> R): R {
+/** Set the trace category for the duration of [block].
+ *
+ *  Propagation: backed by [kotlinx.coroutines.asContextElement] so the
+ *  ThreadLocal value travels with the coroutine across dispatcher
+ *  hops. A plain `ThreadLocal.set` here was load-bearing-incorrect for
+ *  chat streaming — the chat collector wraps the flow in
+ *  `withTraceCategory("Chat")`, but the upstream HTTP call runs under
+ *  `flowOn(Dispatchers.IO)`, so the IO worker that actually executes
+ *  the OkHttp call never saw the ThreadLocal set on the collector
+ *  thread, and the trace landed without a category. Mirrors
+ *  [withTracerTags]. */
+suspend fun <R> withTraceCategory(category: String, block: suspend () -> R): R {
     val tl = ApiTracer.currentTags
     val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
-    tl.set(previous.copy(category = category))
-    return try { block() } finally { tl.set(previous) }
+    val newTags = previous.copy(category = category)
+    return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
+        block()
+    }
 }
 
 /** Push (reportId, category) onto the per-thread tag pair for the
