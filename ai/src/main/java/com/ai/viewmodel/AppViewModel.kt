@@ -613,6 +613,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return added
     }
 
+    /** Drop every Internal prompt and replace the list with a fresh
+     *  load of `assets/prompts.json`. Returns the number of rows loaded
+     *  (0 if the asset is missing or fails to parse, in which case the
+     *  existing list is left untouched). */
+    fun resetInternalPromptsFromAssets(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        updateSettings(current.copy(internalPrompts = bundled))
+        return bundled.size
+    }
+
+    /** Drop every Example prompt and replace the list with a fresh
+     *  load of `assets/examples.json`. Returns the number of rows loaded
+     *  (0 if the asset is missing or fails to parse, in which case the
+     *  existing list is left untouched). */
+    fun resetExamplePromptsFromAssets(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        updateSettings(current.copy(examplePrompts = bundled))
+        return bundled.size
+    }
+
     // ===== Housekeeping primitives =====
     //
     // Each Housekeeping → Reset card button (Clear Usage Statistics,

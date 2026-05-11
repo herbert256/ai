@@ -298,6 +298,25 @@ object ProviderRegistry {
         init(context)
     }
 
+    /** Wipe the current registry (in-memory + persisted prefs) and
+     *  re-seed from `assets/providers.json`. Driven by the "back to
+     *  assets/providers.json" button on Housekeeping → Reset, for when
+     *  the user wants to discard hand-edited definitions and pick up
+     *  the bundled values verbatim. Returns the count of providers
+     *  loaded on success, or `-1` if the asset couldn't be parsed
+     *  (registry is left empty in that case — caller should surface
+     *  the error). */
+    fun restartFromAsset(context: Context, filename: String = "providers.json"): Int {
+        synchronized(lock) {
+            providers.clear()
+            initialized = false
+        }
+        prefs?.edit { clear() }
+        ProviderFieldTimestamps.clearAll()
+        init(context)
+        return importFromAsset(context, filename)
+    }
+
     fun ensureProviders(services: List<AppService>) = synchronized(lock) {
         var changed = false
         for (service in services) {

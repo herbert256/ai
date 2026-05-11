@@ -897,6 +897,9 @@ fun AppNavHost(
                 onClearInfoProviders = { appViewModel.clearInfoProviderCaches(ctx) },
                 onClearConfiguration = { appViewModel.clearAllConfiguration(ctx) },
                 onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
+                onRestartProvidersFromAsset = { com.ai.data.ProviderRegistry.restartFromAsset(ctx) },
+                onResetInternalPromptsFromAsset = { appViewModel.resetInternalPromptsFromAssets() },
+                onResetExamplePromptsFromAsset = { appViewModel.resetExamplePromptsFromAssets() },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )

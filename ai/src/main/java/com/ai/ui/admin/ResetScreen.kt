@@ -24,6 +24,9 @@ fun ResetScreen(
     onClearInfoProviders: () -> Unit,
     onClearConfiguration: () -> AppViewModel.ConfigWipeResult,
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit,
+    onRestartProvidersFromAsset: () -> Int,
+    onResetInternalPromptsFromAsset: () -> Int,
+    onResetExamplePromptsFromAsset: () -> Int,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -34,6 +37,11 @@ fun ResetScreen(
     var showClearConfigConfirm by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var resetConfirmText by remember { mutableStateOf("") }
+    // Which asset, if any, the user has armed for restore. Null = no
+    // confirm open. One dialog template is reused for all three buttons;
+    // the active asset determines the dialog text, button label, and
+    // which viewmodel callback fires on confirm.
+    var pendingAssetReset by remember { mutableStateOf<AssetReset?>(null) }
     var busyLabel by remember { mutableStateOf<String?>(null) }
     // Forces a restart after Reset completes — the in-memory state is
     // wholesale replaced, so every singleton has to come back fresh
@@ -53,10 +61,35 @@ fun ResetScreen(
         RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
     }
 
+    pendingAssetReset?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingAssetReset = null },
+            title = { Text("Restore from ${target.assetPath}?") },
+            text = { Text(target.dialogBody) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val n = when (target) {
+                            AssetReset.PROVIDERS -> onRestartProvidersFromAsset()
+                            AssetReset.PROMPTS -> onResetInternalPromptsFromAsset()
+                            AssetReset.EXAMPLES -> onResetExamplePromptsFromAsset()
+                        }
+                        pendingAssetReset = null
+                        val msg = if (n >= 0) "Loaded $n ${target.itemNoun} from ${target.assetPath}"
+                        else "Could not read ${target.assetPath}"
+                        Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Restore", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { pendingAssetReset = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
     if (showClearAllConfirm) {
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
-            title = { Text("Clear activity logs?") },
+            title = { Text("Clear runtime data?") },
             text = { Text("This permanently deletes the app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 Button(
@@ -178,7 +211,7 @@ fun ResetScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            com.ai.ui.shared.CollapsibleCard(title = "Clear activity logs") {
+            com.ai.ui.shared.CollapsibleCard(title = "Clear runtime data") {
                 Text(
                     "Wipes the app logs, chats, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, model-list cache, and semantic-search cache are kept.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -188,7 +221,7 @@ fun ResetScreen(
                     enabled = busyLabel == null,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                ) { Text("Clear activity logs", maxLines = 1, softWrap = false) }
+                ) { Text("Clear runtime data", maxLines = 1, softWrap = false) }
             }
 
             com.ai.ui.shared.CollapsibleCard(title = "Clear Info providers") {
@@ -217,6 +250,31 @@ fun ResetScreen(
                 ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
             }
 
+            com.ai.ui.shared.CollapsibleCard(title = "assets/*.json") {
+                Text(
+                    "Restore one of the bundled JSON catalogs to its as-shipped contents. Each button drops every entry in the matching list and reloads from the asset; user-authored entries in that list are lost. Other configuration (API keys, agents, etc.) is untouched.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { pendingAssetReset = AssetReset.PROVIDERS },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("back to assets/providers.json", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { pendingAssetReset = AssetReset.PROMPTS },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("back to assets/prompts.json", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { pendingAssetReset = AssetReset.EXAMPLES },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("back to assets/examples.json", maxLines = 1, softWrap = false) }
+            }
+
             com.ai.ui.shared.CollapsibleCard(title = "Reset application") {
                 Text(
                     "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) are preserved; everything else is wiped and providers + internal prompts are reloaded from assets. Type-to-confirm dialog. Run Housekeeping → Refresh afterwards to repopulate catalogs.",
@@ -231,4 +289,19 @@ fun ResetScreen(
             }
         }
     }
+}
+
+private enum class AssetReset(val assetPath: String, val itemNoun: String, val dialogBody: String) {
+    PROVIDERS(
+        "assets/providers.json", "providers",
+        "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads the bundled assets/providers.json verbatim. Per-provider API keys, model lists, and agents are stored separately and will survive."
+    ),
+    PROMPTS(
+        "assets/prompts.json", "internal prompts",
+        "Drops every Internal prompt (including any you customized) and reloads the bundled assets/prompts.json fresh."
+    ),
+    EXAMPLES(
+        "assets/examples.json", "example prompts",
+        "Drops every Example prompt (including any you authored) and reloads the bundled assets/examples.json fresh."
+    )
 }

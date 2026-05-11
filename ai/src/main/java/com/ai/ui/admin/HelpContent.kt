@@ -1467,7 +1467,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Local LiteRT models", "On-device .tflite text embedders (MediaPipe Tasks). Drives Local Semantic Search and Knowledge bases whose embedderProviderId == \"LOCAL\"."),
             HelpCard("Tips", "Counts are read once on screen entry — switch back to AI Setup and forward again if you just installed something via the deeper screens."),
             HelpCard("Pitfalls", "Backup explicitly excludes local_llms/ and local_models/ (FILES_DIR_BACKUP_EXCLUDES) — these are big, easily re-downloadable, and personal. Same set is preserved through clearFilesDirForRestore."),
-            HelpCard("Related", "Both runtimes are wiped by Housekeeping → Clear all configuration but kept by Clear activity logs. Reset application also wipes them.")
+            HelpCard("Related", "Both runtimes are wiped by Housekeeping → Clear all configuration but kept by Clear runtime data. Reset application also wipes them.")
         )
     ),
     "local_litert_models" to HelpContent(
@@ -1539,7 +1539,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Local LLMs", "Counts installed .task files in <filesDir>/local_llms/."),
             HelpCard("Local LiteRT models", "Counts installed .tflite files in <filesDir>/local_models/."),
             HelpCard("Tips", "Both card counts are read with remember{} on entry — they don't auto-refresh on changes inside the deeper screens."),
-            HelpCard("Pitfalls", "Backup excludes both directories. Clear all configuration removes both, as does Reset application; Clear activity logs leaves them alone."),
+            HelpCard("Pitfalls", "Backup excludes both directories. Clear all configuration removes both, as does Reset application; Clear runtime data leaves them alone."),
             HelpCard("Related", "AppService.LOCAL is synthetic and only registered when a .task is present.")
         )
     ),
@@ -1548,7 +1548,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ️ for the per-screen detail."),
             HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
-            HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear activity logs, and Clear all configuration are not undoable."),
+            HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear runtime data, and Clear all configuration are not undoable."),
             HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
         )
     ),
@@ -1570,7 +1570,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
             HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
             HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
-            HelpCard("Related", "Reset → Clear activity logs wipes ALL chats and traces regardless of age, plus app logs and usage statistics. Reports stay; use this screen for reports.")
+            HelpCard("Related", "Reset → Clear runtime data wipes ALL chats and traces regardless of age, plus app logs and usage statistics. Reports stay; use this screen for reports.")
         )
     ),
     "usage_statistics" to HelpContent(
@@ -1606,11 +1606,13 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reset" to HelpContent(
         title = "Reset",
         cards = listOf(
-            HelpCard("Overview", "Three escalating destructive operations. Each has its own confirmation dialog with the exact list of what's wiped vs. kept."),
-            HelpCard("Clear activity logs (red)", "Wipes the narrow activity surface: app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the semantic-search embedding cache are all preserved. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is also kept."),
+            HelpCard("Overview", "Escalating destructive operations. Each has its own confirmation dialog with the exact list of what's wiped vs. kept."),
+            HelpCard("Clear runtime data (red)", "Wipes the narrow activity surface: app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the semantic-search embedding cache are all preserved. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is also kept."),
+            HelpCard("Clear Info providers", "Drops the cached tier blobs for the six Info providers plus the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing survive; re-run Refresh to repopulate."),
             HelpCard("Clear all configuration (dark red)", "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT (.tflite). Reports, chats, traces, and usage statistics are kept."),
+            HelpCard("assets/*.json", "Three buttons — providers.json, prompts.json, examples.json. Each one drops the matching list and reloads from the bundled asset. Scoped: providers.json doesn't touch prompts, and vice versa. User-authored entries in the targeted list are lost; everything outside that list is untouched."),
             HelpCard("Reset application (dark red, type-RESET)", "Factory-style reset. API keys (per-provider + 3 external) are preserved; everything else is wiped, providers and internal prompts are reloaded from assets, then the Refresh-all chain runs (catalogs → provider tests → model lists → default agents). Type-to-confirm gate."),
-            HelpCard("Pitfalls", "Reset application's confirmation is CASE-sensitive — must literally type RESET, trimmed. Both Clear-all variants are immediate; only Reset application has a busy-spinner dialog because it also runs the Refresh chain."),
+            HelpCard("Pitfalls", "Reset application's confirmation is CASE-sensitive — must literally type RESET, trimmed. The Clear / assets-restore variants are immediate; only Reset application has a busy-spinner dialog because it also runs the Refresh chain."),
             HelpCard("Related", "Backup & Restore is the only undo path — take a backup first if there's any chance you'll regret a wipe.")
         )
     ),
