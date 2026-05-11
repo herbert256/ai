@@ -287,9 +287,10 @@ internal fun ReportSelectModelsScreen(
                         com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                         com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                        if (isAlreadyAdded) {
-                            Text(" · already added", fontSize = 10.sp, color = AppColors.TextTertiary)
-                        }
+                        // already-added rows still render dimmed and
+                        // ignore taps so the user can see them in the
+                        // catalog without re-adding; the trailing
+                        // caption was noisy on a long list.
                     }
                 }
                 Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
@@ -304,7 +305,14 @@ internal fun ReportSelectModelsScreen(
             // and the search box don't trim it: the user's recent
             // picks are a quick-access shortcut, not a slice of the
             // current filter view.
-            if (recentEntries.isNotEmpty()) {
+            //
+            // Skip entries that are already on the report's selected
+            // list — surfacing them in Recent (dimmed, untappable)
+            // wastes the quick-access slot. If filtering empties the
+            // section we drop the header / "All" divider too so the
+            // user doesn't see a labelled-but-empty band.
+            val recentDeduped = recentEntries.filter { it !in alreadyAdded }
+            if (recentDeduped.isNotEmpty()) {
                 item {
                     Text(
                         "Recent",
@@ -314,7 +322,7 @@ internal fun ReportSelectModelsScreen(
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
                     )
                 }
-                items(recentEntries, key = { "recent:${it.first.id}:${it.second}" }) { entry ->
+                items(recentDeduped, key = { "recent:${it.first.id}:${it.second}" }) { entry ->
                     ModelRow(entry)
                 }
                 item {
