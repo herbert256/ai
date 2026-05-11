@@ -239,6 +239,16 @@ fun ReportSingleResultScreen(
                             }
                             ContentWithThinkSections(analysis = strippedBody)
                         }
+                        // Per-agent icon from the 3-tier chain — centered
+                        // under the response in a very large emoji so the
+                        // glyph the user picked / the chain resolved is
+                        // unmistakable on the per-model view.
+                        agent.icon?.takeIf { it.isNotBlank() }?.let { glyph ->
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text(glyph, fontSize = 96.sp, color = Color.White)
+                            }
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
