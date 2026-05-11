@@ -102,6 +102,82 @@ class AppService(
     override fun hashCode(): Int = id.hashCode()
     override fun toString(): String = id
 
+    /** Manual copy — AppService is intentionally NOT a data class (its
+     *  equals/hashCode are id-only), so the compiler doesn't generate
+     *  one. The previous workaround in [com.ai.model.Settings.withModel]
+     *  /[withModelSource] was a hand-written full-field constructor
+     *  call, which silently dropped the per-provider throttle
+     *  overrides every time a new field landed without those two
+     *  copies being updated. Funnel every field update through here
+     *  so the next added field can't quietly disappear. */
+    fun copy(
+        id: String = this.id,
+        baseUrl: String = this.baseUrl,
+        adminUrl: String = this.adminUrl,
+        defaultModel: String = this.defaultModel,
+        openRouterName: String? = this.openRouterName,
+        apiFormat: ApiFormat = this.apiFormat,
+        typePaths: Map<String, String> = this.typePaths,
+        modelsPath: String? = this.modelsPath,
+        seedFieldName: String = this.seedFieldName,
+        supportsCitations: Boolean = this.supportsCitations,
+        supportsSearchRecency: Boolean = this.supportsSearchRecency,
+        extractApiCost: Boolean = this.extractApiCost,
+        costTicksDivisor: Double? = this.costTicksDivisor,
+        modelListFormat: String = this.modelListFormat,
+        modelFilter: String? = this.modelFilter,
+        litellmPrefix: String? = this.litellmPrefix,
+        hardcodedModels: List<String>? = this.hardcodedModels,
+        defaultModelSource: String? = this.defaultModelSource,
+        auxHosts: List<String> = this.auxHosts,
+        nativeRerankUrl: String? = this.nativeRerankUrl,
+        nativeModerationUrl: String? = this.nativeModerationUrl,
+        nativeCapabilityUrl: String? = this.nativeCapabilityUrl,
+        pricingFromModelList: Boolean = this.pricingFromModelList,
+        crossProviderModelList: Boolean = this.crossProviderModelList,
+        mergeHardcodedModels: Boolean = this.mergeHardcodedModels,
+        externalReasoningSignalUntrusted: Boolean = this.externalReasoningSignalUntrusted,
+        responsesApiPatterns: List<ModelPattern> = this.responsesApiPatterns,
+        reasoningModelPatterns: List<ModelPattern> = this.reasoningModelPatterns,
+        reasoningEffortAcceptPatterns: List<ModelPattern>? = this.reasoningEffortAcceptPatterns,
+        webSearchModelPatterns: List<ModelPattern> = this.webSearchModelPatterns,
+        adaptiveThinkingPatterns: List<ModelPattern> = this.adaptiveThinkingPatterns,
+        maxTokensDefaults: List<MaxTokensRule> = this.maxTokensDefaults,
+        builtInEndpoints: List<Endpoint> = this.builtInEndpoints,
+        maxCallsPerProviderPerMinute: Int? = this.maxCallsPerProviderPerMinute,
+        maxConcurrentCallsPerProvider: Int? = this.maxConcurrentCallsPerProvider
+    ): AppService = AppService(
+        id = id, baseUrl = baseUrl, adminUrl = adminUrl,
+        defaultModel = defaultModel,
+        openRouterName = openRouterName, apiFormat = apiFormat,
+        typePaths = typePaths, modelsPath = modelsPath,
+        seedFieldName = seedFieldName,
+        supportsCitations = supportsCitations,
+        supportsSearchRecency = supportsSearchRecency,
+        extractApiCost = extractApiCost,
+        costTicksDivisor = costTicksDivisor,
+        modelListFormat = modelListFormat, modelFilter = modelFilter,
+        litellmPrefix = litellmPrefix, hardcodedModels = hardcodedModels,
+        defaultModelSource = defaultModelSource,
+        auxHosts = auxHosts,
+        nativeRerankUrl = nativeRerankUrl,
+        nativeModerationUrl = nativeModerationUrl,
+        nativeCapabilityUrl = nativeCapabilityUrl,
+        pricingFromModelList = pricingFromModelList,
+        crossProviderModelList = crossProviderModelList,
+        mergeHardcodedModels = mergeHardcodedModels,
+        externalReasoningSignalUntrusted = externalReasoningSignalUntrusted,
+        responsesApiPatterns = responsesApiPatterns,
+        reasoningModelPatterns = reasoningModelPatterns,
+        reasoningEffortAcceptPatterns = reasoningEffortAcceptPatterns,
+        webSearchModelPatterns = webSearchModelPatterns,
+        adaptiveThinkingPatterns = adaptiveThinkingPatterns,
+        maxTokensDefaults = maxTokensDefaults,
+        builtInEndpoints = builtInEndpoints,
+        maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute,
+        maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider
+    )
+
     companion object {
         /** Sentinel AppService used to route chat / report flows
          *  through the on-device MediaPipe LLM Inference runtime

@@ -236,36 +236,7 @@ data class Settings(
      *  AppService.findById which reads the registry, so the updated
      *  value is picked up on the next read. */
     fun withModel(service: AppService, model: String): Settings {
-        val updated = AppService(
-            id = service.id, baseUrl = service.baseUrl, adminUrl = service.adminUrl,
-            defaultModel = model,
-            openRouterName = service.openRouterName, apiFormat = service.apiFormat,
-            typePaths = service.typePaths, modelsPath = service.modelsPath,
-            seedFieldName = service.seedFieldName,
-            supportsCitations = service.supportsCitations,
-            supportsSearchRecency = service.supportsSearchRecency,
-            extractApiCost = service.extractApiCost,
-            costTicksDivisor = service.costTicksDivisor,
-            modelListFormat = service.modelListFormat, modelFilter = service.modelFilter,
-            litellmPrefix = service.litellmPrefix, hardcodedModels = service.hardcodedModels,
-            defaultModelSource = service.defaultModelSource,
-            auxHosts = service.auxHosts,
-            nativeRerankUrl = service.nativeRerankUrl,
-            nativeModerationUrl = service.nativeModerationUrl,
-            nativeCapabilityUrl = service.nativeCapabilityUrl,
-            pricingFromModelList = service.pricingFromModelList,
-            crossProviderModelList = service.crossProviderModelList,
-            mergeHardcodedModels = service.mergeHardcodedModels,
-            externalReasoningSignalUntrusted = service.externalReasoningSignalUntrusted,
-            responsesApiPatterns = service.responsesApiPatterns,
-            reasoningModelPatterns = service.reasoningModelPatterns,
-            reasoningEffortAcceptPatterns = service.reasoningEffortAcceptPatterns,
-            webSearchModelPatterns = service.webSearchModelPatterns,
-            adaptiveThinkingPatterns = service.adaptiveThinkingPatterns,
-            maxTokensDefaults = service.maxTokensDefaults,
-            builtInEndpoints = service.builtInEndpoints
-        )
-        com.ai.data.ProviderRegistry.update(updated)
+        com.ai.data.ProviderRegistry.update(service.copy(defaultModel = model))
         return this
     }
     fun getModelSource(service: AppService) = resolveModelSource(service)
@@ -276,36 +247,7 @@ data class Settings(
      *  truth lives on the catalog; this Settings is unchanged. */
     fun withModelSource(service: AppService, source: ModelSource): Settings {
         if (resolveModelSource(service) == source) return this
-        val updated = AppService(
-            id = service.id, baseUrl = service.baseUrl, adminUrl = service.adminUrl,
-            defaultModel = service.defaultModel,
-            openRouterName = service.openRouterName, apiFormat = service.apiFormat,
-            typePaths = service.typePaths, modelsPath = service.modelsPath,
-            seedFieldName = service.seedFieldName,
-            supportsCitations = service.supportsCitations,
-            supportsSearchRecency = service.supportsSearchRecency,
-            extractApiCost = service.extractApiCost,
-            costTicksDivisor = service.costTicksDivisor,
-            modelListFormat = service.modelListFormat, modelFilter = service.modelFilter,
-            litellmPrefix = service.litellmPrefix, hardcodedModels = service.hardcodedModels,
-            defaultModelSource = source.name,
-            auxHosts = service.auxHosts,
-            nativeRerankUrl = service.nativeRerankUrl,
-            nativeModerationUrl = service.nativeModerationUrl,
-            nativeCapabilityUrl = service.nativeCapabilityUrl,
-            pricingFromModelList = service.pricingFromModelList,
-            crossProviderModelList = service.crossProviderModelList,
-            mergeHardcodedModels = service.mergeHardcodedModels,
-            externalReasoningSignalUntrusted = service.externalReasoningSignalUntrusted,
-            responsesApiPatterns = service.responsesApiPatterns,
-            reasoningModelPatterns = service.reasoningModelPatterns,
-            reasoningEffortAcceptPatterns = service.reasoningEffortAcceptPatterns,
-            webSearchModelPatterns = service.webSearchModelPatterns,
-            adaptiveThinkingPatterns = service.adaptiveThinkingPatterns,
-            maxTokensDefaults = service.maxTokensDefaults,
-            builtInEndpoints = service.builtInEndpoints
-        )
-        com.ai.data.ProviderRegistry.update(updated)
+        com.ai.data.ProviderRegistry.update(service.copy(defaultModelSource = source.name))
         return this
     }
 
