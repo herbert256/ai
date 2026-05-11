@@ -166,6 +166,16 @@ val LocalIconGenEnabled = compositionLocalOf { true }
  *  report-scoped screen. */
 val LocalReportIcon = compositionLocalOf<String?> { null }
 
+/** Title of the active AI Report. Provided by ReportsScreen at every
+ *  inline overlay's CompositionLocalProvider, alongside [LocalReportIcon].
+ *  TitleBar reads this as a subject fallback in BOTH mode when the
+ *  caller passes a hardcoded title but no per-screen subject — the
+ *  bar then renders the report's title on the left and the screen's
+ *  fixed title on the right, so the user always knows which report
+ *  they're inside even on deep sub-screens whose subject would
+ *  otherwise be blank. Null = not on a report-scoped screen. */
+val LocalReportTitle = compositionLocalOf<String?> { null }
+
 /** Snapshot of the icons the *currently composed* TitleBar would paint
  *  on its right. TitleBar fills this via SideEffect on every
  *  recomposition when bottom-bar mode is on; clears it via
@@ -450,7 +460,15 @@ fun TitleBar(
         // subject into the title slot).
         val titleStyle = MaterialTheme.typography.titleLarge
         val mode = LocalSubjectToTitleBarMode.current
-        val subjectNonBlank = !subject.isNullOrBlank()
+        // BOTH-mode subject fallback: when the caller didn't pass a
+        // per-screen subject, borrow the active Report's title so the
+        // bar still reads "<report> <screen>" instead of just the
+        // screen's fixed title. Only kicks in when BOTH is active.
+        val resolvedSubject = subject?.takeIf { it.isNotBlank() }
+            ?: if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH)
+                LocalReportTitle.current?.takeIf { it.isNotBlank() }
+              else null
+        val subjectNonBlank = !resolvedSubject.isNullOrBlank()
         val barFontSize = titleStyle.fontSize * 1.25f
         val reportIconTap = LocalNavigateToCurrentReport.current
         Row(
@@ -467,7 +485,7 @@ fun TitleBar(
             }
             if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
                 Text(
-                    text = subject!!, style = titleStyle, color = Color.White,
+                    text = resolvedSubject!!, style = titleStyle, color = Color.White,
                     fontSize = barFontSize, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Start,
@@ -481,7 +499,7 @@ fun TitleBar(
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             } else {
-                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) subject!! else title
+                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) resolvedSubject!! else title
                 if (effective != null) {
                     Text(
                         text = effective, style = titleStyle, color = Color.White,
@@ -555,7 +573,16 @@ fun TitleBar(
             //             title on the right, with no separator. Falls
             //             back to single [title] when subject is blank.
             val mode = LocalSubjectToTitleBarMode.current
-            val subjectNonBlank = !subject.isNullOrBlank()
+            // BOTH-mode subject fallback: when the caller didn't pass
+            // a per-screen subject, borrow the active Report's title
+            // so the bar reads "<report> <screen>" instead of just
+            // the screen's fixed title. Only kicks in when BOTH is
+            // active.
+            val resolvedSubject = subject?.takeIf { it.isNotBlank() }
+                ?: if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH)
+                    LocalReportTitle.current?.takeIf { it.isNotBlank() }
+                  else null
+            val subjectNonBlank = !resolvedSubject.isNullOrBlank()
             if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
                 Row(
                     modifier = Modifier.weight(1f),
@@ -563,7 +590,7 @@ fun TitleBar(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = subject!!, style = titleStyle, color = Color.White,
+                        text = resolvedSubject!!, style = titleStyle, color = Color.White,
                         fontSize = titleStyle.fontSize * scale,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f),
@@ -579,7 +606,7 @@ fun TitleBar(
                     )
                 }
             } else {
-                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) subject!! else title
+                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) resolvedSubject!! else title
                 if (effective != null) {
                     // Always right-align the title — keeps it flush
                     // against the action strip, matches the right-side

@@ -647,6 +647,10 @@ fun ReportsScreen(
     // substitution on the per-agent icon detail. Pulled from the same
     // IO read so the overlay doesn't have to refetch.
     var loadedReportPrompt by remember { mutableStateOf("") }
+    // Report title — provided down the composition tree via
+    // LocalReportTitle so deep TitleBars in BOTH-mode without a
+    // per-screen subject can fall back to it.
+    var loadedReportTitle by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
@@ -657,6 +661,7 @@ fun ReportsScreen(
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
+            loadedReportTitle = null
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
@@ -668,6 +673,7 @@ fun ReportsScreen(
             } ?: emptyMap()
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
             loadedReportPrompt = r?.prompt.orEmpty()
+            loadedReportTitle = r?.title
         }
     }
     // Provided to every inline overlay below via LocalReportIcon so
@@ -1040,7 +1046,7 @@ fun ReportsScreen(
     // popping all the way out to the result screen.
     if (showIconsView && singleResultAgentId == null && currentReportId != null) {
         CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
             LocalNavigateToCurrentReport provides { showIconsView = false }
         ) {
             ReportIconsGridScreen(
@@ -1052,7 +1058,7 @@ fun ReportsScreen(
         return
     }
     if (showViewer && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
             ReportsViewerScreen(
                 reportId = currentReportId,
                 initialSelectedAgentId = selectedAgentForViewer,
@@ -1079,7 +1085,7 @@ fun ReportsScreen(
         // icons-grid flag in addition to singleResultAgentId so a user
         // who reached Model response via View → Icons lands on the
         // result screen in one tap, not back at the grid.
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { singleResultAgentId = null; showIconsView = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { singleResultAgentId = null; showIconsView = false }) {
             ReportSingleResultScreen(
                 reportId = currentReportId,
                 agentId = singleAgentId,
@@ -1313,7 +1319,7 @@ fun ReportsScreen(
         if (iconPrompt != null && iconAgent != null) {
             val rid = currentReportId
             val hasActiveFanOut = iconFanOutByReport[rid].orEmpty().isNotEmpty()
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
                 ReportIconDetailScreen(
                     aiSettings = aiSettings,
                     iconPrompt = iconPrompt,
@@ -1362,7 +1368,7 @@ fun ReportsScreen(
         if (agent != null && provider != null) {
             val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
             CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
                 LocalNavigateToCurrentReport provides {
                     agentIconDetailFor = null
                     fanOutTargetAgentId = null
@@ -1684,7 +1690,7 @@ fun ReportsScreen(
     val modelFanInPicker = modelFanInPickerPrompt
     if (modelFanInPicker == null && modelFanInActivePid != null && modelFanInActiveMdl != null && currentReportId != null) {
         val list = aiSettings.internalPrompts.filter { it.category == "fan-in-model" }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides {
             modelFanInActivePid = null
             modelFanInActiveMdl = null
         }) {
@@ -1712,7 +1718,7 @@ fun ReportsScreen(
         val rid = currentReportId
         val activePid = modelFanInActivePid!!
         val activeMdl = modelFanInActiveMdl!!
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides {
             modelFanInActivePid = null
             modelFanInActiveMdl = null
             modelFanInPickerPrompt = null
@@ -1745,7 +1751,7 @@ fun ReportsScreen(
     // made; the progress screen sticks around until the run finishes
     // and the user taps "To translated report" (or Cancel).
     if (showTranslateLanguagePicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showTranslateLanguagePicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateLanguagePicker = false }) {
             LanguageSelectionScreen(
                 onConfirm = { lang ->
                     showTranslateLanguagePicker = false
@@ -1759,7 +1765,7 @@ fun ReportsScreen(
     }
     val pickingTranslateModelFor = showTranslateModelPicker
     if (pickingTranslateModelFor != null && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
                 titleText = "Pick translation model",
@@ -1778,7 +1784,7 @@ fun ReportsScreen(
 
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showRerankPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showRerankPicker = false }) {
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
                 titleText = "Pick rerank model",
@@ -1802,7 +1808,7 @@ fun ReportsScreen(
     val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
     if (openMetaResult != null && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { openMetaResultId = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openMetaResultId = null }) {
             SecondaryResultDetailScreen(
                 result = openMetaResult,
                 onDelete = {
@@ -1821,7 +1827,7 @@ fun ReportsScreen(
     val openRunId = openTranslationRunId
     if (openRunId != null && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
             TranslationRunDetailScreen(
                 reportId = rid,
                 runId = openRunId,
@@ -1871,7 +1877,7 @@ fun ReportsScreen(
         // previous AlertDialog. Rendered as an overlay on top of the
         // secondary list via the early-return pattern.
         if (showFanInPromptPicker && fanInList.isNotEmpty()) {
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
                 ReportSelectInternalPromptScreen(
                     titleText = "Run an fan-in prompt",
                     category = "fan_in",
@@ -1889,7 +1895,7 @@ fun ReportsScreen(
             }
             return
         }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
         SecondaryResultsScreen(
             reportId = rid,
             kind = openListKind,
@@ -2005,7 +2011,7 @@ fun ReportsScreen(
 
     if (showMetaScreen && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showMetaScreen = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaScreen = false }) {
             ReportMetaScreen(
                 reportId = rid,
                 isRunning = uiState.activeSecondaryBatches > 0,
@@ -2069,7 +2075,7 @@ fun ReportsScreen(
 
     if (showExport && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showExport = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showExport = false }) {
             ReportExportScreen(
                 onBack = { showExport = false },
                 onNavigateHome = onNavigateHome,
@@ -2083,7 +2089,7 @@ fun ReportsScreen(
 
     if (htmlPreviewDetail != null && currentReportId != null) {
         val previewDetail = htmlPreviewDetail!!
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null }) {
             HtmlPreviewScreen(
                 reportId = currentReportId,
                 detail = previewDetail,
@@ -2094,7 +2100,7 @@ fun ReportsScreen(
     }
 
     if (showEditParameters) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showEditParameters = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditParameters = false }) {
             ReportAdvancedParametersScreen(
                 currentParameters = uiState.reportAdvancedParameters,
                 onApply = {
@@ -2110,7 +2116,7 @@ fun ReportsScreen(
 
     if (showEditPrompt && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showEditPrompt = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditPrompt = false }) {
             ReportEditPromptScreen(
                 initialPrompt = uiState.genericPromptText,
                 onBack = { showEditPrompt = false },
@@ -2125,7 +2131,7 @@ fun ReportsScreen(
     }
     if (showEditTitle && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showEditTitle = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditTitle = false }) {
             ReportEditTitleScreen(
                 initialTitle = uiState.genericPromptTitle,
                 onBack = { showEditTitle = false },
@@ -2144,7 +2150,7 @@ fun ReportsScreen(
     // so the parent TitleBar and the action row don't paint above
     // them when the user opens a picker.
     if (showMetaPicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showMetaPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaPicker = false }) {
             ReportSelectInternalPromptScreen(
                 titleText = "Run a Meta prompt",
                 category = "meta",
@@ -2163,7 +2169,7 @@ fun ReportsScreen(
         return
     }
     if (showFanOutPicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
             ReportSelectInternalPromptScreen(
                 titleText = "Run a Fan out prompt",
                 category = "fan_out",
