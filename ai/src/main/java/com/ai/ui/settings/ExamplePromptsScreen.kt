@@ -22,6 +22,7 @@ fun ExamplePromptsListScreen(
 ) {
     CrudListScreen(
         title = "Example prompts",
+        helpTopic = "example_prompts_list",
         items = aiSettings.examplePrompts,
         addLabel = "Add example prompt",
         emptyMessage = "No example prompts yet",

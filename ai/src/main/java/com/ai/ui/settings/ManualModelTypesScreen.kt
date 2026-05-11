@@ -62,6 +62,7 @@ fun ManualModelTypesScreen(
 
     CrudListScreen(
         title = "Manual model types",
+        helpTopic = "manual_model_types_list",
         items = aiSettings.modelTypeOverrides,
         addLabel = "+ Add override",
         emptyMessage = "No overrides yet. Add one to force a specific type for a provider/model pair.",

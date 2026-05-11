@@ -30,6 +30,7 @@ fun FlocksScreen(
 ) {
     CrudListScreen(
         title = "Flocks",
+        helpTopic = "flocks_list",
         items = aiSettings.flocks,
         addLabel = "Add Flock",
         emptyMessage = "No flocks configured",

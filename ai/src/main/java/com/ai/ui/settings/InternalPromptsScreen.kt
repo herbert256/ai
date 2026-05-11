@@ -63,6 +63,7 @@ fun InternalPromptsListScreen(
     val isFixedList = categoryFilter == "internal"
     CrudListScreen(
         title = label,
+        helpTopic = "internal_prompts_list",
         items = aiSettings.internalPrompts.filter { it.category == categoryFilter },
         addLabel = "Add ${label.lowercase().removeSuffix("s")}",
         emptyMessage = "No ${label.lowercase()} configured",

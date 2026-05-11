@@ -30,6 +30,7 @@ fun SwarmsScreen(
 ) {
     CrudListScreen(
         title = "Swarms",
+        helpTopic = "swarms_list",
         items = aiSettings.swarms,
         addLabel = "Add Swarm",
         emptyMessage = "No swarms configured",

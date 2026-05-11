@@ -33,6 +33,7 @@ fun AgentsScreen(
 ) {
     CrudListScreen(
         title = "Agents",
+        helpTopic = "agents_list",
         // Show every saved agent regardless of provider state. Hiding
         // agents whose provider is currently inactive (the previous
         // filter `isProviderActive(it.provider)`) gave the user no way
@@ -96,7 +97,7 @@ fun AgentEditScreen(
         ?: AppService.entries.firstOrNull()
     if (initialProvider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(title = "Agent", onBackClick = onBack)
+            TitleBar(helpTopic = "agent_edit", title = "Agent", onBackClick = onBack)
             Text(
                 "No providers configured. Add a provider in Settings → Provider before creating an Agent.",
                 color = AppColors.TextSecondary, fontSize = 14.sp,

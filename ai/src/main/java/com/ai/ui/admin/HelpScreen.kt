@@ -1425,6 +1425,18 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Flocks bundle agents into groups; Swarms group provider/model pairs (no agent indirection); Refresh → Default agents seeds one agent per active provider automatically.")
         )
     ),
+    "agents_list" to HelpContent(
+        title = "Agents",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved agent. An agent pairs a provider, model, optional API key override, optional endpoint, parameter presets, and a system-prompt preset — one tappable unit you can add to a report, flock, or swarm."),
+            HelpCard("Add Agent", "Top button opens the editor with a blank agent. Name must be unique among existing agents (case-insensitive)."),
+            HelpCard("Row tap", "Opens the agent's edit screen."),
+            HelpCard("Row subtitle", "Provider · model · optional endpoint label. Provider names of inactive providers stay listed here — the report-run dispatch skips them, but you still need to be able to edit / delete the row."),
+            HelpCard("Per-row 🗑", "Confirms then removes the agent. Existing references from flocks / swarms / saved reports become broken — fix them up afterwards."),
+            HelpCard("Empty state", "No agents yet — tap Add Agent to create the first one."),
+            HelpCard("Related", "Flocks group agents for one-tap inclusion; Swarms group raw (provider, model) pairs without per-agent presets.")
+        )
+    ),
     "agent_edit" to HelpContent(
         title = "Agent edit",
         cards = listOf(
@@ -1451,6 +1463,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Refresh → Default agents auto-builds a default flock; Reports → New report → + Flock pulls from this list.")
         )
     ),
+    "flocks_list" to HelpContent(
+        title = "Flocks",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved flock. A flock is a named bundle of agents — pinning a system-prompt preset / parameter preset at flock level overrides the agent-level equivalents at report-run time."),
+            HelpCard("Add Flock", "Top button opens the editor with a blank flock. Name must be unique."),
+            HelpCard("Row tap", "Opens the flock's edit screen — change name, members, optional flock-level presets."),
+            HelpCard("Row subtitle", "Comma-joined agent names. Inactive-provider agents stay in the list so you can fix things up — expandFlockToModels skips them when the report actually runs."),
+            HelpCard("Empty state", "No flocks yet — tap Add Flock to create the first one."),
+            HelpCard("Related", "Agents (members), Swarms (raw provider/model groups), Parameters / System Prompts (presets you can pin on the flock).")
+        )
+    ),
     "flock_edit" to HelpContent(
         title = "Flock edit",
         cards = listOf(
@@ -1473,6 +1496,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Difference from Flocks", "Flocks reference agents (and inherit each agent's API key / endpoint / prompts). Swarms hold raw provider+model tuples and use the provider's saved key / endpoint, plus optional swarm-level system prompt and parameters."),
             HelpCard("Pitfalls", "There is no per-member API key override — for that, build agents and a flock instead."),
             HelpCard("Related", "Reports → New report → + Swarm pulls from this list.")
+        )
+    ),
+    "swarms_list" to HelpContent(
+        title = "Swarms",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved swarm. A swarm is a named bundle of raw (provider, model) pairs — structural, with no per-agent presets. Use a swarm when you want N specific models on a report without configuring agents."),
+            HelpCard("Add Swarm", "Top button opens the editor with a blank swarm. Name must be unique."),
+            HelpCard("Row tap", "Opens the swarm's edit screen — change name, add / remove (provider, model) members."),
+            HelpCard("Row subtitle", "Comma-joined provider/model pairs."),
+            HelpCard("Empty state", "No swarms yet — tap Add Swarm to create the first one."),
+            HelpCard("Related", "Agents / Flocks for grouped configured workers; the +Swarm button on New AI Report adds every member of a swarm in one tap.")
         )
     ),
     "swarm_edit" to HelpContent(
@@ -1498,6 +1532,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Related", "Workers → Agents / Flocks / Swarms reference these by id; Provider edit also accepts a list of params ids that apply to every call to that provider.")
         )
     ),
+    "parameters_list" to HelpContent(
+        title = "Parameters",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved Parameters preset — a bundle of generation knobs (temperature, max tokens, top_p, top_k, frequency / presence penalties, system prompt override, stop sequences, seed, response-format JSON, web-search flags). Agents / flocks pin presets by id."),
+            HelpCard("Add Parameter Preset", "Top button opens the editor with a blank preset."),
+            HelpCard("Row tap", "Opens the editor for that preset."),
+            HelpCard("Row subtitle", "Compact summary of which knobs the preset overrides — e.g. 'temp / max-tokens / top_p set'."),
+            HelpCard("Empty state", "No presets yet — tap Add Parameter Preset to create the first one."),
+            HelpCard("Related", "Agents and Flocks reference Parameters presets by id; deleting a preset doesn't break referrers but leaves them with one fewer knob to merge.")
+        )
+    ),
     "parameters_edit" to HelpContent(
         title = "Parameters edit",
         cards = listOf(
@@ -1519,6 +1564,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Names are unique among system prompts (case-insensitive). The body is required for save."),
             HelpCard("Pitfalls", "If a worker also has a Parameters preset that carries a non-blank systemPrompt, that wins over the bare System Prompt — the preset's value is the late-merge winner."),
             HelpCard("Related", "Internal Prompts (Meta / Fan-out / Fan-in / Other) live in a different bucket and use placeholders like @QUESTION@ / @RESULTS@ — not interchangeable with these.")
+        )
+    ),
+    "system_prompts_list" to HelpContent(
+        title = "System Prompts",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved system-prompt preset. Each preset is a named blob of text that an agent (or flock) can pin — the dispatcher prepends it as the first system message of every call."),
+            HelpCard("Add System Prompt", "Top button opens the editor with a blank preset."),
+            HelpCard("Row tap", "Opens the editor for that preset — change name and text."),
+            HelpCard("Row subtitle", "First non-blank line of the prompt body, truncated."),
+            HelpCard("Empty state", "No presets yet — tap Add System Prompt to create the first one."),
+            HelpCard("Related", "Agents and Flocks reference system prompts by id; flock-level overrides agent-level at run time.")
         )
     ),
     "system_prompt_edit" to HelpContent(
@@ -1562,6 +1618,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\"). Hidden for Other internal."),
             HelpCard("Tips", "Sorted alphabetically by name. Edits stay scoped to this category — saving in the editor pushes back into the same bucket."),
             HelpCard("Related", "The Report Result screen's Meta and Fan out buttons surface meta and fan_out prompts respectively; Fan out (L1) surfaces fan_in.")
+        )
+    ),
+    "internal_prompts_list" to HelpContent(
+        title = "Internal prompts list",
+        cards = listOf(
+            HelpCard("Overview", "List of every internal prompt within one category — one of meta / fan_out / fan_in / fan-in-model / rerank / internal. The screen title carries the category name."),
+            HelpCard("Add", "When the category is editable, the top button opens a blank prompt editor pre-set to this category. The 'Other internal' bucket is fixed-list (no Add, no per-row 🗑) because those entries are bundled defaults."),
+            HelpCard("Row tap", "Opens the prompt editor — change name, title, body. The category is locked to the screen's category."),
+            HelpCard("Row subtitle", "Prompt title (or first body line when title is blank)."),
+            HelpCard("Empty state", "No prompts in this category yet — tap Add (when available) to create one."),
+            HelpCard("Related", "The Report flow's Create → Meta / Fan-out / Fan-in / Translate / Rerank buttons all pick from these lists. Load new prompts from assets/prompts.json to refresh the bundled defaults.")
         )
     ),
     "internal_prompt_edit" to HelpContent(
@@ -1636,6 +1703,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Per-provider Type paths under Provider edit → Definition · API win over these — so use this screen for global defaults, the provider screen for exceptions."),
             HelpCard("Pitfalls", "If you blank a default that the hardcoded fallback also doesn't have, dispatch will throw at runtime — easiest case is if you typo a path and the underlying provider doesn't expose that type."),
             HelpCard("Related", "Provider edit's Definition · API → Type paths overrides are the per-provider equivalent.")
+        )
+    ),
+    "manual_model_types_list" to HelpContent(
+        title = "Manual model types",
+        cards = listOf(
+            HelpCard("Overview", "List of manual (provider, model) → type overrides. The app normally derives a model's type (CHAT / RERANK / MODERATION / EMBEDDING / etc.) from the catalog; an override here pins it to a specific type when the catalog is wrong or missing."),
+            HelpCard("Add Override", "Top button opens the editor with a blank override."),
+            HelpCard("Row tap", "Opens the editor for the override."),
+            HelpCard("Row subtitle", "Provider · model · type."),
+            HelpCard("Empty state", "No overrides yet — tap Add Override to create the first one."),
+            HelpCard("Related", "Model Types (configures the default type lookup); Cost Config (separate path for manual pricing overrides).")
         )
     ),
     "manual_model_types" to HelpContent(
@@ -1863,6 +1941,17 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
             HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
             HelpCard("Related", "AI Usage screen (cost / tokens dashboard) reads exactly the data this button wipes.")
+        )
+    ),
+    "example_prompts_list" to HelpContent(
+        title = "Example prompts",
+        cards = listOf(
+            HelpCard("Overview", "List of every saved example prompt. Examples surface in the Hub's prompt-history flow and in the picker reached by Start with a previous prompt — quick-pick a saved prompt body instead of retyping."),
+            HelpCard("Add Example", "Top button opens the editor with a blank example."),
+            HelpCard("Row tap", "Opens the editor — change title and body."),
+            HelpCard("Row subtitle", "First non-blank line of the body, truncated."),
+            HelpCard("Empty state", "No examples yet — tap Add Example to create the first one. Load fresh examples from assets/examples.json via the Internal-prompts loader."),
+            HelpCard("Related", "Prompt History (every prompt actually sent); the Hub's Start with a previous prompt entry shows examples + history together.")
         )
     ),
     "example_prompt_edit" to HelpContent(

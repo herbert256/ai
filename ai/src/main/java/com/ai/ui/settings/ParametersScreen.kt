@@ -25,6 +25,7 @@ fun ParametersListScreen(
 ) {
     CrudListScreen(
         title = "Parameters",
+        helpTopic = "parameters_list",
         items = aiSettings.parameters,
         addLabel = "Add Parameter Preset",
         emptyMessage = "No parameter presets configured",

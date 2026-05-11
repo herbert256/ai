@@ -58,7 +58,12 @@ fun <T> CrudListScreen(
     /** Optional slot rendered between the Add button and the list —
      *  used by InternalPromptsListScreen to surface the
      *  "Load new prompts from assets/prompts.json" action. */
-    headerContent: @Composable ColumnScope.() -> Unit = {}
+    headerContent: @Composable ColumnScope.() -> Unit = {},
+    /** Help-screen topic for this list. Each caller passes its own
+     *  so the ? icon opens a list-specific help page (Agents list /
+     *  Flocks list / etc.) rather than reusing the editor topic.
+     *  Null hides the help icon. */
+    helpTopic: String? = null
 ) {
     BackHandler { onBack() }
     var showDeleteDialog by remember { mutableStateOf<T?>(null) }
@@ -69,7 +74,7 @@ fun <T> CrudListScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(title = title, onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack)
 
         Spacer(modifier = Modifier.height(16.dp))
 

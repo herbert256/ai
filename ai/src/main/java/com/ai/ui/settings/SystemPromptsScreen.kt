@@ -23,6 +23,7 @@ fun SystemPromptsListScreen(
 ) {
     CrudListScreen(
         title = "System Prompts",
+        helpTopic = "system_prompts_list",
         items = aiSettings.systemPrompts,
         addLabel = "Add System Prompt",
         emptyMessage = "No system prompts configured",
