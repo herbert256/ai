@@ -131,11 +131,11 @@ object ApiTracer {
             val wrote = try {
                 File(dir, resolvedFilename).writeTextAtomic(gson.toJson(trace))
             } catch (e: Exception) {
-                android.util.Log.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
+                AppLog.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
                 false
             }
             if (!wrote) {
-                android.util.Log.w("ApiTracer", "writeTextAtomic returned false for $resolvedFilename — skipping cache update")
+                AppLog.w("ApiTracer", "writeTextAtomic returned false for $resolvedFilename — skipping cache update")
                 return null
             }
             // Step 2 — cache mutation. Independently caught so an
@@ -165,7 +165,7 @@ object ApiTracer {
                     cachedTraceFiles = next.sortedByDescending { it.timestamp }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
+                AppLog.e("ApiTracer", "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}")
                 cachedTraceFiles = null
             }
             return resolvedFilename
@@ -383,9 +383,16 @@ class TracingInterceptor : Interceptor {
         // produces a visible trace instead of silently disappearing.
         // Re-throw the original exception so caller-side error handling
         // is unchanged.
+        val tag = "ApiCall"
+        val callLabel = listOfNotNull(
+            request.method, hostname, model, capturedCategory?.let { "[$it]" }
+        ).joinToString(" ")
+        AppLog.i(tag, "→ $callLabel")
+        val callStart = System.currentTimeMillis()
         val response = try {
             chain.proceed(request)
         } catch (e: Exception) {
+            AppLog.w(tag, "✗ $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)")
             ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
                 traceRequest,
@@ -397,6 +404,12 @@ class TracingInterceptor : Interceptor {
                 partial = false
             ))
             throw e
+        }
+        val durationMs = System.currentTimeMillis() - callStart
+        if (response.code >= 400) {
+            AppLog.w(tag, "← ${response.code} $callLabel in ${durationMs}ms")
+        } else {
+            AppLog.i(tag, "← ${response.code} $callLabel in ${durationMs}ms")
         }
 
         val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||

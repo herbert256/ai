@@ -209,7 +209,7 @@ object KnowledgeService {
         // worst failure mode here, fail loud instead.
         val mismatch = kbs.firstOrNull { it.embedderProviderId != first.embedderProviderId || it.embedderModel != first.embedderModel }
         if (mismatch != null) {
-            android.util.Log.w("KnowledgeService", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
+            AppLog.w("KnowledgeService", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
         }
 
         val queryVecRaw = if (first.embedderProviderId == "LOCAL") {
@@ -259,7 +259,7 @@ object KnowledgeService {
                 }
             }
             dimSurprise?.let {
-                android.util.Log.w(
+                AppLog.w(
                     "KnowledgeService",
                     "KB '${kb.name}' (${kb.id}) has chunks with dim=$it; query dim=${queryVec.size}. " +
                         "Re-index the KB with the current embedder."

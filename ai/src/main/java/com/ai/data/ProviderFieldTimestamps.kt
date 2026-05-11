@@ -43,7 +43,7 @@ object ProviderFieldTimestamps {
                 ts.clear()
                 parsed?.forEach { (id, m) -> ts[id] = m.toMutableMap() }
             } catch (e: Exception) {
-                android.util.Log.w("ProviderFieldTimestamps", "load failed: ${e.message}")
+                AppLog.w("ProviderFieldTimestamps", "load failed: ${e.message}")
             }
         }
     }

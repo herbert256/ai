@@ -645,8 +645,9 @@ private fun SettingsMainScreen(
     var maxConcurrentCallsText by remember {
         mutableStateOf(generalSettings.maxConcurrentCallsPerProvider.toString())
     }
+    var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText, logLevel) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
@@ -661,7 +662,8 @@ private fun SettingsMainScreen(
             maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
                 ?: generalSettings.maxCallsPerProviderPerMinute,
             maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.maxConcurrentCallsPerProvider
+                ?: generalSettings.maxConcurrentCallsPerProvider,
+            logLevel = logLevel
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -693,7 +695,8 @@ private fun SettingsMainScreen(
                 maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
                     ?: generalSettings.maxCallsPerProviderPerMinute,
                 maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.maxConcurrentCallsPerProvider
+                    ?: generalSettings.maxConcurrentCallsPerProvider,
+                logLevel = logLevel
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -783,6 +786,26 @@ private fun SettingsMainScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
+            }
+
+            // In-app log threshold. Every call at this level or higher
+            // is mirrored to the daily-rotating file under
+            // <filesDir>/applog/ so the user can share the log with
+            // Claude Code for troubleshooting. OFF disables the file
+            // appender entirely (logcat still works during dev).
+            SettingCard(
+                "Application log level",
+                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender."
+            ) {
+                Column {
+                    com.ai.data.LogLevel.entries.forEach { lvl ->
+                        RadioRow(
+                            selected = logLevel == lvl,
+                            label = lvl.name,
+                            onClick = { logLevel = lvl }
+                        )
+                    }
+                }
             }
 
             // Model name layout — controls how combined provider+model

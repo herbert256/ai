@@ -119,7 +119,7 @@ object LocalEmbedder {
             recordDownloadTrace(spec, target.length(), System.currentTimeMillis() - started, error = null)
             true
         } catch (e: Exception) {
-            android.util.Log.e("LocalEmbedder", "model ${spec.name} download failed: ${e.message}", e)
+            AppLog.e("LocalEmbedder", "model ${spec.name} download failed: ${e.message}", e)
             tmp.delete()
             recordDownloadTrace(spec, bytes = -1, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             false
@@ -238,7 +238,7 @@ object LocalEmbedder {
                 durationMs = System.currentTimeMillis() - started, error = null)
             out
         } catch (e: Exception) {
-            android.util.Log.e("LocalEmbedder", "embed failed: ${e.message}", e)
+            AppLog.e("LocalEmbedder", "embed failed: ${e.message}", e)
             recordLocalTrace(modelName, inputs, outputDims = 0,
                 durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null

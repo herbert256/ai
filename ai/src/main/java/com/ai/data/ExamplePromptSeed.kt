@@ -37,7 +37,7 @@ object ExamplePromptSeed {
                 else ExamplePrompt(id = UUID.randomUUID().toString(), title = it.title, text = it.text)
             }
         } catch (e: Exception) {
-            android.util.Log.w("ExamplePromptSeed", "Failed to load examples.json: ${e.message}")
+            AppLog.w("ExamplePromptSeed", "Failed to load examples.json: ${e.message}")
             emptyList()
         }
     }
@@ -83,7 +83,7 @@ object ExamplePromptSeed {
             }
             result to changed
         } catch (e: Exception) {
-            android.util.Log.w("ExamplePromptSeed", "upsertFromJson failed: ${e.message}")
+            AppLog.w("ExamplePromptSeed", "upsertFromJson failed: ${e.message}")
             null
         }
     }

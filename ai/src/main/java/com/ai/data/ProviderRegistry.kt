@@ -48,7 +48,7 @@ object ProviderRegistry {
                         providers.clear()
                         providers.addAll(parseProvidersJson(json))
                     } catch (e: Exception) {
-                        android.util.Log.e("ProviderRegistry", "Error loading from prefs: ${e.message}")
+                        AppLog.e("ProviderRegistry", "Error loading from prefs: ${e.message}")
                     }
                 }
             }
@@ -78,7 +78,7 @@ object ProviderRegistry {
                             providers.add(def.toAppService())
                             added++
                         } catch (e: Exception) {
-                            android.util.Log.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
+                            AppLog.w("ProviderRegistry", "Skipped bundled provider ${def.id}: ${e.message}")
                         }
                     }
                 }
@@ -86,7 +86,7 @@ object ProviderRegistry {
                 added
             }
         } catch (e: Exception) {
-            android.util.Log.w("ProviderRegistry", "importFromAsset($filename) failed: ${e.message}")
+            AppLog.w("ProviderRegistry", "importFromAsset($filename) failed: ${e.message}")
             -1
         }
     }
@@ -108,7 +108,7 @@ object ProviderRegistry {
                 var changed = 0
                 for (def in defs) {
                     val service = try { def.toAppService() } catch (e: Exception) {
-                        android.util.Log.w("ProviderRegistry", "Skipped imported provider ${def.id}: ${e.message}")
+                        AppLog.w("ProviderRegistry", "Skipped imported provider ${def.id}: ${e.message}")
                         continue
                     }
                     val i = providers.indexOfFirst { it.id == service.id }
@@ -119,7 +119,7 @@ object ProviderRegistry {
                 changed
             }
         } catch (e: Exception) {
-            android.util.Log.w("ProviderRegistry", "upsertFromJson failed: ${e.message}")
+            AppLog.w("ProviderRegistry", "upsertFromJson failed: ${e.message}")
             -1
         }
     }
@@ -138,12 +138,12 @@ object ProviderRegistry {
             @Suppress("USELESS_CAST")
             val baseUrl = def.baseUrl as String?
             if (id.isNullOrBlank() || baseUrl.isNullOrBlank()) {
-                android.util.Log.w("ProviderRegistry",
+                AppLog.w("ProviderRegistry",
                     "Skipping malformed provider entry (id=$id, baseUrl=$baseUrl)")
                 null
             } else {
                 try { def.toAppService() } catch (e: Exception) {
-                    android.util.Log.w("ProviderRegistry", "Skipping provider $id — toAppService threw: ${e.message}")
+                    AppLog.w("ProviderRegistry", "Skipping provider $id — toAppService threw: ${e.message}")
                     null
                 }
             }
@@ -172,7 +172,7 @@ object ProviderRegistry {
      *  false if an entry with the same id already exists. */
     fun add(service: AppService): Boolean = synchronized(lock) {
         if (providers.any { it.id == service.id }) {
-            android.util.Log.w("ProviderRegistry",
+            AppLog.w("ProviderRegistry",
                 "Refusing to add duplicate provider id ${service.id}; existing entry kept")
             return@synchronized false
         }
@@ -238,7 +238,7 @@ object ProviderRegistry {
                     if (take.isEmpty()) continue
                     providers[i] = mergeTrackedFields(existing, asset, take)
                     changedCount++
-                    android.util.Log.i(
+                    AppLog.i(
                         "ProviderRegistry",
                         "syncFromAsset: ${asset.id} pulled ${take.joinToString()}"
                     )
@@ -247,7 +247,7 @@ object ProviderRegistry {
                 changedCount
             }
         } catch (e: Exception) {
-            android.util.Log.w("ProviderRegistry", "syncFromAsset failed: ${e.message}")
+            AppLog.w("ProviderRegistry", "syncFromAsset failed: ${e.message}")
             -1
         }
     }

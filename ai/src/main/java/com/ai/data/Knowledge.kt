@@ -206,7 +206,7 @@ object KnowledgeStore {
                 current.embeddingDim == 0 -> embeddingDim
                 current.embeddingDim == embeddingDim -> current.embeddingDim
                 else -> {
-                    android.util.Log.w("Knowledge",
+                    AppLog.w("Knowledge",
                         "Embedding dim mismatch on saveSource: kb=$kbId, " +
                             "manifest=${current.embeddingDim}, new=$embeddingDim. " +
                             "Manifest dim retained; cosine queries against this " +

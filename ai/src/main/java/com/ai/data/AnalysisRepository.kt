@@ -250,12 +250,12 @@ class AnalysisRepository {
                 // returned to the caller, but the original failure
                 // shouldn't disappear entirely.
                 if (!retried.isSuccess) {
-                    android.util.Log.w("AiAnalysis",
+                    AppLog.w("AiAnalysis",
                         "Tool fallback also failed for ${agent.name}: " +
                             "first=${first.httpStatusCode}/${first.error?.take(120)}; " +
                             "fallback=${retried.httpStatusCode}/${retried.error?.take(120)}")
                 } else {
-                    android.util.Log.i("AiAnalysis",
+                    AppLog.i("AiAnalysis",
                         "Tool fallback succeeded for ${agent.name} " +
                             "after first=${first.httpStatusCode}/${first.error?.take(120)}")
                 }
@@ -314,10 +314,10 @@ class AnalysisRepository {
             val result = makeCall()
             if (isSuccess(result)) return result
             if (isPermanentFailure(result)) {
-                android.util.Log.w("AiAnalysis", "$label first attempt permanent failure, skipping retry")
+                AppLog.w("AiAnalysis", "$label first attempt permanent failure, skipping retry")
                 return result
             }
-            android.util.Log.w("AiAnalysis", "$label first attempt failed, retrying...")
+            AppLog.w("AiAnalysis", "$label first attempt failed, retrying...")
             delay(RETRY_DELAY_MS)
             return try {
                 makeCall()
@@ -339,7 +339,7 @@ class AnalysisRepository {
             // them as "transient network errors" worth a second attempt
             // each. NPE-on-second-attempt is just as broken as the first
             // and burns 2× the cost / quota on every defective call.
-            android.util.Log.w("AiAnalysis", "$label first attempt I/O failure: ${e.message}, retrying…")
+            AppLog.w("AiAnalysis", "$label first attempt I/O failure: ${e.message}, retrying…")
             return try {
                 delay(RETRY_DELAY_MS); makeCall()
             } catch (e2: kotlinx.coroutines.CancellationException) {

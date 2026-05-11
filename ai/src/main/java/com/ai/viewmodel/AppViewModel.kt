@@ -123,6 +123,13 @@ data class GeneralSettings(
      *  the same provider host. Mirrored to
      *  [com.ai.data.NetworkSettings.maxConcurrentCallsPerProvider]. */
     val maxConcurrentCallsPerProvider: Int = 3,
+    /** Threshold for the in-app file logger
+     *  ([com.ai.data.AppLog]). Calls at this level or higher land in
+     *  `<filesDir>/applog/applog_<yyyyMMdd>.log` in addition to
+     *  logcat. OFF disables the file appender entirely. Default INFO:
+     *  noisy enough to capture every API call + batch start/end without
+     *  flooding the device with per-token streaming chatter. */
+    val logLevel: com.ai.data.LogLevel = com.ai.data.LogLevel.INFO,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub
@@ -323,6 +330,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
+            AppLog.threshold = bs.first.logLevel
+            AppLog.i("App", "App started — logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}")
             // Drop any per-host semaphores left over from the cold-start
             // default (3) so the very first call uses the persisted cap.
             ProviderThrottle.resetForNewLimits()
@@ -354,6 +363,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun bootstrap(application: Application): Pair<GeneralSettings, Settings> {
+        AppLog.init(application)
         ApiTracer.init(application)
         ChatHistoryManager.init(application)
         ReportStorage.init(application)
@@ -373,7 +383,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (isEmptyInstall) {
                 val providersAdded = ProviderRegistry.importFromAsset(application, "providers.json")
                 if (providersAdded < 0) {
-                    android.util.Log.w("AppViewModel", "First-run providers.json import failed")
+                    AppLog.w("AppViewModel", "First-run providers.json import failed")
                 }
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
@@ -395,7 +405,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         runCatching {
             ProviderRegistry.syncFromAsset(application, "providers.json")
             ProviderRegistry.importFromAsset(application, "providers.json")
-        }.onFailure { android.util.Log.w("AppViewModel", "providers.json delta sync failed", it) }
+        }.onFailure { AppLog.w("AppViewModel", "providers.json delta sync failed", it) }
 
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
@@ -412,7 +422,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(ai)
                 }
             }
-        }.onFailure { android.util.Log.w("AppViewModel", "prompts.json delta merge failed", it) }
+        }.onFailure { AppLog.w("AppViewModel", "prompts.json delta merge failed", it) }
 
         return gs to ai
     }
@@ -472,6 +482,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
+        AppLog.i("Housekeeping", "→ Clear all runtime data")
         val reports = ReportStorage.getAllReports(context).also { list ->
             list.forEach { ReportStorage.deleteReport(context, it.id) }
         }
@@ -488,14 +499,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PricingCache.clearAll(context)
         ModelListCache.clearAll(context)
         EmbeddingsStore.clearAll(context)
+        AppLog.i("Housekeeping", "← Clear all runtime data: reports=${reports.size} chats=$chats kbs=$kbs")
         return RuntimeWipeResult(reports.size, chats, kbs)
     }
 
     fun clearAllConfiguration(context: Context): ConfigWipeResult {
+        AppLog.i("Housekeeping", "→ Clear all configuration")
         updateSettings(Settings())
         updateGeneralSettings(GeneralSettings())
         val llms = LocalLlm.clearAll(context)
         val embedders = LocalEmbedder.clearAll(context)
+        AppLog.i("Housekeeping", "← Clear all configuration: localLlms=$llms embedders=$embedders")
         return ConfigWipeResult(llms, embedders)
     }
 
@@ -511,6 +525,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  is deleted in finally so a mid-cascade crash can't strand the
      *  keys on disk. */
     fun resetApplication(context: Context, onComplete: (success: Boolean, message: String) -> Unit) {
+        AppLog.i("Housekeeping", "→ Reset application (preserve API keys)")
         viewModelScope.launch(Dispatchers.IO) {
             val tempFile = java.io.File(context.cacheDir, "reset_keys_${System.currentTimeMillis()}.json")
             val outcome = runCatching {
@@ -531,7 +546,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // 5. Reload providers.json from assets
                 val providersAdded = ProviderRegistry.importFromAsset(context, "providers.json")
                 if (providersAdded < 0) {
-                    android.util.Log.w("AppViewModel", "providers.json reload failed during reset")
+                    AppLog.w("AppViewModel", "providers.json reload failed during reset")
                 }
                 // 6. Clear configuration (Settings() now keyed against fresh registry)
                 clearAllConfiguration(context)
@@ -565,10 +580,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.Main) {
                 outcome.fold(
                     onSuccess = { count ->
+                        AppLog.i("Housekeeping", "← Reset application: $count API keys restored")
                         onComplete(true, "Reset complete — $count API keys restored")
                     },
                     onFailure = { ex ->
-                        android.util.Log.e("AppViewModel", "resetApplication failed", ex)
+                        AppLog.e("Housekeeping", "← Reset application FAILED", ex)
                         onComplete(false, "Reset failed: ${ex.javaClass.simpleName}: ${ex.message}")
                     }
                 )
@@ -586,12 +602,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
         NetworkSettings.maxConcurrentCallsPerProvider = settings.maxConcurrentCallsPerProvider
+        AppLog.threshold = settings.logLevel
         // Java's Semaphore can't be resized in place — clear the
         // per-host map so the next acquire builds a fresh semaphore at
         // the new cap. The per-minute window is read on every acquire,
         // so it takes effect immediately and needs no reset.
         if (settings.maxConcurrentCallsPerProvider != previous.maxConcurrentCallsPerProvider) {
             ProviderThrottle.resetForNewLimits()
+        }
+        if (settings.logLevel != previous.logLevel) {
+            AppLog.i("Settings", "Log level changed: ${previous.logLevel} → ${settings.logLevel}")
         }
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
@@ -791,7 +811,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 null
             } catch (e: Exception) {
-                android.util.Log.w("AppViewModel", "Failed to fetch models for ${service.id}: ${e.message}")
+                AppLog.w("AppViewModel", "Failed to fetch models for ${service.id}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
                 // Match the trace bracketed by withTraceCategory("Retrieve
                 // models list") in ApiDispatch.fetchModelsWithKinds. Filtering

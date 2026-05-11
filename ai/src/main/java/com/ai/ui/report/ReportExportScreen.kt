@@ -1,5 +1,7 @@
 package com.ai.ui.report
 
+import com.ai.data.AppLog
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -132,7 +134,7 @@ fun ReportExportScreen(
                     // from the browser lands here with the format/detail choices intact.
                     if (action == ReportExportAction.SHARE) onBack()
                 } catch (e: Exception) {
-                    android.util.Log.e("ReportExport", "Export failed", e)
+                    AppLog.e("ReportExport", "Export failed", e)
                     progress = null
                     android.widget.Toast.makeText(
                         context,
@@ -183,7 +185,7 @@ fun ReportExportScreen(
                         progress = null
                         onBack()
                     } catch (e: Exception) {
-                        android.util.Log.e("ReportExport", "Export all failed", e)
+                        AppLog.e("ReportExport", "Export all failed", e)
                         progress = null
                         android.widget.Toast.makeText(
                             context,

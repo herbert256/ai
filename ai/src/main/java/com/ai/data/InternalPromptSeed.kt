@@ -48,7 +48,7 @@ object InternalPromptSeed {
                 )
             }
         } catch (e: Exception) {
-            android.util.Log.w("InternalPromptSeed", "Failed to load prompts.json: ${e.message}")
+            AppLog.w("InternalPromptSeed", "Failed to load prompts.json: ${e.message}")
             emptyList()
         }
     }
@@ -118,7 +118,7 @@ object InternalPromptSeed {
             }
             result to changed
         } catch (e: Exception) {
-            android.util.Log.w("InternalPromptSeed", "upsertFromJson failed: ${e.message}")
+            AppLog.w("InternalPromptSeed", "upsertFromJson failed: ${e.message}")
             null
         }
     }

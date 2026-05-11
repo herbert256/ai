@@ -327,7 +327,7 @@ object PricingCache {
      *  returning DEFAULT until a real off-thread load completes. */
     fun ensureLoadedBlocking(context: Context) {
         if (isMainThread()) {
-            android.util.Log.e(
+            AppLog.e(
                 "PricingCache",
                 "ensureLoadedBlocking invoked on the main thread — refusing to mark preload complete. " +
                     "Move the call to Dispatchers.IO."
@@ -788,7 +788,7 @@ object PricingCache {
             }
             pricing.size
         } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "Online LITELLM refresh failed: ${e.message}", e)
+            AppLog.e("PricingCache", "Online LITELLM refresh failed: ${e.message}", e)
             null
         }
     }
@@ -809,11 +809,11 @@ object PricingCache {
             // than vanishing into Log.e nobody reads.
             val json = ApiFactory.fetchUrlAsString("https://models.dev/api.json")
             if (json.isNullOrBlank()) {
-                android.util.Log.w("PricingCache", "models.dev refresh: empty / failed response")
+                AppLog.w("PricingCache", "models.dev refresh: empty / failed response")
                 return@withContext null
             }
             val (pricing, meta) = parseModelsDevJson(json)
-            android.util.Log.i("PricingCache", "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)")
+            AppLog.i("PricingCache", "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
             synchronized(lock) {
                 modelsDevPricing = pricing
@@ -826,7 +826,7 @@ object PricingCache {
             }
             pricing.size
         } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "models.dev refresh failed: ${e.message}", e)
+            AppLog.e("PricingCache", "models.dev refresh failed: ${e.message}", e)
             null
         }
       }
@@ -1036,11 +1036,11 @@ object PricingCache {
         try {
             val json = ApiFactory.fetchUrlAsString("https://www.helicone.ai/api/llm-costs")
             if (json.isNullOrBlank()) {
-                android.util.Log.w("PricingCache", "Helicone refresh: empty / failed response")
+                AppLog.w("PricingCache", "Helicone refresh: empty / failed response")
                 return@withContext null
             }
             val (exact, patterns) = parseHeliconeJson(json)
-            android.util.Log.i("PricingCache", "Helicone parse: ${exact.size} exact, ${patterns.size} patterns")
+            AppLog.i("PricingCache", "Helicone parse: ${exact.size} exact, ${patterns.size} patterns")
             if (exact.isEmpty() && patterns.isEmpty()) return@withContext null
             synchronized(lock) {
                 heliconePricing = exact
@@ -1052,7 +1052,7 @@ object PricingCache {
             }
             exact.size + patterns.size
         } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "Helicone refresh failed: ${e.message}", e)
+            AppLog.e("PricingCache", "Helicone refresh failed: ${e.message}", e)
             null
         }
       }
@@ -1158,7 +1158,7 @@ object PricingCache {
                 val json = ApiFactory.fetchUrlAsString(url) ?: continue
                 combined.putAll(parseLLMPricesVendorJson(vendor, json))
             }
-            android.util.Log.i("PricingCache", "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors")
+            AppLog.i("PricingCache", "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors")
             if (combined.isEmpty()) return@withContext null
             synchronized(lock) {
                 llmPricesPricing = combined
@@ -1168,7 +1168,7 @@ object PricingCache {
             }
             combined.size
         } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "llm-prices refresh failed: ${e.message}", e)
+            AppLog.e("PricingCache", "llm-prices refresh failed: ${e.message}", e)
             null
         }
       }
@@ -1260,7 +1260,7 @@ object PricingCache {
     suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
       withTraceCategory("Pricing fetch") {
         if (apiKey.isBlank()) {
-            android.util.Log.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
+            AppLog.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
             return@withContext null
         }
         try {
@@ -1269,11 +1269,11 @@ object PricingCache {
                 headers = mapOf("x-api-key" to apiKey)
             )
             if (json.isNullOrBlank()) {
-                android.util.Log.w("PricingCache", "Artificial Analysis refresh: empty / failed response")
+                AppLog.w("PricingCache", "Artificial Analysis refresh: empty / failed response")
                 return@withContext null
             }
             val (pricing, meta) = parseArtificialAnalysisJson(json)
-            android.util.Log.i("PricingCache", "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries")
+            AppLog.i("PricingCache", "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries")
             if (pricing.isEmpty() && meta.isEmpty()) return@withContext null
             synchronized(lock) {
                 aaPricing = pricing
@@ -1285,7 +1285,7 @@ object PricingCache {
             }
             pricing.size + meta.size
         } catch (e: Exception) {
-            android.util.Log.e("PricingCache", "Artificial Analysis refresh failed: ${e.message}", e)
+            AppLog.e("PricingCache", "Artificial Analysis refresh failed: ${e.message}", e)
             null
         }
       }
@@ -1674,7 +1674,7 @@ object PricingCache {
                 java.io.File(context.filesDir, "model_supported_parameters.json").writeTextAtomic(gson.toJson(parametersEntries))
                 clearSupportedParametersCache()
                 Pair(pricingEntries.size, parametersEntries.size)
-            } catch (e: Exception) { android.util.Log.e("PricingCache", "Failed: ${e.message}"); null }
+            } catch (e: Exception) { AppLog.e("PricingCache", "Failed: ${e.message}"); null }
         }
     }
 

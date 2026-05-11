@@ -1,5 +1,7 @@
 package com.ai.ui.report
 
+import com.ai.data.AppLog
+
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -433,7 +435,7 @@ internal suspend fun renderHtmlToPdfFile(
     val tag = "PdfExport"
     val startNs = System.nanoTime()
     fun elapsedMs() = (System.nanoTime() - startNs) / 1_000_000
-    android.util.Log.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}, withToc=$withTocPage, thread=${Thread.currentThread().name}, timeoutMs=$timeoutMs")
+    AppLog.i(tag, "renderHtmlToPdfFile: starting, html=${html.length} chars, out=${output.absolutePath}, withToc=$withTocPage, thread=${Thread.currentThread().name}, timeoutMs=$timeoutMs")
     val done = kotlinx.coroutines.CompletableDeferred<Unit>()
     val webView = WebView(context)
     // JS is required when we ask the WebView to inject the TOC at the top
@@ -455,7 +457,7 @@ internal suspend fun renderHtmlToPdfFile(
             val cssDensity = view.resources.displayMetrics.density
             val contentPx = (view.contentHeight * cssDensity).toInt()
             val totalHeight = maxOf(contentPx, pageHeight)
-            android.util.Log.i(
+            AppLog.i(
                 tag,
                 "contentHeightCss=${view.contentHeight}, contentPx=$contentPx, totalHeight=$totalHeight"
             )
@@ -505,10 +507,10 @@ internal suspend fun renderHtmlToPdfFile(
             if (output.exists()) output.delete()
             FileOutputStream(output).use { pdf.writeTo(it) }
             pdf.close()
-            android.util.Log.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes at +${elapsedMs()}ms")
+            AppLog.i(tag, "rendered ${pageNum - 1} pages to ${output.length()} bytes at +${elapsedMs()}ms")
             done.complete(Unit)
         } catch (e: Exception) {
-            android.util.Log.e(tag, "PDF render failed", e)
+            AppLog.e(tag, "PDF render failed", e)
             done.completeExceptionally(e)
         }
     }
@@ -590,10 +592,10 @@ internal suspend fun renderHtmlToPdfFile(
     }
     webView.webViewClient = object : WebViewClient() {
         override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
-            android.util.Log.i(tag, "onPageStarted url=$url at +${elapsedMs()}ms")
+            AppLog.i(tag, "onPageStarted url=$url at +${elapsedMs()}ms")
         }
         override fun onPageFinished(view: WebView, url: String?) {
-            android.util.Log.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight} at +${elapsedMs()}ms")
+            AppLog.i(tag, "onPageFinished url=$url, contentHeight=${view.contentHeight} at +${elapsedMs()}ms")
             // Chromium fires onPageFinished as soon as the document finishes
             // loading, but on a "warm" process the layout pass hasn't run yet —
             // contentHeight is still 0. Poll the main handler until chromium
@@ -611,13 +613,13 @@ internal suspend fun renderHtmlToPdfFile(
             maybeRender()
         }
         override fun onReceivedError(view: WebView, request: android.webkit.WebResourceRequest, error: android.webkit.WebResourceError) {
-            android.util.Log.e(tag, "onReceivedError code=${error.errorCode} desc='${error.description}' url=${request.url} at +${elapsedMs()}ms")
+            AppLog.e(tag, "onReceivedError code=${error.errorCode} desc='${error.description}' url=${request.url} at +${elapsedMs()}ms")
         }
         override fun onReceivedHttpError(view: WebView, request: android.webkit.WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
-            android.util.Log.e(tag, "onReceivedHttpError status=${errorResponse.statusCode} url=${request.url} at +${elapsedMs()}ms")
+            AppLog.e(tag, "onReceivedHttpError status=${errorResponse.statusCode} url=${request.url} at +${elapsedMs()}ms")
         }
     }
-    android.util.Log.i(tag, "loading HTML into WebView at +${elapsedMs()}ms")
+    AppLog.i(tag, "loading HTML into WebView at +${elapsedMs()}ms")
     webView.loadDataWithBaseURL("file:///android_asset/", html, "text/html", "utf-8", null)
     try {
         // Safety timeout — if onPageFinished never fires (rare, but better to
@@ -625,9 +627,9 @@ internal suspend fun renderHtmlToPdfFile(
         // configured limit. Bulk-export passes a higher value because the
         // Complete HTML can be many MB after redacted traces are inlined.
         kotlinx.coroutines.withTimeout(timeoutMs) { done.await() }
-        android.util.Log.i(tag, "render complete at +${elapsedMs()}ms")
+        AppLog.i(tag, "render complete at +${elapsedMs()}ms")
     } catch (e: Exception) {
-        android.util.Log.e(tag, "renderHtmlToPdfFile failed at +${elapsedMs()}ms: ${e.javaClass.simpleName}: ${e.message}")
+        AppLog.e(tag, "renderHtmlToPdfFile failed at +${elapsedMs()}ms: ${e.javaClass.simpleName}: ${e.message}")
         throw e
     } finally {
         webView.stopLoading()

@@ -214,6 +214,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 knowledgeBaseIds = state.attachedKnowledgeBaseIds
             )
             val reportId = report.id
+            val reportStartMs = System.currentTimeMillis()
+            AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
             withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
@@ -229,6 +231,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                         }.awaitAll()
                     }
+                    val finalReport = ReportStorage.getReport(context, reportId)
+                    val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
+                    val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
+                    AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
                     if (reportRunningInBackground) {
                         reportRunningInBackground = false
                         withContext(Dispatchers.Main) {
@@ -955,6 +961,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         pick: Pair<AppService, String>
     ): Job? {
         val (provider, model) = pick
+        AppLog.i("Rerank", "→ start report=$reportId via ${provider.id}/$model")
         if (provider.id == AppService.LOCAL.id) {
             return runLocalRerank(context, reportId, model)
         }
@@ -1021,6 +1028,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (existing.isActive) return existing
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        val fanOutStartMs = System.currentTimeMillis()
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
@@ -1033,6 +1041,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successful.size < 2) return@withTracerTags
+                    AppLog.i("FanOut", "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)")
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
                         is SecondaryScope.TopRanked -> {
@@ -1112,6 +1121,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                         }.awaitAll()
                     }
+                    AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
@@ -1429,6 +1439,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPrompt: com.ai.model.InternalPrompt,
         pick: Pair<AppService, String>
     ): Job? {
+        AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
@@ -1556,6 +1567,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         activeProviderId: String,
         activeModel: String
     ): Job? {
+        AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val cat = "Report meta: ${metaPrompt.name}"
@@ -1769,6 +1781,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         if (picks.isEmpty()) return null
         val kind = SecondaryKind.META
+        AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
         return appViewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -2385,6 +2398,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguageNative = targetLanguageNative,
                 items = items
             )) }
+            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${items.size} items via ${provider.id}/$model")
 
             val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
             val apiKey = aiSettings.getApiKey(provider)
@@ -2415,12 +2429,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // the cancelled item stays unpersisted and the
                 // timestamp bump is moot.
                 val finalState = _translationRuns.value[runId] ?: return@withTracerTags
-                if (finalState.cancelled) return@withTracerTags
+                if (finalState.cancelled) {
+                    AppLog.i("Translation", "← cancelled $targetLanguageName for report=$sourceReportId")
+                    return@withTracerTags
+                }
                 ReportStorage.bumpReportTimestamp(context, sourceReportId)
                 _translationRuns.update { runs ->
                     val cur = runs[runId] ?: return@update runs
                     runs + (runId to cur.copy(finished = true))
                 }
+                val okCount = finalState.items.count { it.translatedText?.isNotBlank() == true }
+                val failCount = finalState.items.count { it.errorMessage != null }
+                AppLog.i("Translation", "← done $targetLanguageName for report=$sourceReportId — ok=$okCount fail=$failCount")
             }
         }
         translationJobs[runId] = job

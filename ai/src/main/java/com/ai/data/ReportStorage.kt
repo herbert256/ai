@@ -283,14 +283,14 @@ object ReportStorage {
         // separators. Refuse anything that doesn't look like a flat
         // file name to keep loadReport from escaping reportsDir.
         if (reportId.contains('/') || reportId.contains('\\') || reportId.contains("..")) {
-            android.util.Log.w("ReportStorage", "Rejected reportId with path traversal markers: $reportId")
+            AppLog.w("ReportStorage", "Rejected reportId with path traversal markers: $reportId")
             return null
         }
         val dir = reportsDir ?: return null
         val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
         return try { gson.fromJson(file.readText(), Report::class.java) } catch (e: Exception) {
-            android.util.Log.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
+            AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
         }
     }
 
@@ -298,7 +298,7 @@ object ReportStorage {
         val files = reportsDir?.listFiles { f -> f.extension == "json" } ?: return emptyList()
         return files.mapNotNull { file ->
             try { gson.fromJson(file.readText(), Report::class.java) } catch (e: Exception) {
-                android.util.Log.e("ReportStorage", "Failed to load ${file.name}: ${e.message}"); null
+                AppLog.e("ReportStorage", "Failed to load ${file.name}: ${e.message}"); null
             }
         }
     }
@@ -311,7 +311,7 @@ object ReportStorage {
             // races would otherwise leave the in-memory state diverged
             // from disk until the next reload, where the fresh load
             // would silently hand back the pre-update report.
-            android.util.Log.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
+            AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
         }
     }
 

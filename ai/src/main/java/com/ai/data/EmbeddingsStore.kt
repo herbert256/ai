@@ -63,7 +63,7 @@ object EmbeddingsStore {
         // is fine to miss next read so we don't escalate further.
         val f = fileFor(filesDir, docId, providerId, model, content)
         if (!f.writeTextAtomic(gson.toJson(vector))) {
-            android.util.Log.w("EmbeddingsStore",
+            AppLog.w("EmbeddingsStore",
                 "put($docId, $providerId, $model) failed to write ${f.absolutePath}")
         }
     }
@@ -79,7 +79,7 @@ object EmbeddingsStore {
     fun cosine(a: List<Double>, b: List<Double>): Double {
         if (a.isEmpty() || b.isEmpty()) return 0.0
         if (a.size != b.size) {
-            android.util.Log.w("EmbeddingsStore",
+            AppLog.w("EmbeddingsStore",
                 "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
             return 0.0
         }
@@ -103,7 +103,7 @@ object EmbeddingsStore {
     fun cosine(a: FloatArray, b: FloatArray): Double {
         if (a.isEmpty() || b.isEmpty()) return 0.0
         if (a.size != b.size) {
-            android.util.Log.w("EmbeddingsStore",
+            AppLog.w("EmbeddingsStore",
                 "cosine: dim mismatch a=${a.size} b=${b.size} — embedder swapped without re-embed?")
             return 0.0
         }

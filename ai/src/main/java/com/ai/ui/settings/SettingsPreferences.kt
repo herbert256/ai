@@ -79,7 +79,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 KEY_NONSTREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
             ),
             maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, 30),
-            maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3)
+            maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3),
+            logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
+                try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
+            } ?: com.ai.data.LogLevel.INFO
         )
     }
 
@@ -105,6 +108,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_NONSTREAMING_READ_TIMEOUT_SEC, settings.nonStreamingReadTimeoutSec)
             putInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, settings.maxCallsPerProviderPerMinute)
             putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
+            putString(KEY_LOG_LEVEL, settings.logLevel.name)
         }
     }
 
@@ -454,6 +458,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_NONSTREAMING_READ_TIMEOUT_SEC = "nonstreaming_read_timeout_sec"
         private const val KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE = "max_calls_per_provider_per_minute"
         private const val KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER = "max_concurrent_calls_per_provider"
+        private const val KEY_LOG_LEVEL = "log_level"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

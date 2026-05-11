@@ -149,14 +149,14 @@ object SecondaryResultStorage {
         // touching the filesystem.
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
                 || result.id == "." || result.id == "..") {
-            android.util.Log.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
+            AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
             return result
         }
         lock.withLock {
             val dir = reportDir(result.reportId) ?: return result
             val target = File(dir, "${result.id}.json")
             if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
-                android.util.Log.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
+                AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
                 return result
             }
             target.writeTextAtomic(gson.toJson(result))

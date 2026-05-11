@@ -27,7 +27,7 @@ object ChatHistoryManager {
     }
 
     fun saveSession(session: ChatSession): Boolean {
-        val dir = historyDir ?: run { android.util.Log.w("ChatHistoryManager", "Not initialized"); return false }
+        val dir = historyDir ?: run { AppLog.w("ChatHistoryManager", "Not initialized"); return false }
         return lock.withLock {
             if (!dir.exists()) dir.mkdirs()
             try {
@@ -44,13 +44,13 @@ object ChatHistoryManager {
                 }
                 ok
             } catch (e: Exception) {
-                android.util.Log.e("ChatHistoryManager", "Failed to save: ${e.message}"); false
+                AppLog.e("ChatHistoryManager", "Failed to save: ${e.message}"); false
             }
         }
     }
 
     fun loadSession(sessionId: String): ChatSession? {
-        val dir = historyDir ?: run { android.util.Log.w("ChatHistoryManager", "Not initialized"); return null }
+        val dir = historyDir ?: run { AppLog.w("ChatHistoryManager", "Not initialized"); return null }
         return lock.withLock {
             val file = File(dir, "$sessionId.json")
             if (!file.exists()) return null
@@ -59,7 +59,7 @@ object ChatHistoryManager {
             // whole JSON document as a String alongside Gson's parse
             // buffer, which matters for image-heavy sessions.
             try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
-            catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to load: ${e.message}"); null }
+            catch (e: Exception) { AppLog.e("ChatHistoryManager", "Failed to load: ${e.message}"); null }
         }
     }
 
@@ -71,7 +71,7 @@ object ChatHistoryManager {
             cachedSessions?.let { return it }
             val sessions = dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
                 try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
-                catch (e: Exception) { android.util.Log.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
+                catch (e: Exception) { AppLog.e("ChatHistoryManager", "Failed to parse: ${e.message}"); null }
             }?.sortedByDescending { it.updatedAt } ?: emptyList()
             cachedSessions = sessions
             sessions

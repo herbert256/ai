@@ -98,7 +98,7 @@ object BackupManager {
      *    - Preserving across the restore wipe means a user who has local
      *      models installed on the target device doesn't lose them when
      *      restoring an unrelated settings/data backup. */
-    internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")
+    internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "applog")
 
     /** Top-level cacheDir filename prefixes to skip during backup AND
      *  during the cacheDir wipe on restore. These are in-flight temp
@@ -132,6 +132,8 @@ object BackupManager {
      * provides [out] from a SAF-picked Uri.
      */
     fun backup(context: Context, out: OutputStream) {
+        AppLog.i("Backup", "→ backup start")
+        val t0 = System.currentTimeMillis()
         ZipOutputStream(out).use { zip ->
             // Manifest
             val manifest = mapOf(
@@ -165,6 +167,7 @@ object BackupManager {
                 addDirectoryRecursive(zip, cacheRoot, "cache")
             }
         }
+        AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms")
     }
 
     /**
@@ -173,6 +176,8 @@ object BackupManager {
      * restart the app afterwards.
      */
     fun restore(context: Context, input: InputStream): RestoreSummary {
+        AppLog.i("Backup", "→ restore start")
+        val t0 = System.currentTimeMillis()
         val tempZip = File.createTempFile("ai-restore-", ".zip", context.cacheDir)
         return try {
             tempZip.outputStream().use { out -> input.copyTo(out) }
@@ -213,6 +218,7 @@ object BackupManager {
             // preserving it keeps the finally below well-defined.
             clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
             val filesRestored = applyFilesOnly(context, staged)
+            AppLog.i("Backup", "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)")
             RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
         } finally {
             tempZip.delete()
@@ -252,7 +258,7 @@ object BackupManager {
                     val canonicalTarget = target.canonicalPath
                     val canonicalRoot = context.filesDir.canonicalPath + File.separator
                     if (!canonicalTarget.startsWith(canonicalRoot)) {
-                        android.util.Log.w("BackupManager",
+                        AppLog.w("BackupManager",
                             "Skipping zip entry that escapes filesDir: $name")
                         zip.closeEntry(); continue
                     }
@@ -263,7 +269,7 @@ object BackupManager {
                     val canonicalTarget = target.canonicalPath
                     val canonicalRoot = context.cacheDir.canonicalPath + File.separator
                     if (!canonicalTarget.startsWith(canonicalRoot)) {
-                        android.util.Log.w("BackupManager",
+                        AppLog.w("BackupManager",
                             "Skipping zip entry that escapes cacheDir: $name")
                         zip.closeEntry(); continue
                     }
@@ -434,7 +440,7 @@ object BackupManager {
                     "l" -> editor.putLong(k, (m["v"] as? Number)?.toLong() ?: 0L)
                     "f" -> editor.putFloat(k, (m["v"] as? Number)?.toFloat() ?: 0f)
                     "ss" -> editor.putStringSet(k, (m["v"] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet())
-                    else -> android.util.Log.w("BackupManager",
+                    else -> AppLog.w("BackupManager",
                         "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped")
                 }
             }
@@ -466,7 +472,7 @@ object BackupManager {
             // (a symlink resolves to a different on-disk location).
             try {
                 if (child.canonicalPath != child.absolutePath) {
-                    android.util.Log.w("BackupManager", "Skipping symlink: ${child.absolutePath}")
+                    AppLog.w("BackupManager", "Skipping symlink: ${child.absolutePath}")
                     continue
                 }
             } catch (_: java.io.IOException) {

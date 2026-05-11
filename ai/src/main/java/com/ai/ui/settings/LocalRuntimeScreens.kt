@@ -1,5 +1,7 @@
 package com.ai.ui.settings
 
+import com.ai.data.AppLog
+
 import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -286,7 +288,7 @@ internal fun importTfliteModel(context: Context, uri: android.net.Uri): String? 
         }
         target.nameWithoutExtension
     } catch (e: Exception) {
-        android.util.Log.e("LocalRuntime", "tflite import failed: ${e.message}", e)
+        AppLog.e("LocalRuntime", "tflite import failed: ${e.message}", e)
         null
     }
 }
@@ -341,17 +343,17 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
                 lower.endsWith(".zip") -> {
                     val entry = extractFirstTaskFromZip(input, target)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
-                    android.util.Log.i("LocalRuntime", "Extracted $entry from $displayName")
+                    AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
                 lower.endsWith(".tar.gz") || lower.endsWith(".tgz") -> {
                     val entry = extractFirstTaskFromTar(java.util.zip.GZIPInputStream(input), target)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
-                    android.util.Log.i("LocalRuntime", "Extracted $entry from $displayName")
+                    AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
                 lower.endsWith(".tar") -> {
                     val entry = extractFirstTaskFromTar(input, target)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
-                    android.util.Log.i("LocalRuntime", "Extracted $entry from $displayName")
+                    AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
                 else -> target.outputStream().use { input.copyTo(it) }
             }
@@ -362,7 +364,7 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
         }
         target.nameWithoutExtension
     } catch (e: Exception) {
-        android.util.Log.e("LocalRuntime", "LLM import failed: ${e.message}", e)
+        AppLog.e("LocalRuntime", "LLM import failed: ${e.message}", e)
         null
     }
 }

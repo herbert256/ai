@@ -1,5 +1,7 @@
 package com.ai.ui.settings
 
+import com.ai.data.AppLog
+
 import android.content.Context
 import android.net.Uri
 import android.widget.Toast
@@ -71,7 +73,7 @@ private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResul
         val out = mutableListOf<T>()
         arr.forEach { el ->
             try { out.add(gson.fromJson(el, type)) }
-            catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped $name entry: ${e.message}") }
+            catch (e: Exception) { AppLog.w("ImportExport", "Skipped $name entry: ${e.message}") }
         }
         return out
     }
@@ -190,7 +192,7 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
     var n = 0
     obj.entrySet().forEach { (key, value) ->
         val service = AppService.findById(key) ?: run {
-            android.util.Log.w("ImportExport", "Skipped model list for unknown provider $key")
+            AppLog.w("ImportExport", "Skipped model list for unknown provider $key")
             return@forEach
         }
         // Tolerate both the legacy `[modelId, …]` shape and the new
@@ -268,13 +270,13 @@ private fun applyEndpoints(obj: JsonObject, working: Settings): Pair<Settings, I
     obj.entrySet().forEach { (key, value) ->
         val arr = value as? JsonArray ?: return@forEach
         val service = AppService.findById(key) ?: run {
-            android.util.Log.w("ImportExport", "Skipped endpoints for unknown provider $key")
+            AppLog.w("ImportExport", "Skipped endpoints for unknown provider $key")
             return@forEach
         }
         val list = mutableListOf<Endpoint>()
         arr.forEach { el ->
             try { list.add(gson.fromJson(el, Endpoint::class.java)) }
-            catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped endpoint entry: ${e.message}") }
+            catch (e: Exception) { AppLog.w("ImportExport", "Skipped endpoint entry: ${e.message}") }
         }
         if (list.isNotEmpty()) {
             s = s.withEndpoints(service, list)
@@ -294,7 +296,7 @@ private fun applyParameters(arr: JsonArray, working: Settings): Pair<Settings, I
     val incoming = mutableListOf<Parameters>()
     arr.forEach { el ->
         try { incoming.add(gson.fromJson(el, Parameters::class.java)) }
-        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped parameters entry: ${e.message}") }
+        catch (e: Exception) { AppLog.w("ImportExport", "Skipped parameters entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
     val merged = working.parameters.filterNot { it.id in incomingIds } + incoming
@@ -309,7 +311,7 @@ private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): Pair<Set
     val incoming = mutableListOf<ModelTypeOverride>()
     arr.forEach { el ->
         try { incoming.add(gson.fromJson(el, ModelTypeOverride::class.java)) }
-        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped model type override entry: ${e.message}") }
+        catch (e: Exception) { AppLog.w("ImportExport", "Skipped model type override entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
     val merged = working.modelTypeOverrides.filterNot { it.id in incomingIds } + incoming
@@ -324,7 +326,7 @@ private fun applySystemPrompts(arr: JsonArray, working: Settings): Pair<Settings
     val incoming = mutableListOf<SystemPrompt>()
     arr.forEach { el ->
         try { incoming.add(gson.fromJson(el, SystemPrompt::class.java)) }
-        catch (e: Exception) { android.util.Log.w("ImportExport", "Skipped system prompt entry: ${e.message}") }
+        catch (e: Exception) { AppLog.w("ImportExport", "Skipped system prompt entry: ${e.message}") }
     }
     val incomingIds = incoming.map { it.id }.toSet()
     val merged = working.systemPrompts.filterNot { it.id in incomingIds } + incoming
@@ -600,10 +602,10 @@ fun ImportExportScreen(
                 } catch (e: ConfigBundleMistakenForKeysException) {
                     Toast.makeText(context, "This looks like a full config bundle, not an API keys file.", Toast.LENGTH_LONG).show()
                 } catch (e: JsonSyntaxException) {
-                    android.util.Log.e("ImportExport", "API keys import parse error", e)
+                    AppLog.e("ImportExport", "API keys import parse error", e)
                     Toast.makeText(context, "Not valid JSON", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    android.util.Log.e("ImportExport", "API keys import error", e)
+                    AppLog.e("ImportExport", "API keys import error", e)
                     Toast.makeText(context, "Import failed (${e.javaClass.simpleName}); see logcat", Toast.LENGTH_LONG).show()
                 }
             }
@@ -804,7 +806,7 @@ fun ImportExportScreen(
                             parts.add("${res.imported} keys")
                         }
                     } catch (e: Exception) {
-                        android.util.Log.w("ImportExport", "Bundle apiKeys section failed: ${e.message}")
+                        AppLog.w("ImportExport", "Bundle apiKeys section failed: ${e.message}")
                     }
                 }
 

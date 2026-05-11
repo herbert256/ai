@@ -50,7 +50,7 @@ object ModelListCache {
             // a real but partial response.
             fileFor(context, providerId).writeTextAtomic(rawResponse)
         } catch (e: Exception) {
-            android.util.Log.w("ModelListCache", "save($providerId) failed: ${e.message}")
+            AppLog.w("ModelListCache", "save($providerId) failed: ${e.message}")
         }
     }
 
@@ -65,7 +65,7 @@ object ModelListCache {
         val f = fileFor(context, providerId)
         if (f.exists()) f.readText() else null
     } catch (e: Exception) {
-        android.util.Log.w("ModelListCache", "read($providerId) failed: ${e.message}")
+        AppLog.w("ModelListCache", "read($providerId) failed: ${e.message}")
         null
     }
 

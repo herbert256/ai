@@ -449,7 +449,7 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
     if (service.crossProviderModelList) {
         val orApi = ApiFactory.createOpenRouterModelsApi(service.baseUrl)
         val response = try { orApi.listModelsDetailed("Bearer $apiKey") } catch (e: Exception) {
-            android.util.Log.w("ApiDispatch", "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}")
+            AppLog.w("ApiDispatch", "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
         val data = if (response?.isSuccessful == true) response.body()?.data.orEmpty() else emptyList()
@@ -539,11 +539,11 @@ private suspend fun AnalysisRepository.fetchModelsOpenAi(service: AppService, ap
                 }.toMap()
             } else {
                 val body = runCatching { resp.errorBody()?.string()?.take(300) }.getOrNull()
-                android.util.Log.w("ApiDispatch", "Native capability listModels HTTP ${resp.code()}: ${body ?: "(no body)"}")
+                AppLog.w("ApiDispatch", "Native capability listModels HTTP ${resp.code()}: ${body ?: "(no body)"}")
                 emptyMap()
             }
         } catch (e: Exception) {
-            android.util.Log.w("ApiDispatch", "Native capability listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+            AppLog.w("ApiDispatch", "Native capability listModels threw: ${e.javaClass.simpleName}: ${e.message}")
             emptyMap()
         }
     } ?: emptyMap()
@@ -640,17 +640,17 @@ private suspend fun AnalysisRepository.fetchModelsAnthropic(service: AppService,
         // Network / parse failure — surface as FetchModelsException so
         // AppViewModel.fetchModelsAwait routes it through fetchModelsErrors
         // instead of silently overwriting the cached catalog with empty.
-        android.util.Log.w("ApiDispatch", "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+        AppLog.w("ApiDispatch", "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}")
         throw FetchModelsException("Anthropic listModels failed: ${e.javaClass.simpleName}: ${e.message}", e)
     }
     if (!response.isSuccessful) {
         val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
-        android.util.Log.w("ApiDispatch", "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
+        AppLog.w("ApiDispatch", "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
         throw FetchModelsException("Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
     }
     val entries = response.body()?.data?.filter { it.id?.startsWith("claude") == true }.orEmpty()
     if (entries.isEmpty()) {
-        android.util.Log.w("ApiDispatch", "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})")
+        AppLog.w("ApiDispatch", "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})")
     }
     val ids = entries.mapNotNull { it.id }.sorted()
     // Read Anthropic's per-model capability bundle directly. Provider
@@ -731,7 +731,7 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
             FetchedModels(ids, all, emptySet(), caps, rawJson)
         } else {
             val body = runCatching { response.errorBody()?.string()?.take(300) }.getOrNull()
-            android.util.Log.w("ApiDispatch", "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
+            AppLog.w("ApiDispatch", "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
             throw FetchModelsException("Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}")
         }
     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -739,7 +739,7 @@ private suspend fun AnalysisRepository.fetchModelsGemini(service: AppService, ap
     } catch (e: FetchModelsException) {
         throw e
     } catch (e: Exception) {
-        android.util.Log.w("ApiDispatch", "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}")
+        AppLog.w("ApiDispatch", "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}")
         throw FetchModelsException("Gemini listModels failed: ${e.javaClass.simpleName}: ${e.message}", e)
     }
 }
@@ -1100,7 +1100,7 @@ internal fun claudeReasoningBundle(
         // discovering it via a surprise cost spike. The trace also
         // captures the final request body, so this Log + the
         // captured body are both visible in API Traces.
-        android.util.Log.w("ApiDispatch",
+        AppLog.w("ApiDispatch",
             "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)")
     }
     return ClaudeReasoningBundle(effectiveMax, thinking, outputConfig)

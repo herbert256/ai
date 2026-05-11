@@ -134,7 +134,7 @@ object LocalLlm {
             recordTrace(modelName, prompt, out, durationMs = System.currentTimeMillis() - started, error = null)
             out
         } catch (e: Exception) {
-            android.util.Log.e("LocalLlm", "generate failed: ${e.message}", e)
+            AppLog.e("LocalLlm", "generate failed: ${e.message}", e)
             recordTrace(modelName, prompt, null, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
         }

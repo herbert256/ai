@@ -30,7 +30,8 @@ fun HousekeepingScreen(
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
-    onNavigateToReset: () -> Unit = {}
+    onNavigateToReset: () -> Unit = {},
+    onNavigateToAppLog: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
 
@@ -49,6 +50,10 @@ fun HousekeepingScreen(
             if (hasActiveProvider) {
                 NavCard("Trim by age", onClick = onNavigateToTrimByAge)
             }
+            // In-app log viewer — daily-rotating file under filesDir/applog/.
+            // Available even on first run (no active provider) because the
+            // log is populated immediately on app start (bootstrap line).
+            NavCard("Application log", onClick = onNavigateToAppLog)
             // Refresh and Reset live together at the bottom — both
             // wholesale-state operations that finish with a forced app
             // restart popup.

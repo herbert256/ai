@@ -51,7 +51,7 @@ fun File.writeTextAtomic(content: String): Boolean {
             true
         }
     } catch (e: Exception) {
-        android.util.Log.e("AtomicFileWrite", "Failed to write $absolutePath: ${e.message}")
+        AppLog.e("AtomicFileWrite", "Failed to write $absolutePath: ${e.message}")
         try { if (tmp.exists()) tmp.delete() } catch (_: Exception) {}
         false
     }

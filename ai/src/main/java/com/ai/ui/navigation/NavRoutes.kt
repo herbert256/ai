@@ -44,6 +44,8 @@ object NavRoutes {
     const val AI_TRIM_BY_AGE = "ai_trim_by_age"
     const val AI_RESET = "ai_reset"
     const val AI_REFRESH = "ai_refresh"
+    const val AI_APPLOG_LIST = "ai_applog_list"
+    const val AI_APPLOG_DETAIL = "ai_applog_detail/{filename}"
     const val AI_PROVIDER_ADMIN = "ai_provider_admin"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
@@ -67,6 +69,7 @@ object NavRoutes {
     private fun encode(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
+    fun aiAppLogDetail(filename: String) = "ai_applog_detail/$filename"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
     fun traceListForReportCategory(reportId: String, category: String) =
         "trace_list/$reportId/category/${encode(category)}"

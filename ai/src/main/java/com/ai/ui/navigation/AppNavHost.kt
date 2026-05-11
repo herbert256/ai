@@ -812,7 +812,21 @@ fun AppNavHost(
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
-                onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) }
+                onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
+                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) }
+            )
+        }
+        composable(NavRoutes.AI_APPLOG_LIST) {
+            com.ai.ui.admin.AppLogListScreen(
+                onBack = safePopBack,
+                onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) }
+            )
+        }
+        composable(NavRoutes.AI_APPLOG_DETAIL) { entry ->
+            val filename = entry.arguments?.getString("filename") ?: ""
+            com.ai.ui.admin.AppLogDetailScreen(
+                filename = filename,
+                onBack = safePopBack
             )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
