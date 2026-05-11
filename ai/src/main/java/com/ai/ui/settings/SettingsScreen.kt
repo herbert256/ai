@@ -974,14 +974,16 @@ private fun OtherSettingsSubScreen(
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
+    var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
         defaultEmail = defaultEmail,
-        iconGenEnabled = iconGenEnabled
+        iconGenEnabled = iconGenEnabled,
+        perModelIconGenEnabled = perModelIconGenEnabled
     )
 
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled) {
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1020,6 +1022,12 @@ private fun OtherSettingsSubScreen(
                 description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
                 checked = iconGenEnabled,
                 onCheckedChange = { iconGenEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Generate per model icons",
+                description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                checked = perModelIconGenEnabled,
+                onCheckedChange = { perModelIconGenEnabled = it }
             )
         }
     }

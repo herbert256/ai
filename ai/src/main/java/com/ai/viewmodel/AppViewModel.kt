@@ -92,6 +92,16 @@ data class GeneralSettings(
      *  iconCost values on existing reports stay on disk — re-enabling
      *  brings them back. */
     val iconGenEnabled: Boolean = true,
+    /** Master switch for the per-agent 3-tier icon chain
+     *  ([com.ai.viewmodel.ReportViewModel.runReportIcons]). When true
+     *  (default) every report that finishes generation — initial
+     *  generation AND regenerate — auto-fires the chain on
+     *  AppViewModel.viewModelScope so it survives the user
+     *  navigating away from the result screen. Each successful
+     *  agent's leftmost ✅ flips to a returned emoji once the
+     *  chain finishes for that row. When false the chain never
+     *  runs automatically; per-agent rows keep their plain ✅. */
+    val perModelIconGenEnabled: Boolean = true,
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through

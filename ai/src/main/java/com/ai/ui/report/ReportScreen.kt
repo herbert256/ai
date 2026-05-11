@@ -249,10 +249,6 @@ fun ReportsScreenNav(
             reportViewModel.restartAgentIconFanOut(rid, agentId)
         },
         agentIconFanOutByAgent = agentIconFanOutByAgent,
-        onRunReportIcons = {
-            val rid = uiState.currentReportId
-            if (rid != null) reportViewModel.runReportIcons(context, rid, aiSettings)
-        },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -456,10 +452,6 @@ fun ReportsScreen(
      *  Alternative icons screen reads from here when the active flow
      *  is per-agent (i.e. [fanOutTargetAgentId] is non-null). */
     agentIconFanOutByAgent: Map<String, List<IconCandidate>> = emptyMap(),
-    /** Kick off Create → Report icons — runs the 3-tier fallback
-     *  chain (chat continuation → one-shot → fixed agent) for every
-     *  successful agent in the active report. */
-    onRunReportIcons: () -> Unit = {},
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -2279,7 +2271,6 @@ fun ReportsScreen(
                 reportIconCost = reportIconCost,
                 reportIconModel = reportIconModel,
                 onOpenIconDetail = { showIconDetail = true },
-                onRunReportIcons = onRunReportIcons,
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 agentIconRows = agentIconRows
             )

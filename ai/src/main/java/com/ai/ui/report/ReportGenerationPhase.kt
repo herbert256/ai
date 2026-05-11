@@ -129,11 +129,6 @@ internal fun ColumnScope.GenerationPhase(
     /** Tap-handler for the inline 'icon' row — opens the icon-gen
      *  detail overlay (model + prompt + response). */
     onOpenIconDetail: () -> Unit = {},
-    /** Fires the per-agent Report icons 3-tier fallback chain from
-     *  the Create menu — for each successful agent: chat
-     *  continuation → one-shot internal/report_icon template →
-     *  fixed-agent fallback against internal/report_icon_3th. */
-    onRunReportIcons: () -> Unit = {},
     /** Tap-handler for the per-row emoji that replaced the leftmost
      *  ✅ status cell once a Report icons run lands. Opens the
      *  per-agent icon detail screen for the tapped agent. */
@@ -343,16 +338,6 @@ internal fun ColumnScope.GenerationPhase(
                     enabled = fanOutPrompts.isNotEmpty()
                 )
                 CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
-                CompactButton(
-                    onClick = { close(); onRunReportIcons() },
-                    color = createColor, text = "Report icons",
-                    // Only meaningful when at least one row succeeded
-                    // — the dispatcher filters to result.isSuccess
-                    // agents and would no-op otherwise. Fires the
-                    // 3-tier fallback chain (chat continuation →
-                    // one-shot template → fixed-agent fallback).
-                    enabled = reportsAgentResults.values.any { it.isSuccess }
-                )
             }
         }
         "action" -> {

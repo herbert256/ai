@@ -272,6 +272,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
                     val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
                     AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
+                    // Auto-fire the per-agent 3-tier icon chain when the
+                    // matching setting is on and at least one agent
+                    // succeeded. runReportIcons launches on
+                    // appViewModel.viewModelScope and registers its job
+                    // in reportIconsJobs, so it survives the user
+                    // navigating away from the result screen and gets
+                    // cancelled by deleteReport's prefix sweep.
+                    val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
+                    if (perModelOn && ok > 0) {
+                        runReportIcons(context, reportId, aiSettings)
+                    }
                     if (reportRunningInBackground) {
                         reportRunningInBackground = false
                         withContext(Dispatchers.Main) {
@@ -1292,6 +1303,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                         }.awaitAll()
                     }
+                }
+
+                // Auto-fire the per-agent 3-tier icon chain on the
+                // regenerate path too — clearReportSpecificAgentState
+                // upstream already wiped per-agent icon fields, so the
+                // chain repopulates them with fresh emojis tied to the
+                // new responses. Gated on the same setting + ≥1
+                // successful agent rule the initial-generation hook
+                // uses.
+                val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
+                if (perModelOn) {
+                    val afterRegen = ReportStorage.getReport(context, reportId)
+                    val ok = afterRegen?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
+                    if (ok > 0) runReportIcons(context, reportId, ai)
                 }
 
                 // Cascade: prompt / params change invalidates every meta
