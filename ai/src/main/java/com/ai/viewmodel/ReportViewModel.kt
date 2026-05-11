@@ -886,8 +886,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ReportStorage.bumpReportTimestamp(context, reportId)
 
                     val started = System.currentTimeMillis()
-                    val queryVec = com.ai.data.LocalEmbedder.embed(context, modelName, listOf(report.prompt))?.firstOrNull()
-                    val docVecs = com.ai.data.LocalEmbedder.embed(context, modelName, responses)
+                    val queryVec = com.ai.data.local.LocalEmbedder.embed(context, modelName, listOf(report.prompt))?.firstOrNull()
+                    val docVecs = com.ai.data.local.LocalEmbedder.embed(context, modelName, responses)
                     val durationMs = System.currentTimeMillis() - started
 
                     if (queryVec == null || docVecs == null) {

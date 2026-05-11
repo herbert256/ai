@@ -27,7 +27,7 @@ import com.ai.data.KnowledgeBase
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeSourceType
 import com.ai.data.KnowledgeStore
-import com.ai.data.LocalEmbedder
+import com.ai.data.local.LocalEmbedder
 import com.ai.model.Settings
 import com.ai.ui.search.supportedEmbeddingChoices
 import com.ai.ui.shared.AppColors

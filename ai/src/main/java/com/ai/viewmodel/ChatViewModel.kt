@@ -2,6 +2,7 @@ package com.ai.viewmodel
 
 import android.content.Context
 import com.ai.data.*
+import com.ai.data.local.LocalLlm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll

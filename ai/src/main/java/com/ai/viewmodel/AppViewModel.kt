@@ -6,6 +6,8 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
+import com.ai.data.local.LocalEmbedder
+import com.ai.data.local.LocalLlm
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers

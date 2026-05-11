@@ -183,9 +183,9 @@ internal fun ReportSelectModelsScreen(
     // AppService.LOCAL.id when needed.
     val localModelsForFilter = remember(modelTypeFilter, context) {
         when (modelTypeFilter) {
-            com.ai.data.ModelType.RERANK -> com.ai.data.LocalEmbedder.availableModels(context)
+            com.ai.data.ModelType.RERANK -> com.ai.data.local.LocalEmbedder.availableModels(context)
             com.ai.data.ModelType.MODERATION -> emptyList()
-            else -> com.ai.data.LocalLlm.availableLlms(context)
+            else -> com.ai.data.local.LocalLlm.availableLlms(context)
         }
     }
     val effectiveServices = remember(activeServices, localModelsForFilter) {

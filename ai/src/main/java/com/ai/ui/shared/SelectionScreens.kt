@@ -93,7 +93,7 @@ fun SelectModelScreen(
     // re-walk filesDir on every keystroke.
     val refreshTickModels = com.ai.ui.shared.resumeRefreshTick()
     val allModels = remember(provider.id, refreshTickModels, aiSettings) {
-        if (provider.id == AppService.LOCAL.id) com.ai.data.LocalLlm.availableLlms(context)
+        if (provider.id == AppService.LOCAL.id) com.ai.data.local.LocalLlm.availableLlms(context)
         else aiSettings.getModels(provider)
     }
     // Sort by output-token cost (cheapest first). Models with no

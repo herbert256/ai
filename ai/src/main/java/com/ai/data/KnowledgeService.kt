@@ -2,6 +2,7 @@ package com.ai.data
 
 import android.content.Context
 import android.net.Uri
+import com.ai.data.local.LocalEmbedder
 import com.ai.model.Settings
 import java.util.UUID
 

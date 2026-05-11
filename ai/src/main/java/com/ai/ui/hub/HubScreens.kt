@@ -27,7 +27,7 @@ import com.ai.data.AnalysisRepository
 import com.ai.data.ApiTracer
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeStore
-import com.ai.data.LocalEmbedder
+import com.ai.data.local.LocalEmbedder
 import com.ai.data.ReportStorage
 import com.ai.model.Settings
 import com.ai.ui.knowledge.displayNameForUri

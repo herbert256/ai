@@ -181,7 +181,7 @@ class AppService(
     companion object {
         /** Sentinel AppService used to route chat / report flows
          *  through the on-device MediaPipe LLM Inference runtime
-         *  ([com.ai.data.LocalLlm]). Not registered in
+         *  ([com.ai.data.local.LocalLlm]). Not registered in
          *  [ProviderRegistry] so it doesn't show up in provider
          *  lists / pickers / settings; surfaces by id "Local"
          *  through [findById] so persisted ChatSessions whose

@@ -49,7 +49,7 @@ fun ChatsHubScreen(
     // main thread so cold opens / large model libraries don't
     // jitter the hub.
     val installedLocalLlms by produceState(initialValue = emptyList<String>(), refreshTick) {
-        value = withContext(Dispatchers.IO) { com.ai.data.LocalLlm.availableLlms(context) }
+        value = withContext(Dispatchers.IO) { com.ai.data.local.LocalLlm.availableLlms(context) }
     }
 
     val hasAgents = remember(aiSettings.agents) {

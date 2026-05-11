@@ -19,8 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.data.LocalEmbedder
-import com.ai.data.LocalLlm
+import com.ai.data.local.LocalEmbedder
+import com.ai.data.local.LocalLlm
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers

@@ -18,7 +18,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.EmbeddingsStore
-import com.ai.data.LocalEmbedder
+import com.ai.data.local.LocalEmbedder
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.withTracerTags

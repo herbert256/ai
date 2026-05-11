@@ -60,8 +60,8 @@ fun SetupScreen(
     // Counts of installed on-device runtimes — surfaced as the badge
     // on the matching SetupNavCard so the user can see at a glance
     // whether anything is installed without drilling in.
-    val liteRtCount = remember(refreshTick) { com.ai.data.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context).size }
+    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
@@ -420,8 +420,8 @@ fun LocalModelsSetupScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val liteRtCount = remember(refreshTick) { com.ai.data.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.LocalLlm.availableLlms(context).size }
+    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
