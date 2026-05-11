@@ -240,6 +240,21 @@ private fun timeOfHeader(header: String): String? {
     return candidate
 }
 
+/** Which exit path the Copy/Share dialog should take when the user
+ *  taps the confirm button — clipboard or system share sheet. */
+private enum class ShareAction { COPY, SHARE }
+
+/** Return the last [n] newline-terminated lines of [content]. A
+ *  trailing empty line (the file ends with `\n`) is preserved.
+ *  Splitting on every newline is fine for the log-file sizes we
+ *  expect (≤ a few MB / day); no need to seek-from-end on disk. */
+private fun tailLines(content: String, n: Int): String {
+    if (n <= 0 || content.isEmpty()) return ""
+    val lines = content.lines()
+    if (lines.size <= n) return content
+    return lines.takeLast(n).joinToString("\n")
+}
+
 /** Strip the leading "YYYY-MM-DD " from a log line. Each log file is
  *  one day, so the date prefix is pure noise on screen — the file
  *  name carries the date. Falls through unchanged when the line
@@ -378,6 +393,61 @@ fun AppLogDetailScreen(
         return
     }
 
+    // Copy / Share use the same "how much to include" dialog —
+    // last N lines from the file, or the whole file. The actor is
+    // stored alongside so the OK branch knows whether to copy to
+    // clipboard or fire the share sheet.
+    var shareAction by remember { mutableStateOf<ShareAction?>(null) }
+    var shareLinesText by remember { mutableStateOf("1000") }
+    var shareEntireLog by remember { mutableStateOf(false) }
+
+    val sa = shareAction
+    if (sa != null) {
+        AlertDialog(
+            onDismissRequest = { shareAction = null },
+            title = { Text(if (sa == ShareAction.COPY) "Copy log" else "Share log") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Take only the most recent activity — the tail of the file — or the whole log.",
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
+                    OutlinedTextField(
+                        value = shareLinesText,
+                        onValueChange = { shareLinesText = it.filter { ch -> ch.isDigit() }.take(7) },
+                        label = { Text("Number of last lines") },
+                        singleLine = true,
+                        enabled = !shareEntireLog,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedFieldColors()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { shareEntireLog = !shareEntireLog },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(checked = shareEntireLog, onCheckedChange = { shareEntireLog = it })
+                        Text("Complete log", fontSize = 13.sp, color = Color.White)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val payload = if (shareEntireLog) content else tailLines(content, shareLinesText.toIntOrNull()?.coerceAtLeast(1) ?: 1000)
+                    when (sa) {
+                        ShareAction.COPY -> copyToClipboard(context, payload, "log")
+                        ShareAction.SHARE -> shareText(context, payload, currentFilename)
+                    }
+                    shareAction = null
+                }) { Text(if (sa == ShareAction.COPY) "Copy" else "Share", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { shareAction = null }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
+    }
+
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDelete) {
         AlertDialog(
@@ -413,8 +483,8 @@ fun AppLogDetailScreen(
             subject = currentFilename,
             onBackClick = onBack,
             onDelete = { confirmDelete = true },
-            onCopy = { copyToClipboard(context, content, "log") },
-            onShare = { shareText(context, content, currentFilename) }
+            onCopy = { shareAction = ShareAction.COPY },
+            onShare = { shareAction = ShareAction.SHARE }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
