@@ -575,6 +575,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return RuntimeWipeResult(logs, chats, traces)
     }
 
+    /** Drop every cached Info-provider tier (OpenRouter / LiteLLM /
+     *  models.dev / Helicone / llm-prices / Artificial Analysis) plus
+     *  the OpenRouter model-specs cache. Manual cost overrides and
+     *  Together native pricing are preserved. */
+    fun clearInfoProviderCaches(context: Context) {
+        AppLog.i("Housekeeping", "→ Clear Info-provider caches")
+        PricingCache.clearInfoProviderTiers(context)
+        AppLog.i("Housekeeping", "← Clear Info-provider caches done")
+    }
+
     fun clearAllConfiguration(context: Context): ConfigWipeResult {
         AppLog.i("Housekeeping", "→ Clear all configuration")
         updateSettings(Settings())

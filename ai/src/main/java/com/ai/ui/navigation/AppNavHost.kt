@@ -904,6 +904,7 @@ fun AppNavHost(
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetScreen(
                 onClearRuntimeData = { appViewModel.clearAllRuntimeData(ctx) },
+                onClearInfoProviders = { appViewModel.clearInfoProviderCaches(ctx) },
                 onClearConfiguration = { appViewModel.clearAllConfiguration(ctx) },
                 onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
                 onBack = { navController.popBackStack() },

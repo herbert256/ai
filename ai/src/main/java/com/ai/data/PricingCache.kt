@@ -1716,6 +1716,49 @@ object PricingCache {
 
     fun clearSupportedParametersCache() { supportedParametersCache = null }
 
+    /** Wipe the six Info-provider catalog tiers (OpenRouter, LiteLLM,
+     *  models.dev, Helicone, llm-prices, Artificial Analysis) plus the
+     *  OpenRouter model-specs cache. Manual cost overrides and the
+     *  Together-native pricing (harvested from Together's /v1/models
+     *  response) are preserved — neither comes from an Info provider. */
+    fun clearInfoProviderTiers(context: Context) = synchronized(lock) {
+        val tierBlobs = listOf(
+            KEY_OPENROUTER_PRICING, KEY_LITELLM_PRICING, KEY_LITELLM_META,
+            KEY_MODELS_DEV_PRICING, KEY_MODELS_DEV_META,
+            KEY_HELICONE_PRICING, KEY_HELICONE_PATTERNS,
+            KEY_LLMPRICES_PRICING, KEY_AA_PRICING, KEY_AA_META
+        )
+        tierBlobs.forEach { key ->
+            try { blobFile(context, key).delete() } catch (_: Exception) {}
+        }
+        // OpenRouter model-specs files (written by fetchAndSaveModelSpecifications).
+        try { java.io.File(context.filesDir, "model_pricing.json").delete() } catch (_: Exception) {}
+        try { java.io.File(context.filesDir, "model_supported_parameters.json").delete() } catch (_: Exception) {}
+
+        getPrefs(context).edit {
+            tierBlobs.forEach { remove(it) }
+            remove(KEY_OPENROUTER_TIMESTAMP)
+            remove(KEY_LITELLM_TIMESTAMP)
+            remove(KEY_MODELS_DEV_TIMESTAMP)
+            remove(KEY_HELICONE_TIMESTAMP)
+            remove(KEY_LLMPRICES_TIMESTAMP)
+            remove(KEY_AA_TIMESTAMP)
+        }
+        openRouterPricing = null; openRouterTimestamp = 0
+        litellmPricing = null; litellmMeta = null; litellmTimestamp = 0
+        modelsDevPricing = null; modelsDevMeta = null; modelsDevTimestamp = 0
+        heliconePricing = null; heliconePatterns = null; heliconeTimestamp = 0
+        llmPricesPricing = null; llmPricesTimestamp = 0
+        aaPricing = null; aaMeta = null; aaTimestamp = 0
+        litellmMetaLookupCache.clear()
+        modelsDevMetaLookupCache.clear()
+        litellmPricingLookupCache.clear()
+        supportedParametersCache = null
+        // preloadCompleted intentionally kept true — manual + together
+        // tiers are still loaded; only the six Info-provider tiers were
+        // dropped, and they'll lazily repopulate on the next refresh.
+    }
+
     /** Wipe every cached pricing tier and manual override — used by
      *  the housekeeping "clear all runtime data" flow. Drops the
      *  pricing prefs file, the tier blobs under filesDir/pricing/,

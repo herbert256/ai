@@ -21,6 +21,7 @@ import com.ai.viewmodel.AppViewModel
 @Composable
 fun ResetScreen(
     onClearRuntimeData: () -> AppViewModel.RuntimeWipeResult,
+    onClearInfoProviders: () -> Unit,
     onClearConfiguration: () -> AppViewModel.ConfigWipeResult,
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit,
     onBack: () -> Unit,
@@ -29,6 +30,7 @@ fun ResetScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var showClearAllConfirm by remember { mutableStateOf(false) }
+    var showClearInfoConfirm by remember { mutableStateOf(false) }
     var showClearConfigConfirm by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var resetConfirmText by remember { mutableStateOf("") }
@@ -71,6 +73,25 @@ fun ResetScreen(
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showClearAllConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    if (showClearInfoConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearInfoConfirm = false },
+            title = { Text("Clear Info providers?") },
+            text = { Text("This permanently deletes every cached tier from the six Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis) and the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Until you run Refresh again, pricing lookups will fall back to DEFAULT.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onClearInfoProviders()
+                        showClearInfoConfirm = false
+                        Toast.makeText(context, "Info-provider caches cleared", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Clear", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { showClearInfoConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 
@@ -170,6 +191,22 @@ fun ResetScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                     ) { Text("Clear activity logs", maxLines = 1, softWrap = false) }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Clear Info providers", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(
+                        "Removes the cached tier blobs and prefs entries for OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, and Artificial Analysis, plus the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Re-run Refresh to repopulate.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    Button(
+                        onClick = { showClearInfoConfirm = true },
+                        enabled = busyLabel == null,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
                 }
             }
 
