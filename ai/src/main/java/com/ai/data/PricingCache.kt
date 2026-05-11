@@ -682,6 +682,53 @@ object PricingCache {
     fun getOpenRouterPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return openRouterPricing?.toMap() ?: emptyMap() }
     fun getLiteLLMPricing(context: Context): Map<String, ModelPricing> { ensureLoaded(context); return litellmPricing?.toMap() ?: emptyMap() }
 
+    /** Snapshot of a single catalog tier's previously-fetched state.
+     *  [entryCount] is the number of priced/meta entries in the
+     *  cached blob; [timestamp] is when the cache was last refreshed
+     *  (epoch ms). Returned only when there is actual previous data —
+     *  callers can rely on a non-null result meaning "we have
+     *  something usable on disk if the next fetch fails". */
+    data class PreviousCacheInfo(val entryCount: Int, val timestamp: Long) {
+        /** "2d ago" / "5h ago" / "12min ago" / "just now". "never"
+         *  if the timestamp is 0 (data on disk from a backup restore
+         *  that didn't preserve the timestamp). */
+        fun ageString(now: Long = System.currentTimeMillis()): String {
+            if (timestamp == 0L) return "never"
+            val ageMs = (now - timestamp).coerceAtLeast(0)
+            val mins = ageMs / 60_000
+            val hours = mins / 60
+            val days = hours / 24
+            return when {
+                days >= 1 -> "${days}d ago"
+                hours >= 1 -> "${hours}h ago"
+                mins >= 1 -> "${mins}min ago"
+                else -> "just now"
+            }
+        }
+    }
+
+    /** Look up the cached state of one catalog tier. [source] is the
+     *  same key the Refresh-all step list uses: "openrouter",
+     *  "litellm", "modelsdev", "helicone", "llmprices", "aa". Returns
+     *  null when there is no previous cache (or the source key is
+     *  unknown) — the Refresh UI surfaces this as "no previous to
+     *  keep" vs "kept previous N entries from Xago". */
+    fun previousCacheInfo(context: Context, source: String): PreviousCacheInfo? {
+        ensureLoaded(context)
+        val (cache, ts) = when (source.lowercase()) {
+            "openrouter" -> openRouterPricing to openRouterTimestamp
+            "litellm" -> litellmPricing to litellmTimestamp
+            "modelsdev" -> modelsDevPricing to modelsDevTimestamp
+            "helicone" -> heliconePricing to heliconeTimestamp
+            "llmprices" -> llmPricesPricing to llmPricesTimestamp
+            "aa" -> aaPricing to aaTimestamp
+            else -> return null
+        }
+        val map = cache ?: return null
+        if (map.isEmpty()) return null
+        return PreviousCacheInfo(map.size, ts)
+    }
+
     /** Pretty-printed synthetic LiteLLM JSON entry for (provider, model),
      *  or null when the model isn't in the cache. Built from the parsed
      *  fields persisted in pricing_cache prefs — there is no bundled

@@ -227,14 +227,27 @@ fun RefreshScreen(
     if (showOpenRouterDialog && openRouterResult != null) {
         val (pricing, specPricing, specParams) = openRouterResult!!
         val ok = pricing > 0 || specPricing > 0
+        val kept = if (!ok) {
+            // fetchOpenRouterPricing returns an empty map on failure
+            // rather than null, so we look up "openrouter" via
+            // previousCacheInfo to surface what's still on disk.
+            PricingCache.previousCacheInfo(context, "openrouter")?.let {
+                RefreshResultRow("Kept previous", "${it.entryCount} from ${it.ageString()}", AppColors.Orange)
+            }
+        } else null
         RefreshResultScreen(
             titleText = "OpenRouter",
-            description = "Pulled the OpenRouter catalog. Pricing entries feed the OpenRouter tier; the spec rows feed model capability flags and the supported-parameters list used by the chat UI.",
-            rows = listOf(
+            description = when {
+                ok -> "Pulled the OpenRouter catalog. Pricing entries feed the OpenRouter tier; the spec rows feed model capability flags and the supported-parameters list used by the chat UI."
+                kept != null -> "Failed to fetch the OpenRouter catalog. The previously fetched data is still in use — see the rows below."
+                else -> "Failed to fetch the OpenRouter catalog. Check the OpenRouter key and connectivity."
+            },
+            rows = listOfNotNull(
                 RefreshResultRow("Pricing entries", "$pricing models", if (pricing > 0) AppColors.Green else AppColors.Red),
                 RefreshResultRow("Spec pricing", "$specPricing", if (specPricing > 0) AppColors.Green else AppColors.TextTertiary),
                 RefreshResultRow("Spec parameters", "$specParams", if (specParams > 0) AppColors.Green else AppColors.TextTertiary),
-                RefreshResultRow("Cache age", PricingCache.getOpenRouterCacheAge(context), AppColors.TextTertiary)
+                RefreshResultRow("Cache age", PricingCache.getOpenRouterCacheAge(context), AppColors.TextTertiary),
+                kept
             ),
             sampleHeader = if (ok) "Sample model entries" else null,
             sampleEntries = if (ok) PricingCache.getOpenRouterPricing(context).keys.sorted().take(8) else emptyList(),
@@ -244,19 +257,34 @@ fun RefreshScreen(
         return
     }
 
+    // Helper: build a "Kept previous" row for a failed per-tier
+    // refresh. Returns null when there is no previous cache to fall
+    // back on. The fetch functions intentionally leave the in-memory
+    // cache untouched on failure, so this reports what's actually
+    // still usable.
+    fun keptPreviousRow(source: String): RefreshResultRow? {
+        val info = PricingCache.previousCacheInfo(context, source) ?: return null
+        return RefreshResultRow("Kept previous", "${info.entryCount} from ${info.ageString()}", AppColors.Orange)
+    }
+
     if (showLiteLLMDialog) {
         val n = litellmResult
         val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("litellm") else null
         RefreshResultScreen(
             titleText = "LiteLLM Pricing",
-            description = if (n == null) "Failed to fetch model_prices_and_context_window.json from BerriAI/litellm. Check connectivity and try again."
-            else "Downloaded model_prices_and_context_window.json. LiteLLM is the primary tier in the layered pricing lookup — also feeds capability flags (vision, web search, etc.).",
-            rows = listOf(
+            description = when {
+                ok -> "Downloaded model_prices_and_context_window.json. LiteLLM is the primary tier in the layered pricing lookup — also feeds capability flags (vision, web search, etc.)."
+                kept != null -> "Failed to fetch model_prices_and_context_window.json from BerriAI/litellm. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch model_prices_and_context_window.json from BerriAI/litellm. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
                     if (n == null) AppColors.Red else AppColors.Green
                 ),
-                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                kept
             ),
             sampleHeader = if (ok) "Sample model entries" else null,
             sampleEntries = if (ok) PricingCache.getLiteLLMPricing(context).keys.sorted().take(8) else emptyList(),
@@ -269,16 +297,21 @@ fun RefreshScreen(
     if (showModelsDevDialog) {
         val n = modelsDevResult
         val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("modelsdev") else null
         RefreshResultScreen(
             titleText = "models.dev",
-            description = if (n == null) "Failed to fetch from models.dev. Check connectivity and try again."
-            else "Pulled the models.dev community catalog. Sits below LiteLLM in the layered pricing lookup — fills gaps for newer models and -latest aliases that haven't reached LiteLLM yet.",
-            rows = listOf(
+            description = when {
+                ok -> "Pulled the models.dev community catalog. Sits below LiteLLM in the layered pricing lookup — fills gaps for newer models and -latest aliases that haven't reached LiteLLM yet."
+                kept != null -> "Failed to fetch from models.dev. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch from models.dev. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
                     if (n == null) AppColors.Red else AppColors.Green
                 ),
-                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                kept
             ),
             onBack = { showModelsDevDialog = false },
             onNavigateHome = onNavigateHome
@@ -289,16 +322,21 @@ fun RefreshScreen(
     if (showHeliconeDialog) {
         val n = heliconeResult
         val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("helicone") else null
         RefreshResultScreen(
             titleText = "Helicone",
-            description = if (n == null) "Failed to fetch from helicone.ai/api/llm-costs. Check connectivity and try again."
-            else "Pulled the Helicone pricing aggregator. Pricing-only fallback — sits after LiteLLM and models.dev in the layered lookup, before llm-prices.",
-            rows = listOf(
+            description = when {
+                ok -> "Pulled the Helicone pricing aggregator. Pricing-only fallback — sits after LiteLLM and models.dev in the layered lookup, before llm-prices."
+                kept != null -> "Failed to fetch from helicone.ai/api/llm-costs. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch from helicone.ai/api/llm-costs. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
                     if (n == null) AppColors.Red else AppColors.Green
                 ),
-                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                kept
             ),
             onBack = { showHeliconeDialog = false },
             onNavigateHome = onNavigateHome
@@ -309,17 +347,22 @@ fun RefreshScreen(
     if (showLLMPricesDialog) {
         val n = llmPricesResult
         val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("llmprices") else null
         RefreshResultScreen(
             titleText = "llm-prices.com",
-            description = if (n == null) "Failed to fetch from simonw/llm-prices. Check connectivity and try again."
-            else "Pulled Simon Willison's curated per-vendor pricing tables. Useful as a tiebreaker for the major commercial providers.",
-            rows = listOf(
+            description = when {
+                ok -> "Pulled Simon Willison's curated per-vendor pricing tables. Useful as a tiebreaker for the major commercial providers."
+                kept != null -> "Failed to fetch from simonw/llm-prices. The previously fetched catalog is still in use — see the rows below."
+                else -> "Failed to fetch from simonw/llm-prices. Check connectivity and try again."
+            },
+            rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
                     if (n == null) AppColors.Red else AppColors.Green
                 ),
                 RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
-                RefreshResultRow("Vendors", "10", AppColors.TextTertiary)
+                RefreshResultRow("Vendors", "10", AppColors.TextTertiary),
+                kept
             ),
             onBack = { showLLMPricesDialog = false },
             onNavigateHome = onNavigateHome
@@ -330,20 +373,23 @@ fun RefreshScreen(
     if (showAaDialog) {
         val n = aaResult
         val ok = n != null && n > 0
+        val kept = if (!ok) keptPreviousRow("aa") else null
         val description = when {
-            n == null && artificialAnalysisApiKey.isBlank() -> "Add the Artificial Analysis API key under External Services first."
-            n == null -> "Failed to fetch from artificialanalysis.ai/api/v2/data/llms/models. Check the API key and try again."
-            else -> "Pulled Artificial Analysis (pricing + intelligence_index + output speed). Bottom-of-stack pricing fallback before manual override and DEFAULT."
+            ok -> "Pulled Artificial Analysis (pricing + intelligence_index + output speed). Bottom-of-stack pricing fallback before manual override and DEFAULT."
+            artificialAnalysisApiKey.isBlank() -> "Add the Artificial Analysis API key under External Services first."
+            kept != null -> "Failed to fetch from artificialanalysis.ai/api/v2/data/llms/models. The previously fetched catalog is still in use — see the rows below."
+            else -> "Failed to fetch from artificialanalysis.ai/api/v2/data/llms/models. Check the API key and try again."
         }
         RefreshResultScreen(
             titleText = "Artificial Analysis",
             description = description,
-            rows = listOf(
+            rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
                     if (n == null) AppColors.Red else AppColors.Green
                 ),
-                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary)
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                kept
             ),
             onBack = { showAaDialog = false },
             onNavigateHome = onNavigateHome
@@ -626,73 +672,89 @@ fun RefreshScreen(
                     // mutable state, so awaitAll() collapses
                     // wall-clock from sum-of-latencies to
                     // max-of-latencies.
+                    // Snapshot every tier's previous cache state BEFORE
+                    // any fetch starts — so the "kept previous N from Xago"
+                    // detail on a failed step reflects what was there at
+                    // refresh-all-start, not what's been overwritten by
+                    // a sibling success that's already landed.
+                    fun previousDetail(source: String): String {
+                        val info = PricingCache.previousCacheInfo(context, source) ?: return "no previous to keep"
+                        return "kept previous ${info.entryCount} from ${info.ageString()}"
+                    }
                     coroutineScope {
                         val jobs = mutableListOf<kotlinx.coroutines.Deferred<*>>()
                         if (openRouterEnabled) jobs += async(Dispatchers.IO) {
                             setStep("openrouter", StepStatus.Running())
+                            val prev = previousDetail("openrouter")
                             try {
                                 val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
                                 if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
                                 val specs = PricingCache.fetchAndSaveModelSpecifications(context, openRouterApiKey)
                                 openRouterResult = Triple(pricing.size, specs?.first ?: 0, specs?.second ?: 0)
-                                setStep("openrouter", StepStatus.Done("${pricing.size} priced · ${specs?.first ?: 0} specs"))
+                                if (pricing.isEmpty()) setStep("openrouter", StepStatus.Failed("no entries · $prev"))
+                                else setStep("openrouter", StepStatus.Done("${pricing.size} priced · ${specs?.first ?: 0} specs"))
                             } catch (e: Exception) {
-                                setStep("openrouter", StepStatus.Failed(e.message?.take(80)))
+                                setStep("openrouter", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         jobs += async(Dispatchers.IO) {
                             setStep("litellm", StepStatus.Running())
+                            val prev = previousDetail("litellm")
                             try {
                                 val n = PricingCache.fetchLiteLLMPricingOnline(context)
                                 litellmResult = n
                                 if (n != null && n > 0) setStep("litellm", StepStatus.Done("$n priced"))
-                                else setStep("litellm", StepStatus.Failed("no entries"))
+                                else setStep("litellm", StepStatus.Failed("no entries · $prev"))
                             } catch (e: Exception) {
-                                setStep("litellm", StepStatus.Failed(e.message?.take(80)))
+                                setStep("litellm", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         jobs += async(Dispatchers.IO) {
                             setStep("modelsdev", StepStatus.Running())
+                            val prev = previousDetail("modelsdev")
                             try {
                                 val n = PricingCache.fetchModelsDevOnline(context)
                                 modelsDevResult = n
                                 if (n != null && n > 0) setStep("modelsdev", StepStatus.Done("$n priced"))
-                                else setStep("modelsdev", StepStatus.Failed("no entries"))
+                                else setStep("modelsdev", StepStatus.Failed("no entries · $prev"))
                             } catch (e: Exception) {
-                                setStep("modelsdev", StepStatus.Failed(e.message?.take(80)))
+                                setStep("modelsdev", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         jobs += async(Dispatchers.IO) {
                             setStep("helicone", StepStatus.Running())
+                            val prev = previousDetail("helicone")
                             try {
                                 val n = PricingCache.fetchHeliconeOnline(context)
                                 heliconeResult = n
                                 if (n != null && n > 0) setStep("helicone", StepStatus.Done("$n entries"))
-                                else setStep("helicone", StepStatus.Failed("no entries"))
+                                else setStep("helicone", StepStatus.Failed("no entries · $prev"))
                             } catch (e: Exception) {
-                                setStep("helicone", StepStatus.Failed(e.message?.take(80)))
+                                setStep("helicone", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         jobs += async(Dispatchers.IO) {
                             setStep("llmprices", StepStatus.Running())
+                            val prev = previousDetail("llmprices")
                             try {
                                 val n = PricingCache.fetchLLMPricesOnline(context)
                                 llmPricesResult = n
                                 if (n != null && n > 0) setStep("llmprices", StepStatus.Done("$n entries"))
-                                else setStep("llmprices", StepStatus.Failed("no entries"))
+                                else setStep("llmprices", StepStatus.Failed("no entries · $prev"))
                             } catch (e: Exception) {
-                                setStep("llmprices", StepStatus.Failed(e.message?.take(80)))
+                                setStep("llmprices", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         if (aaEnabled) jobs += async(Dispatchers.IO) {
                             setStep("aa", StepStatus.Running())
+                            val prev = previousDetail("aa")
                             try {
                                 val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
                                 aaResult = n
                                 if (n != null && n > 0) setStep("aa", StepStatus.Done("$n entries"))
-                                else setStep("aa", StepStatus.Failed("no entries"))
+                                else setStep("aa", StepStatus.Failed("no entries · $prev"))
                             } catch (e: Exception) {
-                                setStep("aa", StepStatus.Failed(e.message?.take(80)))
+                                setStep("aa", StepStatus.Failed("${e.message?.take(60) ?: "failed"} · $prev"))
                             }
                         }
                         jobs.awaitAll()
