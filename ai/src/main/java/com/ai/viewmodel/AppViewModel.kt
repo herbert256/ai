@@ -71,14 +71,14 @@ data class GeneralSettings(
      *  and drops the green line. BOTH puts both ("<fixed> / <subject>")
      *  in the title bar and drops the green line. Provided via
      *  LocalSubjectToTitleBarMode. */
-    val subjectToTitleBarMode: SubjectToTitleBarMode = SubjectToTitleBarMode.HARDCODED,
+    val subjectToTitleBarMode: SubjectToTitleBarMode = SubjectToTitleBarMode.BOTH,
     /** When true, every TitleBar's action icons (Home / Help / Trace /
      *  Delete / Info / Reload / Chat / Memo + the back arrow) move into
      *  a fixed bar at the bottom of the screen and the top bar shows
      *  only the screen title. Default false keeps the legacy
      *  icons-on-top-right layout. The bar lives at AppNavHost scope so
      *  it survives nav transitions and is always visible. */
-    val iconBarAtBottom: Boolean = false,
+    val iconBarAtBottom: Boolean = true,
     /** Master switch for the per-report icon-gen feature. When true
      *  (default) every new report kicks off a background LLM call that
      *  generates a fitting emoji, the icon-row appears on the result
