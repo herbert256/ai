@@ -178,68 +178,56 @@ fun ResetScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Clear activity logs", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Wipes the app logs, chats, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, model-list cache, and semantic-search cache are kept.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = { showClearAllConfirm = true },
-                        enabled = busyLabel == null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                    ) { Text("Clear activity logs", maxLines = 1, softWrap = false) }
-                }
+            com.ai.ui.shared.CollapsibleCard(title = "Clear activity logs") {
+                Text(
+                    "Wipes the app logs, chats, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, model-list cache, and semantic-search cache are kept.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { showClearAllConfirm = true },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Clear activity logs", maxLines = 1, softWrap = false) }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Clear Info providers", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Removes the cached tier blobs and prefs entries for OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, and Artificial Analysis, plus the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Re-run Refresh to repopulate.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = { showClearInfoConfirm = true },
-                        enabled = busyLabel == null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                    ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
-                }
+            com.ai.ui.shared.CollapsibleCard(title = "Clear Info providers") {
+                Text(
+                    "Removes the cached tier blobs and prefs entries for OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, and Artificial Analysis, plus the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Re-run Refresh to repopulate.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { showClearInfoConfirm = true },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Clear all configuration", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys; user name and default email; every installed Local LLM and LiteRT model. Reports, chats, traces, and usage statistics are kept.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = { showClearConfigConfirm = true },
-                        enabled = busyLabel == null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                    ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
-                }
+            com.ai.ui.shared.CollapsibleCard(title = "Clear all configuration") {
+                Text(
+                    "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys; user name and default email; every installed Local LLM and LiteRT model. Reports, chats, traces, and usage statistics are kept.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { showClearConfigConfirm = true },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Reset application", fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(
-                        "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) are preserved; everything else is wiped and providers + internal prompts are reloaded from assets. Type-to-confirm dialog. Run Housekeeping → Refresh afterwards to repopulate catalogs.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    Button(
-                        onClick = { showResetConfirm = true },
-                        enabled = busyLabel == null,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                    ) { Text("Reset application", maxLines = 1, softWrap = false) }
-                }
+            com.ai.ui.shared.CollapsibleCard(title = "Reset application") {
+                Text(
+                    "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) are preserved; everything else is wiped and providers + internal prompts are reloaded from assets. Type-to-confirm dialog. Run Housekeeping → Refresh afterwards to repopulate catalogs.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { showResetConfirm = true },
+                    enabled = busyLabel == null,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                ) { Text("Reset application", maxLines = 1, softWrap = false) }
             }
         }
     }
