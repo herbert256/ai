@@ -324,15 +324,14 @@ fun AppLogDetailScreen(
     // Search: free-text substring match across the entire entry
     // (header + continuation lines). Case-insensitive.
     var searchQuery by remember(currentFilename) { mutableStateOf("") }
-    // Levels: only WARN + ERROR enabled by default — the log file is
-    // most useful for triage of failures, so the initial view shows
-    // the failure surface first and the user can opt into INFO /
-    // DEBUG / TRACE to dig further. Headers without a recognised
-    // level token (legacy / pre-AppLog) are kept visible — the user
-    // can't filter them out explicitly, but a search query still
-    // narrows them.
+    // Levels: all five enabled by default so the initial view shows
+    // everything that landed in the log file; the user toggles
+    // individual levels off to narrow the surface. Headers without a
+    // recognised level token (legacy / pre-AppLog) are kept visible —
+    // the user can't filter them out explicitly, but a search query
+    // still narrows them.
     var enabledLevels by remember(currentFilename) {
-        mutableStateOf(setOf(LogLevel.WARN, LogLevel.ERROR))
+        mutableStateOf(setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR))
     }
     // Time range — strings so partial / blank inputs don't fight the
     // user mid-keystroke. Parsed via normaliseTimeFilter; an
@@ -608,12 +607,12 @@ fun AppLogDetailScreen(
 
         // Count line + Clear-filters action. "Clear filters" only
         // appears when at least one filter differs from the
-        // screen-open defaults (WARN+ERROR levels, no search, no time
+        // screen-open defaults (all levels on, no search, no time
         // range, "(All)" tag) so it doesn't sit there as a no-op
         // affordance the rest of the time. Tap resets every filter
         // in one shot.
         if (allEntries.isNotEmpty()) {
-            val defaultLevels = setOf(LogLevel.WARN, LogLevel.ERROR)
+            val defaultLevels = setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)
             val anyFilterActive = searchQuery.isNotEmpty() ||
                 enabledLevels != defaultLevels ||
                 startTimeText.isNotEmpty() ||

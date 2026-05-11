@@ -866,6 +866,13 @@ fun RefreshScreen(
         TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Fresh-install gate: with no keyed provider, the runtime
+        // workers (key tests / model lists / default agents) have
+        // nothing to act on, and "Refresh all" would just run the
+        // catalogs. Hide both so the user is steered to AI Info
+        // Providers (catalogs only) until they've configured a key.
+        val hasAnyKeyedProvider = AppService.entries.any { aiSettings.getApiKey(it).isNotBlank() }
+
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
             // Refresh all — runs catalogs first (six in parallel) so
@@ -874,12 +881,14 @@ fun RefreshScreen(
             // dependent steps run sequentially. Status is rendered on
             // a full-screen progress page rather than the small
             // per-task popup the individual buttons below use.
-            RefreshAction(
-                label = "Refresh all",
-                description = "Run all six catalog sources in parallel (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis), then provider keys, model lists, and default agents in sequence.",
-                enabled = !isAnyRunning,
-                onClick = { startRefreshChain(includeCatalogs = true, includeProviders = true, includeModels = true, includeAgents = true) }
-            )
+            if (hasAnyKeyedProvider) {
+                RefreshAction(
+                    label = "Refresh all",
+                    description = "Run all six catalog sources in parallel (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis), then provider keys, model lists, and default agents in sequence.",
+                    enabled = !isAnyRunning,
+                    onClick = { startRefreshChain(includeCatalogs = true, includeProviders = true, includeModels = true, includeAgents = true) }
+                )
+            }
 
             // The two grouped sections live as full-screen sub-pages
             // each with its own TitleBar / help topic. Tapping a
@@ -890,11 +899,13 @@ fun RefreshScreen(
                 description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis).",
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
-            RefreshNavCard(
-                title = "AI Runtime workers",
-                description = "Provider key tests, model lists, and default-agent generation.",
-                onClick = { subPage = RefreshSubPage.RUNTIME_WORKERS }
-            )
+            if (hasAnyKeyedProvider) {
+                RefreshNavCard(
+                    title = "AI Runtime workers",
+                    description = "Provider key tests, model lists, and default-agent generation.",
+                    onClick = { subPage = RefreshSubPage.RUNTIME_WORKERS }
+                )
+            }
 
         }
     }
