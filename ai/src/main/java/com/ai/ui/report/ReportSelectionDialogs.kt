@@ -101,7 +101,7 @@ internal fun ReportSelectAgentScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         Text(
-                            "${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}",
+                            "${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}",
                             fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                             color = if (real) AppColors.Red else AppColors.SurfaceDark,
                             modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
@@ -203,7 +203,7 @@ internal fun ReportSelectModelDialog(
                         com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                         com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                        Text("${dlgFmtPrice(p.promptPrice)}/${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                        Text("${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
@@ -411,7 +411,7 @@ internal fun ReportSelectModelsScreen(
                         }
                     }
                 }
-                Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                     color = if (real) AppColors.Red else AppColors.SurfaceDark,
                     modifier = (if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier).alpha(rowAlpha))
             }
@@ -560,7 +560,7 @@ internal fun ReportSelectFlockScreen(
                                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                    "${dlgFmtPriceM(tIn)} / ${dlgFmtPriceM(tOut)}",
                                     fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                                     color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
                                     modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
@@ -678,7 +678,7 @@ internal fun ReportSelectSwarmScreen(
                                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    "${dlgFmtPriceM(tIn)}/${dlgFmtPriceM(tOut)}",
+                                    "${dlgFmtPriceM(tIn)} / ${dlgFmtPriceM(tOut)}",
                                     fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                                     color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
                                     modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
@@ -1113,7 +1113,7 @@ private fun ModelInfoRow(
             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-            Text("${dlgFmtPrice(pricing.promptPrice)}/${dlgFmtPrice(pricing.completionPrice)}",
+            Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}",
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                 color = if (real) AppColors.Red else AppColors.SurfaceDark,
                 modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
