@@ -253,9 +253,39 @@ object KnowledgeStore {
     }
 
     private fun kbDirOrNull(kbId: String): File? {
-        val dir = File(rootDir ?: return null, kbId)
+        val root = rootDir ?: return null
+        if (!isSafeKbId(kbId)) {
+            AppLog.e("Knowledge", "Refusing to resolve KB dir for suspect id $kbId")
+            return null
+        }
+        val dir = File(root, kbId)
+        // Canonical containment — `isSafeKbId` rejects the obvious
+        // escapes (`..`, separators), but a symlink or odd
+        // normalisation could still resolve outside the root.
+        // listKnowledgeBases / saveSource / deleteKnowledgeBase all
+        // funnel through this; the deleteRecursively() call at line
+        // 166 in particular is the one we never want pointed
+        // anywhere but inside knowledge/.
+        if (!dir.canonicalPath.startsWith(root.canonicalPath + File.separator)) {
+            AppLog.e("Knowledge", "Refusing to resolve KB dir that escapes root: $kbId")
+            return null
+        }
         return if (dir.isDirectory) dir else null
     }
+
+    /** Public wrapper used by KnowledgeService when it needs to write
+     *  the locally-persisted copy of a source. Returns the validated
+     *  KB root, or null if [kbId] is malformed or escapes the
+     *  Knowledge root. Callers should join their subpath under the
+     *  returned File, not interpolate [kbId] into a string. */
+    fun resolveKbDir(context: Context, kbId: String): File? {
+        init(context)
+        return kbDirOrNull(kbId)
+    }
+
+    private fun isSafeKbId(kbId: String): Boolean =
+        kbId.isNotBlank() && kbId != "." && kbId != ".." &&
+            !kbId.contains('/') && !kbId.contains('\\') && !kbId.contains(' ')
 
     private fun loadKb(kbDir: File): KnowledgeBase {
         val text = File(kbDir, MANIFEST).readText()

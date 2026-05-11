@@ -326,7 +326,12 @@ object KnowledgeService {
         // Append a UUID short — bare millis collides on near-simultaneous
         // shares (two files in the same ms produced an overwrite).
         val unique = "${System.currentTimeMillis()}_${java.util.UUID.randomUUID().toString().take(8)}_$safe"
-        val dir = java.io.File(context.filesDir, "knowledge/$kbId/files").also { it.mkdirs() }
+        // Resolve through KnowledgeStore so a malformed kbId (corrupt
+        // restore, hand-edited nav arg) can't land bytes outside the
+        // Knowledge root.
+        val kbDir = KnowledgeStore.resolveKbDir(context, kbId)
+            ?: error("Unknown or invalid kbId: $kbId")
+        val dir = java.io.File(kbDir, "files").also { it.mkdirs() }
         val target = java.io.File(dir, unique)
         // Write via a sibling tmp file + atomic rename + fsync so a
         // process kill mid-copy can't leave a half-written source on
