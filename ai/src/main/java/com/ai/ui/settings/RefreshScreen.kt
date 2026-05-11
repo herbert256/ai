@@ -1163,7 +1163,11 @@ private fun RefreshAllProgressScreen(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+                    if (step.status is StepStatus.Pending) {
+                        com.ai.ui.shared.AnimatedHourglass(fontSize = 14.sp, modifier = Modifier.width(20.dp))
+                    } else {
+                        Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
+                    }
                     Text(step.label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
                     Text(statusText, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

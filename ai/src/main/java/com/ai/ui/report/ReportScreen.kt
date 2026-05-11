@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
 import androidx.compose.runtime.CompositionLocalProvider
+import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
@@ -3016,19 +3017,6 @@ private fun CompactButton(
         if (leading != null) leading()
         Text(text, fontSize = 12.sp, maxLines = 1, softWrap = false)
     }
-}
-
-/** Spinning ⏳ glyph used by the Meta button's in-flight indicator and
- *  any other "secondary run is happening" cue on the report screen. */
-@Composable
-internal fun AnimatedHourglass(fontSize: androidx.compose.ui.unit.TextUnit = 12.sp) {
-    val transition = rememberInfiniteTransition(label = "secondary-hourglass")
-    val angle by transition.animateFloat(
-        initialValue = 0f, targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-        label = "secondary-hourglass-rotation"
-    )
-    Text(text = "⏳", fontSize = fontSize, modifier = Modifier.rotate(angle))
 }
 
 /** Detail overlay reached by tapping the inline 'icon' row on the

@@ -1,5 +1,10 @@
 package com.ai.ui.shared
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -7,10 +12,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -31,6 +38,29 @@ fun resumeRefreshTick(): Int {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     return tick
+}
+
+/** Spinning ⏳ glyph. Used wherever a screen wants to convey "this
+ *  thing is in flight" without the visual weight of a full
+ *  CircularProgressIndicator — secondary row status columns, the
+ *  hub "X reports running" pill, the icon-gen row on the cost table,
+ *  the Refresh-all step list, the per-row indicator on the
+ *  Translation run detail screen, etc. Single canonical animation
+ *  spec (1500 ms / linear / infinite) so the cadence stays uniform
+ *  across the app. [modifier] composes BEFORE the rotation so
+ *  caller padding etc. is unaffected by the spin. */
+@Composable
+fun AnimatedHourglass(
+    fontSize: TextUnit = 12.sp,
+    modifier: Modifier = Modifier
+) {
+    val transition = rememberInfiniteTransition(label = "hourglass")
+    val angle by transition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+        label = "hourglass-rotation"
+    )
+    Text(text = "⏳", fontSize = fontSize, modifier = modifier.rotate(angle))
 }
 
 /** Card that starts collapsed — the title row is always visible and

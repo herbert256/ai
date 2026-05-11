@@ -883,7 +883,7 @@ private fun ColumnScope.FanOutDrillInView(
                         }
                         pairResult.id in runningFanOutPairs -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                com.ai.ui.report.AnimatedHourglass(fontSize = 13.sp)
+                                com.ai.ui.shared.AnimatedHourglass(fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Running…", fontSize = 13.sp, color = AppColors.TextSecondary)
                             }
@@ -1115,7 +1115,7 @@ private fun ColumnScope.FanOutDrillInView(
                                     row.errorMessage != null -> Text("❌", fontSize = 16.sp)
                                     !row.content.isNullOrBlank() || row.durationMs != null ->
                                         Text("✅", fontSize = 16.sp)
-                                    else -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                                    else -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
                                 }
                             }
                             val rowText = if (nameLabel != null) "$nameLabel · ${com.ai.ui.shared.modelLabel(provLabel, row.model)}"
@@ -1170,7 +1170,7 @@ private fun ColumnScope.FanOutDrillInView(
                             contentAlignment = Alignment.Center
                         ) {
                             when (state) {
-                                "running" -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                                "running" -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
                                 "queued" -> Text("🕓", fontSize = 16.sp)
                                 "errored" -> Text("❌", fontSize = 16.sp)
                                 else -> Text("✅", fontSize = 16.sp)
@@ -1467,7 +1467,7 @@ private fun ColumnScope.FanOutDrillInView(
                             // detail body.
                             !row.content.isNullOrBlank() || row.durationMs != null ->
                                 Text("✅", fontSize = 16.sp)
-                            else -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                            else -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
                         }
                     }
                     val rowText = if (acLabel != null) "$acLabel · ${com.ai.ui.shared.modelLabel(acProv, row.model)}"
@@ -1517,7 +1517,7 @@ private fun ColumnScope.FanOutDrillInView(
                         // failed; the row only exists because past
                         // responses survived the agent's regression.
                         isOrphan -> Text("🚫", fontSize = 16.sp)
-                        rs.run > 0 -> com.ai.ui.report.AnimatedHourglass(fontSize = 16.sp)
+                        rs.run > 0 -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
                         rowPending > 0 -> Text("🕓", fontSize = 16.sp)
                         rs.err > 0 -> Text("❌", fontSize = 16.sp)
                         else -> Text("✅", fontSize = 16.sp)
@@ -1899,12 +1899,13 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        val statusEmoji = when {
-            r.errorMessage != null -> "❌"
-            !r.content.isNullOrBlank() || r.durationMs != null -> "✅"
-            else -> "⏳"
+        val rowRunning = r.errorMessage == null && r.content.isNullOrBlank() && r.durationMs == null
+        if (rowRunning) {
+            com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+        } else {
+            val statusEmoji = if (r.errorMessage != null) "❌" else "✅"
+            Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         }
-        Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

@@ -281,7 +281,7 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("⏳", fontSize = 18.sp)
+            com.ai.ui.shared.AnimatedHourglass(fontSize = 18.sp)
             Spacer(modifier = Modifier.width(10.dp))
             val label = if (count == 1) "1 report running" else "$count reports running"
             Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,

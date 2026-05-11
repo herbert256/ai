@@ -259,9 +259,10 @@ internal fun TranslationRunDetailScreen(
                     val statusEmoji = when (item.status) {
                         com.ai.viewmodel.ReportViewModel.TranslationStatus.DONE -> "✅"
                         com.ai.viewmodel.ReportViewModel.TranslationStatus.ERROR -> "❌"
-                        com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING -> "⏳"
+                        com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING -> "⏳"  // rendered via AnimatedHourglass below
                         com.ai.viewmodel.ReportViewModel.TranslationStatus.PENDING -> "🕓"
                     }
+                    val isRunning = item.status == com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING
                     val typeLabel = when (item.kind) {
                         com.ai.viewmodel.ReportViewModel.TranslationKind.PROMPT -> "prompt"
                         com.ai.viewmodel.ReportViewModel.TranslationKind.AGENT_RESPONSE -> "report"
@@ -273,7 +274,14 @@ internal fun TranslationRunDetailScreen(
                         Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
                     }
                     Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
-                        Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        if (isRunning) {
+                            com.ai.ui.shared.AnimatedHourglass(
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        } else {
+                            Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        }
                         Text(
                             typeLabel, fontSize = 11.sp, color = AppColors.TextSecondary,
                             modifier = Modifier.width(70.dp).padding(end = 8.dp),
@@ -324,12 +332,20 @@ internal fun TranslationRunDetailScreen(
                         modifier = Modifier.fillMaxWidth().clickable { openId = r.id }.padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val rowRunning = r.errorMessage == null && r.content.isNullOrBlank()
                         val statusEmoji = when {
                             r.errorMessage != null -> "❌"
-                            r.content.isNullOrBlank() -> "⏳"
+                            rowRunning -> "⏳"  // rendered via AnimatedHourglass below
                             else -> "✅"
                         }
-                        Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        if (rowRunning) {
+                            com.ai.ui.shared.AnimatedHourglass(
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                        } else {
+                            Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                        }
                         // What kind of source row this translation came from
                         // — "report" for an agent response, "fan-out" /
                         // "fan-in" for fan out drill-in rows, the meta
