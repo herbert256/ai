@@ -284,7 +284,7 @@ internal fun ColumnScope.GenerationPhase(
         // target stays via LocalMinimumInteractiveComponentSize.
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.offset(x = 6.dp)
+            modifier = Modifier.offset(x = 10.dp)
         ) {
             IconButton(
                 onClick = onPrevReport,
