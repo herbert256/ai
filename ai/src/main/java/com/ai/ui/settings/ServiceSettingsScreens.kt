@@ -680,6 +680,8 @@ fun ProviderSettingsScreen(
     // mid-keystroke; parsed back via toIntOrNull on save.
     var defMaxCallsPerMinute by remember(service.id) { mutableStateOf(service.maxCallsPerProviderPerMinute?.toString() ?: "") }
     var defMaxConcurrentCalls by remember(service.id) { mutableStateOf(service.maxConcurrentCallsPerProvider?.toString() ?: "") }
+    var defMaxRetriesOn429 by remember(service.id) { mutableStateOf(service.maxRetriesOn429?.toString() ?: "") }
+    var defRetryBackoffMs by remember(service.id) { mutableStateOf(service.retryBackoffMs?.toString() ?: "") }
 
     LaunchedEffect(
         defBaseUrl, defAdminUrl, defaultModel, defOpenRouterName, defApiFormat,
@@ -691,7 +693,8 @@ fun ProviderSettingsScreen(
         defExternalReasoningUntrusted, defResponsesApiPatternsJson, defReasoningModelPatternsJson,
         defReasoningEffortAcceptPatternsJson, defWebSearchModelPatternsJson,
         defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson,
-        defMaxCallsPerMinute, defMaxConcurrentCalls
+        defMaxCallsPerMinute, defMaxConcurrentCalls,
+        defMaxRetriesOn429, defRetryBackoffMs
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -728,7 +731,9 @@ fun ProviderSettingsScreen(
             defMaxTokensDefaultsJson == maxTokensRulesToJson(service.maxTokensDefaults) &&
             defBuiltInEndpointsJson == endpointsToJson(service.builtInEndpoints) &&
             defMaxCallsPerMinute == (service.maxCallsPerProviderPerMinute?.toString() ?: "") &&
-            defMaxConcurrentCalls == (service.maxConcurrentCallsPerProvider?.toString() ?: "")
+            defMaxConcurrentCalls == (service.maxConcurrentCallsPerProvider?.toString() ?: "") &&
+            defMaxRetriesOn429 == (service.maxRetriesOn429?.toString() ?: "") &&
+            defRetryBackoffMs == (service.retryBackoffMs?.toString() ?: "")
         if (same) return@LaunchedEffect
         if (defBaseUrl.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -790,7 +795,11 @@ fun ProviderSettingsScreen(
             maxTokensDefaults = maxTokensDefaults,
             builtInEndpoints = builtInEndpoints,
             maxCallsPerProviderPerMinute = defMaxCallsPerMinute.trim().toIntOrNull()?.takeIf { it > 0 },
-            maxConcurrentCallsPerProvider = defMaxConcurrentCalls.trim().toIntOrNull()?.takeIf { it > 0 }
+            maxConcurrentCallsPerProvider = defMaxConcurrentCalls.trim().toIntOrNull()?.takeIf { it > 0 },
+            // maxRetriesOn429 accepts 0 (means "no in-line retries").
+            // Empty / negative / non-numeric → null (inherit default).
+            maxRetriesOn429 = defMaxRetriesOn429.trim().toIntOrNull()?.takeIf { it >= 0 },
+            retryBackoffMs = defRetryBackoffMs.trim().toLongOrNull()?.takeIf { it > 0L }
         ))
     }
 
@@ -1158,13 +1167,13 @@ fun ProviderSettingsScreen(
             // gate (ProviderThrottleInterceptor) but the values are
             // resolved per-host: this provider's baseUrl + auxHosts.
             CollapsibleCard(
-                title = "Throttle overrides",
+                title = "Throttle & retry overrides",
                 summary = null,
                 helpTopic = "provider_card_throttle"
             ) {
                 Text(
-                    "Override the app-wide per-provider rate / concurrency caps for this provider. " +
-                        "Leave blank to inherit the global defaults set under Settings → Per-provider throttling. " +
+                    "Override the app-wide per-provider rate / concurrency caps and the 429-retry policy for this provider. " +
+                        "Leave a field blank to inherit the global default (see Settings → Per-provider throttling and Per-provider retries). " +
                         "Useful when one provider has a stricter API tier than the rest.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
@@ -1178,6 +1187,18 @@ fun ProviderSettingsScreen(
                     value = defMaxConcurrentCalls,
                     onValueChange = { defMaxConcurrentCalls = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Max concurrent calls (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defMaxRetriesOn429,
+                    onValueChange = { defMaxRetriesOn429 = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max retries on 429 (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defRetryBackoffMs,
+                    onValueChange = { defRetryBackoffMs = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Wait between retries — ms (blank = default)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
             }

@@ -82,7 +82,16 @@ class AppService(
     /** Per-provider override for
      *  [GeneralSettings.maxConcurrentCallsPerProvider]. Null →
      *  inherit the global default. */
-    val maxConcurrentCallsPerProvider: Int? = null
+    val maxConcurrentCallsPerProvider: Int? = null,
+    /** Per-provider override for the 429-retry cap. Null → inherit
+     *  [GeneralSettings.maxRetriesOn429]. Read by
+     *  [com.ai.data.RateLimitRetryInterceptor] when a 429 lands on
+     *  this provider's host. */
+    val maxRetriesOn429: Int? = null,
+    /** Per-provider override for the wait between 429 retries (in
+     *  milliseconds). Null → inherit
+     *  [GeneralSettings.retryBackoffMs]. */
+    val retryBackoffMs: Long? = null
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 
@@ -145,7 +154,9 @@ class AppService(
         maxTokensDefaults: List<MaxTokensRule> = this.maxTokensDefaults,
         builtInEndpoints: List<Endpoint> = this.builtInEndpoints,
         maxCallsPerProviderPerMinute: Int? = this.maxCallsPerProviderPerMinute,
-        maxConcurrentCallsPerProvider: Int? = this.maxConcurrentCallsPerProvider
+        maxConcurrentCallsPerProvider: Int? = this.maxConcurrentCallsPerProvider,
+        maxRetriesOn429: Int? = this.maxRetriesOn429,
+        retryBackoffMs: Long? = this.retryBackoffMs
     ): AppService = AppService(
         id = id, baseUrl = baseUrl, adminUrl = adminUrl,
         defaultModel = defaultModel,
@@ -175,7 +186,9 @@ class AppService(
         maxTokensDefaults = maxTokensDefaults,
         builtInEndpoints = builtInEndpoints,
         maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute,
-        maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider
+        maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider,
+        maxRetriesOn429 = maxRetriesOn429,
+        retryBackoffMs = retryBackoffMs
     )
 
     companion object {

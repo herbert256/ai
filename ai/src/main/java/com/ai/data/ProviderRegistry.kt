@@ -344,7 +344,8 @@ object ProviderRegistry {
         "reasoningModelPatterns", "reasoningEffortAcceptPatterns",
         "webSearchModelPatterns", "adaptiveThinkingPatterns",
         "maxTokensDefaults", "builtInEndpoints",
-        "maxCallsPerProviderPerMinute", "maxConcurrentCallsPerProvider"
+        "maxCallsPerProviderPerMinute", "maxConcurrentCallsPerProvider",
+        "maxRetriesOn429", "retryBackoffMs"
     )
 
     private fun appServiceFieldMap(s: AppService): Map<String, Any?> = mapOf(
@@ -381,7 +382,9 @@ object ProviderRegistry {
         "maxTokensDefaults" to s.maxTokensDefaults,
         "builtInEndpoints" to s.builtInEndpoints,
         "maxCallsPerProviderPerMinute" to s.maxCallsPerProviderPerMinute,
-        "maxConcurrentCallsPerProvider" to s.maxConcurrentCallsPerProvider
+        "maxConcurrentCallsPerProvider" to s.maxConcurrentCallsPerProvider,
+        "maxRetriesOn429" to s.maxRetriesOn429,
+        "retryBackoffMs" to s.retryBackoffMs
     )
 
     private fun diffTrackedFields(a: AppService, b: AppService): Set<String> {
@@ -430,7 +433,9 @@ object ProviderRegistry {
             maxTokensDefaults = p("maxTokensDefaults", existing.maxTokensDefaults, asset.maxTokensDefaults),
             builtInEndpoints = p("builtInEndpoints", existing.builtInEndpoints, asset.builtInEndpoints),
             maxCallsPerProviderPerMinute = p("maxCallsPerProviderPerMinute", existing.maxCallsPerProviderPerMinute, asset.maxCallsPerProviderPerMinute),
-            maxConcurrentCallsPerProvider = p("maxConcurrentCallsPerProvider", existing.maxConcurrentCallsPerProvider, asset.maxConcurrentCallsPerProvider)
+            maxConcurrentCallsPerProvider = p("maxConcurrentCallsPerProvider", existing.maxConcurrentCallsPerProvider, asset.maxConcurrentCallsPerProvider),
+            maxRetriesOn429 = p("maxRetriesOn429", existing.maxRetriesOn429, asset.maxRetriesOn429),
+            retryBackoffMs = p("retryBackoffMs", existing.retryBackoffMs, asset.retryBackoffMs)
         )
     }
 }
@@ -580,6 +585,13 @@ data class ProviderDefinition(
      *  inherit
      *  [com.ai.viewmodel.GeneralSettings.maxConcurrentCallsPerProvider]. */
     val maxConcurrentCallsPerProvider: Int? = null,
+    /** Per-provider override for the 429-retry cap. Null → inherit
+     *  [com.ai.viewmodel.GeneralSettings.maxRetriesOn429]. */
+    val maxRetriesOn429: Int? = null,
+    /** Per-provider override for the wait between 429 retries
+     *  (milliseconds). Null → inherit
+     *  [com.ai.viewmodel.GeneralSettings.retryBackoffMs]. */
+    val retryBackoffMs: Long? = null,
     /** Deprecated — kept on the deserialization shape so old prefs / setup.json
      *  files with the field still parse, but ignored at dispatch time
      *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
@@ -622,7 +634,9 @@ data class ProviderDefinition(
             maxTokensDefaults = maxTokensDefaults ?: emptyList(),
             builtInEndpoints = builtInEndpoints ?: emptyList(),
             maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute?.takeIf { it > 0 },
-            maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider?.takeIf { it > 0 }
+            maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider?.takeIf { it > 0 },
+            maxRetriesOn429 = maxRetriesOn429?.takeIf { it >= 0 },
+            retryBackoffMs = retryBackoffMs?.takeIf { it > 0 }
         )
     }
 
@@ -657,7 +671,9 @@ data class ProviderDefinition(
             maxTokensDefaults = s.maxTokensDefaults.takeIf { it.isNotEmpty() },
             builtInEndpoints = s.builtInEndpoints.takeIf { it.isNotEmpty() },
             maxCallsPerProviderPerMinute = s.maxCallsPerProviderPerMinute,
-            maxConcurrentCallsPerProvider = s.maxConcurrentCallsPerProvider
+            maxConcurrentCallsPerProvider = s.maxConcurrentCallsPerProvider,
+            maxRetriesOn429 = s.maxRetriesOn429,
+            retryBackoffMs = s.retryBackoffMs
         )
     }
 }

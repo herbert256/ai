@@ -654,9 +654,15 @@ private fun SettingsMainScreen(
     var maxConcurrentCallsText by remember {
         mutableStateOf(generalSettings.maxConcurrentCallsPerProvider.toString())
     }
+    var maxRetriesText by remember {
+        mutableStateOf(generalSettings.maxRetriesOn429.toString())
+    }
+    var retryBackoffMsText by remember {
+        mutableStateOf(generalSettings.retryBackoffMs.toString())
+    }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText, logLevel) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText, maxRetriesText, retryBackoffMsText, logLevel) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
@@ -672,6 +678,12 @@ private fun SettingsMainScreen(
                 ?: generalSettings.maxCallsPerProviderPerMinute,
             maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
                 ?: generalSettings.maxConcurrentCallsPerProvider,
+            // 0 is a valid maxRetries setting (no in-line retries),
+            // so coerce ≥ 0 rather than ≥ 1.
+            maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
+                ?: generalSettings.maxRetriesOn429,
+            retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
+                ?: generalSettings.retryBackoffMs,
             logLevel = logLevel
         )
         if (updated != generalSettings) {
@@ -705,6 +717,10 @@ private fun SettingsMainScreen(
                     ?: generalSettings.maxCallsPerProviderPerMinute,
                 maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
                     ?: generalSettings.maxConcurrentCallsPerProvider,
+                maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
+                    ?: generalSettings.maxRetriesOn429,
+                retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
+                    ?: generalSettings.retryBackoffMs,
                 logLevel = logLevel
             )
             if (updated != generalSettings) onSave(updated)
@@ -792,6 +808,29 @@ private fun SettingsMainScreen(
                     value = maxConcurrentCallsText,
                     onValueChange = { maxConcurrentCallsText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Max concurrent calls per provider") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+
+            // In-line 429 retry policy. Each provider host can override
+            // these on its own settings screen (Provider → Throttle &
+            // retries overrides); these are the fallback defaults.
+            SettingCard(
+                "Per-provider retries",
+                "When a provider answers HTTP 429 (rate-limited), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 4xx). Defaults: 3 retries, 1000 ms between each."
+            ) {
+                OutlinedTextField(
+                    value = maxRetriesText,
+                    onValueChange = { maxRetriesText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max retries on 429") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = retryBackoffMsText,
+                    onValueChange = { retryBackoffMsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Wait between retries (ms)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

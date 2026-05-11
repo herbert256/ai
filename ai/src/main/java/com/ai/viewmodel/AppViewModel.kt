@@ -125,6 +125,19 @@ data class GeneralSettings(
      *  the same provider host. Mirrored to
      *  [com.ai.data.NetworkSettings.maxConcurrentCallsPerProvider]. */
     val maxConcurrentCallsPerProvider: Int = 3,
+    /** Maximum number of in-line retries the OkHttp client performs on
+     *  a 429 response from a single provider host. Defaults to 3 —
+     *  three retries × the backoff below = ~3 s of in-line waiting.
+     *  Mirrored to [com.ai.data.NetworkSettings.maxRetriesOn429] so
+     *  the interceptor can read the live value without threading a
+     *  Settings reference through its constructor. Set to 0 to
+     *  disable in-line retries entirely (the outer withRetry layer
+     *  still gets a chance on transient 4xx). */
+    val maxRetriesOn429: Int = 3,
+    /** Wait between successive 429 retry attempts, in milliseconds.
+     *  Defaults to 1000 (1 s). Mirrored to
+     *  [com.ai.data.NetworkSettings.retryBackoffMs]. */
+    val retryBackoffMs: Long = 1_000L,
     /** Threshold for the in-app file logger
      *  ([com.ai.data.AppLog]). Calls at this level or higher land in
      *  `<filesDir>/applog/applog_<yyyyMMdd>.log` in addition to
@@ -385,10 +398,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
+            NetworkSettings.maxRetriesOn429 = bs.first.maxRetriesOn429
+            NetworkSettings.retryBackoffMs = bs.first.retryBackoffMs
             AppLog.v(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
-                    "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider}"
+                    "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " +
+                    "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs}ms"
             )
             AppLog.threshold = bs.first.logLevel
             AppLog.v(startTag, "  AppLog.threshold=${bs.first.logLevel}")
@@ -777,6 +793,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
         NetworkSettings.maxConcurrentCallsPerProvider = settings.maxConcurrentCallsPerProvider
+        NetworkSettings.maxRetriesOn429 = settings.maxRetriesOn429
+        NetworkSettings.retryBackoffMs = settings.retryBackoffMs
         AppLog.threshold = settings.logLevel
         // Java's Semaphore can't be resized in place — clear the
         // per-host map so the next acquire builds a fresh semaphore at

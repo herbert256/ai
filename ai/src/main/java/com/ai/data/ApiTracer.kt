@@ -614,6 +614,12 @@ object NetworkSettings {
      *  fan-out semaphore so the limit holds across overlapping flows
      *  (report + meta + chat on the same provider). */
     @Volatile var maxConcurrentCallsPerProvider: Int = 3
+    /** Maximum number of in-line 429 retries [RateLimitRetryInterceptor]
+     *  attempts per call. Defaults to 3 (matches the legacy constructor
+     *  default that was hardcoded before this knob was exposed). */
+    @Volatile var maxRetriesOn429: Int = 3
+    /** Wait between successive 429 retry attempts, in milliseconds. */
+    @Volatile var retryBackoffMs: Long = 1_000L
 }
 
 /** Per-hostname rate + concurrency gate. Backs
@@ -659,6 +665,21 @@ object ProviderThrottle {
         val concurrent = (override?.maxConcurrentCallsPerProvider
             ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
         return perMinute to concurrent
+    }
+
+    /** Resolve the effective (maxRetries, backoffMs) for [host]'s 429
+     *  retry loop: per-provider override → global default. maxRetries
+     *  is coerced ≥ 0 (zero is a valid "no in-line retries" setting),
+     *  backoffMs is coerced ≥ 1 so a typo can't degenerate into a
+     *  busy loop. */
+    fun retryLimitsFor(host: String): Pair<Int, Long> {
+        if (host.isBlank()) return NetworkSettings.maxRetriesOn429 to NetworkSettings.retryBackoffMs
+        val override = ProviderRegistry.findByHost(host)
+        val maxRetries = (override?.maxRetriesOn429
+            ?: NetworkSettings.maxRetriesOn429).coerceAtLeast(0)
+        val backoffMs = (override?.retryBackoffMs
+            ?: NetworkSettings.retryBackoffMs).coerceAtLeast(1L)
+        return maxRetries to backoffMs
     }
 
     /** Gate on per-minute rate first, then on concurrency. The
@@ -837,10 +858,7 @@ class ReadTimeoutInterceptor : Interceptor {
  *  retry. Caller-driven retry policies (queueing more attempts via the
  *  suspend layer) can layer on top with kotlinx.coroutines.delay, which
  *  doesn't block any thread. */
-class RateLimitRetryInterceptor(
-    private val maxRetries: Int = 3,
-    private val backoffMs: Long = 1_000L
-) : Interceptor {
+class RateLimitRetryInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val response = chain.proceed(request)
@@ -850,7 +868,14 @@ class RateLimitRetryInterceptor(
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
-        AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries)")
+        // Resolve caps lazily per 429 — the user can change the
+        // global / per-provider settings while a call is in flight
+        // and the next iteration of the retry loop picks up the new
+        // values. maxRetries == 0 is a valid "no in-line retries"
+        // setting; the loop exits immediately and the original 429
+        // bubbles up to the outer withRetry layer.
+        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor(request.url.host)
+        AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0
         while (current.code == 429 && attempt < maxRetries) {
