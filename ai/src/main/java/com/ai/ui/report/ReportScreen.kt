@@ -2268,7 +2268,13 @@ fun ReportsScreen(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        // Tight spacing into the action row on the result page —
+        // the TitleBar already pads itself 8dp at the bottom, so an
+        // extra full Spacer felt loose. 2dp keeps a visible seam
+        // without leaving the buttons stranded below the bar. The
+        // selection phase still has its own breathing room inside
+        // SelectionPhase.
+        Spacer(modifier = Modifier.height(if (isGenerating) 2.dp else 8.dp))
 
         if (!isGenerating) {
             // Selection phase
