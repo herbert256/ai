@@ -1059,11 +1059,17 @@ private fun appendTextWithTables(segments: MutableList<ContentSegment>, text: St
     }
     var pos = 0
     MD_TABLE_PLACEHOLDER_REGEX.findAll(placeheld).forEach { match ->
+        // Bounds-check the placeholder index — the regex is a plain
+        // alphanumeric token (`MDTBL\d+`), so model output that happens
+        // to contain a literal `MDTBL999` alongside one real table
+        // matches here too. Treat any out-of-range hit as user text
+        // rather than indexing past tables.size and crashing.
+        val idx = match.groupValues[1].toIntOrNull()
+        if (idx == null || idx !in tables.indices) return@forEach
         if (match.range.first > pos) {
             val chunk = placeheld.substring(pos, match.range.first).trim()
             if (chunk.isNotEmpty()) segments.add(ContentSegment.Text(chunk))
         }
-        val idx = match.groupValues[1].toInt()
         segments.add(ContentSegment.Table(tables[idx]))
         pos = match.range.last + 1
     }

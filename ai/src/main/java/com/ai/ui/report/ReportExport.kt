@@ -1038,9 +1038,14 @@ internal fun convertMarkdownToHtmlForExport(markdown: String): String {
         // around it with the real <table>. Browsers tolerate <p>
         // around <table> (auto-close), but stripping keeps the source
         // clean and lets the table style take effect cleanly.
+        //
+        // Bounds-check the index — user-authored content can contain a
+        // literal `MDTBL999`, which would otherwise index past
+        // tables.size and crash the export.
         html = html.replace(Regex("(?:<p>\\s*)?(?:<br>\\s*)*${MD_TABLE_PLACEHOLDER_REGEX.pattern}(?:\\s*<br>)*(?:\\s*</p>)?")) { m ->
-            val idx = m.groupValues[1].toInt()
-            buildExportTableHtml(tables[idx])
+            val idx = m.groupValues[1].toIntOrNull()
+            if (idx == null || idx !in tables.indices) m.value
+            else buildExportTableHtml(tables[idx])
         }
     }
     return html
