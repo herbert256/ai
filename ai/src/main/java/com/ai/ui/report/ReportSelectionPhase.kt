@@ -9,12 +9,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
+import com.ai.ui.chat.SystemPromptSelectorDialog
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -48,7 +51,12 @@ internal fun ColumnScope.SelectionPhase(
     onGenerate: (ReportType) -> Unit,
     onUpdateModelList: () -> Unit,
     attachedKnowledgeBaseIds: List<String> = emptyList(),
-    onAttachKnowledgeBases: (List<String>) -> Unit = {}
+    onAttachKnowledgeBases: (List<String>) -> Unit = {},
+    /** Per-report system prompt override. When non-null at generation
+     *  time, replaces the per-agent / per-flock / external-intent
+     *  system prompt for every agent in this report. */
+    selectedSystemPromptId: String? = null,
+    onSystemPromptChange: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -88,14 +96,40 @@ internal fun ColumnScope.SelectionPhase(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Selected models list
+    // Count line — shows the selected model count between the +chip row
+    // and the list so the user sees at a glance how many models the
+    // report will run against. Sort the list by model name so the
+    // order is stable as items are added; the model id is the user-
+    // facing identifier and is what they expect to scan alphabetically.
+    Text(
+        when (val n = models.size) {
+            0 -> "No models selected"
+            1 -> "1 model"
+            else -> "$n models"
+        },
+        fontSize = 11.sp, color = AppColors.TextTertiary,
+        modifier = Modifier.padding(bottom = 4.dp)
+    )
+
+    // Selected models list — sorted by model name (case-insensitive),
+    // with sortedIndices so the per-row delete callback still removes
+    // the right entry from the caller's original list.
+    val sortedIndices = remember(models) {
+        models.indices.sortedBy { models[it].model.lowercase() }
+    }
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         if (models.isEmpty()) {
-            Text("No models selected", color = AppColors.TextSecondary, fontSize = 14.sp, modifier = Modifier.padding(vertical = 16.dp))
+            // Empty state already covered by the count line above.
         } else {
-            models.forEachIndexed { index, entry ->
+            sortedIndices.forEach { index ->
+                val entry = models[index]
                 val pricing = formatPricingPerMillion(context, entry.provider, entry.model)
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .modelInfoClickable(entry.provider, entry.model)
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(entry.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -109,6 +143,9 @@ internal fun ColumnScope.SelectionPhase(
                         color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.Red,
                         modifier = if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                     Spacer(modifier = Modifier.width(8.dp))
+                    // ✕ stays clickable independently; the row's
+                    // model-info clickable fires only when the tap
+                    // lands outside this delete hit-target.
                     Text("✕", color = AppColors.Red, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -150,32 +187,76 @@ internal fun ColumnScope.SelectionPhase(
         )
     }
 
-    // Bottom buttons
+    // Secondary row — Params + System prompt sit side-by-side above
+    // the final action row. The System prompt dialog mirrors the
+    // chat session screen's selector so a single picker shape is
+    // reused across the app.
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
+    if (showSystemPromptDialog) {
+        SystemPromptSelectorDialog(
+            aiSettings = aiSettings,
+            selectedId = selectedSystemPromptId,
+            onSelect = { id -> onSystemPromptChange(id); showSystemPromptDialog = false },
+            onDismiss = { showSystemPromptDialog = false }
+        )
+    }
+    val selectedSystemPromptName = selectedSystemPromptId?.let { id ->
+        aiSettings.systemPrompts.firstOrNull { it.id == id }?.name
+    }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (models.isNotEmpty()) OutlinedButton(onClick = onClearAll, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
         OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
             Text(if (advancedParameters != null) "Params ✓" else "Params", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
+        OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+            Text(
+                if (selectedSystemPromptName != null) "Sys prompt ✓" else "Sys prompt",
+                fontSize = 13.sp, maxLines = 1, softWrap = false
+            )
+        }
+    }
+    if (selectedSystemPromptName != null) {
+        Text(
+            selectedSystemPromptName,
+            fontSize = 10.sp, color = AppColors.TextTertiary,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp)
+        )
     }
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Bottom action — Generate for a fresh report, or Update model list when the user
-    // entered via Edit / Models on a finished report. The Update path stages the new
-    // list and pops back without running; the user re-runs from Actions / Regenerate.
-    if (editModeReportId != null) {
-        Button(
-            onClick = onUpdateModelList,
-            enabled = models.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Update model list", maxLines = 1, softWrap = false) }
-    } else {
-        Button(
-            onClick = { onGenerate(ReportType.CLASSIC) },
-            enabled = models.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Generate", maxLines = 1, softWrap = false) }
+    // Final row — Clear sits to the left of the primary action so the
+    // destructive option is one tap away without being mistaken for
+    // the green Generate / Update button on the right. Clear collapses
+    // to weight(0) when nothing's selected so Generate takes the full
+    // width and the user isn't shown a dead button.
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (models.isNotEmpty()) {
+            OutlinedButton(
+                onClick = onClearAll,
+                modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Clear", maxLines = 1, softWrap = false) }
+        }
+        // Bottom action — Generate for a fresh report, or Update model
+        // list when the user entered via Edit / Models on a finished
+        // report. The Update path stages the new list and pops back
+        // without running; the user re-runs from Actions / Regenerate.
+        if (editModeReportId != null) {
+            Button(
+                onClick = onUpdateModelList,
+                enabled = models.isNotEmpty(),
+                modifier = Modifier.weight(2f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Update model list", maxLines = 1, softWrap = false) }
+        } else {
+            Button(
+                onClick = { onGenerate(ReportType.CLASSIC) },
+                enabled = models.isNotEmpty(),
+                modifier = Modifier.weight(2f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) { Text("Generate", maxLines = 1, softWrap = false) }
+        }
     }
 }

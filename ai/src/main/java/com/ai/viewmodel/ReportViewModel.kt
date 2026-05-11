@@ -190,7 +190,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val allModelMembers = swarmMembers + directModels
             val allModelIds = swarmMemberIds + uniqueDirectModelIds
 
-            val reportTasks = buildReportTasks(aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt)
+            val reportLevelSystemPrompt = state.reportSystemPromptId
+                ?.let { aiSettings.getSystemPromptById(it)?.prompt }
+            val reportTasks = buildReportTasks(aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt, reportLevelSystemPrompt)
 
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
@@ -336,7 +338,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
-        selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?
+        selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?,
+        /** Optional per-report system prompt picked on the model-selection
+         *  screen. When non-null, wins over agent / flock / external; when
+         *  null, the existing per-agent → per-flock → external resolution
+         *  chain applies. */
+        reportLevelSystemPrompt: String? = null
     ): List<ReportTask> {
         val agentTasks = agents.map { agent ->
             val ea = agent.copy(
@@ -345,7 +352,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
             val selParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
             var params = selParams ?: aiSettings.resolveAgentParameters(agent)
-            val spText = resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id)) ?: externalSystemPrompt
+            val spText = reportLevelSystemPrompt
+                ?: resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id))
+                ?: externalSystemPrompt
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(agent.id, ReportAgent(agent.id, agent.name, ea.provider.id, ea.model, ReportStatus.PENDING), ea, params)
@@ -353,7 +362,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val modelTasks = modelMembers.map { member ->
             val sid = "swarm:${member.provider.id}:${member.model}"
-            val spText = findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: externalSystemPrompt
+            val spText = reportLevelSystemPrompt
+                ?: findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                ?: externalSystemPrompt
             var params = aiSettings.mergeParameters(selectionParamsById[sid] ?: emptyList()) ?: AgentParameters()
             if (spText != null) params = params.copy(systemPrompt = spText)
 
@@ -551,7 +562,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
                 SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
             }
-            val tasks = buildReportTasks(ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt)
+            val reportLevelSystemPrompt = state.reportSystemPromptId
+                ?.let { ai.getSystemPromptById(it)?.prompt }
+            val tasks = buildReportTasks(ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt, reportLevelSystemPrompt)
             val existingIds = report.agents.map { it.agentId }.toSet()
             val newTasks = tasks.filter { it.resultId !in existingIds }
             val removedIds = existingIds - tasks.map { it.resultId }.toSet()
@@ -827,6 +840,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
+            reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),
             hasPendingPromptChange = false, hasPendingParametersChange = false

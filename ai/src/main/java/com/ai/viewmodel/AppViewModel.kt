@@ -221,6 +221,12 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
+    /** Per-report system prompt override picked on the model-selection
+     *  screen. When non-null, replaces the per-agent / per-flock /
+     *  external-intent system prompt at dispatch (see
+     *  ReportViewModel.buildReportTasks). Null = use the existing
+     *  resolution chain. */
+    val reportSystemPromptId: String? = null,
     // One-shot signal: when non-empty, the Reports selection screen pre-fills its model
     // list from this and clears it via clearPendingReportModels(). Used for Edit-models
     // and Regenerate flows kicked off from a finished report.
@@ -1405,6 +1411,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
     fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
     fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
+    fun setReportSystemPromptId(id: String?) { _uiState.update { it.copy(reportSystemPromptId = id) } }
 
     // ===== Internal helpers =====
 

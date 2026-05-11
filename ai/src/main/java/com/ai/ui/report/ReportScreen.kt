@@ -223,6 +223,7 @@ fun ReportsScreenNav(
         onNavigateHome = handleNavigateHome,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
+        onSystemPromptChange = { viewModel.setReportSystemPromptId(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
@@ -356,6 +357,9 @@ fun ReportsScreen(
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
+    /** Persist the per-report system prompt picked in SelectionPhase
+     *  onto UiState so the dispatch sees it at generation time. */
+    onSystemPromptChange: (String?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
@@ -1885,7 +1889,9 @@ fun ReportsScreen(
                 onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
                 onUpdateModelList = { if (editModeRid != null) onUpdateModelList(editModeRid, models) },
                 attachedKnowledgeBaseIds = uiState.attachedKnowledgeBaseIds,
-                onAttachKnowledgeBases = onAttachKnowledgeBases
+                onAttachKnowledgeBases = onAttachKnowledgeBases,
+                selectedSystemPromptId = uiState.reportSystemPromptId,
+                onSystemPromptChange = onSystemPromptChange
             )
         } else {
             // Generation phase
