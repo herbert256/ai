@@ -339,16 +339,16 @@ fun AppLogDetailScreen(
     // the network-timeout fields under Settings.
     var startTimeText by remember(currentFilename) { mutableStateOf("") }
     var endTimeText by remember(currentFilename) { mutableStateOf("") }
-    // Tag filter. "(All)" sentinel = no constraint. The pulldown is
+    // Tag filter. "(any)" sentinel = no constraint. The pulldown is
     // populated from the distinct set of tags actually present in
     // this file's entries, sorted alphabetically.
-    var selectedTag by remember(currentFilename) { mutableStateOf("(All)") }
+    var selectedTag by remember(currentFilename) { mutableStateOf("(any)") }
     val availableTags = remember(allEntries) {
         val present = allEntries
             .mapNotNull { parseHeader(it.header).tag.trim().takeIf { t -> t.isNotEmpty() } }
             .distinct()
             .sorted()
-        listOf("(All)") + present
+        listOf("(any)") + present
     }
 
     val entries = remember(allEntries, searchQuery, enabledLevels, startTimeText, endTimeText, selectedTag) {
@@ -358,7 +358,7 @@ fun AppLogDetailScreen(
         allEntries.filter { entry ->
             val lvl = levelOfHeader(entry.header)
             if (lvl != null && lvl !in enabledLevels) return@filter false
-            if (selectedTag != "(All)") {
+            if (selectedTag != "(any)") {
                 val t = parseHeader(entry.header).tag.trim()
                 if (t != selectedTag) return@filter false
             }
@@ -529,7 +529,7 @@ fun AppLogDetailScreen(
         // ===== Filter row =====
         // Search field + tag pulldown share one row. The pulldown is
         // a fixed-width dropdown showing the distinct tags present in
-        // this file (e.g. App / Report / ApiCall / SSE / …); "(All)"
+        // this file (e.g. App / Report / ApiCall / SSE / …); "(any)"
         // disables the filter. Search trailing ✕ clears the query in
         // one tap.
         Row(
@@ -608,7 +608,7 @@ fun AppLogDetailScreen(
         // Count line + Clear-filters action. "Clear filters" only
         // appears when at least one filter differs from the
         // screen-open defaults (all levels on, no search, no time
-        // range, "(All)" tag) so it doesn't sit there as a no-op
+        // range, "(any)" tag) so it doesn't sit there as a no-op
         // affordance the rest of the time. Tap resets every filter
         // in one shot.
         if (allEntries.isNotEmpty()) {
@@ -617,7 +617,7 @@ fun AppLogDetailScreen(
                 enabledLevels != defaultLevels ||
                 startTimeText.isNotEmpty() ||
                 endTimeText.isNotEmpty() ||
-                selectedTag != "(All)"
+                selectedTag != "(any)"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -629,7 +629,7 @@ fun AppLogDetailScreen(
                             enabledLevels = defaultLevels
                             startTimeText = ""
                             endTimeText = ""
-                            selectedTag = "(All)"
+                            selectedTag = "(any)"
                         },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
@@ -768,7 +768,7 @@ private fun TimeFilterButton(
 }
 
 /** Outlined-button dropdown shared with the log file viewer for the
- *  tag filter. "(All)" sentinel is rendered as just the placeholder
+ *  tag filter. "(any)" sentinel is rendered as just the placeholder
  *  label; any other selection shows "Tag: <value>". Mirrors the
  *  FilterDropdown used by the API Traces list — same look so the two
  *  filtering screens feel consistent. */
@@ -787,7 +787,7 @@ private fun TagDropdown(
             colors = AppColors.outlinedButtonColors(),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
         ) {
-            val display = if (value == "(All)") "Tag" else "Tag: $value"
+            val display = if (value == "(any)") "(any)" else "Tag: $value"
             Text(display, fontSize = 11.sp,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("▾", fontSize = 11.sp, color = AppColors.TextTertiary)
