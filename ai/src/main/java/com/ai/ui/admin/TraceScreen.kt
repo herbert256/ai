@@ -1,9 +1,6 @@
 package com.ai.ui.admin
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
@@ -25,7 +22,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import com.ai.data.*
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
@@ -880,21 +876,10 @@ fun TraceDetailScreen(
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("📝", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             }
-            OutlinedButton(onClick = {
-                // Only copy when the trace structure is parsed; the
-                // redaction pass needs that. Falling back to displayContent
-                // / rawJson would put plaintext API keys (in Authorization
-                // headers + URL ?key= params) on the clipboard.
-                val parsed = t
-                if (parsed == null) {
-                    Toast.makeText(context, "Trace not loaded yet", Toast.LENGTH_SHORT).show()
-                    return@OutlinedButton
-                }
-                val toCopy = redactedContentFor(currentView, parsed)
-                val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                clip.setPrimaryClip(ClipData.newPlainText("trace", toCopy))
-                Toast.makeText(context, "Copied (redacted)", Toast.LENGTH_SHORT).show()
-            }, enabled = t != null, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Copy", maxLines = 1, softWrap = false) }
+            // Copy and Share lived here too, but they're already wired
+            // on the title-bar icon strip (📋 + 📤) with byte-identical
+            // redaction — duplicating them in the bottom row cluttered
+            // the layout and made the icon-bar shortcuts feel optional.
             OutlinedButton(onClick = {
                 // Save provider/model/url to prefs for EditApiRequestScreen.
                 // Redact the URL (Google's `?key=…` query param + similar)
@@ -913,16 +898,6 @@ fun TraceDetailScreen(
                     }
                 onEditRequest()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = {
-                // Same secret-leak guard as Copy — share only when the
-                // trace parsed and redactedTraceJson can run.
-                val parsed = t
-                if (parsed == null) {
-                    Toast.makeText(context, "Trace not loaded yet", Toast.LENGTH_SHORT).show()
-                    return@OutlinedButton
-                }
-                shareTrace(context, redactedTraceJson(parsed), currentFilename)
-            }, enabled = t != null, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Share", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
             }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
@@ -951,21 +926,6 @@ private fun redactedTraceJson(trace: ApiTrace): String {
         )
     )
     return com.ai.data.createAppGson(prettyPrint = true).toJson(redactedTrace)
-}
-
-private fun shareTrace(context: Context, content: String, filename: String) {
-    try {
-        val file = sharedTraceCacheFile(context.cacheDir, filename)
-        file.writeText(content)
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        context.startActivity(Intent.createChooser(intent, "Share Trace"))
-    } catch (e: Exception) { Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show() }
-}
-
-internal fun sharedTraceCacheFile(cacheDir: File, filename: String): File {
-    val dir = File(cacheDir, "shared_traces").also { it.mkdirs() }
-    return File(dir, filename)
 }
 
 // ===== JSON Tree View =====
