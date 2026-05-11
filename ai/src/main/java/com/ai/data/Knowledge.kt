@@ -187,9 +187,22 @@ object KnowledgeStore {
     fun saveSource(context: Context, kbId: String, source: KnowledgeSource, chunks: List<KnowledgeChunk>, embeddingDim: Int) {
         init(context)
         val kbDir = kbDirOrNull(kbId) ?: return
+        // kbId now has a flat-id + canonical containment check in
+        // kbDirOrNull, but source.id is still string-interpolated into
+        // the chunks/ file path. A backup restore (or a future import
+        // path) carrying a manifest with `sources[].id = "../prefs/x"`
+        // would otherwise write the chunks blob outside chunks/.
+        if (!isSafeSourceId(source.id)) {
+            AppLog.e("Knowledge", "Refusing to save source with suspect id ${source.id}")
+            return
+        }
         lock.withLock {
             val chunksDir = File(kbDir, CHUNKS_DIR).also { it.mkdirs() }
             val chunkFile = File(chunksDir, "${source.id}.json")
+            if (!chunkFile.canonicalPath.startsWith(chunksDir.canonicalPath + File.separator)) {
+                AppLog.e("Knowledge", "Refusing to save source that escapes chunks dir: ${source.id}")
+                return
+            }
             chunkFile.writeTextAtomic(gson.toJson(chunks))
             val current = loadKb(kbDir)
             val replaced = current.sources.filter { it.id != source.id } + source.copy(
@@ -222,8 +235,18 @@ object KnowledgeStore {
     fun deleteSource(context: Context, kbId: String, sourceId: String) {
         init(context)
         val kbDir = kbDirOrNull(kbId) ?: return
+        if (!isSafeSourceId(sourceId)) {
+            AppLog.w("Knowledge", "Refusing to delete source with suspect id $sourceId")
+            return
+        }
         lock.withLock {
-            File(kbDir, "$CHUNKS_DIR/$sourceId.json").delete()
+            val chunksDir = File(kbDir, CHUNKS_DIR)
+            val chunkFile = File(chunksDir, "$sourceId.json")
+            if (!chunkFile.canonicalPath.startsWith(chunksDir.canonicalPath + File.separator)) {
+                AppLog.w("Knowledge", "Refusing to delete source that escapes chunks dir: $sourceId")
+                return@withLock
+            }
+            chunkFile.delete()
             val current = loadKb(kbDir)
             saveManifest(kbDir, current.copy(sources = current.sources.filter { it.id != sourceId }))
         }
@@ -286,6 +309,10 @@ object KnowledgeStore {
     private fun isSafeKbId(kbId: String): Boolean =
         kbId.isNotBlank() && kbId != "." && kbId != ".." &&
             !kbId.contains('/') && !kbId.contains('\\') && !kbId.contains(' ')
+
+    private fun isSafeSourceId(sourceId: String): Boolean =
+        sourceId.isNotBlank() && sourceId != "." && sourceId != ".." &&
+            !sourceId.contains('/') && !sourceId.contains('\\')
 
     private fun loadKb(kbDir: File): KnowledgeBase {
         val text = File(kbDir, MANIFEST).readText()
