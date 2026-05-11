@@ -61,24 +61,28 @@ fun HelpScreen(
 private fun CompactOverview(onNavigateToTopic: (String) -> Unit = {}) {
     HelpSection(
         "Welcome",
-        "This app runs AI reports, chats, and dual chats against ${'$'}{AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
+        "This app runs AI reports, chats, and dual chats against ${AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
     )
     HelpSection(
         "Per-screen help",
-        "Every screen has its own help page. Tap ❓ in the top bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
+        "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
+    )
+    HelpSection(
+        "Getting started",
+        "1. Settings → AI Setup → Providers — paste an API key.\n" +
+            "2. Housekeeping → Refresh → Refresh all — verify keys + fetch model lists + seed default agents.\n" +
+            "3. From the Hub, pick Reports / Chat / Knowledge / Models / Setup / Housekeeping."
     )
     HelpIconTable()
     InfoProviderTable(onNavigateToTopic)
     CloudProviderTable(onNavigateToTopic)
     HelpSection(
-        "Getting started",
-        "1. Settings → AI Setup → Providers — paste an API key.\n" +
-            "2. Refresh All — verify keys + fetch model lists.\n" +
-            "3. From the Hub, pick Reports / Chat / Knowledge / Models / Setup / Housekeeping."
-    )
-    HelpSection(
         "Privacy",
         "All data stays on this device. API keys are sent only to their provider. No telemetry."
+    )
+    HelpSection(
+        "Copyright",
+        "Copyright © Herbert Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
     )
 }
 
@@ -100,6 +104,8 @@ private fun HelpIconTable() {
         Triple("🏠", "Home", "Returns here from anywhere."),
         Triple("❓", "Help", "Opens topic-specific help for the current screen."),
         Triple("ℹ️", "Info", "Drills into model info or another details target."),
+        Triple("📋", "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, chat transcript, …)."),
+        Triple("📤", "Share", "Fires the Android share sheet (ACTION_SEND) with the screen's main payload as plain text."),
         Triple("🗑", "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
         Triple("🐞", "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
         Triple("🔄", "Reload", "Re-runs the screen's fetch."),
