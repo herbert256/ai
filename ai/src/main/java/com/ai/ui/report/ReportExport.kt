@@ -723,11 +723,14 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
                 // "Critique" / etc. result can jump back to any cited
                 // agent card. RERANK has its own structured renderer
                 // above; MODERATION renders as plain text below.
-                val linkified = Regex("""\[(\d+)\]""").replace(item.content) { m ->
-                    val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
-                    if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
-                }
-                sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(linkified)}</div>")
+                //
+                // Linkify AFTER the markdown→HTML pass — that pass
+                // unconditionally escapes `<` / `>`, which would
+                // otherwise turn `<a href=…>` into literal text.
+                // `[N]` survives both the markdown rules and the
+                // escape, so the post-pass regex still matches.
+                val html = convertMarkdownToHtmlForExport(item.content)
+                sb.append("<div class='secondary-body'>${linkifyAnchorRefs(html, maxAnchor)}</div>")
             }
             else -> sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(item.content)}</div>")
         }
@@ -977,13 +980,23 @@ private fun renderRerankContent(content: String, maxAnchor: Int, agentsByAnchor:
         }
     }
 
-    // Fallback: linkify [N] references inline so the user still gets clickable jumps.
-    val linkified = Regex("""\[(\d+)\]""").replace(content) { m ->
+    // Fallback: convert to HTML first, then linkify [N] references on
+    // the result. convertMarkdownToHtmlForExport unconditionally
+    // escapes `<` / `>`, so linkifying before would emit `&lt;a...&gt;`
+    // and render as literal text.
+    return linkifyAnchorRefs(convertMarkdownToHtmlForExport(content), maxAnchor)
+}
+
+/** Replace bracketed `[N]` references in already-rendered HTML with
+ *  `<a href='#result-N'>[N]</a>` anchors. Operates post-conversion
+ *  so the markdown pass's HTML-escape doesn't shred the inserted
+ *  tags. `[` / `]` are inert in HTML and survive both the markdown
+ *  rules and the escape unchanged. */
+private fun linkifyAnchorRefs(html: String, maxAnchor: Int): String =
+    Regex("""\[(\d+)\]""").replace(html) { m ->
         val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
         if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
     }
-    return convertMarkdownToHtmlForExport(linkified)
-}
 
 internal fun processThinkSections(text: String, agentId: String): String {
     val pattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
