@@ -1331,35 +1331,43 @@ fun ReportsScreen(
         val provider = agent?.let { AppService.findById(it.provider) }
         if (agent != null && provider != null) {
             val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
-            AgentIconDetailScreen(
-                chatPrompt = chatPrompt,
-                tier2Prompt = tier2Prompt,
-                tier3Prompt = tier3Prompt,
-                agentProvider = provider,
-                agentModel = agent.model,
-                reportPrompt = loadedReportPrompt,
-                agentResponse = agent.responseBody.orEmpty(),
-                icon = agent.icon,
-                errorMessage = agent.iconErrorMessage,
-                cost = agent.iconInputCost + agent.iconOutputCost,
-                winningTier = agent.iconWinningTier,
-                onFindAlternativeIcons = {
-                    fanOutTargetAgentId = agentId
-                    // Same hand-off pattern as the report-level button:
-                    // when a fan-out already exists for this target,
-                    // skip the picker and go straight to the live list.
-                    if (hasActiveAgentFanOut) {
-                        showAlternativeIcons = true
-                    } else {
-                        showFindIconsPicker = true
-                    }
-                },
-                hasActiveFanOut = hasActiveAgentFanOut,
-                onBack = {
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+                LocalNavigateToCurrentReport provides {
                     agentIconDetailFor = null
                     fanOutTargetAgentId = null
                 }
-            )
+            ) {
+                AgentIconDetailScreen(
+                    chatPrompt = chatPrompt,
+                    tier2Prompt = tier2Prompt,
+                    tier3Prompt = tier3Prompt,
+                    agentProvider = provider,
+                    agentModel = agent.model,
+                    reportPrompt = loadedReportPrompt,
+                    agentResponse = agent.responseBody.orEmpty(),
+                    icon = agent.icon,
+                    errorMessage = agent.iconErrorMessage,
+                    cost = agent.iconInputCost + agent.iconOutputCost,
+                    winningTier = agent.iconWinningTier,
+                    onFindAlternativeIcons = {
+                        fanOutTargetAgentId = agentId
+                        // Same hand-off pattern as the report-level button:
+                        // when a fan-out already exists for this target,
+                        // skip the picker and go straight to the live list.
+                        if (hasActiveAgentFanOut) {
+                            showAlternativeIcons = true
+                        } else {
+                            showFindIconsPicker = true
+                        }
+                    },
+                    hasActiveFanOut = hasActiveAgentFanOut,
+                    onBack = {
+                        agentIconDetailFor = null
+                        fanOutTargetAgentId = null
+                    }
+                )
+            }
             return
         }
         // Missing icon prompt / unknown agent / mirror not yet
