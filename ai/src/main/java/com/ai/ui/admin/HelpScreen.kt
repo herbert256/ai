@@ -876,16 +876,53 @@ private val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_swarm" to HelpContent(
-        title = "Pick a swarm / model",
+        title = "Pick a swarm",
         cards = listOf(
-            HelpCard("Overview", "Two flows share this help topic: the swarm dialog reached by +Swarm, and the full-screen single-select model picker reached by +Model and the moderation / rerank pickers."),
-            HelpCard("Swarm dialog", "Lists every swarm with member count + summed per-million pricing. Tap to add every (provider, model) pair to the report."),
-            HelpCard("Model picker — list", "Joins every active provider's catalog plus, when a model-type filter is set, on-device LiteRT models exposed under the synthetic Local provider."),
+            HelpCard("Overview", "Full-screen swarm picker reached by +Swarm on the New AI Report selection phase. Lists every saved swarm with member count + summed per-million pricing. Tap a row to add every (provider, model) pair to the report."),
+            HelpCard("Search field", "Filters by swarm name (case-insensitive). The ✕ trailing icon clears the field."),
+            HelpCard("ℹ️ icon", "Left of each swarm name — opens a per-swarm detail screen (Swarm info) listing every member with provider, model, capability badges, and per-million pricing. Tap a row there to drill into Model Info. Tap target is separate from the row's main click so you can preview without adding the swarm."),
+            HelpCard("Pricing column", "Sums per-million prompt / completion across all members. Red when at least one member has real pricing data; grey-on-grey badge when every member fell through to DEFAULT."),
+            HelpCard("Empty state", "Opens an empty list; define swarms in AI Setup → Workers → Swarms first."),
+            HelpCard("Pitfalls", "Members survive when their provider is inactive — the swarm definition is purely structural. The report-run dispatch silently skips inactive members; the ℹ info screen still lists them."),
+            HelpCard("Related", "+Flock for grouped agents with system-prompt / parameter presets, +Agent for one configured agent at a time, +Model for a single (provider, model) pair.")
+        )
+    ),
+    "report_pick_model" to HelpContent(
+        title = "Pick model",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Fan-in-model / Translate / Rerank) when they need a model."),
+            HelpCard("List", "Joins every active provider's catalog plus, when a model-type filter is set, on-device LiteRT models exposed under the synthetic Local provider."),
             HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider (count shown next to each name). LOCAL appears here only when the type filter has matching local models."),
             HelpCard("Type filter", "When opened with a modelTypeFilter (RERANK / MODERATION / EMBEDDING / etc.), a checkbox '<Type> models only' is shown ON by default — untick to widen to the full catalog."),
+            HelpCard("Search field", "Matches against provider id and model id. The count line above the list reads '<filtered> of <total> models'."),
+            HelpCard("Recent section", "When the user has picked from any Report-section model picker before, the last 3 picks surface as a 'Recent' section above the main alphabetical list. Filters and search don't trim it — recents are a quick-access shortcut. Tapping a recent row also re-records it so the bump-to-front keeps ordering stable."),
             HelpCard("Already-added rows", "Rows passed in via alreadyAdded render at 0.4 alpha, are not clickable, and append ' · already added' next to capability badges."),
             HelpCard("Pricing column", "Per-token (×10⁶) prompt / completion, red for real data, grey badge for DEFAULT. Vision / Web / Reasoning badges sit before the price."),
-            HelpCard("Tap to confirm", "Single-select: tapping a row immediately fires onConfirm with the (provider, model) pair and the caller closes the picker. No multi-select, no batch confirm.")
+            HelpCard("Tap to confirm", "Single-select: tapping a row immediately fires onConfirm with the (provider, model) pair and the caller closes the picker. No multi-select, no batch confirm."),
+            HelpCard("Related", "+Swarm for a pre-grouped batch, +Flock for grouped agents, +Agent for one saved agent.")
+        )
+    ),
+    "report_swarm_info" to HelpContent(
+        title = "Swarm info",
+        cards = listOf(
+            HelpCard("Overview", "Per-swarm detail screen reached by tapping the ℹ️ icon next to a row on Pick a swarm. Lists every (provider, model) member of the swarm in member order."),
+            HelpCard("Per-row content", "Provider id in blue on top, model id in white below. Capability badges (vision / web search / reasoning) only appear when the catalog reports the capability for this model. Per-million-token prompt / completion price pair on the right — red when real pricing data exists, grey badge when the row fell through to DEFAULT_PRICING."),
+            HelpCard("Tap a row", "Opens Model Info for that (provider, model) — the same destination the title-bar ℹ️ icon reaches across the rest of the app. Use the Costs and Capabilities cards there to see every source's reading for this model."),
+            HelpCard("Title bar", "Static \"Swarm\" with the swarm name as the dynamic subject (folds into the bar when the \"Subject to title bar\" setting is on, otherwise sits below as a green sub-header). The back arrow returns to Pick a swarm with the previous filter intact."),
+            HelpCard("Pitfalls", "Members survive even when their provider is inactive or their API key isn't configured — the swarm definition is purely structural. The report-run dispatch silently skips inactive members; this info screen still lists them so you can spot which row to fix."),
+            HelpCard("Related", "Pick a swarm (parent), Model Info (drill target), Edit Swarms (under AI Setup → Workers → Swarms) for changing the member list.")
+        )
+    ),
+    "report_flock_info" to HelpContent(
+        title = "Flock info",
+        cards = listOf(
+            HelpCard("Overview", "Per-flock detail screen reached by tapping the ℹ️ icon next to a row on Pick a flock. Lists every member agent of the flock in member order."),
+            HelpCard("Flock overrides header", "Shown at the top only when the flock pins its own params or system-prompt preset(s). These override the matching agent-level presets at report-run time — surfacing them once at the top tells you what'll actually drive the run after the merge."),
+            HelpCard("Per-row content", "Provider id (blue), effective model id (white, resolved via getEffectiveModelForAgent so a provider-default model picks up the live default). Vision / Web / Reasoning capability badges + per-million-token price pair on the right. Two extra lines below the model when the agent has them: \"Parameters: name1, name2\" and \"System prompt: name\"."),
+            HelpCard("Tap a row", "Opens Model Info for the agent's (provider, effective-model). Same drill-in the title-bar ℹ️ uses elsewhere."),
+            HelpCard("Title bar", "Static \"Flock\" with the flock name as the dynamic subject. Back returns to Pick a flock."),
+            HelpCard("Pitfalls", "Agents whose provider is inactive still appear here — the agent / flock list is the source of truth, but expandFlockToModels skips inactive members when feeding the report. The agent count shown on Pick a flock already reflects that filtering."),
+            HelpCard("Related", "Pick a flock (parent), Model Info (drill target), Edit Flocks / Edit Agents (under AI Setup → Workers) for changing the membership or per-agent presets.")
         )
     ),
     "translation_run" to HelpContent(

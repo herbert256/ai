@@ -338,7 +338,7 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "report_pick_swarm", title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_model", title = titleText, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -1145,7 +1145,7 @@ private fun SwarmInfoScreen(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
-            helpTopic = "report_pick_swarm",
+            helpTopic = "report_swarm_info",
             title = "Swarm",
             subject = swarm.name,
             onBackClick = onBack
@@ -1187,7 +1187,7 @@ private fun FlockInfoScreen(
     val flockSystemPromptName = flock.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
-            helpTopic = "report_pick_flock",
+            helpTopic = "report_flock_info",
             title = "Flock",
             subject = flock.name,
             onBackClick = onBack
