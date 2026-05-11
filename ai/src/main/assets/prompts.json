@@ -80,6 +80,24 @@
     "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
   },
   {
+    "name": "report_icon_chat",
+    "title": "Find a fitting emoji for a report, chat version",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "*N/A",
+    "text": "Please give your previous response back as an emoji, just one emoji, nothing more."
+  },
+  {
+    "name": "report_icon_3th",
+    "title": "Find a fitting emoji for a report, 3th try",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
+  },
+  {
     "name": "chat_title",
     "title": "Decide the chat title",
     "reference": false,

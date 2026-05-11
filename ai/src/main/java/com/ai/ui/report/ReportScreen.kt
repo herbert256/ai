@@ -253,10 +253,6 @@ fun ReportsScreenNav(
             val rid = uiState.currentReportId
             if (rid != null) reportViewModel.runReportIcons(context, rid, aiSettings)
         },
-        onRunReportIconsTest = {
-            val rid = uiState.currentReportId
-            if (rid != null) reportViewModel.runReportIconsTest(context, rid, aiSettings)
-        },
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -460,12 +456,10 @@ fun ReportsScreen(
      *  Alternative icons screen reads from here when the active flow
      *  is per-agent (i.e. [fanOutTargetAgentId] is non-null). */
     agentIconFanOutByAgent: Map<String, List<IconCandidate>> = emptyMap(),
-    /** Kick off Create → Report icons — one icon-prompt call per
+    /** Kick off Create → Report icons — runs the 3-tier fallback
+     *  chain (chat continuation → one-shot → fixed agent) for every
      *  successful agent in the active report. */
     onRunReportIcons: () -> Unit = {},
-    /** Kick off Create → Test — multi-turn chat continuation
-     *  variant of Report icons. Same per-agent persistence target. */
-    onRunReportIconsTest: () -> Unit = {},
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -1294,15 +1288,23 @@ fun ReportsScreen(
     // (provider, model) ran the call, and the icon-prompt's @PROMPT@
     // was the agent's responseBody, not the report's prompt).
     agentIconDetailFor?.let { agentId ->
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        val chatPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_icon_chat"
+        }
+        val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "report_icon"
+        }
+        val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_icon_3th"
         }
         val agent = agentRecordsByAgentId[agentId]
         val provider = agent?.let { AppService.findById(it.provider) }
-        if (iconPrompt != null && agent != null && provider != null) {
+        if (agent != null && provider != null) {
             val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
             AgentIconDetailScreen(
-                iconPrompt = iconPrompt,
+                chatPrompt = chatPrompt,
+                tier2Prompt = tier2Prompt,
+                tier3Prompt = tier3Prompt,
                 agentProvider = provider,
                 agentModel = agent.model,
                 reportPrompt = loadedReportPrompt,
@@ -1310,6 +1312,7 @@ fun ReportsScreen(
                 icon = agent.icon,
                 errorMessage = agent.iconErrorMessage,
                 cost = agent.iconInputCost + agent.iconOutputCost,
+                winningTier = agent.iconWinningTier,
                 onFindAlternativeIcons = {
                     fanOutTargetAgentId = agentId
                     // Same hand-off pattern as the report-level button:
@@ -2277,7 +2280,6 @@ fun ReportsScreen(
                 reportIconModel = reportIconModel,
                 onOpenIconDetail = { showIconDetail = true },
                 onRunReportIcons = onRunReportIcons,
-                onRunReportIconsTest = onRunReportIconsTest,
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 agentIconRows = agentIconRows
             )
@@ -2396,18 +2398,30 @@ private fun ReportIconDetailScreen(
  *  a fan-out variant by design. */
 @Composable
 private fun AgentIconDetailScreen(
-    iconPrompt: InternalPrompt,
+    /** The chat-continuation third-turn prompt (internal/report_icon_chat).
+     *  Used as the Prompt card body when [winningTier] == 1. */
+    chatPrompt: InternalPrompt?,
+    /** The one-shot dual-substitution prompt (internal/report_icon).
+     *  Used when [winningTier] == 2 (resolves @PROMPT@ + @RESPONSE@). */
+    tier2Prompt: InternalPrompt?,
+    /** The fixed-agent fallback prompt (internal/report_icon_3th).
+     *  Used when [winningTier] == 3 (resolves @RESPONSE@ only). */
+    tier3Prompt: InternalPrompt?,
     agentProvider: AppService,
     agentModel: String,
-    /** The report's prompt — substituted for @PROMPT@. Uniform
-     *  across every agent in the report. */
+    /** The report's prompt — substituted for @PROMPT@ where the
+     *  winning tier's template uses it. */
     reportPrompt: String,
     /** The agent's responseBody — substituted for @RESPONSE@.
-     *  Per-agent. Falls back to "(no response)" when blank. */
+     *  Falls back to "(no response)" when blank. */
     agentResponse: String,
     icon: String?,
     errorMessage: String?,
     cost: Double,
+    /** 1 / 2 / 3 = the tier whose call produced the displayed icon.
+     *  Null = no tier succeeded (icon is the 📝 fallback) OR icon
+     *  was picked manually via Find alternative icons. */
+    winningTier: Int?,
     /** Fires either the picker overlay (no active per-agent fan-out)
      *  or jumps straight to the live "Alternative icons" list
      *  (active / completed fan-out — see [hasActiveFanOut]). */
@@ -2419,10 +2433,40 @@ private fun AgentIconDetailScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    val resolvedPrompt = iconPrompt.text
-        .replace("@PROMPT@", reportPrompt)
-        .replace("@RESPONSE@", if (agentResponse.isNotBlank()) agentResponse else "(no response)")
     val running = icon == null && errorMessage == null
+    val responseForSubstitution = if (agentResponse.isNotBlank()) agentResponse else "(no response)"
+    // Tier-aware prompt rendering. When the winning tier is known,
+    // resolve THAT tier's template — the user gets the actual
+    // prompt that produced this icon, not a stale guess.
+    data class TierView(val label: String, val body: String)
+    val tierView: TierView? = when (winningTier) {
+        1 -> chatPrompt?.let {
+            TierView(
+                "Tier 1 — chat continuation",
+                buildString {
+                    append("[user] ")
+                    append(reportPrompt)
+                    append("\n\n[assistant] ")
+                    append(responseForSubstitution)
+                    append("\n\n[user] ")
+                    append(it.text)
+                }
+            )
+        }
+        2 -> tier2Prompt?.let {
+            TierView(
+                "Tier 2 — one-shot template",
+                it.text.replace("@PROMPT@", reportPrompt).replace("@RESPONSE@", responseForSubstitution)
+            )
+        }
+        3 -> tier3Prompt?.let {
+            TierView(
+                "Tier 3 — fixed-agent fallback",
+                it.text.replace("@RESPONSE@", responseForSubstitution)
+            )
+        }
+        else -> null
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "agent_icon_detail",
@@ -2452,11 +2496,15 @@ private fun AgentIconDetailScreen(
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                 modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary,
+                    val label = tierView?.label ?: "Prompt"
+                    Text(label, fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 4.dp))
-                    Text(resolvedPrompt, fontSize = 13.sp, color = Color.White,
-                        lineHeight = 18.sp)
+                    Text(
+                        tierView?.body
+                            ?: "No tier succeeded — icon is the 📝 fallback (or was picked manually).",
+                        fontSize = 13.sp, color = Color.White, lineHeight = 18.sp
+                    )
                 }
             }
 

@@ -39,7 +39,40 @@ data class ReportAgent(
     var iconInputTokens: Int = 0,
     var iconOutputTokens: Int = 0,
     var iconInputCost: Double = 0.0,
-    var iconOutputCost: Double = 0.0
+    var iconOutputCost: Double = 0.0,
+    /** Which tier of the 3-tier Create → Report icons chain produced
+     *  the agent's current icon. 1 = chat continuation, 2 = one-shot
+     *  internal/report_icon, 3 = fixed-agent fallback against
+     *  internal/report_icon_3th. Null when no tier succeeded and the
+     *  icon is the 📝 fallback, or when the icon was set manually
+     *  via Find alternative icons. Surfaces on AgentIconDetailScreen
+     *  so the Prompt card can render the actual winning template. */
+    var iconWinningTier: Int? = null
+)
+
+/** One captured API call from the 3-tier Create → Report icons
+ *  chain. Stored on [Report.iconCalls] so the per-call All-tab in
+ *  the cost export can render every attempt — including the failed
+ *  earlier tiers that the chain skipped past. Same field set the
+ *  export's renderCostsView Row already shows.
+ *
+ *  Provider + model identify the actual model that billed the call
+ *  (tier 3 = DeepSeek even when the agent row itself uses a
+ *  different model), which is what the global UsageStats ledger
+ *  attributes too. */
+data class IconCallRecord(
+    val agentId: String,
+    val tier: Int,
+    val provider: String,
+    val model: String,
+    val pricingTier: String,
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val inputCost: Double,
+    val outputCost: Double,
+    val durationMs: Long? = null,
+    val success: Boolean,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 enum class ReportType { CLASSIC, TABLE }
@@ -123,7 +156,13 @@ data class Report(
      *  icon row / detail screen fall back to the pinned icon-prompt
      *  agent label. Stored as "<providerId>/<modelId>" so the row
      *  never has to re-resolve through the agent list. */
-    var iconModel: String? = null
+    var iconModel: String? = null,
+    /** Per-call audit log for the 3-tier Create → Report icons
+     *  chain. Cleared whenever a fresh chain run starts; otherwise
+     *  every tier appends one [IconCallRecord]. The export's per-
+     *  call All-tab pulls from this list so every attempt (failed
+     *  earlier tiers + the one that won) surfaces as its own row. */
+    var iconCalls: MutableList<IconCallRecord> = mutableListOf()
 )
 
 /**
@@ -632,7 +671,12 @@ object ReportStorage {
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
             val updated = report.agents[idx].copy(
-                icon = icon, iconErrorMessage = null
+                icon = icon, iconErrorMessage = null,
+                // Find alternative icons is a manual pick — null the
+                // tier flag so the per-agent detail screen falls back
+                // to a "manual pick" branch instead of mis-attributing
+                // to one of the 3 chain tiers.
+                iconWinningTier = null
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(
@@ -643,10 +687,56 @@ object ReportStorage {
         }
     }
 
+    /** 3-tier chain variant of [setReportAgentIconChoice]. Writes the
+     *  winning emoji + the tier (1 / 2 / 3) that produced it; null
+     *  tier records the 📝 fallback case where every tier failed.
+     *  Cost fields untouched — the chain bumped them per call via
+     *  [bumpReportAgentIconCost]. */
+    fun setReportAgentIconAndTier(
+        context: Context, reportId: String, agentId: String,
+        icon: String, winningTier: Int?
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                icon = icon, iconErrorMessage = null,
+                iconWinningTier = winningTier
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(
+                agents = newAgents,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Append one [IconCallRecord] onto [Report.iconCalls]. Called by
+     *  [com.ai.viewmodel.ReportViewModel.runReportIcons] after every
+     *  tier API call so the export's per-call All-tab can show each
+     *  attempt as its own row. */
+    fun appendIconCall(context: Context, reportId: String, record: IconCallRecord): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newCalls = (report.iconCalls + record).toMutableList()
+            saveReport(report.copy(
+                iconCalls = newCalls,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     /** Wipe per-agent icon fields across every agent in the report.
      *  Used by Create → Report icons at the start of a re-run so the
      *  second run doesn't show stale emojis from the first while
-     *  the new calls are still in flight. */
+     *  the new calls are still in flight. Also clears the per-call
+     *  audit list and the per-agent winning-tier flags so the new
+     *  run starts with a clean slate everywhere. */
     fun clearAllReportAgentIcons(context: Context, reportId: String): Boolean {
         init(context)
         return lock.withLock {
@@ -655,12 +745,14 @@ object ReportStorage {
                 a.copy(
                     icon = null, iconErrorMessage = null,
                     iconInputTokens = 0, iconOutputTokens = 0,
-                    iconInputCost = 0.0, iconOutputCost = 0.0
+                    iconInputCost = 0.0, iconOutputCost = 0.0,
+                    iconWinningTier = null
                 )
             }.toMutableList()
             val newTotal = newAgents.mapNotNull { it.cost }.sum()
             saveReport(report.copy(
                 agents = newAgents, totalCost = newTotal,
+                iconCalls = mutableListOf(),
                 timestamp = System.currentTimeMillis()
             ))
             true

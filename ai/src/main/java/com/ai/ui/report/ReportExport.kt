@@ -35,7 +35,31 @@ internal data class HtmlReportData(
     val iconInputTokens: Int = 0,
     val iconOutputTokens: Int = 0,
     val iconInputCost: Double = 0.0,
-    val iconOutputCost: Double = 0.0
+    val iconOutputCost: Double = 0.0,
+    /** Per-call rows from the 3-tier Create → Report icons chain.
+     *  One entry per tier API call (multiple per agent when earlier
+     *  tiers failed and a later one ran). Surfaces in the export's
+     *  per-call All-tab so every attempt shows as its own row;
+     *  aggregates automatically into the Types tab's "icon" bucket
+     *  and into the Models tab per (provider, model). */
+    val iconCalls: List<HtmlIconCallData> = emptyList()
+)
+
+/** One captured per-tier call from the 3-tier Report icons chain.
+ *  Mirrors [com.ai.data.IconCallRecord] shape with the UI-side
+ *  provider display label resolved. */
+internal data class HtmlIconCallData(
+    val agentId: String,
+    val tier: Int,
+    val providerDisplay: String,
+    val model: String,
+    val pricingTier: String,
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val inputCost: Double,
+    val outputCost: Double,
+    val durationMs: Long?,
+    val success: Boolean
 )
 
 /** One captured API trace surfaced in the JSON view. [origin] is "this"
@@ -350,6 +374,23 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     val iconModel = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
     val iconPricing = iconProvider?.let { PricingCache.getPricing(context, it, iconModel) }
 
+    // Per-tier audit rows from the 3-tier Create → Report icons
+    // chain. The provider on each IconCallRecord is the registered
+    // AppService id of the model that actually billed the call (so
+    // tier 3 = DeepSeek even when the agent itself uses a different
+    // model). Use AppService.findById to recover the display label.
+    val iconCalls = report.iconCalls.map { r ->
+        val p = AppService.findById(r.provider)
+        HtmlIconCallData(
+            agentId = r.agentId, tier = r.tier,
+            providerDisplay = p?.id ?: r.provider, model = r.model,
+            pricingTier = r.pricingTier,
+            inputTokens = r.inputTokens, outputTokens = r.outputTokens,
+            inputCost = r.inputCost, outputCost = r.outputCost,
+            durationMs = r.durationMs, success = r.success
+        )
+    }
+
     return HtmlReportData(
         title = report.title, prompt = report.prompt,
         timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
@@ -363,7 +404,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         iconInputTokens = report.iconInputTokens,
         iconOutputTokens = report.iconOutputTokens,
         iconInputCost = report.iconInputCost,
-        iconOutputCost = report.iconOutputCost
+        iconOutputCost = report.iconOutputCost,
+        iconCalls = iconCalls
     )
 }
 
@@ -776,7 +818,19 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
             null, data.iconInputTokens, data.iconOutputTokens,
             data.iconInputCost * 100, data.iconOutputCost * 100)
     } else null
-    val sorted = (agentRows + secondaryRows + listOfNotNull(iconRow))
+    // Per-tier rows from the 3-tier Create → Report icons chain.
+    // Every tier API call (including failed earlier tiers) shows up
+    // as its own row with type="icon" so the user can audit every
+    // attempt. The Types tab aggregates them all into one "icon"
+    // bucket; the Models tab groups by (providerDisplay, model) so
+    // tier 3's DeepSeek calls line up under DeepSeek even when the
+    // agent row itself uses a different model.
+    val iconCallRows = data.iconCalls.map { c ->
+        Row("icon", c.providerDisplay, c.model, c.pricingTier,
+            c.durationMs, c.inputTokens, c.outputTokens,
+            c.inputCost * 100, c.outputCost * 100)
+    }
+    val sorted = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows)
         .sortedByDescending { it.inCents + it.outCents }
     val deletedCents = data.costsFromDeletedItems * 100
 
