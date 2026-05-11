@@ -16,7 +16,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.BackupManager
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.shareExport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -38,6 +40,15 @@ fun BackupRestoreScreen(
     val scope = rememberCoroutineScope()
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
+    // Set once a Restore finishes successfully. The popup blocks every
+    // other interaction until the user taps OK to restart — the
+    // in-memory state is out of sync with the freshly-restored disk
+    // state at this point.
+    var restartMessage by remember { mutableStateOf<String?>(null) }
+
+    restartMessage?.let { msg ->
+        RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
+    }
 
     fun runBackup() {
         busyLabel = "Backing up…"
@@ -86,24 +97,7 @@ fun BackupRestoreScreen(
                             busyLabel = null
                             result.fold(
                                 onSuccess = { s ->
-                                    Toast.makeText(
-                                        context,
-                                        "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files. Restarting…",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    // Brief delay so the toast renders, then relaunch the
-                                    // launcher activity in a new task and kill the current
-                                    // process — the next launch reads the restored data fresh.
-                                    kotlinx.coroutines.delay(800)
-                                    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                                    if (launch != null) {
-                                        launch.addFlags(
-                                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
-                                                android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                        )
-                                        context.startActivity(launch)
-                                    }
-                                    android.os.Process.killProcess(android.os.Process.myPid())
+                                    restartMessage = "Restored ${s.prefsFiles} prefs + ${s.dataFiles} files"
                                 },
                                 onFailure = {
                                     Toast.makeText(

@@ -22,7 +22,9 @@ import com.ai.data.ProviderRegistry
 import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
@@ -392,6 +394,15 @@ fun ImportExportScreen(
     val context = LocalContext.current
 
     var importType by remember { mutableStateOf("keys") }
+    // Set once an "Import all" finishes successfully — the in-memory
+    // singletons (Settings StateFlow, ProviderRegistry, PromptCache,
+    // PricingCache caches) are out of sync with the freshly-imported
+    // disk state, so a forced restart brings everything back fresh.
+    var restartMessage by remember { mutableStateOf<String?>(null) }
+
+    restartMessage?.let { msg ->
+        RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
+    }
 
     fun readFromUri(uri: Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
@@ -877,11 +888,11 @@ fun ImportExportScreen(
 
                 if (workingGs != generalSettings) onSaveGeneral(workingGs)
                 if (working !== aiSettings) onSave(working)
-                Toast.makeText(
-                    context,
-                    if (parts.isEmpty()) "Bundle had no recognised sections" else "Imported: " + parts.joinToString(", "),
-                    Toast.LENGTH_LONG
-                ).show()
+                if (parts.isEmpty()) {
+                    Toast.makeText(context, "Bundle had no recognised sections", Toast.LENGTH_LONG).show()
+                } else {
+                    restartMessage = "Imported: " + parts.joinToString(", ")
+                }
             }
         }
     }

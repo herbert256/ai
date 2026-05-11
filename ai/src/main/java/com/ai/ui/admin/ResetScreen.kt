@@ -13,7 +13,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.restartApp
 import com.ai.viewmodel.AppViewModel
 
 @Composable
@@ -31,6 +33,10 @@ fun ResetScreen(
     var showResetConfirm by remember { mutableStateOf(false) }
     var resetConfirmText by remember { mutableStateOf("") }
     var busyLabel by remember { mutableStateOf<String?>(null) }
+    // Forces a restart after Reset completes — the in-memory state is
+    // wholesale replaced, so every singleton has to come back fresh
+    // from disk.
+    var restartMessage by remember { mutableStateOf<String?>(null) }
 
     busyLabel?.let { label ->
         AlertDialog(
@@ -39,6 +45,10 @@ fun ResetScreen(
             text = { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) },
             confirmButton = {}
         )
+    }
+
+    restartMessage?.let { msg ->
+        RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
     }
 
     if (showClearAllConfirm) {
@@ -120,9 +130,13 @@ fun ResetScreen(
                         showResetConfirm = false
                         resetConfirmText = ""
                         busyLabel = "Resetting…"
-                        onResetApplication { _, message ->
+                        onResetApplication { success, message ->
                             busyLabel = null
-                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            if (success) {
+                                restartMessage = message
+                            } else {
+                                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                            }
                         }
                     },
                     enabled = resetConfirmText.trim() == "RESET" && busyLabel == null,

@@ -1,6 +1,5 @@
 package com.ai.ui.settings
 
-import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -17,7 +16,9 @@ import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.restartApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -131,6 +132,19 @@ fun RefreshScreen(
                 .filter { it.second == "error" }
                 .mapNotNull { (name, _) -> AppService.entries.find { it.id == name } }
         }
+        // Same flush-then-process-kill pattern the legacy in-screen
+        // button used; now reached only via the completion popup.
+        fun doRestart() {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+                        SettingsPreferences(prefs, context.filesDir).flushUsageStats()
+                    }
+                }
+                restartApp(context)
+            }
+        }
         RefreshAllProgressScreen(
             steps = refreshAllSteps.toList(),
             overallError = refreshAllError,
@@ -146,23 +160,7 @@ fun RefreshScreen(
                 refreshAllError = null
                 onOpenProvider(svc)
             },
-            onRestartNow = {
-                // Same flush-then-process-kill the legacy chain did at
-                // the end. Captured here as an explicit user action so
-                // they can review final step results first.
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        runCatching {
-                            val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-                            SettingsPreferences(prefs, context.filesDir).flushUsageStats()
-                        }
-                    }
-                    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-                    launch?.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                    if (launch != null) context.startActivity(launch)
-                    Runtime.getRuntime().exit(0)
-                }
-            },
+            onRestartNow = { doRestart() },
             onBack = {
                 // Don't allow leaving while work is in flight — keeps
                 // the per-step status reachable for the user.
@@ -174,6 +172,13 @@ fun RefreshScreen(
             },
             onNavigateHome = onNavigateHome
         )
+        // Force a restart at completion. The popup overlays the
+        // step-results screen — the user can still read which step
+        // produced which outcome through the dialog backdrop, but the
+        // only action available is OK → restart.
+        if (refreshAllFinished) {
+            RestartAppDialog(message = "Refresh all done", onConfirm = { doRestart() })
+        }
         return
     }
 
