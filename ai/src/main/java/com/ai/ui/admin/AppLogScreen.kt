@@ -498,14 +498,43 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Count line. Tells the user when the filter is hiding rows
-        // so an empty list doesn't read as "the log is empty".
+        // Count line + Clear-filters action. "Clear filters" only
+        // appears when at least one filter differs from the
+        // screen-open defaults (WARN+ERROR levels, no search, no time
+        // range, "(All)" tag) so it doesn't sit there as a no-op
+        // affordance the rest of the time. Tap resets every filter
+        // in one shot.
         if (allEntries.isNotEmpty()) {
-            Text(
-                "Showing ${entries.size} of ${allEntries.size}",
-                fontSize = 11.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End
-            )
+            val defaultLevels = setOf(LogLevel.WARN, LogLevel.ERROR)
+            val anyFilterActive = searchQuery.isNotEmpty() ||
+                enabledLevels != defaultLevels ||
+                startTimeText.isNotEmpty() ||
+                endTimeText.isNotEmpty() ||
+                selectedTag != "(All)"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (anyFilterActive) {
+                    TextButton(
+                        onClick = {
+                            searchQuery = ""
+                            enabledLevels = defaultLevels
+                            startTimeText = ""
+                            endTimeText = ""
+                            selectedTag = "(All)"
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text("Clear filters", fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, softWrap = false)
+                    }
+                }
+                Text(
+                    "Showing ${entries.size} of ${allEntries.size}",
+                    fontSize = 11.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f), textAlign = TextAlign.End
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
         }
 
