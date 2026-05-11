@@ -676,7 +676,8 @@ fun ReportCostTable(report: Report) {
     }
     val secondary = secondaryState.value
     val hasIconCost = report.iconInputCost > 0.0 || report.iconOutputCost > 0.0
-    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost) return
+    val hasIconCalls = report.iconCalls.isNotEmpty()
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls) return
 
     data class CostRow(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inputCents: Double, val outputCents: Double)
 
@@ -715,6 +716,27 @@ fun ReportCostTable(report: Report) {
             outputCents = report.iconOutputCost * 100
         )
     } else null
+    // Per-tier rows from the 3-tier per-agent icons chain — one row
+    // per recorded attempt (including failed earlier tiers) so the
+    // All-calls list audits every API hit and the By-type "icon"
+    // bucket sums the main report icon AND every agent icon. The
+    // recorded provider on each IconCallRecord is the AppService id
+    // of the model that actually billed the call (tier 3 = DeepSeek
+    // even when the agent itself uses a different model).
+    val iconCallRows = report.iconCalls.map { c ->
+        val providerEnum = AppService.findById(c.provider)
+        CostRow(
+            type = "icon",
+            providerDisplay = providerEnum?.id ?: c.provider,
+            model = c.model,
+            tier = c.pricingTier,
+            durationMs = c.durationMs,
+            inputTokens = c.inputTokens,
+            outputTokens = c.outputTokens,
+            inputCents = c.inputCost * 100,
+            outputCents = c.outputCost * 100
+        )
+    }
     // Rerank / summarize call costs end up alongside the report rows so the
     // user sees one consolidated breakdown \u2014 distinguished by the new Type
     // column.
@@ -749,7 +771,7 @@ fun ReportCostTable(report: Report) {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow)).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
