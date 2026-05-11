@@ -160,6 +160,12 @@ object SecondaryResultStorage {
                 return result
             }
             target.writeTextAtomic(gson.toJson(result))
+            // listForReport keys its cache on (name, mtime, length). An
+            // overwrite-save keeps name and can keep length; on a
+            // coarse-mtime filesystem the cached fingerprint matches
+            // and a stale row is served. delete() already invalidates
+            // for the same reason — save must too.
+            listCache.remove(result.reportId)
         }
         return result
     }
