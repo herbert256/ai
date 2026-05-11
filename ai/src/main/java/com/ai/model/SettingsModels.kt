@@ -2,6 +2,7 @@ package com.ai.model
 
 import com.ai.data.AgentParameters
 import com.ai.data.AppService
+import com.ai.data.anyMatches
 
 enum class ModelSource { API, MANUAL }
 
@@ -390,16 +391,44 @@ data class Settings(
     }
 
     private fun computeWebSearchCapableSlow(service: AppService, modelId: String): Boolean {
-        // Provider's own function-calling flag is a strong proxy for "tool
-        // descriptors are accepted" — Mistral surfaces this directly.
-        getProvider(service).modelCapabilities[modelId]?.supportsFunctionCalling?.let { return it }
+        // The supportsFunctionCalling and tool_call proxies say "this
+        // model accepts a tools[] array", which only translates to a
+        // working 🌐 toggle when the dispatch path actually emits a
+        // web-search tool descriptor. ApiDispatch.openAiChatWebSearchTool
+        // returns null, so an OpenAI-compatible Chat-Completions model
+        // (gpt-4o-mini, Mistral chat, etc.) advertised as capable
+        // would surface a no-op toggle. Gate the proxies behind
+        // dispatchEmitsWebSearchTool so only Responses / Anthropic /
+        // Gemini paths benefit from the shortcut. LiteLLM stays
+        // unconditional — its supports_web_search flag is a direct
+        // answer about web search, not a tool-calling proxy.
+        val emits = dispatchEmitsWebSearchTool(service, modelId)
+        if (emits) {
+            getProvider(service).modelCapabilities[modelId]?.supportsFunctionCalling?.let { return it }
+        }
         com.ai.data.PricingCache.liteLLMSupportsWebSearch(service, modelId)?.let { return it }
         // models.dev exposes tool_call (function-calling) which is a strong
         // proxy for "tool descriptors are supported on this model" — we
         // only fall through to it when LiteLLM has no opinion. The naming
         // heuristic still wins on a true LiteLLM negative.
-        com.ai.data.PricingCache.modelsDevSupportsToolCall(service, modelId)?.let { return it }
+        if (emits) {
+            com.ai.data.PricingCache.modelsDevSupportsToolCall(service, modelId)?.let { return it }
+        }
         return com.ai.data.ModelType.inferWebSearch(service, modelId)
+    }
+
+    /** True when the dispatch layer would inject a real web-search
+     *  tool descriptor on the outbound request. Anthropic and Gemini
+     *  always do; OpenAI-compatible providers only do for models that
+     *  route through the Responses API. Used to gate the
+     *  function-calling capability proxy in computeWebSearchCapableSlow
+     *  so the 🌐 toggle isn't advertised for models that would silently
+     *  drop it at dispatch. */
+    private fun dispatchEmitsWebSearchTool(service: AppService, modelId: String): Boolean = when (service.apiFormat) {
+        com.ai.data.ApiFormat.ANTHROPIC, com.ai.data.ApiFormat.GOOGLE -> true
+        com.ai.data.ApiFormat.OPENAI_COMPATIBLE ->
+            service.responsesApiPatterns.anyMatches(modelId) ||
+                com.ai.data.ModelType.infer(modelId) == com.ai.data.ModelType.RESPONSES
     }
 
     /** Returns true when (provider, modelId) accepts a thinking /
