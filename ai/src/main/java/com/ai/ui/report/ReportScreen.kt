@@ -877,89 +877,7 @@ fun ReportsScreen(
         }
     }
 
-    // Full-screen overlays — innermost (Alternative icons) is checked
-    // first so its `return` short-circuits before the parent picker /
-    // icon-detail blocks run.
-    if (showAlternativeIcons && currentReportId != null) {
-        val rid = currentReportId
-        val candidates = iconFanOutByReport[rid].orEmpty()
-        AlternativeIconsScreen(
-            candidates = candidates,
-            onPickIcon = { emoji, iconModel ->
-                onPickAlternativeIcon(rid, emoji, iconModel)
-                showAlternativeIcons = false
-                showFindIconsPicker = false
-                showIconDetail = false
-            },
-            onBack = { showAlternativeIcons = false }
-        )
-        return
-    }
-    if (showFindIconsPicker && currentReportId != null) {
-        val rid = currentReportId
-        FindIconsSelectionScreen(
-            models = findIconsModels,
-            aiSettings = aiSettings,
-            onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
-            onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
-            onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
-            onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
-            onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
-            onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
-            onClearAll = { findIconsModels = emptyList() },
-            onFindIcons = {
-                onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
-                findIconsModels = emptyList()
-                pickerTarget = PickerTarget.NEW_REPORT
-                showFindIconsPicker = false
-                showAlternativeIcons = true
-            },
-            onBack = {
-                pickerTarget = PickerTarget.NEW_REPORT
-                showFindIconsPicker = false
-            }
-        )
-        return
-    }
-    if (showIconDetail && currentReportId != null) {
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "icon"
-        }
-        val iconAgent = iconPrompt?.let { p ->
-            aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
-        }
-        if (iconPrompt != null && iconAgent != null) {
-            val rid = currentReportId
-            val hasActiveFanOut = iconFanOutByReport[rid].orEmpty().isNotEmpty()
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
-                ReportIconDetailScreen(
-                    aiSettings = aiSettings,
-                    iconPrompt = iconPrompt,
-                    iconAgent = iconAgent,
-                    promptText = uiState.genericPromptText,
-                    icon = reportIcon,
-                    errorMessage = reportIconError,
-                    cost = reportIconCost,
-                    iconModel = reportIconModel,
-                    onFindAlternativeIcons = {
-                        // When there's already an in-flight or finished
-                        // fan-out for this report, the button skips the
-                        // picker and jumps straight to the live list.
-                        if (hasActiveFanOut) {
-                            showAlternativeIcons = true
-                        } else {
-                            showFindIconsPicker = true
-                        }
-                    },
-                    hasActiveFanOut = hasActiveFanOut,
-                    onBack = { showIconDetail = false }
-                )
-            }
-            return
-        }
-        // Icon prompt / agent missing — nothing to show. Fall through.
-        showIconDetail = false
-    }
+    // Full-screen overlays
     if (showViewer && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
             ReportsViewerScreen(
@@ -1119,6 +1037,97 @@ fun ReportsScreen(
             onNavigateHome = onNavigateHome
         )
         return
+    }
+
+    // Icon-flow overlays. Must sit AFTER the +Add overlays above:
+    // when the Find icons picker is open and the user taps +Model /
+    // +Agent / +Flock / +Swarm / +Report, those overlays flip a
+    // showSelect* flag — that flag's overlay block needs to win the
+    // overlay race so the picker actually appears. If we checked the
+    // icon overlays first, showFindIconsPicker would always win and
+    // every +Add tap would be a silent no-op (the active overlay
+    // would just re-render itself). Innermost (Alternative icons)
+    // checked first so its `return` short-circuits before the parent
+    // picker / icon-detail blocks run.
+    if (showAlternativeIcons && currentReportId != null) {
+        val rid = currentReportId
+        val candidates = iconFanOutByReport[rid].orEmpty()
+        AlternativeIconsScreen(
+            candidates = candidates,
+            onPickIcon = { emoji, iconModel ->
+                onPickAlternativeIcon(rid, emoji, iconModel)
+                showAlternativeIcons = false
+                showFindIconsPicker = false
+                showIconDetail = false
+            },
+            onBack = { showAlternativeIcons = false }
+        )
+        return
+    }
+    if (showFindIconsPicker && currentReportId != null) {
+        val rid = currentReportId
+        FindIconsSelectionScreen(
+            models = findIconsModels,
+            aiSettings = aiSettings,
+            onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
+            onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
+            onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
+            onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
+            onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
+            onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
+            onClearAll = { findIconsModels = emptyList() },
+            onFindIcons = {
+                onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
+                findIconsModels = emptyList()
+                pickerTarget = PickerTarget.NEW_REPORT
+                showFindIconsPicker = false
+                showAlternativeIcons = true
+            },
+            onBack = {
+                pickerTarget = PickerTarget.NEW_REPORT
+                showFindIconsPicker = false
+            }
+        )
+        return
+    }
+    if (showIconDetail && currentReportId != null) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "icon"
+        }
+        val iconAgent = iconPrompt?.let { p ->
+            aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+        }
+        if (iconPrompt != null && iconAgent != null) {
+            val rid = currentReportId
+            val hasActiveFanOut = iconFanOutByReport[rid].orEmpty().isNotEmpty()
+            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
+                ReportIconDetailScreen(
+                    aiSettings = aiSettings,
+                    iconPrompt = iconPrompt,
+                    iconAgent = iconAgent,
+                    promptText = uiState.genericPromptText,
+                    icon = reportIcon,
+                    errorMessage = reportIconError,
+                    cost = reportIconCost,
+                    iconModel = reportIconModel,
+                    onFindAlternativeIcons = {
+                        // When there's already an in-flight or finished
+                        // fan-out for this report, the button skips the
+                        // picker and jumps straight to the live list.
+                        if (hasActiveFanOut) {
+                            showAlternativeIcons = true
+                        } else {
+                            showFindIconsPicker = true
+                        }
+                    },
+                    hasActiveFanOut = hasActiveFanOut,
+                    onBack = { showIconDetail = false }
+                )
+            }
+            return
+        }
+        // Icon prompt / agent missing — nothing to show. Fall through.
+        showIconDetail = false
     }
 
     // Scope screen — shown before the picker for chat-type Meta
