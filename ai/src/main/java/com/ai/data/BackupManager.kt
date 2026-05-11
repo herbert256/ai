@@ -134,6 +134,8 @@ object BackupManager {
     fun backup(context: Context, out: OutputStream) {
         AppLog.i("Backup", "→ backup start")
         val t0 = System.currentTimeMillis()
+        var filesWritten = 0
+        var cacheWritten = 0
         ZipOutputStream(out).use { zip ->
             // Manifest
             val manifest = mapOf(
@@ -155,7 +157,7 @@ object BackupManager {
             // the top level (local model bundles).
             val filesRoot = context.filesDir
             if (filesRoot.exists()) {
-                addDirectoryRecursive(zip, filesRoot, "files")
+                filesWritten = addDirectoryRecursive(zip, filesRoot, "files")
             }
 
             // Mirror cacheDir as well (exports, shared-trace handoffs,
@@ -164,10 +166,10 @@ object BackupManager {
             // are skipped — see the constant's doc comment.
             val cacheRoot = context.cacheDir
             if (cacheRoot.exists()) {
-                addDirectoryRecursive(zip, cacheRoot, "cache")
+                cacheWritten = addDirectoryRecursive(zip, cacheRoot, "cache")
             }
         }
-        AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms")
+        AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten cacheDir=$cacheWritten)")
     }
 
     /**
@@ -455,8 +457,22 @@ object BackupManager {
         closeEntry()
     }
 
-    private fun addDirectoryRecursive(zip: ZipOutputStream, dir: File, prefix: String) {
-        val children = dir.listFiles() ?: return
+    private fun addDirectoryRecursive(zip: ZipOutputStream, dir: File, prefix: String): Int {
+        var written = 0
+        val children = dir.listFiles() ?: return 0
+        // Resolve [dir]'s canonical path ONCE per recursion level so the
+        // symlink check below can compare apples-to-apples. The previous
+        // implementation compared `child.canonicalPath != child.absolutePath`
+        // which always fired on Android: `/data/user/0` is a symlink to
+        // `/data/data`, so every child of filesDir / cacheDir reports a
+        // canonical path that differs from its absolute path — even when
+        // it's a perfectly real file. Result: addDirectoryRecursive
+        // skipped EVERY child, and backup zips ended up with only the
+        // manifest + prefs entries (the "0 files" the user saw at
+        // restore). The fix is to compare each child's canonical path
+        // against its parent's canonical path — a real child resolves
+        // under the parent, a symlink escaping outside doesn't.
+        val parentCanonical = try { dir.canonicalPath } catch (_: java.io.IOException) { dir.absolutePath }
         for (child in children) {
             // Top-level filesDir excludes — local model bundles, see
             // FILES_DIR_BACKUP_EXCLUDES. Only applied at depth 0 (prefix == "files")
@@ -467,12 +483,13 @@ object BackupManager {
             if (prefix == "cache" && shouldSkipCacheTopLevel(child.name)) continue
             // Don't follow symlinks — a symlink in filesDir pointing
             // outside (e.g. into /sdcard/) would silently slurp
-            // unrelated user data into the backup zip. Comparing
-            // canonicalPath to absolutePath catches the common case
-            // (a symlink resolves to a different on-disk location).
+            // unrelated user data into the backup zip. A real child
+            // canonicalises under its parent; a symlink escaping the
+            // tree resolves somewhere else entirely.
             try {
-                if (child.canonicalPath != child.absolutePath) {
-                    AppLog.w("BackupManager", "Skipping symlink: ${child.absolutePath}")
+                val childCanonical = child.canonicalPath
+                if (!childCanonical.startsWith(parentCanonical + File.separator)) {
+                    AppLog.w("BackupManager", "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical")
                     continue
                 }
             } catch (_: java.io.IOException) {
@@ -481,14 +498,16 @@ object BackupManager {
             }
             val entryName = "$prefix/${child.name}"
             if (child.isDirectory) {
-                addDirectoryRecursive(zip, child, entryName)
+                written += addDirectoryRecursive(zip, child, entryName)
             } else {
                 try {
                     zip.write(entryName, child.readBytes())
+                    written++
                 } catch (_: Exception) {
                     // Skip files we can't read (locked, permission denied, etc.)
                 }
             }
         }
+        return written
     }
 }
