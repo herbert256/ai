@@ -356,19 +356,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // UI-side getTraceFiles() (Trace screen open, agent test 🐞
         // lookup, fan-out 🐞 lookup) doesn't pay the streaming-parse
         // cost across the whole trace dir.
+        // Off-thread cache prewarms. The two below are fire-and-forget on
+        // viewModelScope — the bootstrap launch below doesn't depend on
+        // either finishing. Logged from inside each function at TRACE.
+        AppLog.d("App.start", "→ Prewarm caches (ApiTracer + PricingCache)")
         ApiTracer.prewarmCache(viewModelScope)
         PricingCache.preloadAsync(application, viewModelScope)
+        AppLog.d("App.start", "← Prewarm caches dispatched (background)")
+
         viewModelScope.launch(Dispatchers.IO) {
+            val startTag = "App.start"
             val bs = bootstrap(application)
-            // Publish user-supplied default type paths to the global resolver so dispatch
-            // (which doesn't see GeneralSettings directly) can fall back through them.
+
+            AppLog.d(startTag, "→ Apply general settings to global singletons")
             ModelType.userDefaults = bs.first.defaultTypePaths
+            AppLog.v(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
             ApiTracer.isTracingEnabled = bs.first.tracingEnabled
+            AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
+            AppLog.v(
+                startTag,
+                "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
+                    "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider}"
+            )
             AppLog.threshold = bs.first.logLevel
+            AppLog.v(startTag, "  AppLog.threshold=${bs.first.logLevel}")
+            AppLog.d(startTag, "← Apply general settings done")
+
             val appLabel = runCatching {
                 application.packageManager.getApplicationLabel(application.applicationInfo).toString()
             }.getOrDefault("AI")
@@ -378,11 +395,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     "(built ${com.ai.BuildConfig.BUILD_TIMESTAMP}) " +
                     "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
             )
+
             // Drop any per-host semaphores left over from the cold-start
             // default (3) so the very first call uses the persisted cap.
+            AppLog.d(startTag, "→ ProviderThrottle reset")
             ProviderThrottle.resetForNewLimits()
+            AppLog.d(startTag, "← ProviderThrottle reset done")
+
+            AppLog.d(startTag, "→ Publish initial UiState")
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
-            refreshAllModelLists(bs.second)
+            AppLog.d(startTag, "← Publish initial UiState done")
+
+            AppLog.d(startTag, "→ refreshAllModelLists (cache-respecting)")
+            val tRefresh = System.currentTimeMillis()
+            val refreshed = refreshAllModelLists(bs.second)
+            AppLog.v(startTag, "  refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}")
+            AppLog.d(startTag, "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms")
         }
         // Mirror the latest aiSettings to a static holder so the
         // dispatcher helpers (which can't easily thread Settings
@@ -409,41 +437,54 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun bootstrap(application: Application): Pair<GeneralSettings, Settings> {
+        // Each background ACTION below is bracketed by DEBUG → / ←
+        // log lines (start + end+duration); details inside the action
+        // log at TRACE so a default WARN/ERROR threshold stays quiet
+        // and a user troubleshooting "what did app startup do?" flips
+        // to TRACE for the full picture.
+        val tag = "App.bootstrap"
         val bootStart = System.currentTimeMillis()
-        AppLog.init(application)
-        ApiTracer.init(application)
-        ChatHistoryManager.init(application)
-        ReportStorage.init(application)
-        SecondaryResultStorage.init(application)
-        ProviderRegistry.init(application)
-        ProviderFieldTimestamps.init(application)
-        PromptCache.init(application)
-        AppLog.d("App.bootstrap", "singletons init done in ${System.currentTimeMillis() - bootStart}ms")
 
+        AppLog.d(tag, "→ Singletons init")
+        AppLog.v(tag, "  init AppLog"); AppLog.init(application)
+        AppLog.v(tag, "  init ApiTracer"); ApiTracer.init(application)
+        AppLog.v(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
+        AppLog.v(tag, "  init ReportStorage"); ReportStorage.init(application)
+        AppLog.v(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)
+        AppLog.v(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
+        AppLog.v(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
+        AppLog.v(tag, "  init PromptCache"); PromptCache.init(application)
+        AppLog.d(tag, "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms")
+
+        AppLog.d(tag, "→ Load prefs")
         val tLoad = System.currentTimeMillis()
         val gs = settingsPrefs.loadGeneralSettings()
+        AppLog.v(tag, "  GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})")
         var ai = settingsPrefs.loadSettings()
-        AppLog.d(
-            "App.bootstrap",
-            "prefs loaded in ${System.currentTimeMillis() - tLoad}ms: " +
-                "providers=${ai.providers.size}, agents=${ai.agents.size}, flocks=${ai.flocks.size}, swarms=${ai.swarms.size}, " +
-                "internalPrompts=${ai.internalPrompts.size}, examplePrompts=${ai.examplePrompts.size}, " +
-                "parameters=${ai.parameters.size}, systemPrompts=${ai.systemPrompts.size}"
-        )
+        AppLog.v(tag, "  providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}")
+        AppLog.v(tag, "  internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}")
+        AppLog.d(tag, "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms")
 
         // First-run seeding from bundled assets. Flag wiped on data
         // clear / reinstall (which is exactly when we want to seed
         // again); persists across APK upgrades.
+        AppLog.d(tag, "→ First-run seed")
+        val tFirst = System.currentTimeMillis()
         if (!prefs.getBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, false)) {
             val isEmptyInstall = ProviderRegistry.getAll().isEmpty() && ai.internalPrompts.isEmpty()
+            AppLog.v(tag, "  first run; isEmptyInstall=$isEmptyInstall")
             if (isEmptyInstall) {
                 val providersAdded = ProviderRegistry.importFromAsset(application, "providers.json")
+                AppLog.v(tag, "  providers.json seed: added=$providersAdded")
                 if (providersAdded < 0) {
-                    AppLog.w("App", "First-run providers.json import failed")
+                    AppLog.w(tag, "First-run providers.json import failed")
                 }
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
+        } else {
+            AppLog.v(tag, "  not a first run; skipping seed")
         }
+        AppLog.d(tag, "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms")
 
         // Every-start delta-sync from bundled providers.json. Two
         // passes, in order:
@@ -458,12 +499,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         //      shipped in an APK upgrade light up without the user
         //      having to hit the manual "Import new providers" button.
         // Already on Dispatchers.IO via viewModelScope.launch.
+        AppLog.d(tag, "→ providers.json delta-sync")
+        val tSync = System.currentTimeMillis()
         runCatching {
-            val tSync = System.currentTimeMillis()
             val syncCount = ProviderRegistry.syncFromAsset(application, "providers.json")
+            AppLog.v(tag, "  syncFromAsset: $syncCount unedited fields refreshed")
             val addCount = ProviderRegistry.importFromAsset(application, "providers.json")
-            AppLog.d("App.bootstrap", "providers.json: synced=$syncCount, added=$addCount in ${System.currentTimeMillis() - tSync}ms")
-        }.onFailure { AppLog.w("App", "providers.json delta sync failed", it) }
+            AppLog.v(tag, "  importFromAsset: $addCount new providers appended")
+            AppLog.d(tag, "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)")
+        }.onFailure {
+            AppLog.w(tag, "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms", it)
+        }
 
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
@@ -471,16 +517,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // picked up here without the user having to tap 'Read new
         // prompts' in Settings. Already on Dispatchers.IO via the
         // viewModelScope.launch wrapping this bootstrap call.
+        AppLog.d(tag, "→ prompts.json delta-merge")
+        val tPrompts = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled prompts.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
+                val before = ai.internalPrompts.size
                 val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
-                if (merged.size != ai.internalPrompts.size) {
+                val added = merged.size - before
+                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                if (added != 0) {
                     ai = ai.copy(internalPrompts = merged)
                     settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new prompts")
                 }
+                AppLog.d(tag, "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)")
             }
-        }.onFailure { AppLog.w("App", "prompts.json delta merge failed", it) }
+        }.onFailure {
+            AppLog.w(tag, "← prompts.json delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms", it)
+        }
 
         // Mirror of the prompts.json delta-merge for examples.json:
         // append any bundled title (case-insensitive) not yet present,
@@ -488,17 +546,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // example prompts surface them automatically without the user
         // hitting Housekeeping → Prompts → "Add new prompts from
         // assets/examples.json".
+        AppLog.d(tag, "→ examples.json delta-merge")
+        val tExamples = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled examples.json entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
+                val before = ai.examplePrompts.size
                 val merged = com.ai.data.ExamplePromptSeed.ensureAllPresent(ai.examplePrompts, bundled)
-                if (merged.size != ai.examplePrompts.size) {
+                val added = merged.size - before
+                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                if (added != 0) {
                     ai = ai.copy(examplePrompts = merged)
                     settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new example prompts")
                 }
+                AppLog.d(tag, "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)")
             }
-        }.onFailure { AppLog.w("App", "examples.json delta merge failed", it) }
+        }.onFailure {
+            AppLog.w(tag, "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms", it)
+        }
 
+        AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")
         return gs to ai
     }
 
