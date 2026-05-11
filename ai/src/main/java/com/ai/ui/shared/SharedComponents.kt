@@ -816,10 +816,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     // unicode ← at 32sp / regular weight: FontWeight
                     // Black + 40sp gives a heavier stroke that reads
                     // as a "proper" back arrow against the strip's
-                    // emoji icons on its right.
+                    // emoji icons on its right. A small upward offset
+                    // counters the glyph sitting visually low inside
+                    // its line box (descender slack at the bottom).
                     Text(
                         "←", color = Color.White, fontSize = 40.sp,
-                        fontWeight = FontWeight.Black
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.offset(y = (-6).dp)
                     )
                 }
             }
