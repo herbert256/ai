@@ -444,6 +444,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.onFailure { AppLog.w("App", "prompts.json delta merge failed", it) }
 
+        // Mirror of the prompts.json delta-merge for examples.json:
+        // append any bundled title (case-insensitive) not yet present,
+        // never touch existing rows. Lets APK upgrades that ship new
+        // example prompts surface them automatically without the user
+        // hitting Housekeeping → Prompts → "Add new prompts from
+        // assets/examples.json".
+        runCatching {
+            val bundled = com.ai.data.ExamplePromptSeed.loadFromAssets(application)
+            if (bundled.isNotEmpty()) {
+                val merged = com.ai.data.ExamplePromptSeed.ensureAllPresent(ai.examplePrompts, bundled)
+                if (merged.size != ai.examplePrompts.size) {
+                    ai = ai.copy(examplePrompts = merged)
+                    settingsPrefs.saveSettings(ai)
+                }
+            }
+        }.onFailure { AppLog.w("App", "examples.json delta merge failed", it) }
+
         return gs to ai
     }
 
