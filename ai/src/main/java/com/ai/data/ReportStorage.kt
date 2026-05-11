@@ -260,7 +260,25 @@ object ReportStorage {
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
     fun deleteReport(context: Context, reportId: String) {
         init(context)
-        lock.withLock { File(reportsDir, "$reportId.json").delete() }
+        // loadReport rejects traversal markers, but loadAllReports trusts
+        // the on-disk JSON's embedded id and surfaces it to UI delete
+        // actions. A restored / imported report with id="../prefs/x"
+        // would then point delete at the wrong file. Gate the delete
+        // path with the same flat-id + canonical-child rule used on
+        // write-side.
+        if (!isSafeFlatId(reportId)) {
+            AppLog.w("ReportStorage", "Refusing to delete report with suspect id $reportId")
+            return
+        }
+        val dir = reportsDir ?: return
+        lock.withLock {
+            val target = File(dir, "$reportId.json")
+            if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
+                AppLog.w("ReportStorage", "Refusing to delete report that escapes reportsDir: $reportId")
+                return@withLock
+            }
+            target.delete()
+        }
         // Cascade: drop any rerank/summary meta-results associated with the
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
