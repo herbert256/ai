@@ -273,8 +273,16 @@ fun LocalLlmsScreen(
 
 // ===== Import helpers (lifted from HousekeepingScreen) =====
 
-/** Copy a user-picked .tflite from the SAF Uri into local_models/. */
+/** Copy a user-picked .tflite from the SAF Uri into local_models/.
+ *
+ *  Two-phase: write to `<name>.part` first, verify the input stream
+ *  resolved and the copy landed at least one byte, then atomic-rename
+ *  into place. Without staging, a null openInputStream returned
+ *  success and left a phantom model entry in the picker; a mid-copy
+ *  failure left a truncated file that the runtime would try (and
+ *  fail) to load on the next call. */
 internal fun importTfliteModel(context: Context, uri: android.net.Uri): String? {
+    var staging: File? = null
     return try {
         val name = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -282,12 +290,29 @@ internal fun importTfliteModel(context: Context, uri: android.net.Uri): String? 
         }?.takeIf { it.isNotBlank() } ?: "model_${System.currentTimeMillis()}.tflite"
         val sanitized = name.replace(Regex("[^A-Za-z0-9._-]+"), "_")
             .let { if (it.endsWith(".tflite", ignoreCase = true)) it else "$it.tflite" }
-        val target = File(LocalEmbedder.localModelsDir(context), sanitized)
-        context.contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
+        val finalTarget = File(LocalEmbedder.localModelsDir(context), sanitized)
+        val partFile = File(finalTarget.parentFile, "${finalTarget.name}.part").also { staging = it }
+        val input = context.contentResolver.openInputStream(uri) ?: run {
+            AppLog.e("LocalRuntime", "tflite import: openInputStream returned null for $uri")
+            return null
         }
-        target.nameWithoutExtension
+        input.use { src ->
+            partFile.outputStream().use { dst -> src.copyTo(dst) }
+        }
+        if (!partFile.exists() || partFile.length() == 0L) {
+            partFile.delete()
+            AppLog.e("LocalRuntime", "tflite import: copy produced empty file for $sanitized")
+            return null
+        }
+        if (finalTarget.exists()) finalTarget.delete()
+        if (!partFile.renameTo(finalTarget)) {
+            partFile.delete()
+            AppLog.e("LocalRuntime", "tflite import: rename failed for $sanitized")
+            return null
+        }
+        finalTarget.nameWithoutExtension
     } catch (e: Exception) {
+        staging?.takeIf { it.exists() }?.delete()
         AppLog.e("LocalRuntime", "tflite import failed: ${e.message}", e)
         null
     }
@@ -305,6 +330,7 @@ internal fun importTfliteModel(context: Context, uri: android.net.Uri): String? 
  *  Returns the imported model name (no extension), or null on
  *  failure. */
 internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
+    var staging: File? = null
     return try {
         val displayName = context.contentResolver.query(uri, null, null, null, null)?.use { c ->
             val nameIdx = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -323,7 +349,7 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
         // Disambiguate against an existing .task with the same name —
         // re-importing a different `gemma.task` used to silently
         // overwrite the previous file. Append a -2 / -3 / … suffix.
-        val target = run {
+        val finalTarget = run {
             val baseFile = File(outDir, outName)
             if (!baseFile.exists()) baseFile else {
                 val stem = outName.removeSuffix(".task")
@@ -336,34 +362,52 @@ internal fun importTaskModel(context: Context, uri: android.net.Uri): String? {
                 candidate
             }
         }
+        // Stage all writes under <name>.part. availableLlms() lists
+        // by ".task" extension, so an in-flight .part file never shows
+        // up as an installed model. The renameTo only fires after the
+        // copy or archive extraction succeeds AND the result is
+        // non-empty, so a crashed import can't leave the picker
+        // pointing at a half-written .task.
+        val partFile = File(finalTarget.parentFile, "${finalTarget.name}.part").also { staging = it }
 
-        context.contentResolver.openInputStream(uri)?.use { input ->
+        val input = context.contentResolver.openInputStream(uri) ?: run {
+            AppLog.e("LocalRuntime", "LLM import: openInputStream returned null for $uri")
+            return null
+        }
+        input.use { src ->
             when {
-                lower.endsWith(".task") -> target.outputStream().use { input.copyTo(it) }
+                lower.endsWith(".task") -> partFile.outputStream().use { src.copyTo(it) }
                 lower.endsWith(".zip") -> {
-                    val entry = extractFirstTaskFromZip(input, target)
+                    val entry = extractFirstTaskFromZip(src, partFile)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
                     AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
                 lower.endsWith(".tar.gz") || lower.endsWith(".tgz") -> {
-                    val entry = extractFirstTaskFromTar(java.util.zip.GZIPInputStream(input), target)
+                    val entry = extractFirstTaskFromTar(java.util.zip.GZIPInputStream(src), partFile)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
                     AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
                 lower.endsWith(".tar") -> {
-                    val entry = extractFirstTaskFromTar(input, target)
+                    val entry = extractFirstTaskFromTar(src, partFile)
                         ?: throw java.io.IOException("No .task entry inside $displayName")
                     AppLog.i("LocalRuntime", "Extracted $entry from $displayName")
                 }
-                else -> target.outputStream().use { input.copyTo(it) }
+                else -> partFile.outputStream().use { src.copyTo(it) }
             }
         }
-        if (!target.exists() || target.length() == 0L) {
-            target.delete()
+        if (!partFile.exists() || partFile.length() == 0L) {
+            partFile.delete()
+            AppLog.e("LocalRuntime", "LLM import: staged file empty for $displayName")
             return null
         }
-        target.nameWithoutExtension
+        if (!partFile.renameTo(finalTarget)) {
+            partFile.delete()
+            AppLog.e("LocalRuntime", "LLM import: rename failed for $displayName")
+            return null
+        }
+        finalTarget.nameWithoutExtension
     } catch (e: Exception) {
+        staging?.takeIf { it.exists() }?.delete()
         AppLog.e("LocalRuntime", "LLM import failed: ${e.message}", e)
         null
     }
