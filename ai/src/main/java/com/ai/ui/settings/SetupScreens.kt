@@ -590,7 +590,12 @@ fun ProvidersScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
-    onAddProvider: (String) -> Unit = {}
+    onAddProvider: (String) -> Unit = {},
+    /** Hoisted by SettingsScreen so it survives the sub-screen `when`
+     *  block tearing this composable down whenever the user opens a
+     *  Provider detail page. Defaults to a fresh state for callers
+     *  that don't need preservation. */
+    scrollState: androidx.compose.foundation.ScrollState = androidx.compose.foundation.rememberScrollState()
 ) {
     BackHandler { onBackToAiSetup() }
     val allProviders = AppService.entries
@@ -627,7 +632,7 @@ fun ProvidersScreen(
         TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup)
         Spacer(modifier = Modifier.height(12.dp))
 
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
                 val stateEmoji = when (state) {

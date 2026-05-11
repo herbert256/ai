@@ -145,10 +145,15 @@ fun SettingsScreen(
     // Tracks whether the user entered AI_MODEL_EDIT via the Providers → Models link, so
     // pressing back returns to the provider edit rather than the Models list.
     var modelEditFromProvider by remember { mutableStateOf(false) }
-    // Active/All filter on the Providers list — hoisted up here (rather than left as
-    // rememberSaveable inside ProvidersScreen) because the sub-screen `when` block
-    // destroys ProvidersScreen's composition entirely on navigation, which throws
-    // its rememberSaveable state away.
+    // Providers-list scroll position — hoisted to SettingsScreen because
+    // the sub-screen `when` block destroys ProvidersScreen's composition
+    // entirely on navigation into AI_PROVIDER_EDIT, throwing any
+    // rememberScrollState there away. SettingsScreen itself survives the
+    // switch, so a remember here keeps the list scrolled where the user
+    // left it. ScrollState.Saver also keeps it across process death.
+    val providersListScrollState = androidx.compose.runtime.saveable.rememberSaveable(
+        saver = androidx.compose.foundation.ScrollState.Saver
+    ) { androidx.compose.foundation.ScrollState(0) }
 
     val goBack: () -> Unit = goBack@ {
         // If the user landed directly on a deep-linked sub-screen (e.g. opened
@@ -236,6 +241,7 @@ fun SettingsScreen(
         SettingsSubScreen.AI_PROVIDERS -> {
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
+                scrollState = providersListScrollState,
                 onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
                 onAddProvider = { name ->
                     // Stub provider — every other field is empty / default;
