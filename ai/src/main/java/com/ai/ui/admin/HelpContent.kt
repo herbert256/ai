@@ -1023,14 +1023,45 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "settings_main" to HelpContent(
         title = "Settings",
         cards = listOf(
-            HelpCard("Overview", "General app preferences plus the entry point to AI Setup. Edits autosave with a 400 ms debounce, so you don't need a Save button — just type and back out."),
+            HelpCard("Overview", "Identity + report icon toggle stay on the main screen; everything else has been carved into three sub-screens reached via the three nav rows. Edits autosave with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
-            HelpCard("API tracing", "Master switch. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across result screens disappears. On → every API request and response is captured to disk."),
-            HelpCard("Model name layout", "Two radio options. Model name only is the dense default. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model on multiple providers."),
-            HelpCard("Subject to title bar", "Compact-header mode. Detail screens normally show a fixed title in the top bar (\"Model Info\" / \"Trace detail\" / …) plus a green page-subject line below it (the model name, KB name, target language, …). Three radio options: Hardcoded screen title (legacy two-row layout); Dynamic subject name (subject in the bar, green line hidden); Both (\"<fixed> / <subject>\" in the bar, green line hidden)."),
-            HelpCard("Show < Back", "When off the visible back chevron disappears from every TitleBar and the title left-aligns. System / gesture back keeps working — TitleBar's BackHandler is registered independently."),
-            HelpCard("Tips", "Settings has no Save button on purpose — every keystroke restarts the 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk."),
-            HelpCard("Related", "Tap the AI Setup row (when present elsewhere) for the rest of the configuration; Housekeeping → Reset application reverts everything here to factory defaults.")
+            HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When off, no background LLM call runs at report start, the icon row on the result page is hidden, and every report-icon affordance across the app falls back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk so turning the setting back on restores them."),
+            HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 retry policy. Tap the row to open the dedicated sub-screen."),
+            HelpCard("UI tweaks", "Model name layout, title-bar mode, icon-bar position, < Back visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
+            HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
+            HelpCard("Tips", "Settings has no Save button on purpose — every keystroke restarts the 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
+            HelpCard("Related", "Tap the AI Setup card on the Hub (Settings sub-hub) for the rest of the configuration; Housekeeping → Reset application reverts everything here to factory defaults.")
+        )
+    ),
+    "settings_network" to HelpContent(
+        title = "Network settings",
+        cards = listOf(
+            HelpCard("Overview", "Three cards for how the app talks to remote providers: read timeouts, per-provider throttling, and the in-line 429 retry policy. Every field autosaves with a 400 ms debounce."),
+            HelpCard("Network read timeouts", "How long the OkHttp client waits for an API response before giving up. Streaming applies to SSE chat / report streams — the timeout is the gap between chunks, so the long default (600 s) is normal for slow-reasoning models. Non-streaming applies to analyze, meta, rerank, fetch-models, translate — anything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."),
+            HelpCard("Per-provider throttling", "Two caps applied per provider hostname across every flow in the app. Max calls per minute uses a 60-second sliding window — calls beyond the limit sleep until the oldest entry ages out. Max concurrent calls per provider queues additional calls on a per-host semaphore. Defaults: 30 calls/minute, 3 in flight at once."),
+            HelpCard("Per-provider retries", "When a provider answers HTTP 429 (rate-limited), the OkHttp interceptor sleeps for the wait time and re-issues the same request up to the retry cap. Set retries to 0 to disable in-line retries entirely — the outer withRetry layer still gets one more attempt on transient 4xx. Defaults: 3 retries, 1000 ms between each."),
+            HelpCard("Per-provider overrides", "Any of these globals can be overridden on a per-provider basis via Settings → AI Setup → Providers → <provider> → Throttle & retry overrides. Leave a field blank there to inherit the default set here."),
+            HelpCard("Tips", "If a provider sends frequent 429s, increasing the wait time tends to recover faster than increasing the retry count — bigger backoffs let the rate-limit window actually open. If you're being throttled before reaching 429, drop the max-calls-per-minute instead.")
+        )
+    ),
+    "settings_ui" to HelpContent(
+        title = "UI tweaks",
+        cards = listOf(
+            HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
+            HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers."),
+            HelpCard("Subject to title bar", "Compact-header mode for detail screens. Default is a fixed title row + a green page-subject line below it. Pick Dynamic subject name to fold the subject into the title bar (the green line hides). Pick Both to render \"<fixed> / <subject>\" in the bar."),
+            HelpCard("Icon bar at bottom", "Off (default) keeps every TitleBar icon (Home / Help / Trace / Delete / Info / Reload / Chat / Memo) plus the back arrow on the top of the screen. On moves them all to a fixed bottom bar — easier to reach on a tall phone."),
+            HelpCard("Show < Back", "When off the visible back chevron disappears from every TitleBar and the title left-aligns. System / gesture back keeps working — every TitleBar registers its own BackHandler independently of this setting."),
+            HelpCard("Show AI Knowledge card on home page", "RAG / Knowledge is hidden on the Hub by default — most users don't need it on a fresh install. Turn this on to surface the AI Knowledge card alongside Reports / Chat / Models. The Knowledge subsystem stays fully functional whether or not the card is visible — KBs attached to a chat / report still work, share-target Knowledge still works.")
+        )
+    ),
+    "settings_logging" to HelpContent(
+        title = "Logging and tracing",
+        cards = listOf(
+            HelpCard("Overview", "Two diagnostic preferences. Both flow to background subsystems on save — the next traced call and the next log line pick up the change immediately."),
+            HelpCard("API tracing", "Master switch for ApiTracer. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across the result / detail screens disappear. On → every API request and response (headers + body) gets captured to disk under filesDir/trace/."),
+            HelpCard("Application log level", "Severity threshold for the in-app file logger AppLog. Calls at or above this level are appended to a daily-rotating file under filesDir/applog/applog_<yyyyMMdd>.log. Defaults to INFO. Use DEBUG / TRACE when troubleshooting — they flood the file quickly but capture per-call detail. OFF disables the file appender entirely (logcat still works during dev)."),
+            HelpCard("Tips", "View / share / clear logs under Housekeeping → Application log. Increase the level when sharing a log with Claude Code for diagnostics; drop back to INFO afterwards.")
         )
     ),
     "settings_setup" to HelpContent(

@@ -41,7 +41,13 @@ enum class SettingsSubScreen {
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
     AI_IMPORT_EXPORT,
-    AI_REFRESH
+    AI_REFRESH,
+    // Three preference buckets carved out of the main Settings screen
+    // so the top page stays compact. Each sub-screen owns its own
+    // help topic and renders only the cards from its bucket.
+    SETTINGS_NETWORK,
+    SETTINGS_UI,
+    SETTINGS_LOGGING
 }
 
 @Composable
@@ -207,6 +213,9 @@ fun SettingsScreen(
             SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS }
             SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS }
             SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPTS }
+            SettingsSubScreen.SETTINGS_NETWORK,
+            SettingsSubScreen.SETTINGS_UI,
+            SettingsSubScreen.SETTINGS_LOGGING -> currentSubScreen = SettingsSubScreen.MAIN
         }
     }
 
@@ -216,7 +225,8 @@ fun SettingsScreen(
         SettingsSubScreen.MAIN -> {
             SettingsMainScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
-                onBack = onBack, onNavigateHome = onNavigateHome
+                onBack = onBack, onNavigateHome = onNavigateHome,
+                onOpenSubScreen = { currentSubScreen = it }
             )
         }
         SettingsSubScreen.AI_SETUP -> {
@@ -617,6 +627,24 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_NETWORK -> {
+            NetworkSettingsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.SETTINGS_UI -> {
+            UiTweaksSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.SETTINGS_LOGGING -> {
+            LoggingAndTracingSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
 }
 
@@ -627,64 +655,17 @@ private fun SettingsMainScreen(
     generalSettings: GeneralSettings,
     onSave: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onOpenSubScreen: (SettingsSubScreen) -> Unit = {}
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
-    var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
-    var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
-    var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
-    var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
-    var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
-    // Stored as strings so partial / empty edits don't fight the
-    // user mid-keystroke. On save, parse → coerceAtLeast(1) so a
-    // typo can never produce a 0-second timeout that would fail
-    // every call instantly.
-    var streamingReadTimeoutText by remember {
-        mutableStateOf(generalSettings.streamingReadTimeoutSec.toString())
-    }
-    var nonStreamingReadTimeoutText by remember {
-        mutableStateOf(generalSettings.nonStreamingReadTimeoutSec.toString())
-    }
-    var maxCallsPerMinuteText by remember {
-        mutableStateOf(generalSettings.maxCallsPerProviderPerMinute.toString())
-    }
-    var maxConcurrentCallsText by remember {
-        mutableStateOf(generalSettings.maxConcurrentCallsPerProvider.toString())
-    }
-    var maxRetriesText by remember {
-        mutableStateOf(generalSettings.maxRetriesOn429.toString())
-    }
-    var retryBackoffMsText by remember {
-        mutableStateOf(generalSettings.retryBackoffMs.toString())
-    }
-    var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText, maxRetriesText, retryBackoffMsText, logLevel) {
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
-            tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-            showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
-            iconBarAtBottom = iconBarAtBottom,
-            iconGenEnabled = iconGenEnabled,
-            showKnowledgeCard = showKnowledgeCard,
-            streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.streamingReadTimeoutSec,
-            nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.nonStreamingReadTimeoutSec,
-            maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.maxCallsPerProviderPerMinute,
-            maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.maxConcurrentCallsPerProvider,
-            // 0 is a valid maxRetries setting (no in-line retries),
-            // so coerce ≥ 0 rather than ≥ 1.
-            maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
-                ?: generalSettings.maxRetriesOn429,
-            retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
-                ?: generalSettings.retryBackoffMs,
-            logLevel = logLevel
+            iconGenEnabled = iconGenEnabled
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -704,24 +685,7 @@ private fun SettingsMainScreen(
         onDispose {
             val updated = generalSettings.copy(
                 userName = userName, defaultEmail = defaultEmail,
-                tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
-                showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
-                iconBarAtBottom = iconBarAtBottom,
-            iconGenEnabled = iconGenEnabled,
-                showKnowledgeCard = showKnowledgeCard,
-                streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.streamingReadTimeoutSec,
-                nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.nonStreamingReadTimeoutSec,
-                maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.maxCallsPerProviderPerMinute,
-                maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.maxConcurrentCallsPerProvider,
-                maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
-                    ?: generalSettings.maxRetriesOn429,
-                retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
-                    ?: generalSettings.retryBackoffMs,
-                logLevel = logLevel
+                iconGenEnabled = iconGenEnabled
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -749,24 +713,159 @@ private fun SettingsMainScreen(
                 )
             }
 
-            // Master switch for API tracing. Off → no new trace files,
-            // the Hub "AI API Traces" card and every 🐞 ladybug icon in
-            // the result screens disappear.
+            // Master switch for the per-report icon-gen feature.
+            // When off, no background LLM call is fired at report
+            // start, the icon row on the result page is hidden, the
+            // leftmost report icon (and its tied 📝 memo) drops from
+            // every title bar, and per-row icon prefixes on the hub /
+            // history / search hits / pickers fall back to the static
+            // 🕘 / 📌 (or no prefix). Persisted icon values stay on
+            // disk — turning the setting back on brings them back.
             ToggleSettingCard(
-                title = "API tracing",
-                description = "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
-                checked = tracingEnabled,
-                onCheckedChange = { tracingEnabled = it }
+                title = "Generate report icons",
+                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                checked = iconGenEnabled,
+                onCheckedChange = { iconGenEnabled = it }
             )
 
-            // Per-call read timeouts. Streaming applies to SSE chat /
-            // report calls (the response trickles in chunks — the
-            // timeout is the gap between chunks). Non-streaming
-            // applies to analyze / fetch-models / meta / rerank /
-            // translate calls that block waiting for the full body.
-            // Both default to the BuildConfig values (600 / 120 s);
-            // a typo defaulting to blank leaves the previous value in
-            // place rather than poisoning every call with 0 s.
+            // Nav rows into the three carved-out preference buckets.
+            // Each opens its own full-screen sub-screen with its own
+            // TitleBar + help topic. Keeps the main Settings page
+            // compact: the user no longer has to scroll past 10 cards
+            // to find the one they want to tweak.
+            SettingsNavCard(
+                icon = "🌐",
+                title = "Network settings",
+                description = "Read timeouts, per-provider throttling, 429 retry policy.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
+            )
+            SettingsNavCard(
+                icon = "🎨",
+                title = "UI tweaks",
+                description = "Model name layout, title-bar mode, icon bar position, back button, Knowledge card.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
+            )
+            SettingsNavCard(
+                icon = "📜",
+                title = "Logging and tracing",
+                description = "API tracing master switch and application log level.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
+            )
+        }
+    }
+}
+
+/** Tap-target row used on the main Settings screen to drill into a
+ *  preference sub-screen. Visual style mirrors SetupNavCard so the
+ *  navigation pattern feels consistent across the hub-style screens. */
+@Composable
+private fun SettingsNavCard(
+    icon: String,
+    title: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 22.sp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
+            Text(">", fontSize = 16.sp, color = AppColors.Blue)
+        }
+    }
+}
+
+// ===== Carved-out preference buckets =====
+//
+// Each sub-screen owns its slice of GeneralSettings: it mirrors the
+// fields it cares about into local state, debounces saves through
+// the same 400ms pattern the main screen uses, and flushes any
+// pending edit on dispose so a quick back-tap doesn't lose the
+// last keystroke. The other fields on the parent GeneralSettings
+// flow through unchanged via .copy(), so the three sub-screens
+// don't clobber each other even when the user navigates between
+// them quickly.
+
+/** Network read timeouts + per-provider throttling + per-provider
+ *  retries. Each field stored as text so partial / empty edits
+ *  don't fight the keystroke; parsed back via toIntOrNull /
+ *  toLongOrNull on save, with the previous value preserved when
+ *  the field is blank or non-numeric. */
+@Composable
+private fun NetworkSettingsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var streamingReadTimeoutText by remember {
+        mutableStateOf(generalSettings.streamingReadTimeoutSec.toString())
+    }
+    var nonStreamingReadTimeoutText by remember {
+        mutableStateOf(generalSettings.nonStreamingReadTimeoutSec.toString())
+    }
+    var maxCallsPerMinuteText by remember {
+        mutableStateOf(generalSettings.maxCallsPerProviderPerMinute.toString())
+    }
+    var maxConcurrentCallsText by remember {
+        mutableStateOf(generalSettings.maxConcurrentCallsPerProvider.toString())
+    }
+    var maxRetriesText by remember {
+        mutableStateOf(generalSettings.maxRetriesOn429.toString())
+    }
+    var retryBackoffMsText by remember {
+        mutableStateOf(generalSettings.retryBackoffMs.toString())
+    }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.streamingReadTimeoutSec,
+        nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.nonStreamingReadTimeoutSec,
+        maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxCallsPerProviderPerMinute,
+        maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentCallsPerProvider,
+        // 0 is a valid maxRetries setting (no in-line retries) — coerce ≥ 0.
+        maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
+            ?: generalSettings.maxRetriesOn429,
+        retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
+            ?: generalSettings.retryBackoffMs
+    )
+
+    LaunchedEffect(
+        streamingReadTimeoutText, nonStreamingReadTimeoutText,
+        maxCallsPerMinuteText, maxConcurrentCallsText,
+        maxRetriesText, retryBackoffMsText
+    ) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_network", title = "Network settings", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard(
                 "Network read timeouts",
                 "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."
@@ -786,13 +885,6 @@ private fun SettingsMainScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
-
-            // Per-provider throttle. Both caps apply per provider
-            // hostname and across every flow in the app — report
-            // streams, fan-out pairs, meta, translate, chat, model
-            // fetches and provider tests all share the same gate.
-            // Enforced globally by ProviderThrottleInterceptor in the
-            // OkHttp chain.
             SettingCard(
                 "Per-provider throttling",
                 "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 30 calls/minute, 3 in flight at once."
@@ -812,10 +904,6 @@ private fun SettingsMainScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
-
-            // In-line 429 retry policy. Each provider host can override
-            // these on its own settings screen (Provider → Throttle &
-            // retries overrides); these are the fallback defaults.
             SettingCard(
                 "Per-provider retries",
                 "When a provider answers HTTP 429 (rate-limited), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 4xx). Defaults: 3 retries, 1000 ms between each."
@@ -835,36 +923,55 @@ private fun SettingsMainScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
+        }
+    }
+}
 
-            // In-app log threshold. Every call at this level or higher
-            // is mirrored to the daily-rotating file under
-            // <filesDir>/applog/ so the user can share the log with
-            // Claude Code for troubleshooting. OFF disables the file
-            // appender entirely (logcat still works during dev).
-            SettingCard(
-                "Application log level",
-                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender."
-            ) {
-                Column {
-                    com.ai.data.LogLevel.entries.forEach { lvl ->
-                        RadioRow(
-                            selected = logLevel == lvl,
-                            label = lvl.name,
-                            onClick = { logLevel = lvl }
-                        )
-                    }
-                }
-            }
+/** Visual / layout preferences that don't affect the network layer.
+ *  Five cards: Model name layout, Subject to title bar, Icon bar
+ *  position, Show < Back, Show AI Knowledge card on home page. */
+@Composable
+private fun UiTweaksSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
+    var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
+    var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
+    var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
+    var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
-            // Model name layout — controls how combined provider+model
-            // labels render across the app. MODEL_ONLY is the dense
-            // default; PROVIDER_AND_MODEL adds the provider's display
-            // name (joined with " · ") for users running the same
-            // model on multiple providers.
+    fun build(): GeneralSettings = generalSettings.copy(
+        modelNameLayout = modelNameLayout,
+        subjectToTitleBarMode = subjectToTitleBarMode,
+        iconBarAtBottom = iconBarAtBottom,
+        showBackButton = showBackButton,
+        showKnowledgeCard = showKnowledgeCard
+    )
+
+    LaunchedEffect(modelNameLayout, subjectToTitleBarMode, iconBarAtBottom, showBackButton, showKnowledgeCard) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_ui", title = "UI tweaks", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Model name layout", "How model labels render across rows and pickers.") {
-                // Inner Column with no inter-row spacing so the two
-                // radios sit tight; the SettingCard's outer 8dp gap
-                // would otherwise push them apart.
                 Column {
                     RadioRow(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.MODEL_ONLY,
@@ -878,17 +985,6 @@ private fun SettingsMainScreen(
                     )
                 }
             }
-
-            // Compact-header mode. When on, screens that today show a
-            // fixed title plus a green subject sub-header (Model
-            // Info, Trace detail, Knowledge base, Translation run, …)
-            // fold the subject into the title bar and drop the green
-            // line. Drives LocalSubjectToTitleBarMode.
-            // Tri-state: HARDCODED keeps the legacy two-row layout
-            // (fixed label + green subject line below). SUBJECT folds
-            // the subject into the bar and hides the green line. BOTH
-            // shows "<fixed> / <subject>" in the bar and hides the
-            // green line. Drives LocalSubjectToTitleBarMode.
             SettingCard(
                 "Subject to title bar",
                 "Detail screens have a fixed label and a dynamic subject. Pick which one (or both) goes in the title bar."
@@ -911,58 +1007,87 @@ private fun SettingsMainScreen(
                     )
                 }
             }
-
-            // Move every TitleBar action icon (Home / Help / Trace /
-            // Delete / Info / Reload / Chat / Memo + the back arrow)
-            // into a fixed bar at the bottom of the screen. The top
-            // bar then shows only the screen title. Drives
-            // LocalIconBarAtBottom; the bar lives at AppNavHost scope
-            // so it survives nav transitions.
             ToggleSettingCard(
                 title = "Icon bar at bottom",
                 description = "Move every action icon (Home / Help / Trace / Delete / Info / Reload / Chat / Memo) and the back arrow into a fixed bar at the bottom of the screen. The top bar then shows only the screen title.",
                 checked = iconBarAtBottom,
                 onCheckedChange = { iconBarAtBottom = it }
             )
-
-            // Master switch for the per-report icon-gen feature.
-            // When off, no background LLM call is fired at report
-            // start, the icon row on the result page is hidden, the
-            // leftmost report icon (and its tied 📝 memo) drops from
-            // every title bar, and per-row icon prefixes on the hub /
-            // history / search hits / pickers fall back to the static
-            // 🕘 / 📌 (or no prefix). Persisted icon values stay on
-            // disk — turning the setting back on brings them back.
-            ToggleSettingCard(
-                title = "Generate report icons",
-                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
-                checked = iconGenEnabled,
-                onCheckedChange = { iconGenEnabled = it }
-            )
-
-            // When off, the visible "< Back" button disappears from
-            // every TitleBar and the screen title left-aligns.
-            // System / gesture back still works (TitleBar's
-            // BackHandler is registered independently).
             ToggleSettingCard(
                 title = "Show < Back",
                 description = "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
                 checked = showBackButton,
                 onCheckedChange = { showBackButton = it }
             )
-
-            // The Knowledge / RAG flow is hidden by default — most
-            // users don't need it on a fresh install. Turning the
-            // toggle on surfaces the AI Knowledge card on the home
-            // Hub. The subsystem itself stays functional whether or
-            // not the card shows (KBs still attach to chats /
-            // reports; share-target Knowledge still works).
             ToggleSettingCard(
                 title = "Show AI Knowledge card on home page",
                 description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
                 checked = showKnowledgeCard,
                 onCheckedChange = { showKnowledgeCard = it }
             )
+        }
+    }
+}
+
+/** Diagnostic preferences: master API tracing switch + application
+ *  log severity threshold. Both flow to background subsystems
+ *  (ApiTracer / AppLog) on save; the change takes effect on the
+ *  next traced call / next log line. */
+@Composable
+private fun LoggingAndTracingSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
+    var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        tracingEnabled = tracingEnabled,
+        logLevel = logLevel
+    )
+
+    LaunchedEffect(tracingEnabled, logLevel) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ToggleSettingCard(
+                title = "API tracing",
+                description = "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
+                checked = tracingEnabled,
+                onCheckedChange = { tracingEnabled = it }
+            )
+            SettingCard(
+                "Application log level",
+                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender."
+            ) {
+                Column {
+                    com.ai.data.LogLevel.entries.forEach { lvl ->
+                        RadioRow(
+                            selected = logLevel == lvl,
+                            label = lvl.name,
+                            onClick = { logLevel = lvl }
+                        )
+                    }
+                }
+            }
         }
     }
 }
