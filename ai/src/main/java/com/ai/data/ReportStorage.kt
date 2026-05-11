@@ -570,6 +570,15 @@ object ReportStorage {
                 knowledgeBaseIds = src.knowledgeBaseIds,
                 costsFromDeletedItems = src.costsFromDeletedItems
             )
+            // Mirror the icon + its error from the source. The copy
+            // makes no new API call, so without this the copy sits
+            // with icon=null and errorMessage=null, which the result-
+            // screen icon row interprets as "still generating" — the
+            // spinner stayed forever. Icon tokens / costs stay at 0
+            // on the copy: the icon-gen API call was already billed
+            // on the source.
+            copy.icon = src.icon
+            copy.iconErrorMessage = src.iconErrorMessage
             saveReport(copy)
             newId
         }
