@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppLog
 import com.ai.data.AppLogFileInfo
+import com.ai.data.LogLevel
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.copyToClipboard
@@ -214,6 +215,54 @@ private fun colorForEntry(header: String): Color = when {
     else -> Color(0xFFCCCCCC)
 }
 
+/** Resolve the [LogLevel] of a header line, or null when the line
+ *  predates AppLog or has a corrupt header. Used by the level-chip
+ *  filter. */
+private fun levelOfHeader(header: String): LogLevel? = when {
+    " ERROR " in header -> LogLevel.ERROR
+    " WARN " in header -> LogLevel.WARN
+    " INFO " in header -> LogLevel.INFO
+    " DEBUG " in header -> LogLevel.DEBUG
+    " TRACE " in header -> LogLevel.TRACE
+    else -> null
+}
+
+/** Parse the time-of-day portion (HH:mm:ss) of an entry header.
+ *  Used to compare against the user-supplied start / end filter. */
+private fun timeOfHeader(header: String): String? {
+    // Header shape: "YYYY-MM-DD HH:MM:SS.SSS LEVEL …" — the time
+    // sits at fixed positions 11..18.
+    if (header.length < 19) return null
+    val candidate = header.substring(11, 19)
+    if (candidate[2] != ':' || candidate[5] != ':') return null
+    return candidate
+}
+
+/** Normalise a user-typed time filter to "HH:mm:ss". Accepts blank
+ *  (= no constraint), "HH:mm" (zero-fills seconds), and "HH:mm:ss".
+ *  Returns null when the input doesn't parse — caller treats null
+ *  as "no constraint" so a partial mid-keystroke edit doesn't blank
+ *  the list. */
+private fun normaliseTimeFilter(raw: String): String? {
+    val s = raw.trim()
+    if (s.isEmpty()) return null
+    val re5 = Regex("""^(\d{1,2}):(\d{2})$""")
+    val re8 = Regex("""^(\d{1,2}):(\d{2}):(\d{2})$""")
+    val (h, m, sec) = when {
+        re8.matches(s) -> {
+            val parts = s.split(":")
+            Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
+        }
+        re5.matches(s) -> {
+            val parts = s.split(":")
+            Triple(parts[0].toInt(), parts[1].toInt(), 0)
+        }
+        else -> return null
+    }
+    if (h !in 0..23 || m !in 0..59 || sec !in 0..59) return null
+    return "%02d:%02d:%02d".format(h, m, sec)
+}
+
 @Composable
 fun AppLogDetailScreen(
     filename: String,
@@ -241,10 +290,48 @@ fun AppLogDetailScreen(
     }
 
     // Reverse-chronological so the most recent entry is at the top.
-    val entries = remember(content) { parseLogEntries(content).asReversed() }
+    val allEntries = remember(content) { parseLogEntries(content).asReversed() }
+
+    // ===== Filter state =====
+    // Search: free-text substring match across the entire entry
+    // (header + continuation lines). Case-insensitive.
+    var searchQuery by remember(currentFilename) { mutableStateOf("") }
+    // Levels: every level enabled by default. Tapping a chip toggles
+    // it. Headers without a recognised level token (legacy /
+    // pre-AppLog) are kept visible — the user can't filter them out
+    // explicitly, but a search query still narrows them.
+    var enabledLevels by remember(currentFilename) {
+        mutableStateOf(setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR))
+    }
+    // Time range — strings so partial / blank inputs don't fight the
+    // user mid-keystroke. Parsed via normaliseTimeFilter; an
+    // unparseable value falls back to "no constraint", same idea as
+    // the network-timeout fields under Settings.
+    var startTimeText by remember(currentFilename) { mutableStateOf("") }
+    var endTimeText by remember(currentFilename) { mutableStateOf("") }
+
+    val entries = remember(allEntries, searchQuery, enabledLevels, startTimeText, endTimeText) {
+        val query = searchQuery.trim().lowercase()
+        val startT = normaliseTimeFilter(startTimeText)
+        val endT = normaliseTimeFilter(endTimeText)
+        allEntries.filter { entry ->
+            val lvl = levelOfHeader(entry.header)
+            if (lvl != null && lvl !in enabledLevels) return@filter false
+            if (query.isNotEmpty() && !entry.text.lowercase().contains(query)) return@filter false
+            if (startT != null) {
+                val t = timeOfHeader(entry.header)
+                if (t != null && t < startT) return@filter false
+            }
+            if (endT != null) {
+                val t = timeOfHeader(entry.header)
+                if (t != null && t > endT) return@filter false
+            }
+            true
+        }
+    }
 
     // In-screen overlay: tap an entry → full-screen view of just that
-    // entry, with prev/next buttons that walk the same reversed list.
+    // entry, with prev/next buttons that walk the same filtered list.
     // Uses the existing "overlay + return" idiom so the parent
     // screen's scroll position survives.
     var selectedEntryIndex by remember(content) { mutableStateOf<Int?>(null) }
@@ -301,6 +388,83 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // ===== Filter row =====
+        // Search field. Trailing X clears the query in one tap.
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search", fontSize = 11.sp) },
+            singleLine = true,
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    TextButton(onClick = { searchQuery = "" }, contentPadding = PaddingValues(0.dp)) {
+                        Text("✕", fontSize = 14.sp, color = AppColors.TextTertiary)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Level chips. Multi-select; tapping toggles inclusion. All
+        // enabled by default. Horizontal scroll keeps the row tight
+        // on narrow phones.
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            for (lvl in listOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)) {
+                val selected = lvl in enabledLevels
+                FilterChip(
+                    selected = selected,
+                    onClick = {
+                        enabledLevels = if (selected) enabledLevels - lvl else enabledLevels + lvl
+                    },
+                    label = { Text(lvl.name, fontSize = 11.sp) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Time range — HH:mm or HH:mm:ss within this log file's day.
+        // Blank / unparseable = no constraint, so a partial mid-edit
+        // doesn't blank the list.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = startTimeText,
+                onValueChange = { startTimeText = it.filter { ch -> ch.isDigit() || ch == ':' } },
+                label = { Text("Start HH:mm", fontSize = 11.sp) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedFieldColors()
+            )
+            OutlinedTextField(
+                value = endTimeText,
+                onValueChange = { endTimeText = it.filter { ch -> ch.isDigit() || ch == ':' } },
+                label = { Text("End HH:mm", fontSize = 11.sp) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedFieldColors()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Count line. Tells the user when the filter is hiding rows
+        // so an empty list doesn't read as "the log is empty".
+        if (allEntries.isNotEmpty()) {
+            Text(
+                "Showing ${entries.size} of ${allEntries.size}",
+                fontSize = 11.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.End
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
         // Reversed entry list (most recent first). Tap a row → full
         // screen view of that one entry with prev/next within this
         // file's entry list. Stack-trace continuation lines stay
@@ -308,7 +472,10 @@ fun AppLogDetailScreen(
         Box(modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)) {
             if (entries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("(empty)", color = AppColors.TextTertiary)
+                    Text(
+                        if (allEntries.isEmpty()) "(empty)" else "(no matches)",
+                        color = AppColors.TextTertiary
+                    )
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
