@@ -124,7 +124,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://huggingface.co/api/models/{id}` (model card metadata). Anonymous calls are rate-limited; setting an HF token under External Services raises the limit and unlocks gated model metadata."),
             HelpCard("Freshness", "Lookups are on-demand — each Model Info open re-hits HF for that one model. There's no scheduled refresh because the data is already model-scoped."),
             HelpCard("Pitfalls", "Gated / private models return 401 without a token. Some \"models\" are duplicate aliases (e.g. fine-tuned forks) — the API returns whatever the user typed, not a canonical id. Long descriptions can balloon the response — we render the JSON tree truncated."),
-            HelpCard("Related", "External Services screen has the API key field. Set the same key under Settings → External Services to reuse it across model-info, embedding, and download flows.")
         )
     ),
     "info_provider_openrouter" to HelpContent(
@@ -135,7 +134,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "Catalog: `https://openrouter.ai/api/v1/models` (auth optional but recommended). Per-model: `https://openrouter.ai/api/v1/models/{id}/endpoints`. API key under External Services raises rate limits."),
             HelpCard("Freshness", "Refreshed on demand from Refresh → OpenRouter (full catalog) or implicitly when Model Info opens (per-model specs). Catalog refresh disables when no API key is set."),
             HelpCard("Pitfalls", "OpenRouter quotes the upstream provider's price plus its own margin; numbers can drift from the provider's own published rates. Model ids are slash-prefixed (`anthropic/claude-3-5-sonnet`) — the catalog uses those, while LiteLLM uses bare ids."),
-            HelpCard("Related", "OpenRouter is also an AppService — chat completions go to the same host but carry a different trace category. Used as the cross-provider fallback in PricingCache.getPricing.")
         )
     ),
     "info_provider_litellm" to HelpContent(
@@ -146,7 +144,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json` — a single file, no auth, no rate limit beyond GitHub's. Refreshed on demand from Refresh → LiteLLM."),
             HelpCard("Freshness", "Updates land in the LiteLLM repo within days of a provider price change — usually faster than the model's own pricing page goes live in the marketing site. Stale by up to a week is normal."),
             HelpCard("Pitfalls", "Lags `-latest` aliases (model_prices keys are dated ids). New models from less-popular providers can take longer to appear. Keys are bare ids (no provider/ prefix), unlike OpenRouter."),
-            HelpCard("Related", "Sits ahead of OpenRouter in the layered lookup precedence (LiteLLM → models.dev → curated tiers → Override → OpenRouter → Default).")
         )
     ),
     "info_provider_models_dev" to HelpContent(
@@ -157,7 +154,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://models.dev/api.json` — anonymous, single file. Refreshed on demand from Refresh → models.dev."),
             HelpCard("Freshness", "Community-driven; updates are less predictable than LiteLLM's. Use both — the layered lookup will pick whichever has a non-null entry first."),
             HelpCard("Pitfalls", "Coverage gaps for niche providers; some entries lag price changes. The JSON shape sometimes drifts — the parser is forgiving but a totally new field would silently be ignored."),
-            HelpCard("Related", "Sits between LiteLLM and the curated tiers in the layered lookup. Refresh → models.dev recomputes capability snapshots so vision / web-search / reasoning badges pick up changes.")
         )
     ),
     "info_provider_helicone" to HelpContent(
@@ -168,7 +164,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://www.helicone.ai/api/llm-costs` — anonymous, JSON. Refreshed on demand from Refresh → Helicone."),
             HelpCard("Freshness", "Publishing cadence varies. Used as a low-priority fallback because Helicone's coverage is biased toward providers their customers actually use; coverage of long-tail models is thinner than LiteLLM's."),
             HelpCard("Pitfalls", "Pricing only — no capability fields. Helicone's id format sometimes diverges from the provider's own (case differences). The parser falls back gracefully when an id can't be matched."),
-            HelpCard("Related", "Sits in the curated-tiers band of the layered lookup, alongside llm-prices and Artificial Analysis.")
         )
     ),
     "info_provider_llm_prices" to HelpContent(
@@ -179,7 +174,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://raw.githubusercontent.com/simonw/llm-prices/main/data/{vendor}.json` (no auth). Refreshed on demand from Refresh → llm-prices.com."),
             HelpCard("Freshness", "Hand-maintained, often updated within hours of a price announcement. Coverage is intentionally narrow — it's a curated hot-list of frontier models, not a complete catalog."),
             HelpCard("Pitfalls", "Only covers ~10 vendors. Models from anything else won't be found here. The repo's data shape is stable but small schema drifts are possible — we tolerate missing fields."),
-            HelpCard("Related", "Curated-tier sibling of Helicone and Artificial Analysis. Frequently the freshest source for the big-3 frontier models.")
         )
     ),
     "info_provider_artificial_analysis" to HelpContent(
@@ -190,7 +184,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Endpoint", "`https://artificialanalysis.ai/api/v2/data/llms/models` — requires an API key set under External Services. Refreshed on demand from Refresh → Artificial Analysis (button disabled until the key is set)."),
             HelpCard("Freshness", "Updates are reasonably timely — they instrument the providers themselves, so price-change detection is part of their workflow. Not as fast as llm-prices for the very-new-frontier models."),
             HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
-            HelpCard("Related", "External Services holds the AA API key. Curated-tier sibling of Helicone and llm-prices.")
         )
     ),
     "help_topic_view" to HelpContent(
@@ -268,7 +261,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("🤖 with this response only and select an agent", "Stashes the agent's response as the next chat's input-box starter and routes to the agent picker. The picked agent's system prompt and parameters then drive the session."),
             HelpCard("🛠️ with this response only and configure on the fly", "Stashes the response and walks you through provider → model → parameters before opening the chat — handy when none of your saved agents fit."),
             HelpCard("Tips", "All three rows are always enabled here; the upstream button on the single-result screen is the one that disables on empty / errored responses."),
-            HelpCard("Related", "Single agent result → 💬 Continue in chat opens this. Picking a row navigates to a Chat session.")
         )
     ),
     "secondary_list" to HelpContent(
@@ -370,7 +362,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Prompt field", "Multi-line, fills the screen. Update prompt is disabled when the body trims to blank."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on initialPrompt so re-opening the overlay with a fresh seed value doesn't restore a stale draft from the SaveableStateRegistry."),
             HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate."),
-            HelpCard("Related", "Action row → Edit → Title is a separate overlay; Edit → Models routes to the selection phase in 'Update model list' mode for stripping/adding agents.")
         )
     ),
     "report_edit_title" to HelpContent(
@@ -379,7 +370,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Rename the report. Title is metadata only — no outbound API call references it, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
             HelpCard("Title field", "Single-line. Update title is disabled when the body trims to blank."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on initialTitle so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
-            HelpCard("Related", "Edit prompt is a separate overlay (with the pending-changes banner); this screen is in-place editing.")
         )
     ),
     "report_parameters" to HelpContent(
@@ -416,7 +406,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Working state", "While the zip / delete is in flight, both buttons are disabled and the export label switches to 'Working…'."),
             HelpCard("Status line", "Final operation result lives as a small grey line at the bottom — 'Deleted N reports.', 'Bundled N reports.', or 'Nothing to export.'."),
             HelpCard("Pitfalls", "Delete is irreversible — once the cutoff fires, those reports' secondaries and trace files go too. Take an Export all first if you might want them back."),
-            HelpCard("Related", "Use Housekeeping → Backup & Restore for the full-app backup; this screen is reports-only.")
         )
     ),
     "report_view_picker" to HelpContent(
@@ -487,7 +476,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Empty state", "Opens an empty list; define flocks in AI Setup → Workers → Flocks first."),
             HelpCard("Back button", "Bottom-right TextButton dismisses without a selection."),
             HelpCard("Pitfalls", "Flocks reference agents by id; deleting the underlying agent leaves a broken member. Edit the flock first."),
-            HelpCard("Related", "+Agent for one agent at a time, +Swarm for direct provider/model groups (no system prompt / parameters).")
         )
     ),
     "report_pick_agent" to HelpContent(
@@ -518,7 +506,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pricing column", "Sums per-million prompt / completion across all members. Red when at least one member has real pricing data; grey-on-grey badge when every member fell through to DEFAULT."),
             HelpCard("Empty state", "Opens an empty list; define swarms in AI Setup → Workers → Swarms first."),
             HelpCard("Pitfalls", "Members survive when their provider is inactive — the swarm definition is purely structural. The report-run dispatch silently skips inactive members; the ℹ info screen still lists them."),
-            HelpCard("Related", "+Flock for grouped agents with system-prompt / parameter presets, +Agent for one configured agent at a time, +Model for a single (provider, model) pair.")
         )
     ),
     "report_pick_model" to HelpContent(
@@ -533,7 +520,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Already-added rows", "Rows passed in via alreadyAdded render at 0.4 alpha, are not clickable, and append ' · already added' next to capability badges."),
             HelpCard("Pricing column", "Per-token (×10⁶) prompt / completion, red for real data, grey badge for DEFAULT. Vision / Web / Reasoning badges sit before the price."),
             HelpCard("Tap to confirm", "Single-select: tapping a row immediately fires onConfirm with the (provider, model) pair and the caller closes the picker. No multi-select, no batch confirm."),
-            HelpCard("Related", "+Swarm for a pre-grouped batch, +Flock for grouped agents, +Agent for one saved agent.")
         )
     ),
     "report_swarm_info" to HelpContent(
@@ -544,7 +530,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tap a row", "Opens Model Info for that (provider, model) — the same destination the title-bar ℹ️ icon reaches across the rest of the app. Use the Costs and Capabilities cards there to see every source's reading for this model."),
             HelpCard("Title bar", "Static \"Swarm\" with the swarm name as the dynamic subject (folds into the bar when the \"Subject to title bar\" setting is on, otherwise sits below as a green sub-header). The back arrow returns to Pick a swarm with the previous filter intact."),
             HelpCard("Pitfalls", "Members survive even when their provider is inactive or their API key isn't configured — the swarm definition is purely structural. The report-run dispatch silently skips inactive members; this info screen still lists them so you can spot which row to fix."),
-            HelpCard("Related", "Pick a swarm (parent), Model Info (drill target), Edit Swarms (under AI Setup → Workers → Swarms) for changing the member list.")
         )
     ),
     "report_flock_info" to HelpContent(
@@ -556,7 +541,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tap a row", "Opens Model Info for the agent's (provider, effective-model). Same drill-in the title-bar ℹ️ uses elsewhere."),
             HelpCard("Title bar", "Static \"Flock\" with the flock name as the dynamic subject. Back returns to Pick a flock."),
             HelpCard("Pitfalls", "Agents whose provider is inactive still appear here — the agent / flock list is the source of truth, but expandFlockToModels skips inactive members when feeding the report. The agent count shown on Pick a flock already reflects that filtering."),
-            HelpCard("Related", "Pick a flock (parent), Model Info (drill target), Edit Flocks / Edit Agents (under AI Setup → Workers) for changing the membership or per-agent presets.")
         )
     ),
     "translation_run" to HelpContent(
@@ -596,7 +580,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Think sections", "Both panes render via ContentWithThinkSections — <think> blocks collapse so the user-readable content stays prominent."),
             HelpCard("Empty content", "A pane with blank content shows '(no content)' in tertiary text."),
             HelpCard("Title", "Caller-supplied — typically reads 'Translation info — <provider> / <model>' or includes the Meta-prompt name."),
-            HelpCard("Related", "TranslationCallDetailScreen has the same split layout but caps the original at half-screen — that one is per-call; this one is for whole-document overlays.")
         )
     ),
     "translation_language" to HelpContent(
@@ -629,7 +612,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Layout", "Title at the top (or folded into the title bar in Subject mode), then the prompt block, then one section per agent with the agent label as a sub-header and the response body underneath."),
             HelpCard("Translations", "When the report has TRANSLATE rows the page honours the active language picker on the parent screen — translated bodies overlay onto the matching agents."),
             HelpCard("Pitfalls", "Long reports render many MB of text; scrolling can be slow on dense reports. Use the per-agent picker on the Model response screen when you only need one section."),
-            HelpCard("Related", "Reachable from Model response → 'View on one page' button. Cost summary is its own screen.")
         )
     ),
     "cost_view" to HelpContent(
@@ -641,7 +623,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they appear as 'translate' kind rows. The language picker is hidden in cost mode since costs aggregate every call."),
             HelpCard("Empty state", "When neither the agents nor any secondary carries a tokenUsage record, the body reads '(no usage recorded)'. This usually means the run was cancelled before the first response landed."),
             HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),
-            HelpCard("Related", "View → Reports for per-agent bodies; View → Prompt for the prompt itself; AI Usage (Settings → Statistics) for cumulative spend across all reports.")
         )
     ),
     "knowledge_new" to HelpContent(
@@ -653,7 +634,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Chunk strategy", "How source documents get split before embedding. Defaults pick token / character thresholds tuned to the chosen model's input limit; advanced fields let you override."),
             HelpCard("Create", "Creates the manifest under <filesDir>/knowledge/<id>/manifest.json. No sources yet — drill into the new KB and add documents from there."),
             HelpCard("Pitfalls", "Picking an embedder you don't actively use here means the cosine retrieval at chat-attach time has to load the embedder runtime — which can be slow and memory-heavy. Prefer your default embedder unless you have a reason."),
-            HelpCard("Related", "Once created, the KB Detail screen handles ingest (Add file / paste text / share-target import) and indexing.")
         )
     ),
     "chat_search" to HelpContent(
@@ -664,7 +644,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Result rows", "One row per matching session with a content excerpt around the first match. Tap to resume the session at the matched message."),
             HelpCard("Empty state", "Empty query shows the most recent N sessions; non-matching query shows 'No chats matching <query>'."),
             HelpCard("Pitfalls", "Search reads + parses every chat session JSON on every keystroke — a debounce keeps it acceptable on slow storage but heavy histories may still feel jittery. Prefer the list's date / pinned filters when you can."),
-            HelpCard("Related", "Chat History (the list) for date-ordered browsing; Manage chats for bulk delete / export.")
         )
     ),
     "models_per_provider" to HelpContent(
@@ -686,7 +665,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Layout", "Single column with verticalScroll — long prompts scroll naturally."),
             HelpCard("Use it for", "Verifying what the model actually saw when results look surprising — variables and any user-tag block from <user>...</user> append are visible."),
             HelpCard("Pitfalls", "The screen renders the saved prompt — if you Edit prompt and don't Regenerate, the new prompt shows here but agents weren't re-run with it. The result page's pending-changes banner reminds you."),
-            HelpCard("Related", "View → Reports for the per-agent body picker; View → Costs for the cost table.")
         )
     ),
     "history" to HelpContent(
@@ -721,7 +699,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Search field", "Filters by title OR text (case-insensitive). The trailing ✕ clears."),
             HelpCard("Per-row content", "Title in white; the first line of the text dimmed underneath."),
             HelpCard("Empty state", "Shown when no example prompts exist. Curate them under AI Setup → Prompt management → Example prompts, or load the bundled set via Housekeeping → Prompts → Add new prompts from assets/examples.json."),
-            HelpCard("Related", "Prompt history (Start with a previous prompt) is the per-run history of titles you've actually sent; Example prompts are a separate user-curated starter library.")
         )
     )
 ,
@@ -780,7 +757,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only. Bulk delete is on the dedicated Manage screen reachable from the hub, not from here."),
             HelpCard("Tips", "The list re-fetches whenever ChatHistoryManager.historyVersion ticks (after a save / delete / pin elsewhere). Page index is rememberSaveable so it survives a config change."),
             HelpCard("Pitfalls", "The trace probe runs once per row — if you record a new trace for an open session, the icon doesn't appear until you leave and return."),
-            HelpCard("Related", "Use Search Chats from the hub to find a specific message; use Manage chats for bulk delete by age or full export.")
         )
     ),
     "chat_continue" to HelpContent(
@@ -794,7 +770,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Same as a fresh chat — ℹ️ jumps to Model Info, Help and Home are always present. The Back button shows the running cost-in-cents for this session next to it."),
             HelpCard("Tips", "Trace icons on existing assistant bubbles probe the on-disk trace store by closest timestamp + same model + no reportId; old assistant turns from before tracing was on still have no icon."),
             HelpCard("Pitfalls", "Switching the underlying model is not supported mid-session — start a new chat instead. Editing a Parameters preset elsewhere doesn't migrate into the resumed session because the persisted ChatParameters record was built at Start Chat time."),
-            HelpCard("Related", "Use the Pin chip to keep a frequently-resumed session at the top of the hub. Use Continue in chat from a Report to start a fresh chat that inherits a multi-agent run.")
         )
     ),
     "chat_manage" to HelpContent(
@@ -808,7 +783,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only — no per-screen reload, info, delete, or trace icons here."),
             HelpCard("Tips", "The Working… button label tells you when an export is in flight; the Delete button is disabled at the same time, so you can't kick off a parallel scan."),
             HelpCard("Pitfalls", "Pinned chats are excluded from the bulk delete — to remove a pinned chat you have to unpin it from inside the session first. Deletes are immediate and cannot be undone."),
-            HelpCard("Related", "Whole-app backup including chats lives under AI Setup → Backup & restore. Use Search Chats from the hub if you only want to find an old message rather than prune.")
         )
     ),
     "dual_chat_setup" to HelpContent(
@@ -851,7 +825,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only on the list and on the new-KB wizard. Per-KB delete is on the detail screen."),
             HelpCard("Tips", "List re-keys on each ON_RESUME tick — re-indexing or deleting a KB elsewhere shows up when you return. The wizard's empty embedder list points you at Housekeeping → Local LiteRT models or AI Setup → Manual model types overrides."),
             HelpCard("Pitfalls", "Embedder is fixed for the lifetime of the KB — there is no migration path. If you change your mind, create a new KB and re-ingest."),
-            HelpCard("Related", "Multi-select KB attach lives on the chat session header (📚) and on the New Report screen. The retriever uses the first attached KB's embedder; mismatched embedders are skipped silently.")
         )
     ),
     "knowledge_detail" to HelpContent(
@@ -907,7 +880,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("State emoji", "Each row shows the display name plus a small state emoji: 🔑 ok, ❌ error, 💤 inactive, ⭕ untested."),
             HelpCard("Search", "Filters by display name. Result count line shows '<filtered> of <total> providers'."),
             HelpCard("Pitfalls", "Inactive providers are hidden when activeOnly is set (the chat / dual-chat flows). To pick from an inactive provider you have to activate it first in AI Setup."),
-            HelpCard("Related", "Picking a provider here typically routes to the Model picker for that provider next.")
         )
     ),
     "model_pick_model" to HelpContent(
@@ -942,7 +914,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — ❓", "Opens this page (help for the source-detail screen)."),
             HelpCard("Show all", "When opened from the Show all button on Model Info, the body concatenates every source's raw JSON with === Source === headers between sections. Title bar drops the green name + URL and shows the legacy \"All sources · model\" title; the ℹ️ icon is hidden because there's no single provider to point at."),
             HelpCard("Tips", "The JSON is pre-pretty-printed via createAppGson(prettyPrint = true). Field-name colouring relies on a string being followed by ':' after whitespace, which means escape sequences inside strings won't accidentally re-tokenise."),
-            HelpCard("Related", "Capability and pricing rows on Model Info already distill the most useful fields out of these dumps — only dive into the raw view when something looks off or you want to file a catalog issue.")
         )
     ),
     "search_local" to HelpContent(
@@ -956,7 +927,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only. No trace icon — every byte stays on-device, there's nothing to record."),
             HelpCard("Tips", "Search runs entirely on the device — no API calls, no key required. Useful even when offline."),
             HelpCard("Pitfalls", "Tokens are matched as substrings, so very short tokens (\"ai\", \"the\") will inflate scores via incidental matches. Use longer or more distinctive terms when you need precision."),
-            HelpCard("Related", "Use Quick local search for a single-substring filter (no scoring), or Semantic search / Local semantic search for embedding-based similarity instead of keyword matching.")
         )
     ),
     "search_semantic" to HelpContent(
@@ -972,7 +942,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only."),
             HelpCard("Tips", "Edit a report and a fresh content hash means the next run re-embeds it automatically — caching is correct across edits, not just identity. The 50-per-batch limit fits all observed providers."),
             HelpCard("Pitfalls", "Costs scale with report count on first run for a new model; subsequent runs hit the cache. Switching embedding model invalidates the cache for that model only — vectors from the old model are still on disk and reused if you switch back."),
-            HelpCard("Related", "Local semantic search uses an on-device .tflite encoder for the same workflow with no network calls and no per-call cost.")
         )
     ),
     "search_quick" to HelpContent(
@@ -986,7 +955,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only."),
             HelpCard("Tips", "Faster than Extended local search for narrow queries — no per-token scoring loop, no top-N truncation. Returns every hit."),
             HelpCard("Pitfalls", "Title is not searched (only prompt + responses). For a title query, use Extended local search instead."),
-            HelpCard("Related", "Extended local search adds whitespace tokenisation and an occurrence score; semantic searches do similarity matching beyond literal substring.")
         )
     ),
     "search_local_semantic" to HelpContent(
@@ -1002,7 +970,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only — the 🐞 lives next to the status line, not in the title bar."),
             HelpCard("Tips", "ApiTracer writes a synthetic trace entry tagged \"Local semantic search\" so the Trace screen lights up the same way it does for HTTP-backed embedders. The MediaPipe TextEmbedder embeds one string per call internally — \"batch of 50\" is just to reduce the trace count."),
             HelpCard("Pitfalls", "Switching to a different .tflite invalidates the cache for that model — first run after a switch re-embeds every report."),
-            HelpCard("Related", "Cloud Semantic search does the same job using a remote provider's embedding endpoint. Quick local / Extended local searches do non-semantic substring matching.")
         )
     ),
     "share_target" to HelpContent(
@@ -1029,7 +996,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
-            HelpCard("Related", "Tap the AI Setup card on the Hub (Settings sub-hub) for the rest of the configuration; Housekeeping → Reset application reverts everything here to factory defaults.")
         )
     ),
     "settings_other" to HelpContent(
@@ -1039,7 +1005,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
             HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When on, a small LLM call fires at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. When off, the icon row on the result page is hidden, the leftmost report icon (and its tied 📝 memo) drops from every title bar, and per-row icon prefixes on the hub / history / search hits / pickers fall back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk — turning the setting back on brings them back."),
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
-            HelpCard("Related", "Settings → UI tweaks → Show AI Knowledge card on home page hides the Knowledge card on the Hub if you don't use RAG.")
         )
     ),
     "settings_network" to HelpContent(
@@ -1096,7 +1061,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Add Agent", "Top button opens the Edit screen with empty fields and the first active provider preselected as the default."),
             HelpCard("Tips", "Sort is alphabetical by name (case-insensitive)."),
             HelpCard("Pitfalls", "If your provider list is fresh and nothing is active, this list will appear empty even though you have agent rows saved — set up a provider key first."),
-            HelpCard("Related", "Flocks bundle agents into groups; Swarms group provider/model pairs (no agent indirection); Refresh → Default agents seeds one agent per active provider automatically.")
         )
     ),
     "agents_list" to HelpContent(
@@ -1108,7 +1072,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row subtitle", "Provider · model · optional endpoint label. Provider names of inactive providers stay listed here — the report-run dispatch skips them, but you still need to be able to edit / delete the row."),
             HelpCard("Per-row 🗑", "Confirms then removes the agent. Existing references from flocks / swarms / saved reports become broken — fix them up afterwards."),
             HelpCard("Empty state", "No agents yet — tap Add Agent to create the first one."),
-            HelpCard("Related", "Flocks group agents for one-tap inclusion; Swarms group raw (provider, model) pairs without per-agent presets.")
         )
     ),
     "agent_edit" to HelpContent(
@@ -1122,7 +1085,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("System Prompt / Parameters", "Two side-by-side buttons opening selector dialogs. Selected presets show in purple-tinted state. A red ⚠ banner appears beneath when LiteLLM reports the chosen model does not accept system messages."),
             HelpCard("Test Agent", "Visible only when an API key (override or provider) exists. Runs a real API call; on success shows green \"Success\", on failure red error text. The 🐞 next to the result deep-links to the captured trace."),
             HelpCard("Pitfalls", "If you flip provider after picking a model, the model resets — by design, since model ids rarely match across providers."),
-            HelpCard("Related", "Tap Provider on a Trace Detail screen to jump back to the matching agent; the Edit Provider screen auto-creates a default agent when you change its default model.")
         )
     ),
     "flocks" to HelpContent(
@@ -1134,7 +1096,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Default agents flock", "Refresh → Default agents creates / maintains a flock named exactly DEFAULT_AGENTS_FLOCK_NAME — do not rename it manually unless you know what you are doing."),
             HelpCard("Tips", "Flocks are sorted alphabetically; the subtitle truncates long member lists, so the Edit screen is the canonical view."),
             HelpCard("Pitfalls", "Deleting a flock does not delete the agents it referenced — agents are owned at a higher level."),
-            HelpCard("Related", "Refresh → Default agents auto-builds a default flock; Reports → New report → + Flock pulls from this list.")
         )
     ),
     "flocks_list" to HelpContent(
@@ -1145,7 +1106,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the flock's edit screen — change name, members, optional flock-level presets."),
             HelpCard("Row subtitle", "Comma-joined agent names. Inactive-provider agents stay in the list so you can fix things up — expandFlockToModels skips them when the report actually runs."),
             HelpCard("Empty state", "No flocks yet — tap Add Flock to create the first one."),
-            HelpCard("Related", "Agents (members), Swarms (raw provider/model groups), Parameters / System Prompts (presets you can pin on the flock).")
         )
     ),
     "flock_edit" to HelpContent(
@@ -1169,7 +1129,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Members of inactive providers stay in the swarm but won't run — fix the provider state and they re-light without re-editing."),
             HelpCard("Difference from Flocks", "Flocks reference agents (and inherit each agent's API key / endpoint / prompts). Swarms hold raw provider+model tuples and use the provider's saved key / endpoint, plus optional swarm-level system prompt and parameters."),
             HelpCard("Pitfalls", "There is no per-member API key override — for that, build agents and a flock instead."),
-            HelpCard("Related", "Reports → New report → + Swarm pulls from this list.")
         )
     ),
     "swarms_list" to HelpContent(
@@ -1180,7 +1139,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the swarm's edit screen — change name, add / remove (provider, model) members."),
             HelpCard("Row subtitle", "Comma-joined provider/model pairs."),
             HelpCard("Empty state", "No swarms yet — tap Add Swarm to create the first one."),
-            HelpCard("Related", "Agents / Flocks for grouped configured workers; the +Swarm button on New AI Report adds every member of a swarm in one tap.")
         )
     ),
     "swarm_edit" to HelpContent(
@@ -1192,7 +1150,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Member cards", "One card per (provider, model) tuple. Provider name in blue, model id in white, plus capability badges (👁 vision / 🌐 web / 🧠 reasoning). The trailing red ✕ removes the member."),
             HelpCard("Adding from the picker", "Already-added members render dimmed and ignore taps so a duplicate can't sneak in. Members are keyed on (provider.id, model) — case-insensitive on the model id."),
             HelpCard("Pitfalls", "The picker only surfaces ACTIVE providers (those with a working API key). Models from inactive providers are hidden from the catalog."),
-            HelpCard("Related", "Same picker is reachable from the Hub's AI Models card and from AI Chat → Configure on the fly.")
         )
     ),
     "parameters" to HelpContent(
@@ -1203,7 +1160,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Add Parameter Preset", "Top button opens the edit screen blank."),
             HelpCard("Tips", "When multiple presets are attached to a worker (agents accept a list), later non-null values win — a sensible \"merge\" semantics."),
             HelpCard("Pitfalls", "Setting maxTokens here is a soft suggestion for OpenAI but mandatory for Anthropic; leaving it blank in an Anthropic-bound preset falls back to 4096."),
-            HelpCard("Related", "Workers → Agents / Flocks / Swarms reference these by id; Provider edit also accepts a list of params ids that apply to every call to that provider.")
         )
     ),
     "parameters_list" to HelpContent(
@@ -1214,7 +1170,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the editor for that preset."),
             HelpCard("Row subtitle", "Compact summary of which knobs the preset overrides — e.g. 'temp / max-tokens / top_p set'."),
             HelpCard("Empty state", "No presets yet — tap Add Parameter Preset to create the first one."),
-            HelpCard("Related", "Agents and Flocks reference Parameters presets by id; deleting a preset doesn't break referrers but leaves them with one fewer knob to merge.")
         )
     ),
     "parameters_edit" to HelpContent(
@@ -1237,7 +1192,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Add System Prompt", "Top button opens an empty editor."),
             HelpCard("Tips", "Names are unique among system prompts (case-insensitive). The body is required for save."),
             HelpCard("Pitfalls", "If a worker also has a Parameters preset that carries a non-blank systemPrompt, that wins over the bare System Prompt — the preset's value is the late-merge winner."),
-            HelpCard("Related", "Internal Prompts (Meta / Fan-out / Fan-in / Other) live in a different bucket and use placeholders like @QUESTION@ / @RESULTS@ — not interchangeable with these.")
         )
     ),
     "system_prompts_list" to HelpContent(
@@ -1248,7 +1202,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the editor for that preset — change name and text."),
             HelpCard("Row subtitle", "First non-blank line of the prompt body, truncated."),
             HelpCard("Empty state", "No presets yet — tap Add System Prompt to create the first one."),
-            HelpCard("Related", "Agents and Flocks reference system prompts by id; flock-level overrides agent-level at run time.")
         )
     ),
     "system_prompt_edit" to HelpContent(
@@ -1259,7 +1212,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Live counter", "\"N characters\" beneath the body, updated on every keystroke."),
             HelpCard("Tips", "Markdown is fine — most chat APIs forward it raw and many models treat it as styled hints."),
             HelpCard("Pitfalls", "There is no token-count check; oversized system prompts will count against context length at run time without a warning here."),
-            HelpCard("Related", "Use placeholders like @QUESTION@ here at your peril — substitution only happens for Internal Prompts, not System Prompts.")
         )
     ),
     "fan_in_out_prompts_hub" to HelpContent(
@@ -1270,7 +1222,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Fan in, total", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
             HelpCard("Fan In, model", "category=\"fan-in-model\". Per-(provider, model) scoped fan-in. Reached from the L2 \"Fan out — model\" page's New Fan In button. Both @RESPONDERS@ (other models' fan-out responses to the active model) and @RESPONDER_PAIRS@ (pairs where active is the responder — `***Report***` + `***Response***` per pair) are populated; the prompt body opts in by reference. Empty state — no fan-out rows touching the active model — produces a placeholder error row instead of running."),
             HelpCard("Tips", "All three fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — the same name can exist in fan_out and fan-in-model without collision."),
-            HelpCard("Related", "Settings → AI Setup → Prompt management → Fan out/in prompts. Each card opens the same list screen pinned to one category — counts show how many entries are in each bucket.")
         )
     ),
     "internal_prompts" to HelpContent(
@@ -1280,7 +1231,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Item rows", "Show name plus a chip line: ref · agent (omitted when *select), then \"— title or first 60 chars of body\". Tap to edit; trash to delete (hidden for Other internal)."),
             HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\"). Hidden for Other internal."),
             HelpCard("Tips", "Sorted alphabetically by name. Edits stay scoped to this category — saving in the editor pushes back into the same bucket."),
-            HelpCard("Related", "The Report Result screen's Meta and Fan out buttons surface meta and fan_out prompts respectively; Fan out (L1) surfaces fan_in.")
         )
     ),
     "internal_prompts_list" to HelpContent(
@@ -1291,7 +1241,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the prompt editor — change name, title, body. The category is locked to the screen's category."),
             HelpCard("Row subtitle", "Prompt title (or first body line when title is blank)."),
             HelpCard("Empty state", "No prompts in this category yet — tap Add (when available) to create one."),
-            HelpCard("Related", "The Report flow's Create → Meta / Fan-out / Fan-in / Translate / Rerank buttons all pick from these lists. Load new prompts from assets/prompts.json to refresh the bundled defaults.")
         )
     ),
     "internal_prompt_edit" to HelpContent(
@@ -1313,7 +1262,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
             HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped; \"Local\" reserved). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
-            HelpCard("Related", "AI Setup → Providers leads straight here. The 🛠️ admin icon on each row is the per-provider deep-link to its web console.")
         )
     ),
     "provider_edit" to HelpContent(
@@ -1341,7 +1289,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Remove failed", "Surfaces only after a Test all run completed with at least one ❌. Tap removes the failed list from the persisted models — the auto-save effect picks it up. Trace icons for those rows clear with them."),
             HelpCard("Per-row badges", "👁 vision / 🌐 web search / 🧠 reasoning + a colored type chip (chat/embedding/rerank/image/tts/stt/moderation/classify). The chip respects manual overrides instantly."),
             HelpCard("Pitfalls", "Manual lists are user-curated — Fetch Models is hidden in Manual mode. If you switch to Manual mid-edit, partial form state is wiped to avoid surprises on return."),
-            HelpCard("Related", "Click a model row to open its Model Info screen.")
         )
     ),
     "model_edit" to HelpContent(
@@ -1365,7 +1312,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Field placeholder", "Each input shows the hardcoded fallback as a dim placeholder so you know what will run if you leave the field empty."),
             HelpCard("Tips", "Per-provider Type paths under Provider edit → Definition · API win over these — so use this screen for global defaults, the provider screen for exceptions."),
             HelpCard("Pitfalls", "If you blank a default that the hardcoded fallback also doesn't have, dispatch will throw at runtime — easiest case is if you typo a path and the underlying provider doesn't expose that type."),
-            HelpCard("Related", "Provider edit's Definition · API → Type paths overrides are the per-provider equivalent.")
         )
     ),
     "manual_model_types_list" to HelpContent(
@@ -1376,7 +1322,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the editor for the override."),
             HelpCard("Row subtitle", "Provider · model · type."),
             HelpCard("Empty state", "No overrides yet — tap Add Override to create the first one."),
-            HelpCard("Related", "Model Types (configures the default type lookup); Cost Config (separate path for manual pricing overrides).")
         )
     ),
     "manual_model_types" to HelpContent(
@@ -1389,7 +1334,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Capability flags", "Wired into Settings.isVisionCapable / isWebSearchCapable / isReasoningCapable so a tick here surfaces the badge anywhere this model appears, even when the provider's auto-derived sets miss it."),
             HelpCard("Tips", "Reachable from Model Info → \"Add manual override\" too — it pre-fills the form with the current model's heuristic flags so you only confirm or change them."),
             HelpCard("Pitfalls", "Switching the provider in the editor wipes the model id (model lists are provider-scoped)."),
-            HelpCard("Related", "ManualModelOverrideEntryScreen is the same form pre-populated for direct entry from Model Info.")
         )
     ),
     "external_services" to HelpContent(
@@ -1401,7 +1345,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Artificial Analysis", "Pricing snapshot plus quality / speed scores. Free tier — sign up at artificialanalysis.ai/api. Used by Refresh → Artificial Analysis."),
             HelpCard("Tips", "Filling these unlocks the matching Refresh actions on the Refresh screen — without an OpenRouter key the OpenRouter button is disabled, same for Artificial Analysis."),
             HelpCard("Pitfalls", "These are NOT LLM provider keys — adding an OpenAI / Anthropic key here will not register the provider. Use Settings → AI Setup → Providers for that."),
-            HelpCard("Related", "Refresh → OpenRouter / Artificial Analysis. Backup includes these keys; Clear all configuration removes them.")
         )
     ),
     "refresh" to HelpContent(
@@ -1412,7 +1355,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("AI Info Providers (sub-page)", "Catalog-source refreshes: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis. The page's own \"All info providers\" runs the six in parallel without touching per-provider tests."),
             HelpCard("AI Runtime workers (sub-page)", "Per-AppService work: Provider key tests, Model lists, Default agents. The page's own \"All runtime workers\" runs the three sequentially without touching the catalogs."),
             HelpCard("Pitfalls", "OpenRouter and Artificial Analysis buttons inside AI Info Providers disable themselves until you set their keys under External Services."),
-            HelpCard("Related", "Reachable both from AI Setup → Refresh and from Housekeeping → Refresh.")
         )
     ),
     "refresh_info_providers" to HelpContent(
@@ -1456,7 +1398,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Export · All including / excluding API keys", "Two variants of one bundle. Shape: { apiKeys?, costs, providers, prompts, examples, agents, flocks, swarms, settings, modelLists, parameters, systemPrompts }. Identical except the \"excluding\" variant omits the apiKeys section — safer for sharing with a colleague or pushing to a public repo."),
             HelpCard("Import", "One button per export shape, plus a full-width All that reads either bundle variant (sections are optional, missing ones are skipped). Workers and All upsert agents / flocks / swarms by id; bad rows (e.g. references to a deleted provider) are logged and skipped, the rest go through. Example prompts upsert by case-insensitive title; Parameters and System prompts upsert by id; Model lists replace the per-provider list."),
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently. Settings import leaves missing fields untouched (partial files are fine)."),
-            HelpCard("Related", "Layered-costs CSV (Housekeeping → Manual cost overrides) is the bulk-edit path for overrides across every model. Backup & Restore is the all-in-one zip alternative.")
         )
     ),
     "local_runtime" to HelpContent(
@@ -1467,7 +1408,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Local LiteRT models", "On-device .tflite text embedders (MediaPipe Tasks). Drives Local Semantic Search and Knowledge bases whose embedderProviderId == \"LOCAL\"."),
             HelpCard("Tips", "Counts are read once on screen entry — switch back to AI Setup and forward again if you just installed something via the deeper screens."),
             HelpCard("Pitfalls", "Backup explicitly excludes local_llms/ and local_models/ (FILES_DIR_BACKUP_EXCLUDES) — these are big, easily re-downloadable, and personal. Same set is preserved through clearFilesDirForRestore."),
-            HelpCard("Related", "Both runtimes are wiped by Housekeeping → Clear all configuration but kept by Clear runtime data. Reset application also wipes them.")
         )
     ),
     "local_litert_models" to HelpContent(
@@ -1480,7 +1420,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Installed list", "Below the buttons. One row per installed model with a red \"Remove\" — releases the embedder and deletes <name>.tflite from disk."),
             HelpCard("Tips", "MediaPipe Tasks metadata is mandatory; arbitrary .tflite files won't load even though the picker accepts them."),
             HelpCard("Pitfalls", "Backup excludes this directory — restoring a backup leaves your installed embedders untouched, but a fresh device starts empty."),
-            HelpCard("Related", "Knowledge → embedderProviderId=\"LOCAL\" KBs use these. Local Semantic Search (Search → Local Semantic) does too.")
         )
     ),
     "local_llms" to HelpContent(
@@ -1492,7 +1431,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Installed list", "One row per installed model with a red Remove — releases the runtime and deletes <name>.task from <filesDir>/local_llms/."),
             HelpCard("Tips", "AppService.LOCAL is synthetic — not in ProviderRegistry, only reachable via findById(\"LOCAL\"). Once you have at least one .task installed, Local appears as a normal provider in every picker."),
             HelpCard("Pitfalls", "Empty / corrupt extractions are detected (target.length() == 0L) and the partial file is deleted; the toast says \"Could not import model\". Backup excludes local_llms/."),
-            HelpCard("Related", "Local LLM dispatch routes to LocalLlm.generate instead of Retrofit — no network, no cost, but token speed is bound by your device.")
         )
     ),
     "setup_models" to HelpContent(
@@ -1504,7 +1442,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Manual model types overrides", "CRUD for (provider, model, type, capabilities) overrides that win over autodetection. Count = number of overrides currently saved."),
             HelpCard("Tips", "Resolution order at dispatch: per-provider Type paths (Provider edit → Definition · API) → Model Types defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
             HelpCard("Pitfalls", "If no provider is active the Models card stays grey-blue and unclickable."),
-            HelpCard("Related", "Provider edit → Definition · API → Type paths exposes the per-provider override layer.")
         )
     ),
     "setup_workers" to HelpContent(
@@ -1516,7 +1453,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Swarms", "Groups of (provider, model) pairs without going through agents. Count = number of swarms."),
             HelpCard("Tips", "When you import a config bundle these counts jump in lockstep with the imported data."),
             HelpCard("Pitfalls", "If your only API key was just removed, all three cards lock — the hub uses aiSettings.hasAnyApiKey() as its enable gate."),
-            HelpCard("Related", "Refresh → Default agents auto-creates one agent per active provider plus a \"default agents\" flock that ties them together.")
         )
     ),
     "setup_prompts" to HelpContent(
@@ -1540,7 +1476,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Local LiteRT models", "Counts installed .tflite files in <filesDir>/local_models/."),
             HelpCard("Tips", "Both card counts are read with remember{} on entry — they don't auto-refresh on changes inside the deeper screens."),
             HelpCard("Pitfalls", "Backup excludes both directories. Clear all configuration removes both, as does Reset application; Clear runtime data leaves them alone."),
-            HelpCard("Related", "AppService.LOCAL is synthetic and only registered when a .task is present.")
         )
     ),
     "housekeeping" to HelpContent(
@@ -1549,7 +1484,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ️ for the per-screen detail."),
             HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear runtime data, and Clear all configuration are not undoable."),
-            HelpCard("Related", "Local LLMs / Local LiteRT model maintenance is under AI Setup, not here — the on-device runtimes are configuration, not housekeeping.")
         )
     ),
     "backup_restore" to HelpContent(
@@ -1560,7 +1494,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Restore", "Blue button. Picker is restricted to .zip plus application/octet-stream (some providers report .zip with the latter mime). Confirmation dialog appears first. The restore is validate-then-write: the zip is parsed before any current file is touched."),
             HelpCard("Auto-restart", "On successful restore the app shows a toast, waits ~800ms, then relaunches itself with FLAG_ACTIVITY_NEW_TASK + CLEAR_TASK and kills the current process. The next launch reads the restored data fresh."),
             HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it). Local LLM and LiteRT model files have to be re-installed by hand on a new device — they're never in the zip."),
-            HelpCard("Related", "Export/Import does selective shape-typed transfer (keys, costs, providers.json, prompts.json) without bundling reports/chats/traces.")
         )
     ),
     "trim_by_age" to HelpContent(
@@ -1570,7 +1503,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
             HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
             HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
-            HelpCard("Related", "Reset → Clear runtime data wipes ALL chats and traces regardless of age, plus app logs and usage statistics. Reports stay; use this screen for reports.")
         )
     ),
     "usage_statistics" to HelpContent(
@@ -1579,7 +1511,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "One purple button that empties the per-(provider, model) call counts, token totals, and accumulated cost. The AI Usage screen empties out; reports, chats, traces, configuration, and pricing tiers stay intact."),
             HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
             HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
-            HelpCard("Related", "AI Usage screen (cost / tokens dashboard) reads exactly the data this button wipes.")
         )
     ),
     "example_prompts_list" to HelpContent(
@@ -1590,7 +1521,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Row tap", "Opens the editor — change title and body."),
             HelpCard("Row subtitle", "First non-blank line of the body, truncated."),
             HelpCard("Empty state", "No examples yet — tap Add Example to create the first one. Load fresh examples from assets/examples.json via the Internal-prompts loader."),
-            HelpCard("Related", "Prompt History (every prompt actually sent); the Hub's Start with a previous prompt entry shows examples + history together.")
         )
     ),
     "example_prompt_edit" to HelpContent(
@@ -1600,7 +1530,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title", "Required. Used as the case-insensitive de-dup key when Housekeeping → Prompts → Add new prompts from assets/examples.json runs — same title means the bundled row is skipped."),
             HelpCard("Text", "Multi-line body, no enforced placeholder set. Free-form starter the user pastes into the New Report prompt field; the app does not substitute anything automatically."),
             HelpCard("Tips", "Example prompts are pure data, not bound to any app feature. Add as many as you like; reorder via Title since the list sorts alphabetically."),
-            HelpCard("Related", "Internal prompt edit (the @QUESTION@ / @RESULTS@ template kind used by Meta / Fan out) is a separate screen with category + agent + reference fields.")
         )
     ),
     "reset" to HelpContent(
@@ -1613,7 +1542,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("assets/*.json", "Three per-file restore buttons (providers / prompts / examples). Each drops the targeted list and reloads it from the bundled JSON; nothing outside that list is touched."),
             HelpCard("Reset application", "Factory-style — keeps API keys but wipes everything else, reloads providers + internal prompts from assets, then runs the Refresh-all chain. Gated by a type-RESET dialog and force-restarts the app on success."),
             HelpCard("Pitfalls", "Each leaf screen has its own confirmation dialog. Reset application's confirmation is CASE-sensitive (literally \"RESET\", trimmed). The other four are immediate after the dialog."),
-            HelpCard("Related", "Backup & Restore is the only undo path — take a backup before any operation here if there's any chance you'll regret it.")
         )
     ),
     "reset_runtime" to HelpContent(
@@ -1624,7 +1552,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("What it keeps", "Reports, knowledge bases (KB definitions + chunks + embeddings), prompt history, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys, External Services keys) is fully preserved."),
             HelpCard("When to use", "Privacy-driven cleanup — chats and traces contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
             HelpCard("Pitfalls", "Activity logs are append-only — once wiped, there's no recovery. The Application log viewer goes empty until the app writes new entries."),
-            HelpCard("Related", "Trim by age is the per-day surgical alternative — drop only what's older than N days, keep recent. Backup is the only undo.")
         )
     ),
     "reset_info_providers" to HelpContent(
@@ -1635,7 +1562,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("What it keeps", "Manual cost overrides (they sit above the Info tiers in the layered lookup), Together's native self-reported pricing, every provider's models / API key / endpoints, and everything else outside the pricing surface."),
             HelpCard("When to use", "When a tier shipped a bad price and you want to force a fresh fetch on the next Refresh, or when troubleshooting the layered lookup."),
             HelpCard("Pitfalls", "Until Refresh re-runs, every model that depends on Info-tier pricing renders as DEFAULT_PRICING — usage / cost numbers will look wrong until you Refresh."),
-            HelpCard("Related", "Housekeeping → Refresh repopulates these caches. AI Setup → Costs is where manual overrides live (and they survive this wipe).")
         )
     ),
     "reset_configuration" to HelpContent(
@@ -1646,7 +1572,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("What it keeps", "Reports, chats, traces, knowledge bases, usage statistics, the six Info-provider pricing caches, the OpenRouter model-specs cache, the per-provider model-list cache, and the semantic-search embedding cache."),
             HelpCard("When to use", "Starting over with a fresh provider/agent setup while keeping your accumulated reports and chats. Less surgical than the asset-restore options; less destructive than Reset application."),
             HelpCard("Pitfalls", "Local LLMs and LiteRT models are deleted on disk — re-installing them takes the file copy + extract time again. There is no undo apart from Backup & Restore."),
-            HelpCard("Related", "Reset application also wipes configuration but additionally reloads providers + prompts from assets and runs the Refresh chain. assets/*.json is the per-file alternative.")
         )
     ),
     "reset_assets" to HelpContent(
@@ -1658,7 +1583,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("back to assets/examples.json", "Drops every Example prompt (including any you authored) and reloads assets/examples.json. Doesn't touch Internal or System prompts."),
             HelpCard("When to use", "Quick rollback when an edit went wrong, or when you've forked the bundle and want to see what the bundled values currently look like compared to your custom set."),
             HelpCard("Pitfalls", "User-authored entries in the targeted list are wiped. Use Backup first if you have hand-built prompts you want back. Bundled-asset failures (missing file, parse error) leave the targeted list empty — the Toast reports failure."),
-            HelpCard("Related", "Clear all configuration wipes the same lists but also keys / agents / workers. Reset application reloads providers + prompts from assets and runs Refresh.")
         )
     ),
     "reset_application" to HelpContent(
@@ -1670,7 +1594,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / knowledge bases / embeddings / prompt history / usage statistics, pricing and model-list caches, every Local LLM and LiteRT model."),
             HelpCard("After it runs", "RestartAppDialog appears — tap to relaunch. The first launch after reset takes longer than usual because Refresh-all runs end-to-end (catalogs first, then per-provider tests, then default-agents flock creation)."),
             HelpCard("Pitfalls", "Confirmation is CASE-sensitive — \"reset\" won't enable the button. The busy-spinner dialog covers the whole Refresh chain; let it run rather than killing the app."),
-            HelpCard("Related", "Backup & Restore is the only way to recover any of the wiped data. The Refresh screen is what runs at the tail of this operation.")
         )
     ),
     "statistics" to HelpContent(
@@ -1683,7 +1606,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Rerank rows", "Bill per search-unit, not per token. Token columns stay zero by design; per-query cost lands in the input column."),
             HelpCard("Tips", "Tap a model row to drill into Model Info for that (provider, model)."),
             HelpCard("Pitfalls", "Legacy rows written before the kind field exist deserialize without one — SettingsPreferences.loadUsageStats backfills, but the row defends with `(swc.stat.kind as String?) ?: \"report\"` to keep the renderer safe."),
-            HelpCard("Related", "Cost Config (Settings → Costs) edits the OVERRIDE tier; Refresh → OpenRouter / LiteLLM rebuild the curated tiers consulted here.")
         )
     ),
     "cost_config" to HelpContent(
@@ -1699,7 +1621,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
             HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Cleanup drops those redundant entries."),
-            HelpCard("Related", "Export/Import → Costs Overrides exports just the manual layer as a 4-column CSV.")
         )
     ),
     "cost_override" to HelpContent(
@@ -1712,7 +1633,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Save", "Disabled until provider + non-blank model + parseable input + parseable output. Numbers are $/1M tokens; saved divided by 1,000,000."),
             HelpCard("Tips", "When opened from Model Info on an existing override, both price fields pre-populate from the saved values."),
             HelpCard("Pitfalls", "Negative prices and non-numeric input fail the Save gate without an explicit error message — the button just stays disabled."),
-            HelpCard("Related", "Layered costs CSV → Import manual changed costs is the bulk equivalent.")
         )
     ),
     "trace_list" to HelpContent(
@@ -1726,7 +1646,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Per-row", "Hostname (left), date/time (center, MM/dd HH:mm:ss), status code (right; green 2xx / orange 4xx / red 5xx / dim others)."),
             HelpCard("Tips", "Picking a model uses a full-screen overlay (TraceModelPickerOverlay) since the option list can be too long for a popup menu."),
             HelpCard("Pitfalls", "PROVIDER_AUX_HOSTS maps Cohere's api.cohere.com onto the Cohere baseUrl host — without that the rerank API traces would land in \"(unknown)\". Extend the map for any provider with a similar second host."),
-            HelpCard("Related", "Most 🐞 ladybug icons across the app deep-link here with category/model filters preset.")
         )
     ),
     "trace_detail" to HelpContent(
@@ -1753,7 +1672,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Sourcing", "Options come from pickableModels in the parent — distinct (provider, model) pairs from traces in the currently scoped Category + Provider + Hostname subset. Picking an unpopulated combination is impossible."),
             HelpCard("Tips", "Sorted (provider, model) by lowercased name; ties broken by model id."),
             HelpCard("Pitfalls", "If you change the upstream Category / Provider / Hostname filters AFTER picking a model, your model selection may no longer match anything — the list will go empty until you clear it."),
-            HelpCard("Related", "Reachable only from the trace list's Model launcher button.")
         )
     ),
     "developer_test" to HelpContent(
@@ -1778,7 +1696,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Submit", "Turns tracing on for this single call regardless of the global setting (and restores it after), runs AnalysisRepository.testApiConnectionWithJson, then jumps to TraceDetail for the new trace if one was captured. If nothing new came in, just toasts \"Request sent. Check traces.\""),
             HelpCard("Tips", "This bypasses the Retrofit serialization layer entirely — perfect for testing edge-case body shapes a provider's docs claim to support."),
             HelpCard("Pitfalls", "API key for the call comes from eval_prefs and is also sent in plain text via the standard provider Authorization scheme; if you mis-typed it on the test screen the failure looks like a 401 in the trace, not a UI error here."),
-            HelpCard("Related", "Trace Detail → Edit jumps here pre-populated with the trace's request — fast \"replay with tweaks\" loop.")
         )
     ),
     // ===== Per-cloud-provider help pages (42) =====
@@ -1796,7 +1713,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Two tracks coexist: chat-completion models (`gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`, `o1-mini`) and the newer Responses-API models (`gpt-5`, `gpt-5-mini`, `o3*`, `o4*`, `gpt-4.1*`). Moderation (`omni-moderation-latest`, `text-moderation-latest`), TTS (`tts-1`), Whisper, and DALL-E 3 / `gpt-image-1` are available too — they're hardcoded in our catalog because `/v1/models` doesn't enumerate them. The default model in this app is `gpt-4o-mini`. `modelFilter=gpt|o1|o3|o4` trims the noisy /v1/models list."),
             HelpCard("Pricing & quirks", "OpenAI uses TWO endpoints depending on model family: Chat Completions (`v1/chat/completions`) for gpt-4o-class and o1-mini, and Responses API (`v1/responses`) for gpt-5 / o3* / o4* / gpt-4.1*. Auto-routed by `usesResponsesApi()` + `endpointRules`. Multi-text Responses-API output blocks are concatenated by the dispatcher. Pricing fed by LiteLLM + OpenRouter (alias `openai/<model>`); manual override + fixed tiers fill any gaps."),
             HelpCard("Pitfalls", "Tier-gated models 404 with no warning until your account climbs. Some keys are organization-scoped and need an `OpenAI-Organization` header — the app doesn't send one, so use a personal key or set the default org on the key. Reasoning effort (`low`/`medium`/`high`) is honored only by gpt-5 / o-series; non-reasoning models silently drop the field at dispatch."),
-            HelpCard("Related", "Console: `https://platform.openai.com/settings/organization/api-keys`. OpenRouter alias: `openai`. Status / outage page: status.openai.com — worth checking when every model 503s.")
         )
     ),
 
@@ -1808,7 +1724,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Hero family: Claude 4 Opus / Sonnet (May 2024 ids in catalog, e.g. `claude-sonnet-4-20250514`, `claude-opus-4-20250514`), plus Claude 3.7 / 3.5 Sonnet, 3.5 Haiku, and the older 3 Opus / Sonnet / Haiku. Default model in the app is `claude-sonnet-4-20250514`. 8 hardcoded fallback models cover the major ids; live list comes from `v1/models`. `modelFilter=claude` keeps the picker tidy."),
             HelpCard("Pricing & quirks", "`apiFormat = ANTHROPIC` — separate dispatch path. Auth via `x-api-key` + `anthropic-version: 2023-06-01` (NOT Bearer). Path is `v1/messages` (override on `typePaths.chat`). **`max_tokens` is required** — the dispatcher defaults to 4096 if you didn't set one and logs an override when reasoning is on. Streaming uses both `event:` and `data:` SSE framing. Web-search tool (`web_search_20250305`) injected when 🌐 is on for Claude 3.5+."),
             HelpCard("Pitfalls", "Forgetting `max_tokens` is fatal — Anthropic returns 400 immediately. Vision images are base64 `image` content blocks (not OpenAI-shape `image_url`). Some accounts can't access Opus 4 until the rate-limit tier is approved. Long context (200k) costs the same per-token but cache reads price differently — pricing tiers may understate your bill."),
-            HelpCard("Related", "Console: `https://console.anthropic.com/settings/keys`. OpenRouter alias: `anthropic`. Pricing source order: LiteLLM → OpenRouter cross-provider fallback.")
         )
     ),
 
@@ -1820,7 +1735,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Gemini 2.0 Flash (default in app), 2.5 Pro / Flash / Flash-Lite, 1.5 Pro / Flash, plus older `gemini-pro` / `gemini-pro-vision`. Embedding models (`text-embedding-004`, `gemini-embedding-001`). Live list at `v1beta/models` — `modelListFormat=array` because the response is a bare top-level array. `litellmPrefix=gemini` for the LiteLLM alias."),
             HelpCard("Pricing & quirks", "`apiFormat = GOOGLE` — its own dispatch path. **Auth is `?key=<key>` query parameter** (URL-encoded), NOT a Bearer header. Model id is in the URL path: `v1beta/models/{model}:generateContent` (or `:streamGenerateContent` when streaming). Roles use `user` / `model` (not `user` / `assistant`). System prompt is a separate `systemInstruction` field. Vision images are `inlineData(mimeType, data)` parts. Web-search tool descriptor is `google_search` for 1.5+ / 2.x."),
             HelpCard("Pitfalls", "The query-param auth means a leaked URL leaks the key — `ApiTracer` redacts it at write time, but third-party log captures elsewhere may not. Path-encoded model ids show in trace URLs; the tracing interceptor extracts `trace.model` from there for non-body-encoded providers. Free-tier rate limits are aggressive; expect 429 retries during heavy fan-out."),
-            HelpCard("Related", "Console: `https://aistudio.google.com/app/apikey`. OpenRouter alias: `google`. The streaming-JSON parser (chunked-JSON, not SSE) is in `ApiStreaming.streamGoogle`.")
         )
     ),
 
@@ -1832,7 +1746,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Hero models: Grok-3, Grok-3-mini (default), Grok-2, Grok-2-Vision, Grok-Beta. `modelFilter=grok` trims the picker. `defaultModelSource=API` — the app fetches the live list from `v1/models`."),
             HelpCard("Pricing & quirks", "`costTicksDivisor=1e10` — the API returns `usage.cost` denominated in 10⁻¹⁰ USD ticks. The dispatcher divides to get dollars; provider-config edit refuses non-positive divisors so misconfiguration can't accidentally inflate costs. Otherwise OpenAI-compatible — Bearer auth, Chat Completions shape. `litellmPrefix=xai`, `openRouterName=x-ai`."),
             HelpCard("Pitfalls", "Cost ticks confuse third-party pricing tiers — LiteLLM and llm-prices have caught up, but a fresh model id may surface with the wrong magnitude until they update. Some Grok-3 features (e.g. live search) require additional flags this app doesn't yet plumb. Vision support is model-specific (Grok-2-Vision)."),
-            HelpCard("Related", "Console: `https://console.x.ai/`. OpenRouter alias: `x-ai`. LiteLLM alias: `xai`. xAI API docs: docs.x.ai.")
         )
     ),
 
@@ -1844,7 +1757,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Hosted catalog of Meta's Llama 3.x (`llama-3.3-70b-versatile` default), Llama 4 Scout/Maverick, Mistral / Mixtral, Qwen 3, Whisper, plus image variants. `defaultModelSource=API` so the live list at `v1/models` drives the picker. No hardcoded fallback — Groq's catalog rotates quickly as they add / retire model variants."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing per million tokens is competitive on open-weight models thanks to LPU economics. `litellmPrefix=groq` for the LiteLLM alias."),
             HelpCard("Pitfalls", "Free-tier daily limits hit fast on fan-out runs (the per-day cap counts every retry). Some models retire on short notice — your saved Agent's model id may 404 after a quarterly rotation; Refresh All flags failed providers with one-tap nav-to-edit. Whisper and embedding models are typed but not all flows route to them."),
-            HelpCard("Related", "Console: `https://console.groq.com/keys`. LiteLLM alias: `groq`. No OpenRouter mirror — Groq doesn't sell through OpenRouter today.")
         )
     ),
 
@@ -1856,7 +1768,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "`deepseek-chat` (V3, default) and `deepseek-reasoner` (R1). Some accounts see additional preview tiers. `modelsPath=models` (not `v1/models`); `chat` path is `chat/completions` (not `v1/chat/completions`). `modelFilter=deepseek` trims the picker. `defaultModelSource=API`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing-cache aliases: `litellmPrefix=deepseek`, `openRouterName=deepseek`. Reasoning models surface their chain-of-thought as part of the response — the dispatcher does not currently strip it before display."),
             HelpCard("Pitfalls", "Service interruptions sometimes follow regulatory cycles in China — failovers via OpenRouter / Together / SiliconFlow keep the same model accessible elsewhere if needed. Reasoning tokens count as output and can dominate the bill on long chains. Some non-China users report intermittent 403 from carrier IPs; a VPN often fixes it."),
-            HelpCard("Related", "Console: `https://platform.deepseek.com/api_keys`. LiteLLM alias: `deepseek`. OpenRouter alias: `deepseek` (their hosted DeepSeek route).")
         )
     ),
 
@@ -1868,7 +1779,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "`mistral-small-latest` (default), `mistral-large-latest`, `mistral-medium-latest`, `codestral-latest` (code), `pixtral-12b-2409` (vision), `open-mistral-7b`, `open-mixtral-8x7b` / 8x22b. `modelFilter=mistral|open-mistral|codestral|pixtral`. `defaultModelSource=API`."),
             HelpCard("Pricing & quirks", "**`seedFieldName=random_seed`** — Mistral's only structural deviation from the OpenAI shape. The dispatcher writes `random_seed` instead of `seed` based on `service.seedFieldName`. Otherwise vanilla OpenAI-compatible. `openRouterName=mistralai`. Codestral has a separate endpoint (`codestral.mistral.ai`) configurable via Endpoints; default is the unified `api.mistral.ai`."),
             HelpCard("Pitfalls", "If you hand-edit JSON in the API Test screen and use `seed` instead of `random_seed`, Mistral silently ignores it (no error, just non-determinism). Free tier's per-minute limit kicks in fast on fan-out runs. Pixtral pricing is the same as Mistral-12B but image-to-token accounting can surprise."),
-            HelpCard("Related", "Console: `https://console.mistral.ai/api-keys/`. OpenRouter alias: `mistralai`. Codestral has its own endpoint card on the Endpoints screen.")
         )
     ),
 
@@ -1880,7 +1790,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `sonar` (default), `sonar-pro`, `sonar-reasoning-pro`, `sonar-deep-research`. The deep-research variant runs many internal agentic searches per call. `modelFilter=sonar|llama` keeps stale Llama-passthrough ids visible only when intentionally listed."),
             HelpCard("Pricing & quirks", "`supportsCitations=true` — responses include an inline `citations` array that the dispatcher pulls into `AnalysisResponse.citations`. `supportsSearchRecency=true` — the request body accepts a `search_recency_filter` parameter (day / week / month). `chat` path is `chat/completions` (not `v1/chat/completions`). Otherwise OpenAI-compatible. `openRouterName=perplexity`."),
             HelpCard("Pitfalls", "Citations only render when the chosen model supports them — a non-Sonar passthrough returns no citations, even though the response object still has the field. Deep-research calls can run for minutes; the OkHttp read timeout (600s) covers it but some upstream proxies don't. Search-recency filter is a string; typos silently disable filtering."),
-            HelpCard("Related", "Console: `https://www.perplexity.ai/settings/api`. OpenRouter alias: `perplexity`. The dispatcher's citations extraction lives in `ApiDispatch.kt`.")
         )
     ),
 
@@ -1892,7 +1801,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "`meta-llama/Llama-3.3-70B-Instruct-Turbo` (default), Llama 4 Scout / Maverick, DeepSeek-V3 / R1, Qwen 3, Mixtral 8x22B, Mistral Small/Large, Gemma, Stable Diffusion. `modelFilter=chat|instruct|llama` keeps the catalog focused on chat-capable ids. `defaultModelSource=API`."),
             HelpCard("Pricing & quirks", "**`modelListFormat=array`** — Together's `/models` endpoint returns a bare top-level array (no `{ \"data\": [...] }` wrapper). The parser handles both. Native pricing is read from the `/v1/models` payload itself and persists alongside the OpenRouter snapshot in `together_pricing.json`. `litellmPrefix=together_ai`."),
             HelpCard("Pitfalls", "Catalog rotates quickly; saved Agents may 404 after a model is retired (e.g. when Together flips a `Llama-3.1-` id to `-3.3-`). The Turbo / non-Turbo split can confuse pricing — both run, but Turbo is cheaper and faster. Image-generation models cost-track separately (per-image not per-token)."),
-            HelpCard("Related", "Console: `https://api.together.xyz/settings/api-keys`. LiteLLM alias: `together_ai`. Pricing precedence: Together native first → LiteLLM → OpenRouter fallback.")
         )
     ),
 
@@ -1904,7 +1812,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default in the app: `anthropic/claude-3.5-sonnet`. Catalog spans every major provider — model ids are slash-prefixed (`anthropic/claude-3-5-sonnet`, `meta-llama/llama-3.3-70b-instruct`, `google/gemini-2.0-flash`). `defaultModelSource=API` — picker reads the live `/v1/models` list, which is large (700+)."),
             HelpCard("Pricing & quirks", "`extractApiCost=true` — OpenRouter's response includes `usage.cost`, so the dispatcher pulls the exact per-call cost rather than computing from `tokens × unitPrice`. The same hostname (`openrouter.ai`) doubles as an info-provider; the trace category disambiguates AI calls from catalog fetches."),
             HelpCard("Pitfalls", "The slash-prefixed id is mandatory — using a bare id (e.g. `gpt-4o-mini`) returns 404. Their margin means costs can be a few percent above the upstream provider's published rate. Some upstream providers occasionally rate-limit OpenRouter as a whole; a 429 may be unrelated to YOUR usage. Free models (with `:free` suffix) come and go on short notice."),
-            HelpCard("Related", "Console: `https://openrouter.ai/keys`. Doubles as an info-provider — see Help home → Info providers → OpenRouter for the metadata role.")
         )
     ),
 
@@ -1916,7 +1823,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "9 hardcoded fallback models: `Qwen/Qwen2.5-7B-Instruct` (default), `Qwen/Qwen2.5-14B-Instruct`, QwQ-32B, DeepSeek-V3, plus image / embedding ids. Live list at `/v1/models` — `defaultModelSource=API` so the picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No native pricing tier — the layered lookup falls through to LiteLLM / models.dev / Helicone for whichever model id matches. No `litellmPrefix` set, so LiteLLM only matches when the model author's bare id is in their catalog."),
             HelpCard("Pitfalls", "China-region routing means non-CN users sometimes see latency spikes or carrier-IP blocks (a VPN typically fixes it). Catalog can rotate fast; the hardcoded fallback list catches some retired ids but the live `/v1/models` is authoritative. Some endpoints require model-specific request shapes (image gen) that this app doesn't yet route to."),
-            HelpCard("Related", "Console: `https://cloud.siliconflow.com/account/ak`. No OpenRouter mirror.")
         )
     ),
 
@@ -1928,7 +1834,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "7 hardcoded fallback models: `glm-4.7-flash` (default), `glm-4.7`, `glm-4.5-flash`, `glm-4.5`, `glm-4.5-air`, `codegeex-4`, `charglm-3`. `modelFilter=glm|codegeex|charglm`. Live list at `models` (NOT `v1/models`); `defaultModelSource=API`."),
             HelpCard("Pricing & quirks", "`chat` path is `chat/completions` (not `v1/chat/completions`); `modelsPath=models`. Base URL has the `api/paas/v4/` segment prefixing the standard OpenAI shape. `openRouterName=z-ai`. OpenAI-compatible at the wire level."),
             HelpCard("Pitfalls", "The flagship `glm-4.7` is gated to higher-tier accounts on first signup; smaller flash variants are unrestricted. CodeGeeX has its own API endpoint variant (`api/coding/paas/v4/`) configurable via Endpoints. CharGLM persona models accept a `system_role` extension some other providers don't."),
-            HelpCard("Related", "Console: `https://open.bigmodel.cn/usercenter/apikeys`. OpenRouter alias: `z-ai`. Endpoints screen has the Coding endpoint variant.")
         )
     ),
 
@@ -1940,7 +1845,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `kimi-latest` (default), `moonshot-v1-8k`, `moonshot-v1-32k`, `moonshot-v1-128k`. Live list at `/v1/models`. `openRouterName=moonshot`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level — no special quirks. Pricing per-million on long-context variants is reasonable (the headline 128k tier is the same per-token as 32k). Auto-routed via OpenRouter alias when LiteLLM / models.dev don't have an entry."),
             HelpCard("Pitfalls", "The `kimi-latest` alias rotates underneath you; pricing tiers may lag a model swap. China-region carriers sometimes route oddly to platform.moonshot.ai; if you see consistent timeouts try the platform.moonshot.cn base URL via Provider edit → Definition · API."),
-            HelpCard("Related", "Console: `https://platform.moonshot.ai/console/api-keys`. OpenRouter alias: `moonshot`.")
         )
     ),
 
@@ -1952,7 +1856,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `command-a-03-2025` (default), `command-r-plus-08-2024`, `command-r-08-2024`, `command-r7b-12-2024`. Plus rerank models (`rerank-v3.5`, `rerank-multilingual-v3`) and the Embed family (`embed-english-v3`, `embed-multilingual-v3`). Default model source is the bundled fallback list."),
             HelpCard("Pricing & quirks", "OpenAI-compatible chat at `compatibility/` base URL. **Native rerank endpoint wired** — `callCohereRerank` in `SecondaryResult.kt` routes Cohere-typed Rerank prompts to `/v2/rerank` and converts the response into the same `[{id, rank, score, reason}, ...]` shape the chat-model rerank flow uses. `openRouterName=cohere`."),
             HelpCard("Pitfalls", "Trial keys have a per-minute throttle that's tight on fan-out runs. The chat compatibility layer is newer than Cohere's native API — some niche params (`citation_quality`, structured `documents` arrays) only work via the native endpoints, which this app doesn't route to. Embed and Rerank are billed in \"search units\" — `RerankApiResult.billedSearchUnits` surfaces the count for cost tracking."),
-            HelpCard("Related", "Console: `https://dashboard.cohere.com/`. OpenRouter alias: `cohere`. Rerank endpoint impl: `data/SecondaryResult.kt::callCohereRerank`.")
         )
     ),
 
@@ -1964,7 +1867,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `jamba-mini` (default), `jamba-large`, `jamba-mini-1.7`, `jamba-large-1.7`. Live list at `/v1/models`. `openRouterName=ai21`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level — no structural quirks. Pricing tier flow goes LiteLLM → models.dev → OpenRouter fallback. Jamba's hybrid arch shows up as faster latency on long contexts than a pure-Transformer model of similar size would have."),
             HelpCard("Pitfalls", "AI21's older Jurassic API used a different request shape; you may see `/jurassic` references in old docs that won't work via this app's chat path. The `1.6` / `1.7` minor version split sometimes prices differently in tiers — manual override on Costs is the workaround."),
-            HelpCard("Related", "Console: `https://studio.ai21.com/`. OpenRouter alias: `ai21`.")
         )
     ),
 
@@ -1976,7 +1878,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "6 hardcoded fallback models: `qwen-plus` (default), `qwen-max`, `qwen-turbo`, `qwen-long`, `qwen3-235b-a22b`, `qwen-coder-plus`. Plus Qwen-VL (vision), QwQ (reasoning), embedding models. The compatible-mode base routes to OpenAI-shape; the native DashScope shape is different."),
             HelpCard("Pricing & quirks", "`compatible-mode/` segment in the base URL is the OpenAI-shape gateway. No `defaultModelSource=API` set — the hardcoded fallback drives the picker until the user fetches. Pricing is competitive on Qwen-Plus / Turbo; Max is positioned against GPT-4o."),
             HelpCard("Pitfalls", "The international vs China-region split matters — the international URL routes outside China but sometimes throttles harder. Some Qwen variants are gated by region (e.g. Qwen-Math is only on the China URL). Image / audio model ids show in `/v1/models` but route via different endpoints this app doesn't yet plumb."),
-            HelpCard("Related", "Console: `https://dashscope.console.aliyun.com/`. The China-region URL `dashscope.aliyuncs.com` can be set via Provider edit → Definition · API → Base URL.")
         )
     ),
 
@@ -1988,7 +1889,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `llama-v3p3-70b-instruct` (default), `deepseek-r1-0528`, `qwen3-235b-a22b`, `llama-v3p1-8b-instruct`. Model ids are prefixed `accounts/fireworks/models/<id>` — the full path is the model id sent in the request body. Live list at `/v1/models`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible chat at `inference/` base URL. The model-id naming convention (`accounts/<owner>/models/<id>`) lets users-with-an-account host their own fine-tunes alongside the official catalog. No special dispatch quirks beyond the long ids."),
             HelpCard("Pitfalls", "The `accounts/fireworks/models/` prefix surprises new users — copy the full id from the catalog. Catalog rotates quickly; expect ids to drift between Llama 3.1 → 3.2 → 3.3 → 4. Some hosted models are FP8 / FP4 quantized — pricing is per-token but quality may differ from the upstream."),
-            HelpCard("Related", "Console: `https://app.fireworks.ai/`. No `litellmPrefix` set; pricing falls through to OpenRouter fallback when applicable.")
         )
     ),
 
@@ -2000,7 +1900,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "5 hardcoded fallback models: `llama-3.3-70b` (default), `llama-4-scout-17b-16e-instruct`, `llama3.1-8b`, plus Qwen and DeepSeek variants. Default model source is the bundled fallback; `/v1/models` is the live source. Catalog is small by design — Cerebras only hosts a curated set that fits well on their wafer."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing per-token is competitive given the speed; the headline number is tokens-per-second, not just dollars. No special dispatch quirks."),
             HelpCard("Pitfalls", "Free-tier daily quota hits fast on fan-out runs. The very high throughput sometimes overwhelms downstream parsers — if your Reports flow shows truncated streaming, the SSE buffering in `ApiStreaming` should be fine but third-party log capture may not be. Some preview models retire on short notice."),
-            HelpCard("Related", "Console: `https://cloud.cerebras.ai/`. No OpenRouter mirror.")
         )
     ),
 
@@ -2012,7 +1911,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "5 hardcoded fallback models: `Meta-Llama-3.3-70B-Instruct` (default), `DeepSeek-R1`, `DeepSeek-V3-0324`, plus Qwen variants. Note the capitalised ids — SambaNova mirrors the upstream model author's casing exactly. Live list at `/v1/models`."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Pricing competitive; throughput high. No special dispatch quirks beyond the case-sensitive ids."),
             HelpCard("Pitfalls", "Case-sensitive model ids — `meta-llama-3.3-70b-instruct` (lowercase) returns 404; you need the capitalised form. Catalog smaller than Together / Fireworks. Some preview models gate behind enterprise tier."),
-            HelpCard("Related", "Console: `https://cloud.sambanova.ai/`. No OpenRouter mirror.")
         )
     ),
 
@@ -2024,7 +1922,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "5 hardcoded fallback models: `Baichuan4-Turbo` (default), `Baichuan4`, `Baichuan4-Air`, `Baichuan3-Turbo`, `Baichuan3-Turbo-128k`. Capitalised ids — match the platform's exact casing. No live `defaultModelSource=API` set; bundled fallback drives the picker until refresh."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No `openRouterName` or `litellmPrefix` — pricing tiers may have spotty coverage; manual override on Costs is the workaround for accurate cost tracking."),
             HelpCard("Pitfalls", "China-region accounts mostly. Non-CN users sometimes see carrier-route latency; a local VPN often improves consistency. The Baichuan-3 family is being phased out in favor of Baichuan-4 — check the platform announcements before committing a saved Agent to a 3-class id."),
-            HelpCard("Related", "Console: `https://platform.baichuan-ai.com/`. No OpenRouter / LiteLLM mirror.")
         )
     ),
 
@@ -2036,7 +1933,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "6 hardcoded fallback models: `step-2-16k` (default), `step-3`, `step-2-mini`, `step-1-8k`, plus a couple of vision variants. No `defaultModelSource=API` — fallback drives the picker."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No external pricing-tier mirror — manual cost overrides recommended for accurate accounting. Step-3 multimodal pricing varies by image-token count."),
             HelpCard("Pitfalls", "China-region. Some Step-3 multimodal calls require a different request shape this app doesn't yet plumb (the chat path handles text-only fine). The Step-1 family is older and being phased out."),
-            HelpCard("Related", "Console: `https://platform.stepfun.com/`. No OpenRouter / LiteLLM mirror.")
         )
     ),
 
@@ -2048,7 +1944,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `MiniMax-M2.1` (default), `MiniMax-M2`, `MiniMax-M1`, `MiniMax-Text-01`. Live list at `/v1/models` (no `defaultModelSource=API` set, so manual list drives the picker)."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. `openRouterName=minimax` so the OpenRouter fallback can pick up cross-provider pricing. The international vs China platform split affects latency for non-CN users."),
             HelpCard("Pitfalls", "Audio and video generation models exist in the catalog but route via different endpoints this app doesn't yet plumb — only chat models work end-to-end. Capital-M model ids are case-sensitive."),
-            HelpCard("Related", "Console: `https://platform.minimax.io/`. OpenRouter alias: `minimax`.")
         )
     ),
 
@@ -2060,7 +1955,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `nvidia/llama-3.1-nemotron-70b-instruct`. Catalog is large — every NVIDIA-hosted model carries a slash-prefixed id (`nvidia/<model>`, `meta/<model>`, `mistralai/<model>`). `defaultModelSource=API` so picker reads the live list."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The `integrate.api.nvidia.com/` base URL routes to the NIM platform; the actual model serving runs on NVIDIA's GPU infrastructure. No `openRouterName` / `litellmPrefix` — pricing tiers fall through to OpenRouter cross-provider fallback."),
             HelpCard("Pitfalls", "The slash-prefixed id (`nvidia/<model>`) is mandatory. Some preview models in the catalog require an enterprise license. The free credit allowance resets monthly; heavy fan-out can deplete it."),
-            HelpCard("Related", "Console: `https://build.nvidia.com/`. NVIDIA Developer account required.")
         )
     ),
 
@@ -2072,7 +1966,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "3 hardcoded fallback chat models: `meta/meta-llama-3-70b-instruct` (default), `meta/meta-llama-3-8b-instruct`, `mistralai/mistral-7b-instruct-v0.2`. Replicate's actual catalog spans tens of thousands of models — most are image / audio, not chat. `chat` path is `chat/completions`."),
             HelpCard("Pricing & quirks", "Per-second billing is unique — chat models running on shared GPUs round to the second. The OpenAI-compatible chat endpoint is newer than Replicate's native `predictions/` API; some models exist only on the native shape this app doesn't plumb. Slash-prefixed ids (`<owner>/<model>`)."),
             HelpCard("Pitfalls", "Per-second billing means a slow stream costs more than a fast one for the same output. Cold-start latency on rarely-used models can be 30+ seconds. Image models (most of the catalog) don't fit the chat path — try Together / DeepInfra for those flows."),
-            HelpCard("Related", "Console: `https://replicate.com/account/api-tokens`. No OpenRouter / LiteLLM mirror.")
         )
     ),
 
@@ -2084,7 +1977,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `meta-llama/Llama-3.1-70B-Instruct` (default), `meta-llama/Llama-3.1-8B-Instruct`, `Mistral-7B-Instruct-v0.3`, plus a Falcon. Slash-prefixed ids match the HF Hub repo path. The Inference API supports far more models than the picker shows; copy a repo id from huggingface.co/models to use it."),
             HelpCard("Pricing & quirks", "OpenAI-compatible chat at `/v1/chat/completions`. The base URL is `api-inference.huggingface.co/`. Cold-start latency on rarely-used models is significant (HF spins down idle endpoints). Note: this is the HF *provider* (chat); the HF *info-provider* (model-card metadata) uses the same key but reads from `huggingface.co/api/models/{id}`."),
             HelpCard("Pitfalls", "Same `huggingFaceApiKey` is used by both this provider AND the model-card info-provider — they're conceptually distinct but share the key. Gated models (Llama 3.1 70B, some Mistral fine-tunes) return 401 / 403 until you accept terms on the HF Hub. HF Pro subscription is separate from API credit cost."),
-            HelpCard("Related", "Console: `https://huggingface.co/settings/tokens`. The same key feeds the `info_provider_huggingface` lookups.")
         )
     ),
 
@@ -2096,7 +1988,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `hermes-3-llama-3.1-405b-fp8`. Catalog is curated — Hermes fine-tunes, Llama 3.x, Mistral. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing per-million is competitive on the FP8-quantized variants. No special dispatch quirks. No `openRouterName` / `litellmPrefix` — pricing falls through to OpenRouter cross-provider fallback or DEFAULT."),
             HelpCard("Pitfalls", "Catalog small and rotates fast. The 405B FP8 default is fast but the FP8 quantization may differ from upstream FP16 quality on edge cases. Lambda's GPU cloud is a separate product — don't confuse Inference Cloud rate limits with GPU instance availability."),
-            HelpCard("Related", "Console: `https://cloud.lambdalabs.com/api-keys`.")
         )
     ),
 
@@ -2108,7 +1999,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `llama3-1-70b` (default), `llama3-1-8b`, `mistral-7b`, `gemma2-9b`. Note the dashed (not dotted) version naming — Lepton's catalog uses `llama3-1-70b` rather than `llama-3.1-70b`. No `defaultModelSource=API` set."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. The dash-instead-of-dot naming is the only structural quirk. No `openRouterName` / `litellmPrefix` — pricing falls through to fallbacks."),
             HelpCard("Pitfalls", "Naming convention catches new users — copying a `llama-3.1-70b` id from elsewhere returns 404 here; you need `llama3-1-70b`. The NVIDIA acquisition (2025) may eventually merge Lepton into NIM; URL stability not guaranteed long-term."),
-            HelpCard("Related", "Console: `https://dashboard.lepton.ai/`.")
         )
     ),
 
@@ -2120,7 +2010,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `yi-lightning` (default), `yi-large`, `yi-medium`, `yi-spark`. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. No special dispatch quirks. Pricing falls through to OpenRouter cross-provider fallback."),
             HelpCard("Pitfalls", "China-region. Some accounts are gated to China-only IP routing. Yi-Lightning is the headline cheap+fast model; Yi-Large positions against GPT-4o-mini / Claude Haiku."),
-            HelpCard("Related", "Console: `https://platform.01.ai/`.")
         )
     ),
 
@@ -2132,7 +2021,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "4 hardcoded fallback models: `doubao-pro-32k` (default), `doubao-pro-128k`, `doubao-lite-32k`, `doubao-lite-128k`. Pro vs Lite tiers; 32k vs 128k context split."),
             HelpCard("Pricing & quirks", "**`chat` path is `v3/chat/completions`** (not `v1/chat/completions`) — Volcano Engine's versioning is independent of OpenAI's. Otherwise OpenAI-compatible. China-region service; non-CN users may see carrier-routing variance."),
             HelpCard("Pitfalls", "Path quirk catches users who hand-edit JSON — make sure the path stays `v3/chat/completions`. China-region; some carriers don't route to `volces.com` at all without configuration. Doubao-Pro-128k pricing is the same per-token as 32k but cache-policy differs."),
-            HelpCard("Related", "Console: `https://console.volcengine.com/`. The base URL `ark.cn-beijing.volces.com/api/` segments are stable but the v3 chat path is a key oddity.")
         )
     ),
 
@@ -2144,7 +2032,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "3 hardcoded fallback models: `reka-flash` (default), `reka-core`, `reka-edge`. Flash is the speed/cost balance; Core is the flagship; Edge is the smallest. No `defaultModelSource=API` set."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level for chat. Multimodal inputs (images, video) work but require image/video URLs or base64 the dispatcher already supports for vision. Pricing falls through to fallbacks."),
             HelpCard("Pitfalls", "Catalog small (3 models). Native video understanding is a Reka strength but few app flows surface video input. Reka-Core gates behind higher-tier accounts on first signup."),
-            HelpCard("Related", "Console: `https://platform.reka.ai/`.")
         )
     ),
 
@@ -2156,7 +2043,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "2 hardcoded fallback models: `palmyra-x-004` (default), `palmyra-x-003-instruct`. Catalog small and curated. No `defaultModelSource=API` set; bundled list drives the picker."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing falls through to fallbacks. Writer's strength is the enterprise sales / governance side, not unique API quirks."),
             HelpCard("Pitfalls", "Self-service Free trial caps tightly; production requires the sales conversation. Domain-tuned models may behave differently from general-purpose Llama / GPT — prompt engineering targeted to that variant works best."),
-            HelpCard("Related", "Console: `https://app.writer.com/`.")
         )
     ),
 
@@ -2168,7 +2054,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `@cf/meta/llama-3.3-70b-instruct-fp8-fast`. Catalog uses Cloudflare-prefixed slash ids — `@cf/<owner>/<model>`. `defaultModelSource=API` so the picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The `@cf/<owner>/<model>` id convention is mandatory — bare ids return 404. The base URL `api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` is the unique structural quirk."),
             HelpCard("Pitfalls", "Forgetting to replace `YOUR_ACCOUNT_ID` is the most common setup failure — the placeholder ships verbatim in the bundled provider definition; first-run config requires editing it under Provider edit → Definition · Basics → Base URL. The free tier resets monthly. Some models are FP8 / FP16 quality-tradeoffs — the `-fast` suffix is FP8."),
-            HelpCard("Related", "Console: `https://dash.cloudflare.com/`. The Workers AI section in the Cloudflare dashboard shows your account id.")
         )
     ),
 
@@ -2180,7 +2065,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `meta-llama/Meta-Llama-3.1-70B-Instruct`. `chat` path is `chat/completions` (not `v1/chat/completions`); `modelsPath=models` (not `v1/models`). `defaultModelSource=API` so the picker auto-refreshes from the live list."),
             HelpCard("Pricing & quirks", "Base URL is `api.deepinfra.com/v1/openai/` — the `/v1/openai/` segment is the OpenAI-compatible gateway. Slash-prefixed ids (`<owner>/<model>`). No `litellmPrefix` / `openRouterName` set — pricing falls through to OpenRouter cross-provider fallback."),
             HelpCard("Pitfalls", "Path quirks (`chat/completions`, `models` — no `v1/` prefix on those parts) trip hand-edited requests. The `/v1/openai/` URL segment is the OpenAI gateway; native DeepInfra requests use a different path the app doesn't route to."),
-            HelpCard("Related", "Console: `https://deepinfra.com/dash/api_keys`.")
         )
     ),
 
@@ -2192,7 +2076,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `deepseek-ai/DeepSeek-V3`. `defaultModelSource=API` so picker auto-refreshes. Catalog includes chat, image, audio, vision-language models."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Slash-prefixed ids. No `litellmPrefix` / `openRouterName` — pricing falls through to OpenRouter cross-provider fallback."),
             HelpCard("Pitfalls", "Image / audio models live in the catalog but don't fit the chat dispatch path — only chat models work end-to-end here. Some preview models gate behind tier upgrades."),
-            HelpCard("Related", "Console: `https://app.hyperbolic.xyz/settings`.")
         )
     ),
 
@@ -2204,7 +2087,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `meta-llama/llama-3.1-70b-instruct`. `chat` path is `chat/completions`; `modelsPath=models`. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "Base URL is `api.novita.ai/v3/openai/` — the `/v3/openai/` segment is the OpenAI-compatible gateway. Slash-prefixed ids. No `litellmPrefix` / `openRouterName` — pricing falls through."),
             HelpCard("Pitfalls", "Path quirks similar to DeepInfra — `chat/completions` / `models` (no `v1/` prefix on those parts). The `/v3/openai/` segment is stable but worth noting if you hand-edit URLs."),
-            HelpCard("Related", "Console: `https://novita.ai/settings/key-management`.")
         )
     ),
 
@@ -2216,7 +2098,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `meta-llama/Meta-Llama-3.1-8B-Instruct`. Slash-prefixed ids matching HF Hub repo paths. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Subscription billing means token-based pricing tiers (LiteLLM, etc.) don't really apply — your cost is the flat monthly fee. The Costs / Usage screens still report token counts but the dollar conversion via per-token rates won't reflect actual subscription cost."),
             HelpCard("Pitfalls", "Subscription model breaks token-based cost tracking — manual cost overrides set to $0 / $0 give a more honest view if you're on a flat plan. Some larger models (70B+) require higher tiers; the API returns a tier-error which surfaces as 403/402."),
-            HelpCard("Related", "Console: `https://featherless.ai/account/api-keys`.")
         )
     ),
 
@@ -2228,7 +2109,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `lfm-7b`. Catalog: LFM-7B, LFM-40B, plus instruct variants. `defaultModelSource=API` so picker auto-refreshes. Smaller catalog overall."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. The non-Transformer architecture is a Liquid AI selling point but transparent at the API level — calls look like any other chat completion. No special dispatch quirks."),
             HelpCard("Pitfalls", "Smaller catalog and less-tested ecosystem mean fewer model lookups in LiteLLM / OpenRouter — pricing tiers may have spotty coverage. Cold-start latency varies."),
-            HelpCard("Related", "Console: `https://platform.liquid.ai/`. Liquid AI's research papers explain the LFM architecture in depth.")
         )
     ),
 
@@ -2240,7 +2120,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `Llama-4-Maverick-17B-128E-Instruct-FP8`. Catalog focuses on the Llama 4 family (Maverick, Scout) plus current Llama 3.x. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "Base URL is `api.llama.com/compat/` — the `/compat/` segment is the OpenAI-compatible gateway. Otherwise standard. No `litellmPrefix` / `openRouterName` — pricing falls through to fallbacks."),
             HelpCard("Pitfalls", "Beta product means API stability isn't guaranteed across signups; expect occasional non-backwards-compatible changes. Same model id (Llama 3.3-70B, etc.) on this provider may price / perform differently from the Together / Groq / Fireworks hosted variants."),
-            HelpCard("Related", "Console: `https://llama.developer.meta.com/`.")
         )
     ),
 
@@ -2252,7 +2131,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `Meta-Llama-3.1-70B-Instruct`. Catalog: open-weight Llama / Mistral / Qwen plus Krutrim's own multilingual models. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible at the wire level. Pricing falls through to OpenRouter cross-provider fallback. Strong Indian-language support is a Krutrim differentiator."),
             HelpCard("Pitfalls", "India-region routing means non-IN users may see latency variance. Smaller catalog than Together / Fireworks. Native Indian-language models exist but specific endpoints may not all be plumbed via the chat path."),
-            HelpCard("Related", "Console: `https://cloud.olakrutrim.com/console`.")
         )
     ),
 
@@ -2264,7 +2142,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `meta-llama/Meta-Llama-3.1-70B-Instruct`. Slash-prefixed ids matching HF Hub paths. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `api.studio.nebius.com/`. Pricing competitive on the popular open-weight chat models. No `litellmPrefix` / `openRouterName` — pricing falls through."),
             HelpCard("Pitfalls", "Newer entrant — model catalog occasionally rotates as they add capacity for new ids. The Yandex history is irrelevant to data flow today (Nebius is a separate Netherlands-incorporated entity), but worth noting if procurement asks."),
-            HelpCard("Related", "Console: `https://studio.nebius.com/settings/api-keys`.")
         )
     ),
 
@@ -2276,7 +2153,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `deepseek-ai/DeepSeek-V3`. Slash-prefixed ids. Catalog: DeepSeek, Llama, Qwen, Mistral, plus Bittensor-native fine-tunes. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. Base URL is `llm.chutes.ai/`. Decentralized compute can give variance in latency / quality across the same model id depending on which miner serves the request — Chutes routes to a chosen one but cold-starts vary."),
             HelpCard("Pitfalls", "Decentralized compute means quality / availability can vary turn-to-turn — for production fan-out, pricier centralized providers (Together / Fireworks) are more deterministic. The TAO billing surface is unusual; most users prefer the fiat top-up."),
-            HelpCard("Related", "Console: `https://chutes.ai/app/api`. Bittensor subnet 64 is the underlying network.")
         )
     ),
 
@@ -2288,7 +2164,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Models", "Default: `meta-llama/llama-3.3-70b-instruct/fp-8`. Note the third path segment (`/fp-8`) — Inference.net's id convention encodes the quantization in the id itself. `defaultModelSource=API` so picker auto-refreshes."),
             HelpCard("Pricing & quirks", "OpenAI-compatible. The `/<owner>/<model>/<quant>` three-part id convention is the structural quirk — copy ids verbatim from their catalog. Pricing falls through to fallbacks."),
             HelpCard("Pitfalls", "The quantization-in-id convention catches new users — `meta-llama/llama-3.3-70b-instruct` (without `/fp-8`) returns 404. Smaller catalog than Together / Fireworks; newer entrant means less LiteLLM coverage so pricing tiers may have gaps."),
-            HelpCard("Related", "Console: `https://inference.net/dashboard/api-keys`.")
         )
     )
 )
