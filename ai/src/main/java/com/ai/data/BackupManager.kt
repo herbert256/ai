@@ -147,17 +147,20 @@ object BackupManager {
                 "packageName" to context.packageName
             )
             zip.write("manifest.json", gson.toJson(manifest).toByteArray())
+            AppLog.d("Backup", "manifest written")
 
             // SharedPreferences — serialize each tracked file with type discriminator.
             for (name in PREFS_TO_BACKUP) {
                 zip.write("prefs/$name.json", serializePrefs(context, name))
             }
+            AppLog.d("Backup", "prefs section written (${PREFS_TO_BACKUP.size} files)")
 
             // Mirror the entire filesDir, minus FILES_DIR_BACKUP_EXCLUDES at
             // the top level (local model bundles).
             val filesRoot = context.filesDir
             if (filesRoot.exists()) {
                 filesWritten = addDirectoryRecursive(zip, filesRoot, "files")
+                AppLog.d("Backup", "filesDir mirrored — $filesWritten entries")
             }
 
             // Mirror cacheDir as well (exports, shared-trace handoffs,
@@ -167,6 +170,7 @@ object BackupManager {
             val cacheRoot = context.cacheDir
             if (cacheRoot.exists()) {
                 cacheWritten = addDirectoryRecursive(zip, cacheRoot, "cache")
+                AppLog.d("Backup", "cacheDir mirrored — $cacheWritten entries")
             }
         }
         AppLog.i("Backup", "← backup done in ${System.currentTimeMillis() - t0}ms (filesDir=$filesWritten cacheDir=$cacheWritten)")
@@ -204,6 +208,7 @@ object BackupManager {
             // left a half-empty install with no way back. Now: bytes
             // first, destroy second.
             val staged = readAllEntriesValidated(context, tempZip)
+            AppLog.d("Backup", "manifest version=$version, staged ${staged.size} entries (${staged.values.sumOf { it.size }} bytes)")
             // Commit prefs first — SharedPreferences.commit() is
             // synchronous and atomic per file, so once this returns
             // every restored prefs file is durable on disk. A process
@@ -213,13 +218,17 @@ object BackupManager {
             // committing prefs and would leave an inconsistent
             // half-restored state pointing at nothing.
             val prefsRestored = applyPrefsOnly(context, staged)
+            AppLog.d("Backup", "prefs applied: $prefsRestored file(s)")
             clearFilesDirForRestore(context.filesDir)
+            AppLog.d("Backup", "filesDir wiped (except excludes)")
             // Wipe cacheDir too, but preserve the temp zip we're
             // currently restoring from — deleting it mid-restore would
             // be safe (we've already read its bytes into [staged]) but
             // preserving it keeps the finally below well-defined.
             clearCacheDirForRestore(context.cacheDir, preserve = setOf(tempZip.name))
+            AppLog.d("Backup", "cacheDir wiped (preserving ${tempZip.name})")
             val filesRestored = applyFilesOnly(context, staged)
+            AppLog.d("Backup", "files applied: $filesRestored entries")
             AppLog.i("Backup", "← restore done in ${System.currentTimeMillis() - t0}ms (prefs=$prefsRestored files=$filesRestored)")
             RestoreSummary(version = version, prefsFiles = prefsRestored, dataFiles = filesRestored)
         } finally {

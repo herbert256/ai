@@ -31,6 +31,7 @@ suspend fun AnalysisRepository.analyze(
     imageBase64: String? = null,
     imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
+    AppLog.d("ApiDispatch", "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}")
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
         ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
@@ -49,6 +50,7 @@ suspend fun AnalysisRepository.sendChat(
     params: ChatParameters,
     baseUrl: String = service.baseUrl
 ): String = withContext(Dispatchers.IO) {
+    AppLog.d("ApiDispatch", "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}")
     when (service.apiFormat) {
         ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
         ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
@@ -88,12 +90,16 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
     service: AppService,
     apiKey: String
 ): FetchedModels = withContext(Dispatchers.IO) {
+    AppLog.d("ApiDispatch", "fetchModels ${service.id} fmt=${service.apiFormat}")
+    val t0 = System.currentTimeMillis()
     withTraceCategory("Retrieve models list") {
-        when (service.apiFormat) {
+        val result = when (service.apiFormat) {
             ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
             ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
             ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
         }
+        AppLog.d("ApiDispatch", "fetchModels ${service.id} → ${result.ids.size} models in ${System.currentTimeMillis() - t0}ms")
+        result
     }
 }
 
@@ -113,6 +119,7 @@ suspend fun AnalysisRepository.embed(
     if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE || apiKey.isBlank() || texts.isEmpty()) {
         return@withContext null
     }
+    AppLog.d("ApiDispatch", "embed ${service.id}/$model — ${texts.size} input(s)")
     try {
         val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
         val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
@@ -776,6 +783,7 @@ suspend fun AnalysisRepository.testModelWithPrompt(
 suspend fun AnalysisRepository.testApiConnectionWithJson(
     service: AppService, apiKey: String, baseUrl: String, jsonBody: String
 ): AnalysisResponse = withContext(Dispatchers.IO) {
+    AppLog.d("ApiDispatch", "testApiConnectionWithJson ${service.id} bodyLen=${jsonBody.length}")
     withTraceCategory("Provider test") {
     try {
         val client = OkHttpClient.Builder()

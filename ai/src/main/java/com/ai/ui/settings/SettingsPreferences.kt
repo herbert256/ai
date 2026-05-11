@@ -83,7 +83,15 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.data.LogLevel.INFO
-        )
+        ).also {
+            com.ai.data.AppLog.d(
+                "SettingsPrefs",
+                "loadGeneralSettings logLevel=${it.logLevel} tracing=${it.tracingEnabled} " +
+                    "streamRT=${it.streamingReadTimeoutSec}s nonStreamRT=${it.nonStreamingReadTimeoutSec}s " +
+                    "maxPerMin=${it.maxCallsPerProviderPerMinute} maxConc=${it.maxConcurrentCallsPerProvider} " +
+                    "recentReportModels=${it.recentReportModels.size}"
+            )
+        }
     }
 
     fun saveGeneralSettings(settings: GeneralSettings) {
@@ -110,6 +118,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
             putString(KEY_LOG_LEVEL, settings.logLevel.name)
         }
+        com.ai.data.AppLog.d(
+            "SettingsPrefs",
+            "saveGeneralSettings logLevel=${settings.logLevel} tracing=${settings.tracingEnabled} " +
+                "streamRT=${settings.streamingReadTimeoutSec}s nonStreamRT=${settings.nonStreamingReadTimeoutSec}s " +
+                "maxPerMin=${settings.maxCallsPerProviderPerMinute} maxConc=${settings.maxConcurrentCallsPerProvider}"
+        )
     }
 
     // ===== AI Settings =====

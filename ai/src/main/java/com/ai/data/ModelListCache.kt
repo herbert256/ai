@@ -49,6 +49,7 @@ object ModelListCache {
             // truncated JSON file that the next loadJson treats as
             // a real but partial response.
             fileFor(context, providerId).writeTextAtomic(rawResponse)
+            AppLog.d("ModelListCache", "save $providerId bytes=${rawResponse.length}")
         } catch (e: Exception) {
             AppLog.w("ModelListCache", "save($providerId) failed: ${e.message}")
         }
@@ -63,7 +64,14 @@ object ModelListCache {
      *  original response — JSON for every wired provider today. */
     fun read(context: Context, providerId: String): String? = try {
         val f = fileFor(context, providerId)
-        if (f.exists()) f.readText() else null
+        if (f.exists()) {
+            val ageMs = System.currentTimeMillis() - f.lastModified()
+            AppLog.d("ModelListCache", "hit $providerId age=${ageMs / 1000}s size=${f.length()}")
+            f.readText()
+        } else {
+            AppLog.d("ModelListCache", "miss $providerId (no cached file)")
+            null
+        }
     } catch (e: Exception) {
         AppLog.w("ModelListCache", "read($providerId) failed: ${e.message}")
         null

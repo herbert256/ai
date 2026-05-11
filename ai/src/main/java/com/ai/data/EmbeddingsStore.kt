@@ -65,6 +65,8 @@ object EmbeddingsStore {
         if (!f.writeTextAtomic(gson.toJson(vector))) {
             AppLog.w("EmbeddingsStore",
                 "put($docId, $providerId, $model) failed to write ${f.absolutePath}")
+        } else {
+            AppLog.d("EmbeddingsStore", "put $providerId/$model dim=${vector.size}")
         }
     }
 

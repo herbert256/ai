@@ -143,6 +143,7 @@ object ApiTracer {
             // freshly-written file forever. On any failure we invalidate
             // the cache so the next getTraceFiles() rebuilds it from
             // disk and re-sees the new trace.
+            AppLog.v("ApiTracer", "trace written $resolvedFilename status=${trace.response.statusCode} partial=${trace.partial}")
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
@@ -621,6 +622,7 @@ object ProviderThrottle {
                 }
             }
             if (sleepMs == 0L) break
+            AppLog.d("Throttle", "rate-limit wait ${sleepMs}ms on $host (queue=${window.size}/$perMinuteLimit)")
             try { Thread.sleep(sleepMs) } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw e
@@ -630,7 +632,11 @@ object ProviderThrottle {
         val sem = sems.computeIfAbsent(host) {
             java.util.concurrent.Semaphore(concurrentLimit)
         }
+        val concurrentWaitStart = if (sem.availablePermits() == 0) System.currentTimeMillis() else 0L
         sem.acquire()
+        if (concurrentWaitStart > 0L) {
+            AppLog.d("Throttle", "concurrent-cap wait ${System.currentTimeMillis() - concurrentWaitStart}ms on $host (cap=$concurrentLimit)")
+        }
         return Releaser(sem)
     }
 
@@ -755,6 +761,7 @@ class RateLimitRetryInterceptor(
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
+        AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries)")
         var current = response
         var attempt = 0
         while (current.code == 429 && attempt < maxRetries) {
@@ -771,7 +778,13 @@ class RateLimitRetryInterceptor(
                 throw e
             }
             attempt++
+            AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${backoffMs}ms on ${request.url.host}")
             current = chain.proceed(request)
+        }
+        if (current.code == 429) {
+            AppLog.w("RateLimit", "429 still present after $attempt retries on ${request.url.host}")
+        } else if (attempt > 0) {
+            AppLog.d("RateLimit", "recovered after $attempt retry (status=${current.code})")
         }
         return current
     }
@@ -881,6 +894,9 @@ class TagPropagatingExecutor(
 ) : java.util.concurrent.AbstractExecutorService() {
     override fun execute(command: Runnable) {
         val captured = ApiTracer.currentTags.get()
+        if (captured?.reportId != null || captured?.category != null) {
+            AppLog.v("TagPropagation", "submit reportId=${captured.reportId} cat=${captured.category}")
+        }
         delegate.execute {
             val previous = ApiTracer.currentTags.get()
             ApiTracer.currentTags.set(captured)

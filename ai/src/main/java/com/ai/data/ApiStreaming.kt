@@ -53,6 +53,9 @@ private fun parseSseStream(
     // SSE streams and OkHttp falls back to ISO-8859-1, mangling
     // multi-byte characters (anything non-ASCII in the response
     // text) in the parsed event payload.
+    AppLog.d("SSE", "stream open")
+    val parseStartMs = System.currentTimeMillis()
+    var chunkCount = 0
     val reader = java.io.InputStreamReader(body.byteStream(), Charsets.UTF_8).buffered()
     try {
         // Per the W3C SSE spec, an event is delimited by a blank line.
@@ -74,11 +77,25 @@ private fun parseSseStream(
             // Trailing newline shouldn't leak into the parser.
             val data = dataBuf.toString().removeSuffix("\n")
             dataBuf.setLength(0)
-            if (data.equals("[DONE]", ignoreCase = true)) { sawTerminator = true; eventType = null; return }
+            if (data.equals("[DONE]", ignoreCase = true)) {
+                AppLog.v("SSE", "[DONE] terminator (event=$eventType)")
+                sawTerminator = true; eventType = null; return
+            }
             sawAnyData = true
             val content = extractContent(eventType, data)
-            if (!content.isNullOrEmpty()) emit(content)
-            if (isFinalChunk(eventType, data)) sawTerminator = true
+            // Per-chunk TRACE: log the event-type tag and payload size
+            // (not the payload itself — that would duplicate the trace
+            // file and leak content). Skip when nothing extracted, that
+            // narrows the noise to chunks that actually carry data.
+            if (!content.isNullOrEmpty()) {
+                chunkCount++
+                AppLog.v("SSE", "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}")
+                emit(content)
+            }
+            if (isFinalChunk(eventType, data)) {
+                AppLog.v("SSE", "final chunk (event=$eventType)")
+                sawTerminator = true
+            }
             eventType = null
         }
 
@@ -118,6 +135,7 @@ private fun parseSseStream(
     } finally {
         try { reader.close() } catch (_: Exception) {}
         body.close()
+        AppLog.d("SSE", "stream closed — $chunkCount chunks in ${System.currentTimeMillis() - parseStartMs}ms")
     }
 }
 

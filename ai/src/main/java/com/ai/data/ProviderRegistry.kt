@@ -178,6 +178,7 @@ object ProviderRegistry {
         }
         providers.add(service)
         save()
+        AppLog.i("ProviderRegistry", "added ${service.id} (baseUrl=${service.baseUrl})")
         true
     }
     /** User-initiated update: replaces the entry by id and bumps
@@ -197,13 +198,15 @@ object ProviderRegistry {
             save()
             if (changed.isNotEmpty()) {
                 ProviderFieldTimestamps.bump(service.id, changed)
+                AppLog.i("ProviderRegistry", "updated ${service.id} changed=${changed.joinToString(",")}")
             }
         }
     }
     fun remove(id: String) = synchronized(lock) {
-        providers.removeAll { it.id == id }
+        val removed = providers.removeAll { it.id == id }
         save()
         ProviderFieldTimestamps.clear(id)
+        if (removed) AppLog.i("ProviderRegistry", "removed $id")
     }
 
     /** Reconcile the registry against bundled `assets/providers.json`.
@@ -270,6 +273,7 @@ object ProviderRegistry {
             svc.auxHosts.forEach { aux -> urlHost(aux)?.let { h -> map.putIfAbsent(h, svc) } }
         }
         hostIndex = map
+        AppLog.d("ProviderRegistry", "host index rebuilt — ${map.size} host(s) across ${providers.size} provider(s)")
     }
 
     private fun urlHost(raw: String): String? = try {

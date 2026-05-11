@@ -30,6 +30,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         context: android.content.Context? = null,
         knowledgeBaseIds: List<String> = emptyList()
     ): Flow<String> {
+        AppLog.d("Chat", "sendChatMessageStream ${service.id}/$model msgs=${messages.size} kbs=${knowledgeBaseIds.size} web=$webSearchTool reasoning=$reasoningEffort")
         // sessionParams is the source of truth for this turn — agent
         // chats pass the agent's preset, resumed chats pass the
         // persisted ChatSession.parameters, configure-on-the-fly
@@ -79,6 +80,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         messages: List<ChatMessage>
     ): List<ChatMessage> {
         val lastUser = messages.lastOrNull { it.role == "user" }?.content?.takeIf { it.isNotBlank() } ?: return messages
+        AppLog.d("Chat.RAG", "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}")
         val hits = runCatching {
             KnowledgeService.retrieve(context, appViewModel.repository, appViewModel.uiState.value.aiSettings,
                 knowledgeBaseIds, lastUser)
@@ -91,6 +93,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
             AppLog.w("ChatViewModel.RAG",
                 "Retrieval failed for kbs=$knowledgeBaseIds: ${e.javaClass.simpleName}: ${e.message}")
         }.getOrDefault(emptyList())
+        AppLog.d("Chat.RAG", "retrieved ${hits.size} hit(s)")
         if (hits.isEmpty()) return messages
         val ctx = KnowledgeService.formatContextBlock(hits)
         // Merge into the existing system message (preserve user's
@@ -117,6 +120,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
         messages: List<ChatMessage>,
         params: ChatParameters
     ): String {
+        AppLog.d("Chat", "sendDualChatMessage ${service.id}/$model msgs=${messages.size}")
         val response = appViewModel.repository.sendChat(
             service = service, apiKey = apiKey, model = model,
             messages = messages, params = params

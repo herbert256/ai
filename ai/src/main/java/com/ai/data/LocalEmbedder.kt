@@ -221,6 +221,7 @@ object LocalEmbedder {
     fun embed(context: Context, modelName: String, inputs: List<String>): List<List<Double>>? {
         if (inputs.isEmpty()) return emptyList()
         val started = System.currentTimeMillis()
+        AppLog.d("LocalEmbedder", "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}")
         return try {
             val embedder = getEmbedder(context, modelName)
             // Native TextEmbedder handle is not thread-safe — two
@@ -236,6 +237,7 @@ object LocalEmbedder {
             }
             recordLocalTrace(modelName, inputs, outputDims = out.firstOrNull()?.size ?: 0,
                 durationMs = System.currentTimeMillis() - started, error = null)
+            AppLog.d("LocalEmbedder", "← embed $modelName n=${out.size} dim=${out.firstOrNull()?.size ?: 0} ${System.currentTimeMillis() - started}ms")
             out
         } catch (e: Exception) {
             AppLog.e("LocalEmbedder", "embed failed: ${e.message}", e)

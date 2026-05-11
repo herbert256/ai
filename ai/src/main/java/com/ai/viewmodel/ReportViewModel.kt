@@ -388,6 +388,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // bar / completion-equality check.
         isRegeneration: Boolean = false
     ) {
+        AppLog.d("Report", "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}")
         ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
 
         // Pull the report's attached KB ids so analyzeWithAgent can
@@ -454,6 +455,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 state.copy(genericReportsProgress = state.genericReportsProgress + 1)
             }
         }
+        AppLog.d(
+            "Report",
+            "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " +
+                (if (response.isSuccess) "ok" else "err") +
+                " ${durationMs}ms" +
+                (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
+                (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
+        )
     }
 
     private fun calculateResponseCost(context: Context, provider: AppService, model: String, tokenUsage: TokenUsage?): Double? {
@@ -1100,6 +1109,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             async {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
+                                val pairStart = System.currentTimeMillis()
+                                AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                 try {
                                     val resolvedBase = resolveSecondaryPrompt(
                                         metaPrompt.text,
@@ -1117,6 +1128,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     )
                                 } finally {
                                     appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
+                                    AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
                                 }
                             }
                         }.awaitAll()
@@ -1168,6 +1180,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
                                 appViewModel.updateRunningFanOutPairs { it + ph.id }
+                                val rerunStart = System.currentTimeMillis()
+                                AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                 try {
                                     val resolvedBase = resolveSecondaryPrompt(
                                         metaPrompt.text,
@@ -1185,6 +1199,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     )
                                 } finally {
                                     appViewModel.updateRunningFanOutPairs { it - ph.id }
+                                    AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
                                 }
                             }
                         }.awaitAll()
@@ -2464,6 +2479,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(items = cur.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it }))
         }
+        AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
         val resolved = template
             .replace("@LANGUAGE@", targetLanguageName)
             .replace("@TEXT@", item.sourceText)
@@ -2530,6 +2546,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 kind = "translate"
             )
         }
+        AppLog.d(
+            "Translation",
+            "← item ${item.id} ${if (response.isSuccess) "ok" else "err"} ${callDurationMs}ms" +
+                (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
+                " cost=${"%.5f".format(costDollars)}"
+        )
     }
 
     /** Persist one TRANSLATE [SecondaryResult] for a single completed

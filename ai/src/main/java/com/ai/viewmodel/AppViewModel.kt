@@ -371,6 +371,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun bootstrap(application: Application): Pair<GeneralSettings, Settings> {
+        val bootStart = System.currentTimeMillis()
         AppLog.init(application)
         ApiTracer.init(application)
         ChatHistoryManager.init(application)
@@ -379,9 +380,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ProviderRegistry.init(application)
         ProviderFieldTimestamps.init(application)
         PromptCache.init(application)
+        AppLog.d("App.bootstrap", "singletons init done in ${System.currentTimeMillis() - bootStart}ms")
 
+        val tLoad = System.currentTimeMillis()
         val gs = settingsPrefs.loadGeneralSettings()
         var ai = settingsPrefs.loadSettings()
+        AppLog.d(
+            "App.bootstrap",
+            "prefs loaded in ${System.currentTimeMillis() - tLoad}ms: " +
+                "providers=${ai.providers.size}, agents=${ai.agents.size}, flocks=${ai.flocks.size}, swarms=${ai.swarms.size}, " +
+                "internalPrompts=${ai.internalPrompts.size}, examplePrompts=${ai.examplePrompts.size}, " +
+                "parameters=${ai.parameters.size}, systemPrompts=${ai.systemPrompts.size}"
+        )
 
         // First-run seeding from bundled assets. Flag wiped on data
         // clear / reinstall (which is exactly when we want to seed
@@ -411,8 +421,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         //      having to hit the manual "Import new providers" button.
         // Already on Dispatchers.IO via viewModelScope.launch.
         runCatching {
-            ProviderRegistry.syncFromAsset(application, "providers.json")
-            ProviderRegistry.importFromAsset(application, "providers.json")
+            val tSync = System.currentTimeMillis()
+            val syncCount = ProviderRegistry.syncFromAsset(application, "providers.json")
+            val addCount = ProviderRegistry.importFromAsset(application, "providers.json")
+            AppLog.d("App.bootstrap", "providers.json: synced=$syncCount, added=$addCount in ${System.currentTimeMillis() - tSync}ms")
         }.onFailure { AppLog.w("AppViewModel", "providers.json delta sync failed", it) }
 
         // Every-start delta-merge of bundled prompts. Appends any
@@ -632,6 +644,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  pick at the top under "Recent". */
     fun recordRecentReportModel(providerId: String, model: String) {
         if (providerId.isBlank() || model.isBlank()) return
+        AppLog.v("RecentModels", "record $providerId/$model")
         val entry = "$providerId|$model"
         val current = _uiState.value.generalSettings.recentReportModels
         if (current.firstOrNull() == entry) return  // already at front, nothing to do
@@ -866,6 +879,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     (forceRefresh || !settingsPrefs.isModelListCacheValid(service))
             }
             if (toRefresh.isEmpty()) return@withContext emptyMap()
+            AppLog.d("RefreshAll", "→ ${toRefresh.size} provider(s): ${toRefresh.joinToString { it.id }}")
+            val t0 = System.currentTimeMillis()
 
             val results = coroutineScope {
                 toRefresh.map { service ->
@@ -915,6 +930,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val cfg = final.getProvider(service)
                 if (cfg.models.isNotEmpty()) settingsPrefs.saveModelsForProvider(service, cfg.models, cfg.modelTypes, cfg.visionModels, cfg.modelCapabilities)
             }
+            AppLog.d("RefreshAll", "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms")
             results.associate { it.first.id to it.second }
         }
     }

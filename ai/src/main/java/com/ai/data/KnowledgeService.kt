@@ -116,6 +116,8 @@ object KnowledgeService {
         progress: IndexProgress,
         existingSourceId: String? = null
     ): KnowledgeSource {
+        val indexStart = System.currentTimeMillis()
+        AppLog.i("Knowledge", "→ index \"$displayName\" type=$type kb=$kbId textLen=${text.length}")
         val kb = KnowledgeStore.loadKnowledgeBase(context, kbId)
             ?: error("Knowledge base $kbId not found")
         val sourceId = existingSourceId ?: UUID.randomUUID().toString()
@@ -184,6 +186,10 @@ object KnowledgeService {
             errorMessage = null
         )
         KnowledgeStore.saveSource(context, kbId, src, chunks, embeddingDim)
+        AppLog.i(
+            "Knowledge",
+            "← index \"$displayName\" kb=$kbId chunks=${chunks.size} chars=${src.charCount} dim=$embeddingDim in ${System.currentTimeMillis() - indexStart}ms"
+        )
         return src
     }
 
@@ -279,6 +285,17 @@ object KnowledgeService {
             out += s.hit
             charsSoFar += s.hit.text.length
             if (out.size >= topK) break
+        }
+        AppLog.d(
+            "Knowledge",
+            "retrieve kbs=${kbs.size} topK=$topK queryLen=${query.length} → hits=${out.size}" +
+                (out.firstOrNull()?.score?.let { " topScore=${"%.3f".format(it)}" } ?: "")
+        )
+        // TRACE the top-10 scored candidates (independent of the
+        // char-budget filter above) so a "why didn't this chunk win?"
+        // question is answerable from the log alone.
+        sorted.take(10).forEachIndexed { i, s ->
+            AppLog.v("Knowledge", "  cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}")
         }
         return out
     }

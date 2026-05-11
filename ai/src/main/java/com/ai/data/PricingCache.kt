@@ -310,8 +310,18 @@ object PricingCache {
     fun preloadAsync(context: Context, scope: kotlinx.coroutines.CoroutineScope) {
         if (preloadCompleted) return
         scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val t0 = System.currentTimeMillis()
+            AppLog.d("PricingCache", "preload start")
             ensureLoaded(context)
             preloadCompleted = true
+            AppLog.d(
+                "PricingCache",
+                "preload done in ${System.currentTimeMillis() - t0}ms" +
+                    " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," +
+                    " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," +
+                    " openrouter=${openRouterPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," +
+                    " manual=${manualPricing?.size ?: 0})"
+            )
         }
     }
 
@@ -350,13 +360,13 @@ object PricingCache {
         ensureLoaded(context)
         val isOpenRouter = provider.crossProviderModelList
         val isTogether = provider.pricingFromModelList
-        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
+        if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER-SELF", it) }
         // Together's native pricing tier — same provider-self-report
         // logic as OpenRouter: when the caller's provider is Together,
         // its own /v1/models pricing block is the authoritative
         // billing rate, more accurate than LiteLLM's community
         // mirror.
-        if (isTogether) findTogetherPricing(provider, model)?.let { return it }
+        if (isTogether) findTogetherPricing(provider, model)?.let { return tracePricing(provider, model, "TOGETHER-SELF", it) }
         // User OVERRIDE wins over every curated bulk source. The
         // previous order put OVERRIDE behind LITELLM/MODELSDEV/etc., so
         // a user adding a manual override specifically to correct a
@@ -365,14 +375,20 @@ object PricingCache {
         // Then: provider self-report → curated bulk sources →
         // OPENROUTER fan out-provider fallback → HELICONE last resort →
         // DEFAULT.
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
-        findLiteLLMPricing(provider, model)?.let { return it }
-        findModelsDevPricing(provider, model)?.let { return it }
-        findLLMPricesPricing(provider, model)?.let { return it }
-        findArtificialAnalysisPricing(provider, model)?.let { return it }
-        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
-        findHeliconePricing(provider, model)?.let { return it }
+        manualPricing?.get("${provider.id}:$model")?.let { return tracePricing(provider, model, "OVERRIDE", it) }
+        findLiteLLMPricing(provider, model)?.let { return tracePricing(provider, model, "LITELLM", it) }
+        findModelsDevPricing(provider, model)?.let { return tracePricing(provider, model, "MODELSDEV", it) }
+        findLLMPricesPricing(provider, model)?.let { return tracePricing(provider, model, "LLMPRICES", it) }
+        findArtificialAnalysisPricing(provider, model)?.let { return tracePricing(provider, model, "AA", it) }
+        if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return tracePricing(provider, model, "OPENROUTER", it) }
+        findHeliconePricing(provider, model)?.let { return tracePricing(provider, model, "HELICONE", it) }
+        AppLog.v("PricingCache", "miss ${provider.id}/$model → DEFAULT")
         return DEFAULT_PRICING
+    }
+
+    private fun tracePricing(provider: AppService, model: String, tier: String, p: ModelPricing): ModelPricing {
+        AppLog.v("PricingCache", "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}")
+        return p
     }
 
     private fun isMainThread(): Boolean =

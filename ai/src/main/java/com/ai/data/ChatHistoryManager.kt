@@ -37,8 +37,10 @@ object ChatHistoryManager {
                 // detect a save that didn't actually land. Forward the
                 // boolean so the chat session UI can warn / retry instead
                 // of pretending the message persisted.
-                val ok = File(dir, "${session.id}.json").writeTextAtomic(gson.toJson(session))
+                val json = gson.toJson(session)
+                val ok = File(dir, "${session.id}.json").writeTextAtomic(json)
                 if (ok) {
+                    AppLog.v("ChatHistory", "save ${session.id} msgs=${session.messages.size} bytes=${json.length}")
                     cachedSessions = null
                     notifyHistoryChanged()
                 }
@@ -58,8 +60,10 @@ object ChatHistoryManager {
             // file.readText() + fromJson(String) — avoids holding the
             // whole JSON document as a String alongside Gson's parse
             // buffer, which matters for image-heavy sessions.
-            try { file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) } }
-            catch (e: Exception) { AppLog.e("ChatHistoryManager", "Failed to load: ${e.message}"); null }
+            try {
+                file.bufferedReader().use { gson.fromJson(it, ChatSession::class.java) }
+                    ?.also { AppLog.v("ChatHistory", "load ${it.id} msgs=${it.messages.size}") }
+            } catch (e: Exception) { AppLog.e("ChatHistoryManager", "Failed to load: ${e.message}"); null }
         }
     }
 
@@ -91,7 +95,10 @@ object ChatHistoryManager {
                 if (ok) cachedSessions = null
                 ok
             }
-            if (deleted) notifyHistoryChanged()
+            if (deleted) {
+                AppLog.v("ChatHistory", "delete $sessionId")
+                notifyHistoryChanged()
+            }
             deleted
         } catch (_: Exception) { false }
     }

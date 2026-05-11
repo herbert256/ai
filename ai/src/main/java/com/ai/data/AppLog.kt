@@ -81,6 +81,20 @@ object AppLog {
 
     fun init(context: Context) = lock.withLock {
         logDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
+        // Apply the persisted threshold immediately so DEBUG/TRACE
+        // calls inside bootstrap() are admitted on cold start instead
+        // of waiting for AppViewModel's threshold mirror after
+        // bootstrap completes. Read directly from the main prefs
+        // (same KEY_LOG_LEVEL SettingsPreferences uses) — no
+        // SettingsPreferences dependency here keeps AppLog
+        // self-contained and lets it apply the threshold before any
+        // higher-level singletons exist.
+        try {
+            val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
+            prefs.getString("log_level", null)?.let { raw ->
+                try { threshold = LogLevel.valueOf(raw) } catch (_: Exception) {}
+            }
+        } catch (_: Exception) { /* prefs unreadable — keep default INFO */ }
     }
 
     // ===== Public API — mirrors android.util.Log =====

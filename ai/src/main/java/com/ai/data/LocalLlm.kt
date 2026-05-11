@@ -87,6 +87,8 @@ object LocalLlm {
         return instances.computeIfAbsent(modelName) {
             val file = llmFile(context, modelName)
                 ?: throw IllegalStateException("Local LLM $modelName.task not found in local_llms/")
+            AppLog.i("LocalLlm", "→ load $modelName from ${file.name} (${file.length() / (1024 * 1024)} MiB)")
+            val loadStart = System.currentTimeMillis()
             // Conservative defaults — keeps memory in check on phones
             // without flagship RAM. The user can re-tune later if we
             // expose advanced options.
@@ -94,7 +96,9 @@ object LocalLlm {
                 .setModelPath(file.absolutePath)
                 .setMaxTokens(2048)
                 .build()
-            LlmInference.createFromOptions(context, options)
+            val engine = LlmInference.createFromOptions(context, options)
+            AppLog.i("LocalLlm", "← loaded $modelName in ${System.currentTimeMillis() - loadStart}ms")
+            engine
         }
     }
 
@@ -128,10 +132,15 @@ object LocalLlm {
      *  state. */
     fun generate(context: Context, modelName: String, prompt: String): String? {
         val started = System.currentTimeMillis()
+        AppLog.d("LocalLlm", "→ generate $modelName promptChars=${prompt.length}")
         return try {
             val engine = getEngine(context, modelName)
             val out = synchronized(engine) { engine.generateResponse(prompt) }
-            recordTrace(modelName, prompt, out, durationMs = System.currentTimeMillis() - started, error = null)
+            val durMs = System.currentTimeMillis() - started
+            recordTrace(modelName, prompt, out, durationMs = durMs, error = null)
+            val outLen = out?.length ?: 0
+            val rate = if (durMs > 0) (outLen.toDouble() * 1000.0 / durMs) else 0.0
+            AppLog.d("LocalLlm", "← generate $modelName outChars=$outLen ${durMs}ms (${"%.1f".format(rate)} chars/s)")
             out
         } catch (e: Exception) {
             AppLog.e("LocalLlm", "generate failed: ${e.message}", e)
