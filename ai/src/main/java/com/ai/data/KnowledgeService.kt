@@ -215,7 +215,7 @@ object KnowledgeService {
         // worst failure mode here, fail loud instead.
         val mismatch = kbs.firstOrNull { it.embedderProviderId != first.embedderProviderId || it.embedderModel != first.embedderModel }
         if (mismatch != null) {
-            AppLog.w("KnowledgeService", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
+            AppLog.w("Knowledge", "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s")
         }
 
         val queryVecRaw = if (first.embedderProviderId == "LOCAL") {

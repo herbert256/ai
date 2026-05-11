@@ -90,7 +90,7 @@ class ChatViewModel(private val appViewModel: AppViewModel) {
             // falling back to "no context" — without the log a user
             // sees a perfectly good chat reply and never knows the
             // attached KB didn't contribute.
-            AppLog.w("ChatViewModel.RAG",
+            AppLog.w("Chat.RAG",
                 "Retrieval failed for kbs=$knowledgeBaseIds: ${e.javaClass.simpleName}: ${e.message}")
         }.getOrDefault(emptyList())
         AppLog.d("Chat.RAG", "retrieved ${hits.size} hit(s)")

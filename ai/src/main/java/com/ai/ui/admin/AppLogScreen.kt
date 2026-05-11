@@ -240,6 +240,17 @@ private fun timeOfHeader(header: String): String? {
     return candidate
 }
 
+/** Strip the leading "YYYY-MM-DD " from a log line. Each log file is
+ *  one day, so the date prefix is pure noise on screen — the file
+ *  name carries the date. Falls through unchanged when the line
+ *  doesn't start with a date (legacy / hand-written entries). */
+private fun stripDatePrefix(line: String): String {
+    if (line.length < 11) return line
+    val datePart = line.substring(0, 10)
+    if (datePart[4] != '-' || datePart[7] != '-') return line
+    return line.substring(11)
+}
+
 /** Normalise a user-typed time filter to "HH:mm:ss". Accepts blank
  *  (= no constraint), "HH:mm" (zero-fills seconds), and "HH:mm:ss".
  *  Returns null when the input doesn't parse — caller treats null
@@ -311,14 +322,29 @@ fun AppLogDetailScreen(
     // the network-timeout fields under Settings.
     var startTimeText by remember(currentFilename) { mutableStateOf("") }
     var endTimeText by remember(currentFilename) { mutableStateOf("") }
+    // Tag filter. "(All)" sentinel = no constraint. The pulldown is
+    // populated from the distinct set of tags actually present in
+    // this file's entries, sorted alphabetically.
+    var selectedTag by remember(currentFilename) { mutableStateOf("(All)") }
+    val availableTags = remember(allEntries) {
+        val present = allEntries
+            .mapNotNull { parseHeader(it.header).tag.trim().takeIf { t -> t.isNotEmpty() } }
+            .distinct()
+            .sorted()
+        listOf("(All)") + present
+    }
 
-    val entries = remember(allEntries, searchQuery, enabledLevels, startTimeText, endTimeText) {
+    val entries = remember(allEntries, searchQuery, enabledLevels, startTimeText, endTimeText, selectedTag) {
         val query = searchQuery.trim().lowercase()
         val startT = normaliseTimeFilter(startTimeText)
         val endT = normaliseTimeFilter(endTimeText)
         allEntries.filter { entry ->
             val lvl = levelOfHeader(entry.header)
             if (lvl != null && lvl !in enabledLevels) return@filter false
+            if (selectedTag != "(All)") {
+                val t = parseHeader(entry.header).tag.trim()
+                if (t != selectedTag) return@filter false
+            }
             if (query.isNotEmpty() && !entry.text.lowercase().contains(query)) return@filter false
             if (startT != null) {
                 val t = timeOfHeader(entry.header)
@@ -391,22 +417,38 @@ fun AppLogDetailScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // ===== Filter row =====
-        // Search field. Trailing X clears the query in one tap.
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            label = { Text("Search", fontSize = 11.sp) },
-            singleLine = true,
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    TextButton(onClick = { searchQuery = "" }, contentPadding = PaddingValues(0.dp)) {
-                        Text("✕", fontSize = 14.sp, color = AppColors.TextTertiary)
-                    }
-                }
-            },
+        // Search field + tag pulldown share one row. The pulldown is
+        // a fixed-width dropdown showing the distinct tags present in
+        // this file (e.g. App / Report / ApiCall / SSE / …); "(All)"
+        // disables the filter. Search trailing ✕ clears the query in
+        // one tap.
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedFieldColors()
-        )
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("Search", fontSize = 11.sp) },
+                singleLine = true,
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        TextButton(onClick = { searchQuery = "" }, contentPadding = PaddingValues(0.dp)) {
+                            Text("✕", fontSize = 14.sp, color = AppColors.TextTertiary)
+                        }
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedFieldColors()
+            )
+            TagDropdown(
+                value = selectedTag,
+                options = availableTags,
+                onPick = { selectedTag = it },
+                modifier = Modifier.weight(0.7f)
+            )
+        }
 
         Spacer(modifier = Modifier.height(4.dp))
 
@@ -486,7 +528,7 @@ fun AppLogDetailScreen(
                         val color = colorForEntry(entry.header)
                         val suffix = if (entry.lines.size > 1) "  (+${entry.lines.size - 1})" else ""
                         Text(
-                            entry.header + suffix,
+                            stripDatePrefix(entry.header) + suffix,
                             fontSize = 11.sp, color = color,
                             fontFamily = FontFamily.Monospace,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -520,6 +562,42 @@ fun AppLogDetailScreen(
                 modifier = Modifier.width(36.dp),
                 colors = AppColors.outlinedButtonColors()
             ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
+/** Outlined-button dropdown shared with the log file viewer for the
+ *  tag filter. "(All)" sentinel is rendered as just the placeholder
+ *  label; any other selection shows "Tag: <value>". Mirrors the
+ *  FilterDropdown used by the API Traces list — same look so the two
+ *  filtering screens feel consistent. */
+@Composable
+private fun TagDropdown(
+    value: String,
+    options: List<String>,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            val display = if (value == "(All)") "Tag" else "Tag: $value"
+            Text(display, fontSize = 11.sp,
+                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("▾", fontSize = 11.sp, color = AppColors.TextTertiary)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { opt ->
+                DropdownMenuItem(
+                    text = { Text(opt, fontSize = 13.sp) },
+                    onClick = { onPick(opt); expanded = false }
+                )
+            }
         }
     }
 }
@@ -610,9 +688,10 @@ private fun AppLogEntryScreen(
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Line 1: timestamp.
+                // Line 1: time-of-day. Each log file is one day, so
+                // the date prefix is redundant — strip it for display.
                 Text(
-                    parts.timestamp.ifBlank { "(no timestamp)" },
+                    stripDatePrefix(parts.timestamp).ifBlank { "(no timestamp)" },
                     fontSize = 13.sp,
                     color = AppColors.TextTertiary,
                     fontFamily = FontFamily.Monospace

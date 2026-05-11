@@ -401,7 +401,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (isEmptyInstall) {
                 val providersAdded = ProviderRegistry.importFromAsset(application, "providers.json")
                 if (providersAdded < 0) {
-                    AppLog.w("AppViewModel", "First-run providers.json import failed")
+                    AppLog.w("App", "First-run providers.json import failed")
                 }
             }
             prefs.edit().putBoolean(KEY_FIRST_RUN_BOOTSTRAPPED, true).apply()
@@ -425,7 +425,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val syncCount = ProviderRegistry.syncFromAsset(application, "providers.json")
             val addCount = ProviderRegistry.importFromAsset(application, "providers.json")
             AppLog.d("App.bootstrap", "providers.json: synced=$syncCount, added=$addCount in ${System.currentTimeMillis() - tSync}ms")
-        }.onFailure { AppLog.w("AppViewModel", "providers.json delta sync failed", it) }
+        }.onFailure { AppLog.w("App", "providers.json delta sync failed", it) }
 
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
@@ -442,7 +442,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(ai)
                 }
             }
-        }.onFailure { AppLog.w("AppViewModel", "prompts.json delta merge failed", it) }
+        }.onFailure { AppLog.w("App", "prompts.json delta merge failed", it) }
 
         return gs to ai
     }
@@ -566,7 +566,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // 5. Reload providers.json from assets
                 val providersAdded = ProviderRegistry.importFromAsset(context, "providers.json")
                 if (providersAdded < 0) {
-                    AppLog.w("AppViewModel", "providers.json reload failed during reset")
+                    AppLog.w("App", "providers.json reload failed during reset")
                 }
                 // 6. Clear configuration (Settings() now keyed against fresh registry)
                 clearAllConfiguration(context)
@@ -832,7 +832,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 null
             } catch (e: Exception) {
-                AppLog.w("AppViewModel", "Failed to fetch models for ${service.id}: ${e.message}")
+                AppLog.w("App", "Failed to fetch models for ${service.id}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
                 // Match the trace bracketed by withTraceCategory("Retrieve
                 // models list") in ApiDispatch.fetchModelsWithKinds. Filtering

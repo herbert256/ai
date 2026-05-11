@@ -269,7 +269,7 @@ object BackupManager {
                     val canonicalTarget = target.canonicalPath
                     val canonicalRoot = context.filesDir.canonicalPath + File.separator
                     if (!canonicalTarget.startsWith(canonicalRoot)) {
-                        AppLog.w("BackupManager",
+                        AppLog.w("Backup",
                             "Skipping zip entry that escapes filesDir: $name")
                         zip.closeEntry(); continue
                     }
@@ -280,7 +280,7 @@ object BackupManager {
                     val canonicalTarget = target.canonicalPath
                     val canonicalRoot = context.cacheDir.canonicalPath + File.separator
                     if (!canonicalTarget.startsWith(canonicalRoot)) {
-                        AppLog.w("BackupManager",
+                        AppLog.w("Backup",
                             "Skipping zip entry that escapes cacheDir: $name")
                         zip.closeEntry(); continue
                     }
@@ -451,7 +451,7 @@ object BackupManager {
                     "l" -> editor.putLong(k, (m["v"] as? Number)?.toLong() ?: 0L)
                     "f" -> editor.putFloat(k, (m["v"] as? Number)?.toFloat() ?: 0f)
                     "ss" -> editor.putStringSet(k, (m["v"] as? List<*>)?.filterIsInstance<String>()?.toSet() ?: emptySet())
-                    else -> AppLog.w("BackupManager",
+                    else -> AppLog.w("Backup",
                         "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped")
                 }
             }
@@ -498,7 +498,7 @@ object BackupManager {
             try {
                 val childCanonical = child.canonicalPath
                 if (!childCanonical.startsWith(parentCanonical + File.separator)) {
-                    AppLog.w("BackupManager", "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical")
+                    AppLog.w("Backup", "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical")
                     continue
                 }
             } catch (_: java.io.IOException) {
