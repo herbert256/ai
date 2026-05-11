@@ -10,6 +10,7 @@ import com.ai.ui.report.translationRunGroupingId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
@@ -1081,38 +1082,52 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         }
                     }
                     // Launch one coroutine per pair. Per-provider
-                    // concurrency + per-minute rate are now enforced
-                    // globally inside ProviderThrottleInterceptor, so
-                    // we no longer need a per-batch semaphore here —
-                    // the OkHttp interceptor caps in-flight calls per
-                    // host across every flow in the app (report, meta,
-                    // chat, translate, …) using the user-tunable
-                    // GeneralSettings.maxConcurrentCallsPerProvider.
+                    // concurrency + per-minute rate are enforced through
+                    // ProviderThrottle, but we acquire the permit here
+                    // (not inside the OkHttp interceptor) so the UI's
+                    // queued / running distinction lines up with the
+                    // throttle state:
+                    //   - pair enters async, hasn't called acquire yet
+                    //     → not in runningFanOutPairs → reads as "queued"
+                    //   - acquire returns (permit + per-minute slot held)
+                    //     → flip to runningFanOutPairs → reads as "running"
+                    // The OkHttp interceptor sees permitPreAcquired=true
+                    // on the worker (propagated via TagPropagatingExecutor)
+                    // and skips its own acquire — no double-counting.
                     coroutineScope {
                         pending.map { item ->
                             async {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
-                                appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
-                                val pairStart = System.currentTimeMillis()
-                                AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
+                                val host = providerHost(provider)
+                                AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
+                                val releaser = ProviderThrottle.acquire(host)
                                 try {
-                                    val resolvedBase = resolveSecondaryPrompt(
-                                        metaPrompt.text,
-                                        question = report.prompt,
-                                        results = "",
-                                        count = sources.size,
-                                        title = report.title
-                                    )
-                                    val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
-                                    executeSecondaryTask(
-                                        context, reportId, SecondaryKind.META, metaPrompt,
-                                        provider, item.answerer.model, resolved, aiSettings, report,
-                                        fanOutSourceAgentId = item.source.agentId,
-                                        existingPlaceholder = item.placeholder
-                                    )
+                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                        appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
+                                        val pairStart = System.currentTimeMillis()
+                                        AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
+                                        try {
+                                            val resolvedBase = resolveSecondaryPrompt(
+                                                metaPrompt.text,
+                                                question = report.prompt,
+                                                results = "",
+                                                count = sources.size,
+                                                title = report.title
+                                            )
+                                            val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
+                                            executeSecondaryTask(
+                                                context, reportId, SecondaryKind.META, metaPrompt,
+                                                provider, item.answerer.model, resolved, aiSettings, report,
+                                                fanOutSourceAgentId = item.source.agentId,
+                                                existingPlaceholder = item.placeholder
+                                            )
+                                        } finally {
+                                            appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
+                                            AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
+                                        }
+                                    }
                                 } finally {
-                                    appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
-                                    AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
+                                    releaser.release()
                                 }
                             }
                         }.awaitAll()
@@ -1154,36 +1169,46 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     val sourceCount = successful.size
-                    // Per-provider gating now lives in
-                    // ProviderThrottleInterceptor — see runFanOutPrompt
-                    // for the matching change.
+                    // Per-pair pre-acquire mirrors runFanOutPrompt so the
+                    // queued / running flip on the UI lines up with the
+                    // permit being held. See that function for the full
+                    // explanation.
                     coroutineScope {
                         placeholders.map { ph ->
                             async {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
-                                appViewModel.updateRunningFanOutPairs { it + ph.id }
-                                val rerunStart = System.currentTimeMillis()
-                                AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
+                                val host = providerHost(provider)
+                                AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
+                                val releaser = ProviderThrottle.acquire(host)
                                 try {
-                                    val resolvedBase = resolveSecondaryPrompt(
-                                        metaPrompt.text,
-                                        question = report.prompt,
-                                        results = "",
-                                        count = sourceCount,
-                                        title = report.title
-                                    )
-                                    val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
-                                    executeSecondaryTask(
-                                        context, reportId, SecondaryKind.META, metaPrompt,
-                                        provider, ph.model, resolved, aiSettings, report,
-                                        fanOutSourceAgentId = source.agentId,
-                                        existingPlaceholder = ph
-                                    )
+                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                        appViewModel.updateRunningFanOutPairs { it + ph.id }
+                                        val rerunStart = System.currentTimeMillis()
+                                        AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
+                                        try {
+                                            val resolvedBase = resolveSecondaryPrompt(
+                                                metaPrompt.text,
+                                                question = report.prompt,
+                                                results = "",
+                                                count = sourceCount,
+                                                title = report.title
+                                            )
+                                            val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                            executeSecondaryTask(
+                                                context, reportId, SecondaryKind.META, metaPrompt,
+                                                provider, ph.model, resolved, aiSettings, report,
+                                                fanOutSourceAgentId = source.agentId,
+                                                existingPlaceholder = ph
+                                            )
+                                        } finally {
+                                            appViewModel.updateRunningFanOutPairs { it - ph.id }
+                                            AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
+                                        }
+                                    }
                                 } finally {
-                                    appViewModel.updateRunningFanOutPairs { it - ph.id }
-                                    AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
+                                    releaser.release()
                                 }
                             }
                         }.awaitAll()

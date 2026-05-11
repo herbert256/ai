@@ -629,9 +629,36 @@ object ProviderThrottle {
     private val sems = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Semaphore>()
     private val windows = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentLinkedDeque<Long>>()
 
+    /** True on threads where the surrounding flow already acquired a
+     *  per-provider permit and is holding it explicitly (Fan-out's
+     *  coroutine-level acquire). The interceptor reads this on the
+     *  OkHttp dispatcher thread and skips its own acquire — without
+     *  the flag we'd double-count permits and halve the effective
+     *  concurrency for those flows.
+     *
+     *  Propagated across coroutine dispatcher hops via
+     *  [asContextElement]; copied onto OkHttp worker threads by
+     *  [TagPropagatingExecutor]. */
+    val permitPreAcquired: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+
     class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore) {
         private val released = java.util.concurrent.atomic.AtomicBoolean(false)
         fun release() { if (released.compareAndSet(false, true)) sem.release() }
+    }
+
+    /** Resolve a per-provider override (if any) and return the effective
+     *  caps the interceptor would apply. Exposed so the fan-out
+     *  pre-acquire path uses the exact same lookup as the in-line
+     *  interceptor — keeping the two callers in sync as the throttle
+     *  source-of-truth evolves. */
+    fun limitsFor(host: String): Pair<Int, Int> {
+        if (host.isBlank()) return NetworkSettings.maxCallsPerProviderPerMinute to NetworkSettings.maxConcurrentCallsPerProvider
+        val override = ProviderRegistry.findByHost(host)
+        val perMinute = (override?.maxCallsPerProviderPerMinute
+            ?: NetworkSettings.maxCallsPerProviderPerMinute).coerceAtLeast(1)
+        val concurrent = (override?.maxConcurrentCallsPerProvider
+            ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
+        return perMinute to concurrent
     }
 
     /** Gate on per-minute rate first, then on concurrency. The
@@ -723,6 +750,14 @@ class ProviderThrottleInterceptor : Interceptor {
             return chain.proceed(chain.request())
         }
         val request = chain.request()
+        // Fan-out (and any other pre-acquiring flow) already holds a
+        // permit; acquiring here too would double-count and halve the
+        // effective concurrency cap. The flag is set on the calling
+        // coroutine thread and propagated onto this worker by
+        // TagPropagatingExecutor.
+        if (ProviderThrottle.permitPreAcquired.get() == true) {
+            return chain.proceed(request)
+        }
         val releaser = ProviderThrottle.acquire(request.url.host)
         try {
             return chain.proceed(request)
@@ -957,13 +992,27 @@ class TagPropagatingExecutor(
 ) : java.util.concurrent.AbstractExecutorService() {
     override fun execute(command: Runnable) {
         val captured = ApiTracer.currentTags.get()
+        // Also capture ProviderThrottle.permitPreAcquired so the
+        // ProviderThrottleInterceptor on the worker can tell whether
+        // the calling coroutine already acquired a per-provider
+        // permit. Without this the worker would always read false
+        // (the worker's ThreadLocal default) and double-acquire on
+        // Fan-out pairs.
+        val capturedPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
         if (captured?.reportId != null || captured?.category != null) {
             AppLog.v("TagPropagation", "submit reportId=${captured.reportId} cat=${captured.category}")
         }
         delegate.execute {
-            val previous = ApiTracer.currentTags.get()
+            val previousTags = ApiTracer.currentTags.get()
+            val previousPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
             ApiTracer.currentTags.set(captured)
-            try { command.run() } finally { ApiTracer.currentTags.set(previous) }
+            if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(true)
+            try {
+                command.run()
+            } finally {
+                ApiTracer.currentTags.set(previousTags)
+                if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
+            }
         }
     }
     override fun shutdown() = delegate.shutdown()

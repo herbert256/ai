@@ -69,6 +69,16 @@ internal fun reportToModels(report: Report, aiSettings: Settings): List<ReportMo
     }
 }
 
+/** Extract the host from a provider's baseUrl so the fan-out
+ *  pre-acquire path can call [PricingCache] er, [com.ai.data.ProviderThrottle.acquire]
+ *  with the same host the OkHttp interceptor would see. Returns
+ *  "" on a malformed baseUrl — ProviderThrottle.acquire treats an
+ *  empty host as a no-op pass-through, which is the safe direction
+ *  (better to skip a permit acquire than to deadlock on a parsing
+ *  failure). */
+internal fun providerHost(service: AppService): String =
+    runCatching { java.net.URI(service.baseUrl).host ?: "" }.getOrDefault("")
+
 /** Translate-mode caller for prompt + results: when [language] is
  *  null, returns the report's untranslated prompt + result block.
  *  Otherwise looks up the per-target translation rows and substitutes
