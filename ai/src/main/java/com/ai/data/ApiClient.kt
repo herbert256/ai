@@ -198,6 +198,14 @@ object ApiFactory {
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
+        // Sets the per-call read timeout from the user-tunable
+        // NetworkSettings — streaming requests (SSE chat/report) get
+        // the long streamingReadTimeoutSec; everything else gets the
+        // shorter nonStreamingReadTimeoutSec. Without this every call
+        // would inherit the OkHttp client's static read timeout below,
+        // which is the streaming default and far too long for a hung
+        // non-streaming call.
+        .addInterceptor(ReadTimeoutInterceptor())
         // Provider-test calls (Refresh-all per-provider tests, Test
         // button, raw-JSON submit) need a much shorter read timeout
         // than streaming chat/report calls. This interceptor overrides

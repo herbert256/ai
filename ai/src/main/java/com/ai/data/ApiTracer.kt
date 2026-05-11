@@ -525,6 +525,75 @@ class TracingInterceptor : Interceptor {
     }
 }
 
+/** Live mirror of the user-tunable network knobs. Singleton so the
+ *  OkHttp interceptors can read the current value without threading
+ *  a Settings reference through their constructors. AppViewModel
+ *  writes here on bootstrap and on every GeneralSettings update; the
+ *  built-in defaults below are the cold-start values used before
+ *  bootstrap completes (matters for the very first call on a fresh
+ *  install / process restart). */
+object NetworkSettings {
+    @Volatile var streamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC
+    @Volatile var nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
+}
+
+/** Per-call read-timeout shim. Without this every call would inherit
+ *  the OkHttpClient's static streaming timeout (10 min by default),
+ *  which is fine for SSE chat / report streams but disastrous for
+ *  short non-streaming calls (analyze, fetch models, meta runs) —
+ *  a single hung provider then gates the whole batch for minutes.
+ *
+ *  Detection runs pre-`chain.proceed` against the request URL and body:
+ *  - Gemini's URL distinguishes `:streamGenerateContent` from
+ *    `:generateContent`.
+ *  - OpenAI / Anthropic POST bodies carry `"stream": true` for SSE
+ *    requests; absence => non-streaming.
+ *  - Anything else (e.g. GET model-list calls) defaults to the
+ *    non-streaming timeout.
+ *
+ *  Sits ahead of [TestCallTimeoutInterceptor] so a provider-test
+ *  call's 30 s override still wins for the test flow regardless of
+ *  whether this picks the streaming or non-streaming branch.
+ */
+class ReadTimeoutInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val nonStreamSec = NetworkSettings.nonStreamingReadTimeoutSec
+        val streamSec = NetworkSettings.streamingReadTimeoutSec
+        val timeoutSec = if (isStreamingRequest(request)) streamSec else nonStreamSec
+        return chain
+            .withReadTimeout(timeoutSec, java.util.concurrent.TimeUnit.SECONDS)
+            .proceed(request)
+    }
+
+    private fun isStreamingRequest(request: okhttp3.Request): Boolean {
+        val url = request.url.toString()
+        // Gemini's streaming endpoint has a separate path segment.
+        if (url.contains(":streamGenerateContent")) return true
+        if (url.contains(":generateContent")) return false
+        // OpenAI / Anthropic streaming requests POST with stream:true
+        // in the JSON body. Read the body bytes off a Buffer copy so
+        // the original request body stays untouched.
+        val body = request.body ?: return false
+        if (request.method != "POST") return false
+        return try {
+            val buf = Buffer()
+            body.writeTo(buf)
+            val text = buf.snapshot().utf8()
+            STREAM_FLAG_REGEX.containsMatchIn(text)
+        } catch (_: Exception) { false }
+    }
+
+    private companion object {
+        // Cheap regex over the body — provider request bodies are JSON
+        // so "stream":true vs "stream": true vs "stream" : true all
+        // need to match. False positives on a string literal would be
+        // weird but harmless (the longer streaming timeout still works
+        // for non-streaming responses).
+        val STREAM_FLAG_REGEX = Regex("\"stream\"\\s*:\\s*true")
+    }
+}
+
 /** Retry on HTTP 429 (rate-limit) responses. Reissues the same request
  *  after a short backoff, capped so a sustained 429 burst can't hold an
  *  OkHttp dispatcher slot indefinitely (the dispatcher's per-host limit

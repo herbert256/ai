@@ -97,6 +97,20 @@ data class GeneralSettings(
      *  above the main list; AppViewModel.recordRecentReportModel
      *  pushes new picks onto the front, deduplicates, and trims to 3. */
     val recentReportModels: List<String> = emptyList(),
+    /** Read timeout (seconds) applied to streaming API calls — chat /
+     *  report streams where the response trickles in via SSE. The
+     *  built-in default (10 min) is generous enough for slow-reasoning
+     *  Claude / Gemini sessions; users on flaky networks running fast
+     *  models can shrink it. Mirrored to
+     *  [com.ai.data.NetworkSettings.streamingReadTimeoutSec] so the
+     *  per-call OkHttp interceptor reads the live value. */
+    val streamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC,
+    /** Read timeout (seconds) applied to non-streaming calls — meta /
+     *  rerank / translate / model-list fetches / individual analyze
+     *  calls that block waiting for the full response body. Much
+     *  shorter than the streaming timeout by default so a hung
+     *  provider can't gate a whole batch for 10 minutes. */
+    val nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub
@@ -293,6 +307,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // (which doesn't see GeneralSettings directly) can fall back through them.
             ModelType.userDefaults = bs.first.defaultTypePaths
             ApiTracer.isTracingEnabled = bs.first.tracingEnabled
+            NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
+            NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -548,6 +564,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun updateGeneralSettings(settings: GeneralSettings) {
         ModelType.userDefaults = settings.defaultTypePaths
         ApiTracer.isTracingEnabled = settings.tracingEnabled
+        NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
+        NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }

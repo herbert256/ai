@@ -629,15 +629,29 @@ private fun SettingsMainScreen(
     var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
+    // Stored as strings so partial / empty edits don't fight the
+    // user mid-keystroke. On save, parse → coerceAtLeast(1) so a
+    // typo can never produce a 0-second timeout that would fail
+    // every call instantly.
+    var streamingReadTimeoutText by remember {
+        mutableStateOf(generalSettings.streamingReadTimeoutSec.toString())
+    }
+    var nonStreamingReadTimeoutText by remember {
+        mutableStateOf(generalSettings.nonStreamingReadTimeoutSec.toString())
+    }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
             showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
             iconBarAtBottom = iconBarAtBottom,
             iconGenEnabled = iconGenEnabled,
-            showKnowledgeCard = showKnowledgeCard
+            showKnowledgeCard = showKnowledgeCard,
+            streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+                ?: generalSettings.streamingReadTimeoutSec,
+            nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+                ?: generalSettings.nonStreamingReadTimeoutSec
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -661,7 +675,11 @@ private fun SettingsMainScreen(
                 showBackButton = showBackButton, subjectToTitleBarMode = subjectToTitleBarMode,
                 iconBarAtBottom = iconBarAtBottom,
             iconGenEnabled = iconGenEnabled,
-                showKnowledgeCard = showKnowledgeCard
+                showKnowledgeCard = showKnowledgeCard,
+                streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+                    ?: generalSettings.streamingReadTimeoutSec,
+                nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
+                    ?: generalSettings.nonStreamingReadTimeoutSec
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -698,6 +716,34 @@ private fun SettingsMainScreen(
                 checked = tracingEnabled,
                 onCheckedChange = { tracingEnabled = it }
             )
+
+            // Per-call read timeouts. Streaming applies to SSE chat /
+            // report calls (the response trickles in chunks — the
+            // timeout is the gap between chunks). Non-streaming
+            // applies to analyze / fetch-models / meta / rerank /
+            // translate calls that block waiting for the full body.
+            // Both default to the BuildConfig values (600 / 120 s);
+            // a typo defaulting to blank leaves the previous value in
+            // place rather than poisoning every call with 0 s.
+            SettingCard(
+                "Network read timeouts",
+                "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."
+            ) {
+                OutlinedTextField(
+                    value = streamingReadTimeoutText,
+                    onValueChange = { streamingReadTimeoutText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Streaming (seconds)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = nonStreamingReadTimeoutText,
+                    onValueChange = { nonStreamingReadTimeoutText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Non-streaming (seconds)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
 
             // Model name layout — controls how combined provider+model
             // labels render across the app. MODEL_ONLY is the dense

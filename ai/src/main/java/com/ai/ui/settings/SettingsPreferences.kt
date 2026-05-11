@@ -71,7 +71,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
                 ?.split("\n")?.filter { it.isNotBlank() }
-                ?: emptyList()
+                ?: emptyList(),
+            streamingReadTimeoutSec = prefs.getInt(
+                KEY_STREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC
+            ),
+            nonStreamingReadTimeoutSec = prefs.getInt(
+                KEY_NONSTREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
+            )
         )
     }
 
@@ -93,6 +99,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // Newline-joined: entries are "providerId|model" so newline
             // is a safe delimiter — neither side can contain it.
             putString(KEY_RECENT_REPORT_MODELS, settings.recentReportModels.joinToString("\n"))
+            putInt(KEY_STREAMING_READ_TIMEOUT_SEC, settings.streamingReadTimeoutSec)
+            putInt(KEY_NONSTREAMING_READ_TIMEOUT_SEC, settings.nonStreamingReadTimeoutSec)
         }
     }
 
@@ -438,6 +446,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
+        private const val KEY_STREAMING_READ_TIMEOUT_SEC = "streaming_read_timeout_sec"
+        private const val KEY_NONSTREAMING_READ_TIMEOUT_SEC = "nonstreaming_read_timeout_sec"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"
