@@ -45,7 +45,7 @@ fun ResetScreen(
         AlertDialog(
             onDismissRequest = { showClearAllConfirm = false },
             title = { Text("Clear all runtime data?") },
-            text = { Text("This permanently deletes all reports, chat history, API traces, prompt history, knowledge bases, pricing cache (manual overrides plus cached tier blobs), the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) and usage statistics are kept.") },
+            text = { Text("This permanently deletes all reports, chat history, API traces, prompt history, usage statistics, knowledge bases, pricing cache (manual overrides plus cached tier blobs), the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is kept.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -147,7 +147,7 @@ fun ResetScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Clear all runtime data", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Wipes reports, chats, API traces, prompt history, knowledge bases, pricing cache, model-list cache, and the semantic-search cache. Configuration and API keys are kept.",
+                        "Wipes reports, chats, API traces, prompt history, usage statistics, knowledge bases, pricing cache, model-list cache, and the semantic-search cache. Configuration and API keys are kept.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     Button(

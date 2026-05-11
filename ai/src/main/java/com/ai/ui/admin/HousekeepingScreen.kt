@@ -20,18 +20,16 @@ fun HousekeepingScreen(
     /** True when at least one provider has a working API key (state ==
      *  "ok"). When false the screen folds to a minimal "first-run"
      *  shape: only Refresh + a Restore-only / Import-only pair remain.
-     *  Trim by age / Usage statistics / Reset are hidden because none
-     *  of them have anything meaningful to operate on (no usage, no
-     *  reports, no traces yet). Backup is hidden because there's
-     *  nothing worth backing up; Export is hidden because there's
-     *  nothing to export. The user can still Restore / Import to
-     *  bring data in from another install. */
+     *  Trim by age / Reset are hidden because neither has anything
+     *  meaningful to operate on (no reports, no traces yet). Backup is
+     *  hidden because there's nothing worth backing up; Export is
+     *  hidden because there's nothing to export. The user can still
+     *  Restore / Import to bring data in from another install. */
     hasActiveProvider: Boolean = true,
     onNavigateToBackupRestore: () -> Unit = {},
     onNavigateToImportExport: () -> Unit = {},
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
-    onNavigateToUsageStatistics: () -> Unit = {},
     onNavigateToReset: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
@@ -51,7 +49,6 @@ fun HousekeepingScreen(
             NavCard("Refresh", onClick = onNavigateToRefresh)
             if (hasActiveProvider) {
                 NavCard("Trim by age", onClick = onNavigateToTrimByAge)
-                NavCard("Usage statistics", onClick = onNavigateToUsageStatistics)
                 NavCard("Reset", onClick = onNavigateToReset)
             }
         }

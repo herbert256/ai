@@ -431,10 +431,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     data class RuntimeWipeResult(val reports: Int, val chats: Int, val knowledgeBases: Int)
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
-    fun clearUsageStatistics() {
-        settingsPrefs.clearUsageStats()
-    }
-
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
         val reports = ReportStorage.getAllReports(context).also { list ->
             list.forEach { ReportStorage.deleteReport(context, it.id) }
@@ -444,6 +440,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PromptCache.clearAll()
         settingsPrefs.clearPromptHistory()
         settingsPrefs.clearLastReportPrompt()
+        // Usage statistics are runtime data — wiped alongside reports
+        // and chats so a single "Clear all runtime data" leaves no
+        // historical activity behind.
+        settingsPrefs.clearUsageStats()
         val kbs = KnowledgeStore.clearAll(context)
         PricingCache.clearAll(context)
         ModelListCache.clearAll(context)
@@ -484,9 +484,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 tempFile.writeText(keysJson)
 
-                // 2. Clear usage stats
-                clearUsageStatistics()
-                // 3. Clear runtime data
+                // 2. Clear runtime data (now also wipes usage stats)
                 clearAllRuntimeData(context)
                 // 4. Wipe provider registry
                 ProviderRegistry.resetToDefaults(context)

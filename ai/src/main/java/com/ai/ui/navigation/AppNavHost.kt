@@ -812,7 +812,6 @@ fun AppNavHost(
                 onNavigateToImportExport = { navController.navigate(NavRoutes.AI_IMPORT_EXPORT) },
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
-                onNavigateToUsageStatistics = { navController.navigate(NavRoutes.AI_USAGE_STATISTICS) },
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) }
             )
         }
@@ -827,13 +826,6 @@ fun AppNavHost(
         }
         composable(NavRoutes.AI_TRIM_BY_AGE) {
             com.ai.ui.admin.TrimByAgeScreen(
-                onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
-            )
-        }
-        composable(NavRoutes.AI_USAGE_STATISTICS) {
-            com.ai.ui.admin.UsageStatisticsScreen(
-                onClearUsageStatistics = { appViewModel.clearUsageStatistics() },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
