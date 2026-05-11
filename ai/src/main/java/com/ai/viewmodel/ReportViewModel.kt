@@ -71,6 +71,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { reportIconsJobs.remove(reportId, job) }
     }
 
+    // Per-agent alternative-icons fan-out jobs (Agent icon detail →
+    // Find alternative icons). Keyed by "$reportId|$agentId" so
+    // deleteReport's prefix cancel sweeps them too.
+    private val agentIconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun agentIconJobKey(reportId: String, agentId: String) = "$reportId|$agentId"
+    private fun registerAgentIconFanOutJob(reportId: String, agentId: String, job: Job) {
+        val key = agentIconJobKey(reportId, agentId)
+        agentIconFanOutJobs.put(key, job)?.cancel()
+        job.invokeOnCompletion { agentIconFanOutJobs.remove(key, job) }
+    }
+
     // Tracks in-flight resumeStaleFanOutPairs scans per (reportId,
     // metaPromptId). The L1 screen fires resumeStaleFanOutPairs from a
     // LaunchedEffect that re-keys whenever fanOutPrompt changes
@@ -484,6 +495,148 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun restartIconFanOut(reportId: String) {
         iconFanOutJobs.remove(reportId)?.cancel()
         appViewModel.clearIconFanOut(reportId)
+    }
+
+    /** Per-agent counterpart of [startIconFanOut]. Drives the Agent
+     *  icon detail screen's "Find alternative icons" button: the user
+     *  picks alternative models, and each one is asked to iconify
+     *  THIS agent's (provider, model) answer to the report's prompt
+     *  via the bundled internal/report_icon template (two
+     *  placeholders — @PROMPT@ = report.prompt, @RESPONSE@ = this
+     *  agent's responseBody). Candidates land in
+     *  [AppViewModel.agentIconFanOutByAgent] keyed by agentId; per-
+     *  call cost bumps the agent's icon-cost via
+     *  [ReportStorage.bumpReportAgentIconCost]. Re-runs cancel any
+     *  prior in-flight job for the same agent. */
+    fun startAgentIconFanOut(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_icon"
+        } ?: run {
+            AppLog.w("AgentIconAlt", "internal/report_icon prompt not found — skipping (agent=$agentId)")
+            return
+        }
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        appViewModel.updateAgentIconFanOut(agentId) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
+            val reportPrompt = report.prompt
+            val agentResponse = ra.responseBody.orEmpty()
+            val resolved = iconPrompt.text
+                .replace("@PROMPT@", reportPrompt)
+                .replace("@RESPONSE@", agentResponse)
+            unique.forEach { item ->
+                launch {
+                    val host = providerHost(item.provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "Report icon (alt agent)") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "icon-alt-agent-${agentId}-${item.provider.id}-${item.model}",
+                                        name = item.model,
+                                        provider = item.provider,
+                                        model = item.model,
+                                        apiKey = aiSettings.getApiKey(item.provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, AgentParameters(),
+                                        null, context, baseUrl
+                                    )
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    // Cost bump is unconditional — every
+                                    // call counts on the agent's row, same
+                                    // additive rule as the report-level
+                                    // alternative-icons flow.
+                                    if (inT > 0 || outT > 0) {
+                                        ReportStorage.bumpReportAgentIconCost(
+                                            context, reportId, agentId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    }
+                                    val totalCost = inC + outC
+                                    if (response.error == null) {
+                                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                                        appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Done(item.provider, item.model, emoji, totalCost)
+                                                else c
+                                            }
+                                        }
+                                    } else {
+                                        appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Error(item.provider, item.model, response.error, totalCost)
+                                                else c
+                                            }
+                                        }
+                                    }
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }.onFailure { e ->
+                                    appViewModel.updateAgentIconFanOut(agentId) { list ->
+                                        list.map { c ->
+                                            if (c.provider.id == item.provider.id && c.model == item.model)
+                                                IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed", 0.0)
+                                            else c
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        registerAgentIconFanOutJob(reportId, agentId, outer)
+    }
+
+    /** Per-agent counterpart of [pickAlternativeIcon]. Commits the
+     *  picked emoji to the matching [ReportAgent] via
+     *  [ReportStorage.setReportAgentIconChoice]; cost fields stay as
+     *  the per-call bumps left them. */
+    fun pickAgentIcon(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        emoji: String
+    ) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.setReportAgentIconChoice(context, reportId, agentId, emoji)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
+
+    /** Per-agent counterpart of [restartIconFanOut]. Wired to the
+     *  Alternative icons screen's Restart button when the active flow
+     *  is per-agent. */
+    fun restartAgentIconFanOut(reportId: String, agentId: String) {
+        agentIconFanOutJobs.remove(agentIconJobKey(reportId, agentId))?.cancel()
+        appViewModel.clearAgentIconFanOut(agentId)
     }
 
     /** Commit a user-picked icon from the "Alternative icons" list:
@@ -1026,6 +1179,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         iconFanOutJobs.remove(reportId)?.cancel()
         reportIconsJobs.remove(reportId)?.cancel()
+        // Per-agent alt-icon jobs also live under the same reportId
+        // prefix — collect and cancel them by agentId so their
+        // candidate maps clear too. Same prefix key as the fan-out
+        // pair jobs, scoped by a different ConcurrentHashMap.
+        agentIconFanOutJobs.entries
+            .filter { it.key.startsWith(fanOutPrefix) }
+            .forEach { entry ->
+                entry.value.cancel()
+                // key format is "$reportId|$agentId"; split once and
+                // drop the per-agent candidate map slot too.
+                val agentId = entry.key.removePrefix(fanOutPrefix)
+                appViewModel.clearAgentIconFanOut(agentId)
+            }
         appViewModel.clearIconFanOut(reportId)
         ReportStorage.deleteReport(context, reportId)
         if (cleared) dismissGenericReportsDialog()

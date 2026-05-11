@@ -399,6 +399,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _iconFanOutByReport.update { it - reportId }
     }
 
+    /** Per-agent alternative-icons state for the Agent icon detail
+     *  screen's "Find alternative icons" button. Keyed by agentId
+     *  (UUID, globally unique) so multiple agents under the same
+     *  report don't collide. Same shape as [iconFanOutByReport] — a
+     *  separate map keeps the report-level and per-agent UIs from
+     *  sharing each other's candidates. */
+    private val _agentIconFanOutByAgent = MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
+    val agentIconFanOutByAgent: StateFlow<Map<String, List<IconCandidate>>> = _agentIconFanOutByAgent.asStateFlow()
+    internal fun updateAgentIconFanOut(agentId: String, mutator: (List<IconCandidate>) -> List<IconCandidate>) {
+        _agentIconFanOutByAgent.update { current ->
+            val next = mutator(current[agentId].orEmpty())
+            current + (agentId to next)
+        }
+    }
+    internal fun clearAgentIconFanOut(agentId: String) {
+        _agentIconFanOutByAgent.update { it - agentId }
+    }
+
     // Refresh-all in-flight state. null = idle (nothing running, nothing to
     // resume). When non-null the user can navigate away from the
     // Refresh-all screen and come back to a live view of the same run.

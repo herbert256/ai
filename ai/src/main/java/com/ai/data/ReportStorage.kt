@@ -587,6 +587,62 @@ object ReportStorage {
         }
     }
 
+    /** Additive update for per-agent "Find alternative icons" fan-out
+     *  calls. Mirrors [bumpReportIconCost] but writes onto the matching
+     *  [ReportAgent]. Every per-pair call bumps the agent's icon cost
+     *  whether or not the user later picks that result — the row's
+     *  cost cell already folds these into the agent's primary cost. */
+    fun bumpReportAgentIconCost(
+        context: Context, reportId: String, agentId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                iconInputTokens = report.agents[idx].iconInputTokens + inputTokens,
+                iconOutputTokens = report.agents[idx].iconOutputTokens + outputTokens,
+                iconInputCost = report.agents[idx].iconInputCost + inputCost,
+                iconOutputCost = report.agents[idx].iconOutputCost + outputCost
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
+                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
+            saveReport(report.copy(
+                agents = newAgents, totalCost = newTotal,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Commit a user-picked emoji from the per-agent "Alternative
+     *  icons" list onto the matching [ReportAgent]. Replaces icon +
+     *  clears iconErrorMessage, leaves cost fields alone — those have
+     *  already been bumped per-call by [bumpReportAgentIconCost]. */
+    fun setReportAgentIconChoice(
+        context: Context, reportId: String, agentId: String, icon: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                icon = icon, iconErrorMessage = null
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(
+                agents = newAgents,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     /** Wipe per-agent icon fields across every agent in the report.
      *  Used by Create → Report icons at the start of a re-run so the
      *  second run doesn't show stale emojis from the first while

@@ -186,6 +186,7 @@ fun ReportsScreenNav(
     val agentResults by reportViewModel.agentResults.collectAsState()
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
+    val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -238,6 +239,16 @@ fun ReportsScreenNav(
             reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
         },
         onRestartIconFanOut = { rid -> reportViewModel.restartIconFanOut(rid) },
+        onStartAgentIconFanOut = { rid, agentId, models ->
+            reportViewModel.startAgentIconFanOut(context, rid, agentId, models, aiSettings)
+        },
+        onPickAgentIcon = { rid, agentId, emoji ->
+            reportViewModel.pickAgentIcon(context, rid, agentId, emoji)
+        },
+        onRestartAgentIconFanOut = { rid, agentId ->
+            reportViewModel.restartAgentIconFanOut(rid, agentId)
+        },
+        agentIconFanOutByAgent = agentIconFanOutByAgent,
         onRunReportIcons = {
             val rid = uiState.currentReportId
             if (rid != null) reportViewModel.runReportIcons(context, rid, aiSettings)
@@ -433,6 +444,18 @@ fun ReportsScreen(
      *  wants to start over. Costs already bumped on the Report by
      *  completed calls stay; they accumulate by design. */
     onRestartIconFanOut: (reportId: String) -> Unit = { _ -> },
+    /** Per-agent counterparts of the three icon-fan-out callbacks.
+     *  Same shape but routed to [ReportViewModel.startAgentIconFanOut]
+     *  /pickAgentIcon/restartAgentIconFanOut, which target a single
+     *  [ReportAgent.icon] instead of [Report.icon]. */
+    onStartAgentIconFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onPickAgentIcon: (reportId: String, agentId: String, emoji: String) -> Unit = { _, _, _ -> },
+    onRestartAgentIconFanOut: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+    /** Per-agent alternative-icons candidate state mirrored from
+     *  [AppViewModel.agentIconFanOutByAgent], keyed by agentId. The
+     *  Alternative icons screen reads from here when the active flow
+     *  is per-agent (i.e. [fanOutTargetAgentId] is non-null). */
+    agentIconFanOutByAgent: Map<String, List<IconCandidate>> = emptyMap(),
     /** Kick off Create → Report icons — one icon-prompt call per
      *  successful agent in the active report. */
     onRunReportIcons: () -> Unit = {},
@@ -759,6 +782,13 @@ fun ReportsScreen(
     var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
+    // Non-null when the active "Find / View alternative icons" flow
+    // is per-agent (reached from AgentIconDetailScreen). Drives the
+    // Find-icons picker + Alternative-icons screen blocks to dispatch
+    // through the agent-targeted callbacks instead of the report-
+    // level ones, and to read from agentIconFanOutByAgent instead of
+    // iconFanOutByReport. Cleared on pick or on agent detail back.
+    var fanOutTargetAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     var findIconsModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     // Which model-picker target the next +Add overlay confirm should
     // deposit into. NEW_REPORT = the SelectionPhase's `models` list
@@ -1138,21 +1168,40 @@ fun ReportsScreen(
     // picker / icon-detail blocks run.
     if (showAlternativeIcons && currentReportId != null) {
         val rid = currentReportId
-        val candidates = iconFanOutByReport[rid].orEmpty()
+        val targetAgentId = fanOutTargetAgentId
+        val candidates = if (targetAgentId != null) {
+            agentIconFanOutByAgent[targetAgentId].orEmpty()
+        } else {
+            iconFanOutByReport[rid].orEmpty()
+        }
         AlternativeIconsScreen(
             reportId = rid,
             candidates = candidates,
             onPickIcon = { emoji, iconModel ->
-                onPickAlternativeIcon(rid, emoji, iconModel)
+                if (targetAgentId != null) {
+                    onPickAgentIcon(rid, targetAgentId, emoji)
+                } else {
+                    onPickAlternativeIcon(rid, emoji, iconModel)
+                }
+                // Close every overlay in the icon chain so the user
+                // lands back on the Report result screen. fanOutTarget
+                // resets too so a later report-level run doesn't
+                // accidentally route through the per-agent path.
                 showAlternativeIcons = false
                 showFindIconsPicker = false
                 showIconDetail = false
+                agentIconDetailFor = null
+                fanOutTargetAgentId = null
             },
             onRestart = {
                 // Cancel + drop the current list and re-open the
                 // picker so the user can choose a new set of models.
-                // Costs already bumped onto the Report stay.
-                onRestartIconFanOut(rid)
+                // Costs already bumped on the Report / agent stay.
+                if (targetAgentId != null) {
+                    onRestartAgentIconFanOut(rid, targetAgentId)
+                } else {
+                    onRestartIconFanOut(rid)
+                }
                 findIconsModels = emptyList()
                 showAlternativeIcons = false
                 showFindIconsPicker = true
@@ -1164,6 +1213,7 @@ fun ReportsScreen(
     }
     if (showFindIconsPicker && currentReportId != null) {
         val rid = currentReportId
+        val targetAgentId = fanOutTargetAgentId
         FindIconsSelectionScreen(
             models = findIconsModels,
             aiSettings = aiSettings,
@@ -1175,7 +1225,11 @@ fun ReportsScreen(
             onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
             onClearAll = { findIconsModels = emptyList() },
             onFindIcons = {
-                onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
+                if (targetAgentId != null) {
+                    onStartAgentIconFanOut(rid, targetAgentId, findIconsModels)
+                } else {
+                    onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
+                }
                 findIconsModels = emptyList()
                 pickerTarget = PickerTarget.NEW_REPORT
                 showFindIconsPicker = false
@@ -1239,6 +1293,7 @@ fun ReportsScreen(
         val agent = agentRecordsByAgentId[agentId]
         val provider = agent?.let { AppService.findById(it.provider) }
         if (iconPrompt != null && agent != null && provider != null) {
+            val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
             AgentIconDetailScreen(
                 iconPrompt = iconPrompt,
                 agentProvider = provider,
@@ -1248,7 +1303,22 @@ fun ReportsScreen(
                 icon = agent.icon,
                 errorMessage = agent.iconErrorMessage,
                 cost = agent.iconInputCost + agent.iconOutputCost,
-                onBack = { agentIconDetailFor = null }
+                onFindAlternativeIcons = {
+                    fanOutTargetAgentId = agentId
+                    // Same hand-off pattern as the report-level button:
+                    // when a fan-out already exists for this target,
+                    // skip the picker and go straight to the live list.
+                    if (hasActiveAgentFanOut) {
+                        showAlternativeIcons = true
+                    } else {
+                        showFindIconsPicker = true
+                    }
+                },
+                hasActiveFanOut = hasActiveAgentFanOut,
+                onBack = {
+                    agentIconDetailFor = null
+                    fanOutTargetAgentId = null
+                }
             )
             return
         }
@@ -2330,6 +2400,14 @@ private fun AgentIconDetailScreen(
     icon: String?,
     errorMessage: String?,
     cost: Double,
+    /** Fires either the picker overlay (no active per-agent fan-out)
+     *  or jumps straight to the live "Alternative icons" list
+     *  (active / completed fan-out — see [hasActiveFanOut]). */
+    onFindAlternativeIcons: () -> Unit,
+    /** Controls the button label, parallel to the report-level Icon
+     *  detail: "View alternative icons" while a per-agent fan-out
+     *  exists, "Find alternative icons" otherwise. */
+    hasActiveFanOut: Boolean,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -2390,6 +2468,17 @@ private fun AgentIconDetailScreen(
                             fontSize = 13.sp, color = AppColors.TextTertiary)
                     }
                 }
+            }
+
+            Button(
+                onClick = onFindAlternativeIcons,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) {
+                Text(
+                    if (hasActiveFanOut) "View alternative icons" else "Find alternative icons",
+                    maxLines = 1, softWrap = false
+                )
             }
         }
     }
