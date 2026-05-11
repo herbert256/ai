@@ -1606,14 +1606,71 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reset" to HelpContent(
         title = "Reset",
         cards = listOf(
-            HelpCard("Overview", "Escalating destructive operations. Each has its own confirmation dialog with the exact list of what's wiped vs. kept."),
-            HelpCard("Clear runtime data (red)", "Wipes the narrow activity surface: app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the semantic-search embedding cache are all preserved. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is also kept."),
-            HelpCard("Clear Info providers", "Drops the cached tier blobs for the six Info providers plus the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing survive; re-run Refresh to repopulate."),
-            HelpCard("Clear all configuration (dark red)", "Wipes every provider's API key, models, endpoints; agents, flocks, swarms, parameters, system prompts; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT (.tflite). Reports, chats, traces, and usage statistics are kept."),
-            HelpCard("assets/*.json", "Three buttons — providers.json, prompts.json, examples.json. Each one drops the matching list and reloads from the bundled asset. Scoped: providers.json doesn't touch prompts, and vice versa. User-authored entries in the targeted list are lost; everything outside that list is untouched."),
-            HelpCard("Reset application (dark red, type-RESET)", "Factory-style reset. API keys (per-provider + 3 external) are preserved; everything else is wiped, providers and internal prompts are reloaded from assets, then the Refresh-all chain runs (catalogs → provider tests → model lists → default agents). Type-to-confirm gate."),
-            HelpCard("Pitfalls", "Reset application's confirmation is CASE-sensitive — must literally type RESET, trimmed. The Clear / assets-restore variants are immediate; only Reset application has a busy-spinner dialog because it also runs the Refresh chain."),
-            HelpCard("Related", "Backup & Restore is the only undo path — take a backup first if there's any chance you'll regret a wipe.")
+            HelpCard("Overview", "Hub of five destructive operations, each drilling into its own full screen with its own help topic. Order is roughly safe → destructive: runtime data → Info provider caches → all configuration → asset restores → full app reset."),
+            HelpCard("Clear runtime data", "Wipes the narrow activity surface: app logs, chats, API traces, usage stats. Configuration and all other caches survive. Tap the row for the full description and the wipe button."),
+            HelpCard("Clear Info providers", "Drops the per-provider pricing tier blobs from the six Info providers plus the OpenRouter model-specs cache. Manual overrides and Together's native pricing survive."),
+            HelpCard("Clear all configuration", "Wipes every provider's API key, models, endpoints; every agent / flock / swarm; every prompt and parameter preset; External Services keys; every Local LLM and LiteRT model. Reports, chats, traces, and usage stats are kept."),
+            HelpCard("assets/*.json", "Three per-file restore buttons (providers / prompts / examples). Each drops the targeted list and reloads it from the bundled JSON; nothing outside that list is touched."),
+            HelpCard("Reset application", "Factory-style — keeps API keys but wipes everything else, reloads providers + internal prompts from assets, then runs the Refresh-all chain. Gated by a type-RESET dialog and force-restarts the app on success."),
+            HelpCard("Pitfalls", "Each leaf screen has its own confirmation dialog. Reset application's confirmation is CASE-sensitive (literally \"RESET\", trimmed). The other four are immediate after the dialog."),
+            HelpCard("Related", "Backup & Restore is the only undo path — take a backup before any operation here if there's any chance you'll regret it.")
+        )
+    ),
+    "reset_runtime" to HelpContent(
+        title = "Clear runtime data",
+        cards = listOf(
+            HelpCard("Overview", "Wipes the narrow activity surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
+            HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, and the usage-statistics ledger."),
+            HelpCard("What it keeps", "Reports, knowledge bases (KB definitions + chunks + embeddings), prompt history, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys, External Services keys) is fully preserved."),
+            HelpCard("When to use", "Privacy-driven cleanup — chats and traces contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
+            HelpCard("Pitfalls", "Activity logs are append-only — once wiped, there's no recovery. The Application log viewer goes empty until the app writes new entries."),
+            HelpCard("Related", "Trim by age is the per-day surgical alternative — drop only what's older than N days, keep recent. Backup is the only undo.")
+        )
+    ),
+    "reset_info_providers" to HelpContent(
+        title = "Clear Info providers",
+        cards = listOf(
+            HelpCard("Overview", "Wipes the per-provider pricing tier blobs the layered pricing lookup reads from, plus the OpenRouter model-specs cache. Pricing falls back to DEFAULT_PRICING until Refresh repopulates."),
+            HelpCard("What it wipes", "Per-tier JSON blobs under <filesDir>/pricing/, the timestamps in pricing_cache.xml, and the OpenRouter model-specs cache. Covers all six Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis."),
+            HelpCard("What it keeps", "Manual cost overrides (they sit above the Info tiers in the layered lookup), Together's native self-reported pricing, every provider's models / API key / endpoints, and everything else outside the pricing surface."),
+            HelpCard("When to use", "When a tier shipped a bad price and you want to force a fresh fetch on the next Refresh, or when troubleshooting the layered lookup."),
+            HelpCard("Pitfalls", "Until Refresh re-runs, every model that depends on Info-tier pricing renders as DEFAULT_PRICING — usage / cost numbers will look wrong until you Refresh."),
+            HelpCard("Related", "Housekeeping → Refresh repopulates these caches. AI Setup → Costs is where manual overrides live (and they survive this wipe).")
+        )
+    ),
+    "reset_configuration" to HelpContent(
+        title = "Clear all configuration",
+        cards = listOf(
+            HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts, on-device runtimes — in one shot. Reports, chats, traces, and usage stats are preserved."),
+            HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis keys; user name + default email; every installed Local LLM (.task) and LiteRT embedder (.tflite)."),
+            HelpCard("What it keeps", "Reports, chats, traces, knowledge bases, usage statistics, the six Info-provider pricing caches, the OpenRouter model-specs cache, the per-provider model-list cache, and the semantic-search embedding cache."),
+            HelpCard("When to use", "Starting over with a fresh provider/agent setup while keeping your accumulated reports and chats. Less surgical than the asset-restore options; less destructive than Reset application."),
+            HelpCard("Pitfalls", "Local LLMs and LiteRT models are deleted on disk — re-installing them takes the file copy + extract time again. There is no undo apart from Backup & Restore."),
+            HelpCard("Related", "Reset application also wipes configuration but additionally reloads providers + prompts from assets and runs the Refresh chain. assets/*.json is the per-file alternative.")
+        )
+    ),
+    "reset_assets" to HelpContent(
+        title = "assets/*.json",
+        cards = listOf(
+            HelpCard("Overview", "Three per-file restore buttons — providers / prompts / examples. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
+            HelpCard("back to assets/providers.json", "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads assets/providers.json verbatim. Per-provider API keys, model lists, and agents live outside the registry and survive."),
+            HelpCard("back to assets/prompts.json", "Drops every Internal prompt (including any you customized) and reloads assets/prompts.json. Categories (meta / fan_out / fan_in / fan-in-model / internal) all reset together."),
+            HelpCard("back to assets/examples.json", "Drops every Example prompt (including any you authored) and reloads assets/examples.json. Doesn't touch Internal or System prompts."),
+            HelpCard("When to use", "Quick rollback when an edit went wrong, or when you've forked the bundle and want to see what the bundled values currently look like compared to your custom set."),
+            HelpCard("Pitfalls", "User-authored entries in the targeted list are wiped. Use Backup first if you have hand-built prompts you want back. Bundled-asset failures (missing file, parse error) leave the targeted list empty — the Toast reports failure."),
+            HelpCard("Related", "Clear all configuration wipes the same lists but also keys / agents / workers. Reset application reloads providers + prompts from assets and runs Refresh.")
+        )
+    ),
+    "reset_application" to HelpContent(
+        title = "Reset application",
+        cards = listOf(
+            HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets; the Refresh-all chain runs (catalogs → provider tests → model lists → default-agents flock). The app force-restarts on success so every singleton picks up the fresh state."),
+            HelpCard("Confirmation gate", "Type-RESET dialog: the Reset button stays disabled until you literally type RESET (CASE-sensitive, trimmed). Extra friction because the operation is essentially irreversible and runs the full Refresh chain afterwards."),
+            HelpCard("What survives", "API keys (per-provider + 3 external). That's it."),
+            HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / knowledge bases / embeddings / prompt history / usage statistics, pricing and model-list caches, every Local LLM and LiteRT model."),
+            HelpCard("After it runs", "RestartAppDialog appears — tap to relaunch. The first launch after reset takes longer than usual because Refresh-all runs end-to-end (catalogs first, then per-provider tests, then default-agents flock creation)."),
+            HelpCard("Pitfalls", "Confirmation is CASE-sensitive — \"reset\" won't enable the button. The busy-spinner dialog covers the whole Refresh chain; let it run rather than killing the app."),
+            HelpCard("Related", "Backup & Restore is the only way to recover any of the wiped data. The Refresh screen is what runs at the tail of this operation.")
         )
     ),
     "statistics" to HelpContent(

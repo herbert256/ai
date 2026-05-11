@@ -891,15 +891,54 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_RESET) {
-            val ctx = LocalContext.current
             com.ai.ui.admin.ResetScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome,
+                onOpenRuntimeData = { navController.navigate(NavRoutes.AI_RESET_RUNTIME) },
+                onOpenInfoProviders = { navController.navigate(NavRoutes.AI_RESET_INFO_PROVIDERS) },
+                onOpenConfiguration = { navController.navigate(NavRoutes.AI_RESET_CONFIGURATION) },
+                onOpenAssets = { navController.navigate(NavRoutes.AI_RESET_ASSETS) },
+                onOpenApplication = { navController.navigate(NavRoutes.AI_RESET_APPLICATION) }
+            )
+        }
+        composable(NavRoutes.AI_RESET_RUNTIME) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetRuntimeDataScreen(
                 onClearRuntimeData = { appViewModel.clearAllRuntimeData(ctx) },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_RESET_INFO_PROVIDERS) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetInfoProvidersScreen(
                 onClearInfoProviders = { appViewModel.clearInfoProviderCaches(ctx) },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_RESET_CONFIGURATION) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetConfigurationScreen(
                 onClearConfiguration = { appViewModel.clearAllConfiguration(ctx) },
-                onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_RESET_ASSETS) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetAssetsScreen(
                 onRestartProvidersFromAsset = { com.ai.data.ProviderRegistry.restartFromAsset(ctx) },
                 onResetInternalPromptsFromAsset = { appViewModel.resetInternalPromptsFromAssets() },
                 onResetExamplePromptsFromAsset = { appViewModel.resetExamplePromptsFromAssets() },
+                onBack = { navController.popBackStack() },
+                onNavigateHome = navigateHome
+            )
+        }
+        composable(NavRoutes.AI_RESET_APPLICATION) {
+            val ctx = LocalContext.current
+            com.ai.ui.admin.ResetApplicationScreen(
+                onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )
