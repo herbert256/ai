@@ -639,8 +639,14 @@ private fun SettingsMainScreen(
     var nonStreamingReadTimeoutText by remember {
         mutableStateOf(generalSettings.nonStreamingReadTimeoutSec.toString())
     }
+    var maxCallsPerMinuteText by remember {
+        mutableStateOf(generalSettings.maxCallsPerProviderPerMinute.toString())
+    }
+    var maxConcurrentCallsText by remember {
+        mutableStateOf(generalSettings.maxConcurrentCallsPerProvider.toString())
+    }
 
-    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText) {
+    LaunchedEffect(userName, defaultEmail, tracingEnabled, modelNameLayout, showBackButton, subjectToTitleBarMode, iconBarAtBottom, iconGenEnabled, showKnowledgeCard, streamingReadTimeoutText, nonStreamingReadTimeoutText, maxCallsPerMinuteText, maxConcurrentCallsText) {
         val updated = generalSettings.copy(
             userName = userName, defaultEmail = defaultEmail,
             tracingEnabled = tracingEnabled, modelNameLayout = modelNameLayout,
@@ -651,7 +657,11 @@ private fun SettingsMainScreen(
             streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
                 ?: generalSettings.streamingReadTimeoutSec,
             nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                ?: generalSettings.nonStreamingReadTimeoutSec
+                ?: generalSettings.nonStreamingReadTimeoutSec,
+            maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
+                ?: generalSettings.maxCallsPerProviderPerMinute,
+            maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
+                ?: generalSettings.maxConcurrentCallsPerProvider
         )
         if (updated != generalSettings) {
             // Debounce keystrokes — every character used to fire a
@@ -679,7 +689,11 @@ private fun SettingsMainScreen(
                 streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
                     ?: generalSettings.streamingReadTimeoutSec,
                 nonStreamingReadTimeoutSec = nonStreamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
-                    ?: generalSettings.nonStreamingReadTimeoutSec
+                    ?: generalSettings.nonStreamingReadTimeoutSec,
+                maxCallsPerProviderPerMinute = maxCallsPerMinuteText.toIntOrNull()?.coerceAtLeast(1)
+                    ?: generalSettings.maxCallsPerProviderPerMinute,
+                maxConcurrentCallsPerProvider = maxConcurrentCallsText.toIntOrNull()?.coerceAtLeast(1)
+                    ?: generalSettings.maxConcurrentCallsPerProvider
             )
             if (updated != generalSettings) onSave(updated)
         }
@@ -740,6 +754,32 @@ private fun SettingsMainScreen(
                     value = nonStreamingReadTimeoutText,
                     onValueChange = { nonStreamingReadTimeoutText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Non-streaming (seconds)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+
+            // Per-provider throttle. Both caps apply per provider
+            // hostname and across every flow in the app — report
+            // streams, fan-out pairs, meta, translate, chat, model
+            // fetches and provider tests all share the same gate.
+            // Enforced globally by ProviderThrottleInterceptor in the
+            // OkHttp chain.
+            SettingCard(
+                "Per-provider throttling",
+                "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 30 calls/minute, 3 in flight at once."
+            ) {
+                OutlinedTextField(
+                    value = maxCallsPerMinuteText,
+                    onValueChange = { maxCallsPerMinuteText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max calls per provider per minute") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = maxConcurrentCallsText,
+                    onValueChange = { maxConcurrentCallsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max concurrent calls per provider") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

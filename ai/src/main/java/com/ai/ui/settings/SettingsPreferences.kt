@@ -77,7 +77,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             ),
             nonStreamingReadTimeoutSec = prefs.getInt(
                 KEY_NONSTREAMING_READ_TIMEOUT_SEC, com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
-            )
+            ),
+            maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, 30),
+            maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3)
         )
     }
 
@@ -101,6 +103,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_RECENT_REPORT_MODELS, settings.recentReportModels.joinToString("\n"))
             putInt(KEY_STREAMING_READ_TIMEOUT_SEC, settings.streamingReadTimeoutSec)
             putInt(KEY_NONSTREAMING_READ_TIMEOUT_SEC, settings.nonStreamingReadTimeoutSec)
+            putInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, settings.maxCallsPerProviderPerMinute)
+            putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
         }
     }
 
@@ -448,6 +452,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
         private const val KEY_STREAMING_READ_TIMEOUT_SEC = "streaming_read_timeout_sec"
         private const val KEY_NONSTREAMING_READ_TIMEOUT_SEC = "nonstreaming_read_timeout_sec"
+        private const val KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE = "max_calls_per_provider_per_minute"
+        private const val KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER = "max_concurrent_calls_per_provider"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
         private const val KEY_AI_SWARMS = "ai_swarms"

@@ -198,6 +198,11 @@ object ApiFactory {
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
+        // Per-provider concurrency + per-minute rate gate. Sits inside
+        // the retry interceptor so each 429 retry re-acquires its own
+        // slot; sits outside the timeout / tracing interceptors so a
+        // throttle wait doesn't count against the read-timeout window.
+        .addInterceptor(ProviderThrottleInterceptor())
         // Sets the per-call read timeout from the user-tunable
         // NetworkSettings — streaming requests (SSE chat/report) get
         // the long streamingReadTimeoutSec; everything else gets the

@@ -111,6 +111,18 @@ data class GeneralSettings(
      *  shorter than the streaming timeout by default so a hung
      *  provider can't gate a whole batch for 10 minutes. */
     val nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC,
+    /** Sliding-window rate cap per provider hostname. The OkHttp
+     *  interceptor [com.ai.data.ProviderThrottleInterceptor] consults
+     *  [com.ai.data.NetworkSettings.maxCallsPerProviderPerMinute] —
+     *  this field feeds that singleton on bootstrap and on every
+     *  GeneralSettings update. */
+    val maxCallsPerProviderPerMinute: Int = 30,
+    /** Per-provider concurrency cap. Replaces the prior hardcoded
+     *  fan-out semaphore and applies globally across every flow
+     *  (report, meta, fan-out, chat, translate, model fetch …) hitting
+     *  the same provider host. Mirrored to
+     *  [com.ai.data.NetworkSettings.maxConcurrentCallsPerProvider]. */
+    val maxConcurrentCallsPerProvider: Int = 3,
     /** Whether the AI Knowledge card appears on the home Hub. Default
      *  false — Knowledge / RAG is an advanced flow that most users
      *  don't need; hiding it on a fresh install keeps the Hub
@@ -309,6 +321,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ApiTracer.isTracingEnabled = bs.first.tracingEnabled
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
+            NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
+            NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
+            // Drop any per-host semaphores left over from the cold-start
+            // default (3) so the very first call uses the persisted cap.
+            ProviderThrottle.resetForNewLimits()
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             refreshAllModelLists(bs.second)
         }
@@ -562,10 +579,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // ===== Settings =====
 
     fun updateGeneralSettings(settings: GeneralSettings) {
+        val previous = _uiState.value.generalSettings
         ModelType.userDefaults = settings.defaultTypePaths
         ApiTracer.isTracingEnabled = settings.tracingEnabled
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
+        NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
+        NetworkSettings.maxConcurrentCallsPerProvider = settings.maxConcurrentCallsPerProvider
+        // Java's Semaphore can't be resized in place — clear the
+        // per-host map so the next acquire builds a fresh semaphore at
+        // the new cap. The per-minute window is read on every acquire,
+        // so it takes effect immediately and needs no reset.
+        if (settings.maxConcurrentCallsPerProvider != previous.maxConcurrentCallsPerProvider) {
+            ProviderThrottle.resetForNewLimits()
+        }
         _uiState.update { it.copy(generalSettings = settings) }
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveGeneralSettings(settings) }
     }
@@ -945,12 +972,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         const val PREFS_NAME = "eval_prefs"
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val REPORT_CONCURRENCY_LIMIT = 4
-        /** Per-provider concurrency cap for fan-out runs. Each
-         *  provider gets at most this many simultaneous requests in
-         *  flight; different providers run their own caps in parallel.
-         *  A 6-report fan out run on 6 different providers therefore
-         *  runs up to 6 × FAN_OUT_PER_PROVIDER_LIMIT calls concurrently. */
-        internal const val FAN_OUT_PER_PROVIDER_LIMIT = 3
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)

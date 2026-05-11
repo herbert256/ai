@@ -535,6 +535,116 @@ class TracingInterceptor : Interceptor {
 object NetworkSettings {
     @Volatile var streamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC
     @Volatile var nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC
+    /** Global per-provider sliding-window rate limit. Each provider
+     *  hostname tracks the timestamps of its recent calls; once the
+     *  count in the last 60 s hits this value, the next call waits
+     *  until the oldest entry ages out. */
+    @Volatile var maxCallsPerProviderPerMinute: Int = 30
+    /** Global per-provider concurrency cap. At most this many in-flight
+     *  requests per hostname; further calls block on a per-host
+     *  semaphore in [ProviderThrottle]. Replaces the per-batch
+     *  fan-out semaphore so the limit holds across overlapping flows
+     *  (report + meta + chat on the same provider). */
+    @Volatile var maxConcurrentCallsPerProvider: Int = 3
+}
+
+/** Per-hostname rate + concurrency gate. Backs
+ *  [ProviderThrottleInterceptor]. One [java.util.concurrent.Semaphore]
+ *  per host caps in-flight calls; a sibling deque of call timestamps
+ *  enforces the sliding-window per-minute rate.
+ *
+ *  Acquire is **synchronous** — it blocks the calling thread (an OkHttp
+ *  dispatcher worker, backed by a cached thread pool, see
+ *  ApiClient.kt). Returns a [Releaser] that must be called in a
+ *  finally so the permit isn't leaked on exception. */
+object ProviderThrottle {
+    private val sems = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.Semaphore>()
+    private val windows = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.ConcurrentLinkedDeque<Long>>()
+
+    class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore) {
+        private val released = java.util.concurrent.atomic.AtomicBoolean(false)
+        fun release() { if (released.compareAndSet(false, true)) sem.release() }
+    }
+
+    /** Gate on per-minute rate first, then on concurrency. The
+     *  rate-limit branch appends a timestamp on admission — even if a
+     *  later concurrency-acquire blocks, the slot stays "used" for the
+     *  full minute, which is the safe direction (over-throttling
+     *  rather than silently exceeding the user's setting). */
+    fun acquire(host: String): Releaser {
+        if (host.isBlank()) {
+            // Hostless requests (rare; only with a malformed URL) get
+            // a stub releaser so the interceptor's finally is a no-op.
+            return Releaser(java.util.concurrent.Semaphore(Int.MAX_VALUE))
+        }
+        val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
+        // Rate-limit gate — loop until we claim a slot in the 60 s window.
+        while (true) {
+            val limit = NetworkSettings.maxCallsPerProviderPerMinute.coerceAtLeast(1)
+            val now = System.currentTimeMillis()
+            val sleepMs: Long = synchronized(window) {
+                while (true) {
+                    val head = window.peekFirst() ?: break
+                    if (head < now - 60_000L) window.pollFirst() else break
+                }
+                if (window.size < limit) {
+                    window.addLast(now)
+                    0L
+                } else {
+                    val oldest = window.peekFirst() ?: now
+                    (oldest + 60_001L - now).coerceIn(1L, 60_000L)
+                }
+            }
+            if (sleepMs == 0L) break
+            try { Thread.sleep(sleepMs) } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw e
+            }
+        }
+        // Concurrency gate.
+        val sem = sems.computeIfAbsent(host) {
+            java.util.concurrent.Semaphore(NetworkSettings.maxConcurrentCallsPerProvider.coerceAtLeast(1))
+        }
+        sem.acquire()
+        return Releaser(sem)
+    }
+
+    /** Drop the per-host semaphore + window maps so the next call to
+     *  [acquire] builds fresh ones at the current
+     *  [NetworkSettings.maxConcurrentCallsPerProvider]. Called from
+     *  AppViewModel when the user changes the concurrency cap.
+     *  In-flight calls still hold a permit on the old (now
+     *  unreferenced) semaphore — they release correctly when they
+     *  finish, the now-orphan semaphore is GC'd shortly after. Briefly
+     *  during the swap the host can exceed the new cap by up to the
+     *  old cap's permits; acceptable for a user-driven setting tweak. */
+    fun resetForNewLimits() {
+        sems.clear()
+        windows.clear()
+    }
+}
+
+/** OkHttp application interceptor that gates every outbound request
+ *  through [ProviderThrottle]. Sits inside [RateLimitRetryInterceptor]
+ *  so each 429 retry re-enters this interceptor and re-acquires its
+ *  own slot (we release in `finally` before the retry-interceptor's
+ *  loop reissues `chain.proceed`). */
+class ProviderThrottleInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        // Don't block the main thread — same guard as
+        // RateLimitRetryInterceptor. A misuse from a UI dispatcher
+        // would ANR; pass-through is the safe fallback.
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            return chain.proceed(chain.request())
+        }
+        val request = chain.request()
+        val releaser = ProviderThrottle.acquire(request.url.host)
+        try {
+            return chain.proceed(request)
+        } finally {
+            releaser.release()
+        }
+    }
 }
 
 /** Per-call read-timeout shim. Without this every call would inherit

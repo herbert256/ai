@@ -779,6 +779,11 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
     withTraceCategory("Provider test") {
     try {
         val client = OkHttpClient.Builder()
+            // Provider-test calls run on their own client (with shorter
+            // timeouts than the shared one) but still need to respect
+            // the user's per-provider throttle — otherwise a manual
+            // raw-JSON submit could bypass the caps.
+            .addInterceptor(ProviderThrottleInterceptor())
             .addInterceptor(TracingInterceptor())
             .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), java.util.concurrent.TimeUnit.SECONDS)
             .readTimeout(com.ai.BuildConfig.TEST_CONNECTION_READ_TIMEOUT_SEC.toLong(), java.util.concurrent.TimeUnit.SECONDS)

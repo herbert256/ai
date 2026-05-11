@@ -1078,44 +1078,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             pending.add(PendingPair(answerer, source, placeholder))
                         }
                     }
-                    // Launch one coroutine per pair, gated by a
-                    // per-provider Semaphore(FAN_OUT_PER_PROVIDER_LIMIT=3).
-                    // 6 reports on 6 different providers therefore run
-                    // up to 6 × 3 = 18 calls concurrently; pairs sharing
-                    // a provider queue behind that provider's 3-slot
-                    // window. Per-pair coroutines (rather than the older
-                    // per-answerer sequential loop) let us saturate any
-                    // single provider with concurrent same-model calls
-                    // when the report has multiple agents from one host.
-                    val semByProvider = pending
-                        .map { it.answerer.provider }
-                        .toSet()
-                        .associateWith { Semaphore(AppViewModel.FAN_OUT_PER_PROVIDER_LIMIT) }
+                    // Launch one coroutine per pair. Per-provider
+                    // concurrency + per-minute rate are now enforced
+                    // globally inside ProviderThrottleInterceptor, so
+                    // we no longer need a per-batch semaphore here —
+                    // the OkHttp interceptor caps in-flight calls per
+                    // host across every flow in the app (report, meta,
+                    // chat, translate, …) using the user-tunable
+                    // GeneralSettings.maxConcurrentCallsPerProvider.
                     coroutineScope {
                         pending.map { item ->
                             async {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
-                                val sem = semByProvider[item.answerer.provider] ?: return@async
-                                sem.withPermit {
-                                    appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
-                                    try {
-                                        val resolvedBase = resolveSecondaryPrompt(
-                                            metaPrompt.text,
-                                            question = report.prompt,
-                                            results = "",
-                                            count = sources.size,
-                                            title = report.title
-                                        )
-                                        val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
-                                        executeSecondaryTask(
-                                            context, reportId, SecondaryKind.META, metaPrompt,
-                                            provider, item.answerer.model, resolved, aiSettings, report,
-                                            fanOutSourceAgentId = item.source.agentId,
-                                            existingPlaceholder = item.placeholder
-                                        )
-                                    } finally {
-                                        appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
-                                    }
+                                appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
+                                try {
+                                    val resolvedBase = resolveSecondaryPrompt(
+                                        metaPrompt.text,
+                                        question = report.prompt,
+                                        results = "",
+                                        count = sources.size,
+                                        title = report.title
+                                    )
+                                    val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
+                                    executeSecondaryTask(
+                                        context, reportId, SecondaryKind.META, metaPrompt,
+                                        provider, item.answerer.model, resolved, aiSettings, report,
+                                        fanOutSourceAgentId = item.source.agentId,
+                                        existingPlaceholder = item.placeholder
+                                    )
+                                } finally {
+                                    appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
                                 }
                             }
                         }.awaitAll()
@@ -1156,35 +1148,33 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     val sourceCount = successful.size
-                    val semByProvider = placeholders.map { it.providerId }.toSet()
-                        .associateWith { Semaphore(AppViewModel.FAN_OUT_PER_PROVIDER_LIMIT) }
+                    // Per-provider gating now lives in
+                    // ProviderThrottleInterceptor — see runFanOutPrompt
+                    // for the matching change.
                     coroutineScope {
                         placeholders.map { ph ->
                             async {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
-                                val sem = semByProvider[ph.providerId] ?: return@async
-                                sem.withPermit {
-                                    appViewModel.updateRunningFanOutPairs { it + ph.id }
-                                    try {
-                                        val resolvedBase = resolveSecondaryPrompt(
-                                            metaPrompt.text,
-                                            question = report.prompt,
-                                            results = "",
-                                            count = sourceCount,
-                                            title = report.title
-                                        )
-                                        val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
-                                        executeSecondaryTask(
-                                            context, reportId, SecondaryKind.META, metaPrompt,
-                                            provider, ph.model, resolved, aiSettings, report,
-                                            fanOutSourceAgentId = source.agentId,
-                                            existingPlaceholder = ph
-                                        )
-                                    } finally {
-                                        appViewModel.updateRunningFanOutPairs { it - ph.id }
-                                    }
+                                appViewModel.updateRunningFanOutPairs { it + ph.id }
+                                try {
+                                    val resolvedBase = resolveSecondaryPrompt(
+                                        metaPrompt.text,
+                                        question = report.prompt,
+                                        results = "",
+                                        count = sourceCount,
+                                        title = report.title
+                                    )
+                                    val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                    executeSecondaryTask(
+                                        context, reportId, SecondaryKind.META, metaPrompt,
+                                        provider, ph.model, resolved, aiSettings, report,
+                                        fanOutSourceAgentId = source.agentId,
+                                        existingPlaceholder = ph
+                                    )
+                                } finally {
+                                    appViewModel.updateRunningFanOutPairs { it - ph.id }
                                 }
                             }
                         }.awaitAll()
