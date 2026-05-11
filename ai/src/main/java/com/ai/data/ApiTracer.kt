@@ -407,11 +407,6 @@ class TracingInterceptor : Interceptor {
             throw e
         }
         val durationMs = System.currentTimeMillis() - callStart
-        if (response.code >= 400) {
-            AppLog.w(tag, "← ${response.code} $callLabel in ${durationMs}ms")
-        } else {
-            AppLog.i(tag, "← ${response.code} $callLabel in ${durationMs}ms")
-        }
 
         val isStreaming = response.header("Content-Type")?.contains("text/event-stream") == true ||
             (response.header("Transfer-Encoding") == "chunked" && response.header("Content-Type")?.contains("application/json") != true)
@@ -439,8 +434,30 @@ class TracingInterceptor : Interceptor {
                     if (buffered >= BODY_CAP_BYTES) "$text\n…[trace truncated at ${BODY_CAP_BYTES / (1024 * 1024)} MiB]" else text
                 } catch (_: Exception) { null }
             }
+            if (response.code >= 400) {
+                // Error responses from API providers are almost always
+                // JSON like {"error":{"message":"…"}}. Pull the message
+                // out for the log line so the user sees the actual cause
+                // without having to open the trace file.
+                val errMsg = extractErrorMessage(responseBody)
+                val tail = if (errMsg.isNotBlank()) " — $errMsg" else ""
+                AppLog.w(tag, "← ${response.code} $callLabel in ${durationMs}ms$tail")
+            } else {
+                AppLog.i(tag, "← ${response.code} $callLabel in ${durationMs}ms")
+            }
             saveWith(responseBody)
             return response
+        }
+
+        // Streaming response. Error responses are virtually never SSE
+        // — they come back with application/json and land in the
+        // non-streaming branch above — but if we get one here we can
+        // only log the status code, since the body is consumed by the
+        // downstream SSE parser via the tee.
+        if (response.code >= 400) {
+            AppLog.w(tag, "← ${response.code} $callLabel in ${durationMs}ms")
+        } else {
+            AppLog.i(tag, "← ${response.code} $callLabel in ${durationMs}ms")
         }
 
         // Streaming: write an initial *partial* trace BEFORE the
@@ -495,6 +512,43 @@ class TracingInterceptor : Interceptor {
         }
         val wrappedBody = teedSource.buffer().asResponseBody(originalBody.contentType(), originalBody.contentLength())
         return response.newBuilder().body(wrappedBody).build()
+    }
+
+    /** Pull a human-readable error message out of an API response
+     *  body, then collapse and clip it to fit on one log line. Tries
+     *  the common provider shapes first — `error.message`,
+     *  `error.error.message` (Anthropic / OpenRouter wrap one inside
+     *  the other on some failures), top-level `message`, `detail`,
+     *  and a final plain-string `error` field — falling back to the
+     *  first ~200 chars of the raw body if none of them parse.
+     *  Returns "" when [body] is null or blank. */
+    private fun extractErrorMessage(body: String?): String {
+        if (body.isNullOrBlank()) return ""
+        val parsed: com.google.gson.JsonElement? = try {
+            com.google.gson.JsonParser().parse(body)
+        } catch (_: Exception) { null }
+        val candidate = if (parsed != null && parsed.isJsonObject) {
+            val obj = parsed.asJsonObject
+            fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive }?.asString
+            fun nested(path: List<String>): String? {
+                var cur: com.google.gson.JsonElement? = obj
+                for (p in path) {
+                    val o = cur?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+                    cur = o.get(p) ?: return null
+                }
+                return cur?.takeIf { it.isJsonPrimitive }?.asString
+            }
+            nested(listOf("error", "message"))
+                ?: nested(listOf("error", "error", "message"))
+                ?: nested(listOf("error", "code"))
+                ?: str("message")
+                ?: str("detail")
+                ?: str("error")
+        } else null
+        val raw = candidate ?: body
+        // Collapse whitespace (newlines, tabs) and cap so a verbose
+        // stack-trace-style error body doesn't blow out the log line.
+        return raw.replace(Regex("\\s+"), " ").trim().take(400)
     }
 
     private fun headersToMap(headers: Headers): Map<String, String> {
