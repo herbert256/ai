@@ -306,14 +306,6 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
-                },
-                onStartWithPhoto = { mime, b64 ->
-                    // Stage the camera photo in the same UiState
-                    // fields the share-target chooser writes; the
-                    // New AI Report screen seeds attachedImage from
-                    // them on first composition and clears them.
-                    appViewModel.updateUiState { it.copy(reportImageBase64 = b64, reportImageMime = mime) }
-                    navController.navigate(NavRoutes.AI_NEW_REPORT)
                 })
         }
         composable(NavRoutes.AI_SEARCH) {

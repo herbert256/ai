@@ -178,12 +178,6 @@ fun ReportsHubScreen(
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
     onOpenReport: (String) -> Unit = {},
-    /** Called when the user has just taken a photo via the
-     *  "📸 Start with photo" entry. Caller stages the (mime, base64)
-     *  into UiState.reportImageBase64/Mime and navigates to
-     *  AI_NEW_REPORT — the same plumbing the share-target chooser
-     *  uses. (See routeShareToReport in AppNavHost.) */
-    onStartWithPhoto: (mime: String, base64: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     // Re-fetch on every ON_RESUME — without this, navigating into a
@@ -210,12 +204,6 @@ fun ReportsHubScreen(
             }
         }
     }
-    var photoError by remember { mutableStateOf<String?>(null) }
-    val launchCamera = com.ai.ui.shared.rememberCameraCaptureLauncher(
-        onCaptured = { mime, b64 -> photoError = null; onStartWithPhoto(mime, b64) },
-        onError = { photoError = it }
-    )
-
     Column(modifier = Modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
@@ -230,16 +218,12 @@ fun ReportsHubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-        photoError?.let {
-            Text(it, color = AppColors.Red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
-        }
         StartHubGroup(
             hasPromptHistory = hasPromptHistory,
             hasExamplePrompts = hasExamplePrompts,
             onNew = onNavigateToNewReport,
             onPreviousPrompt = onNavigateToPromptHistory,
-            onExamplePrompt = onNavigateToExamplePrompts,
-            onStartWithPhoto = launchCamera
+            onExamplePrompt = onNavigateToExamplePrompts
         )
         if (hasPreviousReports) {
             Spacer(modifier = Modifier.height(12.dp))
@@ -342,8 +326,7 @@ private fun StartHubGroup(
     hasExamplePrompts: Boolean,
     onNew: () -> Unit,
     onPreviousPrompt: () -> Unit,
-    onExamplePrompt: () -> Unit,
-    onStartWithPhoto: () -> Unit
+    onExamplePrompt: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -356,7 +339,6 @@ private fun StartHubGroup(
             SearchHubItem(icon = "\uD83D\uDCDD", title = "New AI Report", enabled = true, onClick = onNew)
             SearchHubItem(icon = "\uD83D\uDD04", title = "Start with a previous prompt", enabled = hasPromptHistory, onClick = onPreviousPrompt)
             SearchHubItem(icon = "\uD83D\uDCA1", title = "Start with an example prompt", enabled = hasExamplePrompts, onClick = onExamplePrompt)
-            SearchHubItem(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }
 }
@@ -495,6 +477,38 @@ fun NewReportScreen(
             }
         }
     }
+    // 📎 paperclip is a two-step entry: open a small chooser so the
+    // user picks "Take photo" or "Use existing photo", then fire the
+    // matching launcher. Replaces the previous Reports-hub "Start with
+    // photo" row plus the gallery-only paperclip with a single
+    // attach surface.
+    val launchCameraForAttach = com.ai.ui.shared.rememberCameraCaptureLauncher(
+        onCaptured = { mime, b64 ->
+            attachedImage = mime to b64
+            attachError = null
+        },
+        onError = { attachError = it }
+    )
+    var showAttachChooser by remember { mutableStateOf(false) }
+    if (showAttachChooser) {
+        AlertDialog(
+            onDismissRequest = { showAttachChooser = false },
+            title = { Text("Attach image") },
+            text = { Text("Take a new photo or pick one from your gallery?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAttachChooser = false
+                    launchCameraForAttach()
+                }) { Text("Take photo") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAttachChooser = false
+                    pickImageLauncher.launch("image/*")
+                }) { Text("Use existing photo") }
+            }
+        )
+    }
 
     LaunchedEffect(uiState.showGenericAgentSelection) {
         if (uiState.showGenericAgentSelection) {
@@ -538,7 +552,7 @@ fun NewReportScreen(
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { title = ""; prompt = ""; attachedImage = null }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { pickImageLauncher.launch("image/*") }, colors = AppColors.outlinedButtonColors()) {
+            OutlinedButton(onClick = { showAttachChooser = true }, colors = AppColors.outlinedButtonColors()) {
                 Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
             }
             Button(
