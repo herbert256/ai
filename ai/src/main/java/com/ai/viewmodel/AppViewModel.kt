@@ -680,26 +680,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // resetApplication() orchestrator route through these helpers, so
     // the wipe sets stay in lockstep when one is later extended.
 
-    data class RuntimeWipeResult(val logs: Int, val chats: Int, val traces: Int)
+    data class RuntimeWipeResult(
+        val logs: Int, val chats: Int, val traces: Int,
+        val reports: Int, val prompts: Int
+    )
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
-    /** Wipe the narrow set of activity logs the user almost always
-     *  wants gone together: app logs, chat history, API traces, and
-     *  usage statistics. Everything else — reports, knowledge bases,
-     *  prompt history, the six Info-provider caches, model-list cache,
+    /** Wipe the activity / personal-history surface the user almost
+     *  always wants gone together: app logs, chat sessions, API
+     *  traces, usage statistics, AI reports (incl. cascaded
+     *  SecondaryResult rows), and prompt history. Everything else —
+     *  configuration (providers, agents, prompts, parameters, keys),
+     *  knowledge bases, Info-provider caches, model-list cache,
      *  embeddings — is preserved. Use Clear all configuration or
      *  Reset application for wider wipes. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / usage stats")
+        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats")
         val chats = ChatHistoryManager.deleteAllSessions()
         val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
+        val reports = ReportStorage.deleteAllReports(context)
+        val prompts = settingsPrefs.clearPromptHistory()
         settingsPrefs.clearUsageStats()
         // AppLog last — the prior log lines for this method will be
         // dropped along with everything else. Recorded count is what
         // was on disk at clear-time.
         val logs = AppLog.clearLogs()
-        return RuntimeWipeResult(logs, chats, traces)
+        return RuntimeWipeResult(logs = logs, chats = chats, traces = traces, reports = reports, prompts = prompts)
     }
 
     /** Drop every cached Info-provider tier (OpenRouter / LiteLLM /

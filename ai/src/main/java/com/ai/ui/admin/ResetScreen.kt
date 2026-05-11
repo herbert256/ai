@@ -61,7 +61,7 @@ fun ResetRuntimeDataScreen(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("Clear runtime data?") },
-            text = { Text("This permanently deletes the app logs, chat history, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
+            text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, prompt history, and usage statistics. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -69,7 +69,7 @@ fun ResetRuntimeDataScreen(
                         showConfirm = false
                         Toast.makeText(
                             context,
-                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, usage statistics",
+                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, usage statistics",
                             Toast.LENGTH_LONG
                         ).show()
                     },
@@ -86,7 +86,7 @@ fun ResetRuntimeDataScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Wipes the narrow activity surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, and usage statistics. Reports, knowledge bases, prompt history, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys) is also untouched.",
+                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, and usage statistics. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             Button(

@@ -1571,7 +1571,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Reset",
         cards = listOf(
             HelpCard("Overview", "Hub of five destructive operations, each drilling into its own full screen with its own help topic. Order is roughly safe → destructive: runtime data → Info provider caches → all configuration → asset restores → full app reset."),
-            HelpCard("Clear runtime data", "Wipes the narrow activity surface: app logs, chats, API traces, usage stats. Configuration and all other caches survive. Tap the row for the full description and the wipe button."),
+            HelpCard("Clear runtime data", "Wipes app logs, chats, API traces, AI reports (incl. their secondary rows), prompt history, and usage stats. Configuration, knowledge bases, and all caches survive. Tap the row for the full description and the wipe button."),
             HelpCard("Clear Info providers", "Drops the per-provider pricing tier blobs from the six Info providers plus the OpenRouter model-specs cache. Manual overrides and Together's native pricing survive."),
             HelpCard("Clear all configuration", "Wipes every provider's API key, models, endpoints; every agent / flock / swarm; every prompt and parameter preset; External Services keys; every Local LLM and LiteRT model. Reports, chats, traces, and usage stats are kept."),
             HelpCard("assets/*.json", "Three per-file restore buttons (providers / prompts / examples). Each drops the targeted list and reloads it from the bundled JSON; nothing outside that list is touched."),
@@ -1582,11 +1582,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reset_runtime" to HelpContent(
         title = "Clear runtime data",
         cards = listOf(
-            HelpCard("Overview", "Wipes the narrow activity surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
-            HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, and the usage-statistics ledger."),
-            HelpCard("What it keeps", "Reports, knowledge bases (KB definitions + chunks + embeddings), prompt history, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, prompts, parameters, API keys, External Services keys) is fully preserved."),
-            HelpCard("When to use", "Privacy-driven cleanup — chats and traces contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
-            HelpCard("Pitfalls", "Activity logs are append-only — once wiped, there's no recovery. The Application log viewer goes empty until the app writes new entries."),
+            HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
+            HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), the prompt-history file, and the usage-statistics ledger."),
+            HelpCard("What it keeps", "Knowledge bases (KB definitions + chunks + embeddings), the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
+            HelpCard("When to use", "Privacy-driven cleanup — chats, traces, reports and prompt history contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
+            HelpCard("Pitfalls", "Reports go through SecondaryResultStorage.deleteAllForReport on the way out, so all the fan-out / rerank / summary rows for each report disappear too. The wipe is destructive — Backup & Restore is the only undo path. The Application log viewer goes empty until the app writes new entries."),
         )
     ),
     "reset_info_providers" to HelpContent(

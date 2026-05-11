@@ -299,8 +299,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         file.writeTextAtomic(gson.toJson(entries))
     }
 
-    fun clearPromptHistory() {
+    /** Wipe the prompt-history file and return how many entries it
+     *  held before the wipe. Callers that don't need the count can
+     *  ignore the return value (Kotlin's standard discard rule). */
+    fun clearPromptHistory(): Int {
+        val n = loadPromptHistory().size
         filesDir?.let { File(it, FILE_PROMPT_HISTORY) }?.let { if (it.exists()) it.delete() }
+        return n
     }
 
     fun clearLastReportPrompt() { prefs.edit { remove(KEY_LAST_AI_REPORT_TITLE); remove(KEY_LAST_AI_REPORT_PROMPT) } }

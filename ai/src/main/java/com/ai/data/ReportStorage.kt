@@ -290,15 +290,17 @@ object ReportStorage {
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
     }
-    fun deleteAllReports(context: Context) {
+    fun deleteAllReports(context: Context): Int {
         init(context)
+        var deleted = 0
         lock.withLock {
             reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { f ->
                 val reportId = f.nameWithoutExtension
-                f.delete()
+                if (f.delete()) deleted++
                 SecondaryResultStorage.deleteAllForReport(context, reportId)
             }
         }
+        return deleted
     }
 
     private fun loadReport(reportId: String): Report? {
