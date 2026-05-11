@@ -20,6 +20,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppLog
 import com.ai.data.AppLogFileInfo
 import com.ai.data.LogLevel
@@ -294,7 +295,8 @@ private fun normaliseTimeFilter(raw: String): String? {
 @Composable
 fun AppLogDetailScreen(
     filename: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -387,7 +389,8 @@ fun AppLogDetailScreen(
             startIndex = selIdx,
             filename = currentFilename,
             onIndexChange = { selectedEntryIndex = it },
-            onBack = { selectedEntryIndex = null }
+            onBack = { selectedEntryIndex = null },
+            onNavigateToTrace = onNavigateToTrace
         )
         return
     }
@@ -809,6 +812,18 @@ private fun TagDropdown(
  *  best-effort parse on legacy or hand-written lines. */
 private data class HeaderParts(val timestamp: String, val level: String, val tag: String, val rest: String)
 
+/** Inverse of AppLog's header timestamp format. Returns null on
+ *  blank / malformed input — callers fall back to "no matching trace"
+ *  rather than crashing. Uses the device's default timezone, same as
+ *  AppLog's SimpleDateFormat. */
+private fun parseLogTimestampToMillis(timestamp: String): Long? {
+    if (timestamp.isBlank()) return null
+    return try {
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
+            .parse(timestamp)?.time
+    } catch (_: Exception) { null }
+}
+
 private fun parseHeader(header: String): HeaderParts {
     // Fast path: AppLog's exact format. Anchored so a misshapen line
     // (no timestamp, raw stack trace at line 0, etc.) falls through.
@@ -833,7 +848,8 @@ private fun AppLogEntryScreen(
     startIndex: Int,
     filename: String,
     onIndexChange: (Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -849,6 +865,22 @@ private fun AppLogEntryScreen(
         if (entry.lines.size <= 1) emptyList() else entry.lines.drop(1)
     }
 
+    // Match this log entry against the API-trace index. ApiTracer
+    // stamps each trace with the same wall-clock millis AppLog uses to
+    // format the header timestamp, so the line written by the
+    // interceptor's "← <code> …" sits within a few ms of its trace.
+    // Widen the window enough to also pick up the matching "→" request
+    // line (the trace timestamp is the response time; the request line
+    // can precede it by an entire round trip). 30 s is the soft cap.
+    val matchingTrace: String? = remember(entry.header) {
+        val logMillis = parseLogTimestampToMillis(parts.timestamp) ?: return@remember null
+        ApiTracer.getTraceFiles()
+            .asSequence()
+            .filter { kotlin.math.abs(it.timestamp - logMillis) <= 30_000L }
+            .minByOrNull { kotlin.math.abs(it.timestamp - logMillis) }
+            ?.filename
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "applog_detail",
@@ -856,7 +888,8 @@ private fun AppLogEntryScreen(
             subject = filename,
             onBackClick = onBack,
             onCopy = { copyToClipboard(context, text, "log entry") },
-            onShare = { shareText(context, text, "Log entry from $filename") }
+            onShare = { shareText(context, text, "Log entry from $filename") },
+            onTrace = matchingTrace?.let { tf -> { onNavigateToTrace(tf) } }
         )
 
         Spacer(modifier = Modifier.height(8.dp))

@@ -882,7 +882,8 @@ fun AppNavHost(
             val filename = entry.arguments?.getString("filename") ?: ""
             com.ai.ui.admin.AppLogDetailScreen(
                 filename = filename,
-                onBack = safePopBack
+                onBack = safePopBack,
+                onNavigateToTrace = { tf -> navController.navigate(NavRoutes.traceDetail(tf)) }
             )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
