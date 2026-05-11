@@ -1568,17 +1568,35 @@ fun ReportsScreen(
         }
     }
     // fan_out: same scope-field branch as launchMetaPrompt. "Default"
-    // skips the scope picker — fan-out runs across every (answerer,
-    // source) pair of successful report agents and goes straight to
-    // the call-count confirm dialog. "Select" preserves the prior
-    // behaviour of routing through SecondaryScopeScreen first (which
-    // already hides the language picker for fan_out and jumps to the
-    // confirm dialog on Continue).
+    // skips BOTH the scope picker AND the run-confirm screen — fan-out
+    // runs across every (answerer, source) pair of successful report
+    // agents immediately. "Select" preserves the prior behaviour of
+    // routing through SecondaryScopeScreen → fanOutConfirmMetaPrompt.
     val launchFanOutPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        if (mp.scope.equals("Default", ignoreCase = true)) {
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            fanOutConfirmMetaPrompt = mp
+        val rid = currentReportId
+        if (mp.scope.equals("Default", ignoreCase = true) && rid != null) {
+            // Load the successful-agent list off-thread, then fire
+            // onRunFanOut with Manual(all) on both sides — mirrors
+            // what the confirm screen's Run button does with both
+            // checkbox sets fully ticked (the default state there).
+            scope.launch {
+                val successful = withContext(Dispatchers.IO) {
+                    com.ai.data.ReportStorage.getReport(context, rid)?.agents?.filter {
+                        it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }.orEmpty()
+                }
+                val ids = successful.map { it.agentId }.toSet()
+                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                if (ids.isEmpty()) {
+                    // Nothing to fan out against — fall back to the
+                    // confirm screen so the user sees the empty state
+                    // and a Cancel button.
+                    fanOutConfirmMetaPrompt = mp
+                } else {
+                    onRunFanOut(rid, mp, com.ai.data.SecondaryScope.Manual(ids), ids)
+                }
+            }
         } else {
             secondaryScopeMetaPrompt = mp
         }

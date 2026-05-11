@@ -217,7 +217,7 @@ fun InternalPromptEditScreen(
                 Text(
                     when {
                         scope.equals("Default", ignoreCase = true) && isFanOut ->
-                            "Runs across every (answerer, source) pair of successful report agents — the scope picker is skipped, the run goes straight to the call-count confirm dialog."
+                            "Starts immediately across every (answerer, source) pair of successful report agents — both the scope picker and the run-confirm screen are skipped."
                         scope.equals("Default", ignoreCase = true) ->
                             "Runs against every successful report agent — the scope picker is skipped."
                         isFanOut ->
