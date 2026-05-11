@@ -2621,7 +2621,7 @@ private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Uni
     }
     val report = reportState.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = null, title = "Icons", onBackClick = onBack)
+        TitleBar(helpTopic = "report_icons_grid", title = "Icons", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
             a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }

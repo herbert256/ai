@@ -288,6 +288,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "If the app process dies mid-run, the in-memory candidate map is lost — costs already bumped survive on the Report, but the screen will be empty on next launch.")
         )
     ),
+    "report_icons_grid" to HelpContent(
+        title = "Icons",
+        cards = listOf(
+            HelpCard("Overview", "Minimal viewer reached from the result screen's View → Icons button. Renders every agent's per-model emoji from the 3-tier chain at 72sp, centered, no model labels or costs — pure glanceability."),
+            HelpCard("Surfacing", "The View → Icons button only appears when Settings → Generate per model icons is on. With the toggle off there's nothing for this screen to show, so the button is hidden and this overlay is unreachable."),
+            HelpCard("What's shown", "One glyph per agent whose chain has landed an emoji (success or the 📝 fallback). Agents still running, or where the per-model chain was never fired, are skipped. Order matches the agent list on the report."),
+            HelpCard("Tap a glyph", "Routes to the Model response page for that agent — same destination as tapping its row on the result screen. The grid overlay closes; back from Model response returns to the result screen, not back here."),
+            HelpCard("Per-agent detail", "To inspect WHICH tier produced an icon, the failed earlier tiers, the model that billed, the prompt that ran, or to fan out alternatives, tap the agent's row on the result screen instead — that opens the Agent icon detail screen."),
+            HelpCard("Pitfalls", "An empty page means either (a) the per-model toggle was off during the run, (b) the run is still in progress, or (c) every agent's chain returned the 📝 fallback AND the storage clear was triggered later. In case (b), back out and reopen once the chain finishes.")
+        )
+    ),
     "report_single_result" to HelpContent(
         title = "Single agent result",
         cards = listOf(
