@@ -52,7 +52,13 @@ fun shareExport(
         putExtra(Intent.EXTRA_SUBJECT, fileName)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    context.startActivity(Intent.createChooser(intent, chooserTitle))
+    // BackupRestoreScreen calls shareExport inside withContext(Dispatchers.IO)
+    // so the multi-MB backup write doesn't block the UI. startActivity on an
+    // IO worker thread is officially undefined; in practice it tolerates the
+    // chooser path, but the cleaner fix is to marshal the launch to the
+    // main looper. Callers running on Main pay one extra post() — cheap.
+    val chooser = Intent.createChooser(intent, chooserTitle)
+    android.os.Handler(context.mainLooper).post { context.startActivity(chooser) }
 }
 
 /** Convenience overload for the common case where the export
