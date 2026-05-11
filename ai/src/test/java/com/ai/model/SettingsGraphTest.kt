@@ -81,8 +81,8 @@ class SettingsGraphTest {
         val agentB = Agent("a2", "B", serviceB, "m1", "")
         val settings = Settings(
             providers = mapOf(
-                serviceA to ProviderConfig(apiKey = "key-a", model = "fallback-a"),
-                serviceB to ProviderConfig(apiKey = "key-b", model = "fallback-b")
+                serviceA to ProviderConfig(apiKey = "key-a"),
+                serviceB to ProviderConfig(apiKey = "key-b")
             ),
             agents = listOf(agentA, agentB),
             flocks = listOf(Flock("f1", "F", agentIds = listOf("a1", "a2"))),

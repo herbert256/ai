@@ -35,9 +35,22 @@ class ModelTypeTest {
     }
 
     @Test fun web_search_heuristic_is_provider_specific() {
-        val anthropic = service("ANTHROPIC_UNIT", ApiFormat.ANTHROPIC)
-        val google = service("GOOGLE_UNIT", ApiFormat.GOOGLE)
-        val openAiCompatible = service("OPENAI_COMPAT_UNIT", ApiFormat.OPENAI_COMPATIBLE)
+        // inferWebSearch now consults provider.webSearchModelPatterns
+        // exclusively — the family-name heuristic moved to provider
+        // config (assets/providers.json). Build test services with the
+        // same patterns the bundled config declares so the contract
+        // ("anthropic/claude-3.7 has web search, openai/gpt-4o-mini
+        // doesn't") is still covered.
+        val anthropic = service("ANTHROPIC_UNIT", ApiFormat.ANTHROPIC, webSearchModelPatterns = listOf(
+            ModelPattern(contains = "claude-3-7"),
+            ModelPattern(contains = "sonnet-4")
+        ))
+        val google = service("GOOGLE_UNIT", ApiFormat.GOOGLE, webSearchModelPatterns = listOf(
+            ModelPattern(contains = "gemini-2")
+        ))
+        val openAiCompatible = service("OPENAI_COMPAT_UNIT", ApiFormat.OPENAI_COMPATIBLE, webSearchModelPatterns = listOf(
+            ModelPattern(prefix = "gpt-5")
+        ))
 
         assertThat(ModelType.inferWebSearch(anthropic, "claude-3-7-sonnet")).isTrue()
         assertThat(ModelType.inferWebSearch(google, "gemini-2.5-pro")).isTrue()
@@ -45,11 +58,16 @@ class ModelTypeTest {
         assertThat(ModelType.inferWebSearch(openAiCompatible, "gpt-4o-mini")).isFalse()
     }
 
-    private fun service(id: String, format: ApiFormat) = AppService(
+    private fun service(
+        id: String,
+        format: ApiFormat,
+        webSearchModelPatterns: List<ModelPattern> = emptyList()
+    ) = AppService(
         id = id,
         baseUrl = "https://$id.example.com/",
         adminUrl = "",
         defaultModel = "model",
-        apiFormat = format
+        apiFormat = format,
+        webSearchModelPatterns = webSearchModelPatterns
     )
 }

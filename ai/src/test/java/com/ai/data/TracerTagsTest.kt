@@ -1,6 +1,7 @@
 package com.ai.data
 
 import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 /**
@@ -10,13 +11,15 @@ import org.junit.Test
  * that clobbered enclosing flows; these tests exercise the
  * save/restore behaviour they're supposed to guarantee.
  *
- * Tags are now backed by a ThreadLocal (no public setter), so initial
- * "outer" state is established with an outer withTracerTags call
- * instead of mutating ApiTracer directly.
+ * Both helpers are now `suspend` (they use kotlinx.coroutines'
+ * `asContextElement` to propagate tags across dispatcher hops), so
+ * each test enters via runBlocking. Tags are backed by a ThreadLocal
+ * (no public setter), so initial "outer" state is established with an
+ * outer withTracerTags call instead of mutating ApiTracer directly.
  */
 class TracerTagsTest {
 
-    @Test fun withTracerTags_sets_both_inside_block_and_restores_on_exit() {
+    @Test fun withTracerTags_sets_both_inside_block_and_restores_on_exit() = runBlocking {
         var observedId: String? = null
         var observedCat: String? = null
         var afterInnerId: String? = null
@@ -36,7 +39,7 @@ class TracerTagsTest {
         assertThat(afterInnerCat).isEqualTo("outer-cat")
     }
 
-    @Test fun withTracerTags_null_arg_leaves_that_side_untouched() {
+    @Test fun withTracerTags_null_arg_leaves_that_side_untouched() = runBlocking {
         var observedId: String? = null
         var observedCat: String? = null
         withTracerTags(reportId = "outer-id", category = "outer-cat") {
@@ -51,7 +54,7 @@ class TracerTagsTest {
         assertThat(observedCat).isEqualTo("inner-cat")
     }
 
-    @Test fun withTracerTags_nesting_restores_intermediate_values() {
+    @Test fun withTracerTags_nesting_restores_intermediate_values() = runBlocking {
         val seen = mutableListOf<Pair<String?, String?>>()
         withTracerTags(reportId = "a-id", category = "a-cat") {
             seen += ApiTracer.currentReportId to ApiTracer.currentCategory
@@ -76,7 +79,7 @@ class TracerTagsTest {
         ).inOrder()
     }
 
-    @Test fun withTracerTags_restores_even_when_block_throws() {
+    @Test fun withTracerTags_restores_even_when_block_throws() = runBlocking {
         var afterId: String? = null
         var afterCat: String? = null
         withTracerTags(reportId = "outer", category = "outer-cat") {
@@ -95,12 +98,12 @@ class TracerTagsTest {
         assertThat(afterCat).isEqualTo("outer-cat")
     }
 
-    @Test fun withTracerTags_returns_block_value() {
+    @Test fun withTracerTags_returns_block_value() = runBlocking {
         val result = withTracerTags(reportId = "x", category = "y") { 42 }
         assertThat(result).isEqualTo(42)
     }
 
-    @Test fun withTraceCategory_only_touches_category() {
+    @Test fun withTraceCategory_only_touches_category() = runBlocking {
         var observedId: String? = null
         var observedCat: String? = null
         var afterCat: String? = null
@@ -117,7 +120,7 @@ class TracerTagsTest {
         assertThat(afterCat).isEqualTo("before")
     }
 
-    @Test fun withTraceCategory_restores_on_throw() {
+    @Test fun withTraceCategory_restores_on_throw() = runBlocking {
         var afterCat: String? = null
         withTracerTags(category = "outer") {
             runCatching {
