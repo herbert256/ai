@@ -29,7 +29,22 @@ fun shareExport(
 ) {
     val dir = File(context.cacheDir, "exports").apply { if (!exists()) mkdirs() }
     val file = File(dir, fileName)
-    file.outputStream().use { body(it) }
+    // Stage into <name>.part and atomic-rename so a crash mid-body()
+    // doesn't leave a truncated cache file. The share chooser only
+    // ever sees a fully-written file; a half-written one would be
+    // pulled by the receiver before body() actually finished.
+    val staging = File(dir, "$fileName.part")
+    try {
+        staging.outputStream().use { body(it) }
+        if (file.exists()) file.delete()
+        if (!staging.renameTo(file)) {
+            staging.delete()
+            throw java.io.IOException("Failed to rename staged share export $fileName")
+        }
+    } catch (e: Exception) {
+        staging.takeIf { it.exists() }?.delete()
+        throw e
+    }
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = mimeType
