@@ -854,32 +854,92 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
     sb.append("<button id='cost-btn-all' class='cost-scope-btn' onclick=\"showCostsScope('all')\">All</button>")
     sb.append("</div>")
 
-    // Group totals — same projection used twice (by type, by model).
-    data class GroupTotal(val key: String, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
-    fun groupTotals(grouper: (Row) -> String): List<GroupTotal> =
-        sorted.groupBy(grouper).map { (k, gs) ->
+    // Group totals — one structure that fits both By type (single
+    // key) and By model (provider + model split). For By type,
+    // provider / model are null and `key` carries the type string.
+    // For By model, provider / model are filled and `key` is ignored.
+    data class GroupTotal(
+        val key: String, val provider: String?, val model: String?,
+        val calls: Int,
+        val inputTokens: Int, val outputTokens: Int,
+        val inCents: Double, val outCents: Double
+    )
+
+    fun groupByType(): List<GroupTotal> =
+        sorted.groupBy { it.type }.map { (k, gs) ->
             var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
             gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
-            GroupTotal(k, iT, oT, iC, oC)
+            GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
         }.sortedByDescending { it.inCents + it.outCents }
 
-    fun appendSummary(keyHeader: String, groups: List<GroupTotal>) {
+    fun groupByModel(): List<GroupTotal> =
+        sorted.groupBy { it.providerDisplay to it.model }.map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
+            GroupTotal("${k.first} · ${k.second}", k.first, k.second, gs.size, iT, oT, iC, oC)
+        }.sortedByDescending { it.inCents + it.outCents }
+
+    fun appendSummary(groups: List<GroupTotal>, isByModel: Boolean) {
         if (groups.isEmpty() && deletedCents <= 0.0) return
-        sb.append("<table class='cost-table'><tr><th>${esc(keyHeader)}</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        // .cost-table-wide opts every cell into `white-space:nowrap`
+        // and lets the table grow past its container width — so a
+        // long provider / model name is no longer broken across
+        // lines mid-character. The parent .cost-pane has
+        // `overflow-x:auto` so the user can scroll horizontally
+        // when the table genuinely doesn't fit.
+        val tableClass = if (isByModel) "cost-table cost-table-wide" else "cost-table"
+        sb.append("<table class='$tableClass'><tr>")
+        if (isByModel) {
+            sb.append("<th>Provider</th><th>Model</th>")
+        } else {
+            sb.append("<th>Type</th>")
+        }
+        sb.append("<th style='text-align:right'>Calls</th>")
+        sb.append("<th style='text-align:right'>Input<br>tokens</th>")
+        sb.append("<th style='text-align:right'>Output<br>tokens</th>")
+        sb.append("<th style='text-align:right'>Input<br>cents</th>")
+        sb.append("<th style='text-align:right'>Output<br>cents</th>")
+        sb.append("<th style='text-align:right'>Total<br>cents</th>")
+        sb.append("</tr>")
         var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        var totalCalls = 0
         groups.forEach { g ->
             iT += g.inputTokens; oT += g.outputTokens; iC += g.inCents; oC += g.outCents
-            sb.append("<tr><td>${esc(g.key)}</td><td class='num'>${g.inputTokens}</td><td class='num'>${g.outputTokens}</td><td class='num'>${"%.2f".format(g.inCents)}</td><td class='num'>${"%.2f".format(g.outCents)}</td><td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td></tr>")
+            totalCalls += g.calls
+            sb.append("<tr>")
+            if (isByModel) {
+                sb.append("<td>${esc(g.provider ?: "")}</td><td>${esc(g.model ?: "")}</td>")
+            } else {
+                sb.append("<td>${esc(g.key)}</td>")
+            }
+            sb.append("<td class='num'>${g.calls}</td>")
+            sb.append("<td class='num'>${g.inputTokens}</td>")
+            sb.append("<td class='num'>${g.outputTokens}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.inCents)}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.outCents)}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td>")
+            sb.append("</tr>")
         }
         if (deletedCents > 0.0) {
-            sb.append("<tr><td>deleted</td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+            sb.append("<tr>")
+            if (isByModel) sb.append("<td colspan='2'>deleted</td>") else sb.append("<td>deleted</td>")
+            sb.append("<td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td>")
+            sb.append("<td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
         }
-        sb.append("<tr class='total-row'><td>Total</td><td class='num'>$iT</td><td class='num'>$oT</td><td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td><td class='num'>${"%.2f".format(iC + oC + deletedCents)}</td></tr>")
+        sb.append("<tr class='total-row'>")
+        if (isByModel) sb.append("<td colspan='2'>Total</td>") else sb.append("<td>Total</td>")
+        sb.append("<td class='num'>$totalCalls</td>")
+        sb.append("<td class='num'>$iT</td><td class='num'>$oT</td>")
+        sb.append("<td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td>")
+        sb.append("<td class='num'>${"%.2f".format(iC + oC + deletedCents)}</td></tr>")
         sb.append("</table>")
     }
 
     fun appendAllCalls() {
-        sb.append("<table class='cost-table'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        // Same width-grows-as-needed treatment as the By model
+        // summary — long model names stay on one line so the user
+        // can read them.
+        sb.append("<table class='cost-table cost-table-wide'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
         var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
         sorted.forEach { r ->
             tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
@@ -893,18 +953,18 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         sb.append("</table>")
     }
 
-    val byType = groupTotals { it.type }
-    val byModel = groupTotals { "${it.providerDisplay} · ${it.model}" }
+    val byType = groupByType()
+    val byModel = groupByModel()
 
     // Pane 1 — Types. The "By type" summary on its own. Default
     // visible (matches the first button being .active above).
     sb.append("<div id='cost-pane-types' class='cost-pane' style='display:block'>")
-    appendSummary("Type", byType)
+    appendSummary(byType, isByModel = false)
     sb.append("</div>")
 
     // Pane 2 — Models. The "By model" summary on its own.
     sb.append("<div id='cost-pane-models' class='cost-pane' style='display:none'>")
-    appendSummary("Model", byModel)
+    appendSummary(byModel, isByModel = true)
     sb.append("</div>")
 
     // Pane 3 — All. The per-call detail table only. The two
@@ -1170,6 +1230,12 @@ h1{color:#fff;font-size:24px;margin-bottom:16px}
 .cost-table th{color:#6B9BFF;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
 .cost-table td{padding:4px 8px;border-bottom:1px solid #333}
 .cost-table .num{text-align:right;font-family:monospace}
+/* By-model + All-calls tables: provider + model names stay on
+   one line and the table grows past 100% when needed. The cost
+   pane scrolls horizontally to surface the overflow. */
+.cost-pane{overflow-x:auto}
+.cost-table-wide{width:auto;min-width:100%}
+.cost-table-wide td,.cost-table-wide th{white-space:nowrap}
 .total-row td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
 .sources-section,.search-results-section,.related-questions-section{background:#252525;border-radius:8px;padding:16px;margin-top:16px}
 .sources-label{color:#8B5CF6;font-weight:bold;font-size:16px;margin-bottom:12px}
