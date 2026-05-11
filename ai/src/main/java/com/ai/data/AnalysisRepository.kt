@@ -361,10 +361,16 @@ class AnalysisRepository {
         )
     }
 
-    /** Route to the Responses API when the model classifies as RESPONSES. The
-     *  classifier replaces the old prefix-based endpointRules — gpt-5/o3/o4 are
-     *  detected directly in ModelType.infer. */
+    /** Route to the Responses API when the provider's configured
+     *  responsesApiPatterns match, or — failing that — when the model's
+     *  name classifies as RESPONSES. The provider-level patterns are
+     *  the authoritative source (providers.json declares o1 / gpt-4.1
+     *  there and a user can edit the list in Service Settings); the
+     *  ModelType.infer fallback still catches gpt-5 / o3 / o4 family
+     *  names on custom OpenAI-compatible endpoints that don't carry a
+     *  pattern config. */
     internal fun usesResponsesApi(service: AppService, model: String): Boolean {
+        if (service.responsesApiPatterns.anyMatches(model)) return true
         return ModelType.infer(model) == ModelType.RESPONSES
     }
 }
