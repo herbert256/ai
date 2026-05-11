@@ -2634,21 +2634,36 @@ private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Uni
         val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
             a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }
         }
-        Box(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        // BoxWithConstraints lets us measure the available area and
+        // pick the largest spacing such that every emoji fits without
+        // scrolling. Walks 16 → 0 dp and keeps the first gap whose
+        // packed grid (rows × cell height) stays under the box height.
+        // iconW / iconH are approximations of an emoji's bounding box
+        // at 72sp — exact text metrics aren't needed, we just want a
+        // proportional indicator of overflow.
+        androidx.compose.foundation.layout.BoxWithConstraints(
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
+            val n = iconAgents.size.coerceAtLeast(1)
+            val iconW = 80.dp
+            val iconH = 90.dp
+            val gapOptions = listOf(16.dp, 12.dp, 8.dp, 4.dp, 2.dp, 0.dp)
+            val gap = gapOptions.firstOrNull { g ->
+                val perRow = ((maxWidth + g).value / (iconW + g).value).toInt().coerceAtLeast(1)
+                val rows = (n + perRow - 1) / perRow
+                val totalH = rows * iconH.value + (rows - 1).coerceAtLeast(0) * g.value
+                totalH <= maxHeight.value
+            } ?: 0.dp
             androidx.compose.foundation.layout.FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(gap)
             ) {
                 iconAgents.forEach { (agentId, glyph) ->
                     Text(
                         glyph, fontSize = 72.sp, color = Color.White,
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .clickable { onOpenAgent(agentId) }
+                        modifier = Modifier.clickable { onOpenAgent(agentId) }
                     )
                 }
             }
