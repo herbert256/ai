@@ -253,9 +253,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    private fun resolveSystemPromptText(aiSettings: Settings, agentSpId: String?, groupSpId: String?): String? {
-        return (groupSpId ?: agentSpId)?.let { aiSettings.getSystemPromptById(it)?.prompt }
-    }
 
     /** Background helper that runs the bundled `internal/icon` prompt
      *  against its pinned agent and writes the resolved emoji onto the
@@ -335,16 +332,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    private fun findFlockSystemPromptIdForAgent(aiSettings: Settings, agentId: String): String? {
-        return aiSettings.flocks.filter { agentId in it.agentIds && it.systemPromptId != null }
-            .firstNotNullOfOrNull { flock -> flock.systemPromptId?.takeIf { aiSettings.getSystemPromptById(it) != null } }
-    }
 
-    private fun findSwarmSystemPromptIdForMember(aiSettings: Settings, provider: AppService, model: String): String? {
-        return aiSettings.swarms.filter { swarm ->
-            swarm.systemPromptId != null && swarm.members.any { it.provider.id == provider.id && it.model == model }
-        }.firstNotNullOfOrNull { swarm -> swarm.systemPromptId?.takeIf { aiSettings.getSystemPromptById(it) != null } }
-    }
 
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
@@ -465,25 +453,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
     }
 
-    private fun calculateResponseCost(context: Context, provider: AppService, model: String, tokenUsage: TokenUsage?): Double? {
-        if (tokenUsage == null) return null
-        return PricingCache.computeCost(tokenUsage, PricingCache.getPricing(context, provider, model))
-    }
 
-    /**
-     * Reverse the persisted ReportAgent rows into ReportModel entries the selection screen
-     * understands. Real-agent rows (UUID id, still resolvable in aiSettings) come back as
-     * agent-typed models; "swarm:provider:model" rows and orphaned ones come back as
-     * direct provider/model entries.
-     */
-    private fun reportToModels(report: com.ai.data.Report, aiSettings: Settings): List<ReportModel> {
-        return report.agents.mapNotNull { ra ->
-            val provider = AppService.findById(ra.provider) ?: return@mapNotNull null
-            if (ra.agentId.startsWith("swarm:")) toReportModel(provider, ra.model)
-            else aiSettings.getAgentById(ra.agentId)?.let { expandAgentToModel(it, aiSettings) }
-                ?: toReportModel(provider, ra.model)
-        }
-    }
 
     /**
      * Tear down the current finished-report state and pre-fill the selection screen with
@@ -1917,41 +1887,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Build the (prompt, @RESULTS@) pair for one language's
-     *  Summarize / Compare batch. When [language] is null the original
-     *  prompt + raw agent bodies are returned via [buildResultsBlock].
-     *  Otherwise translated text is taken from TRANSLATE rows tagged
-     *  with [language] — PROMPT:prompt for the question,
-     *  AGENT:<agentId> for each agent's body. Falls back to the
-     *  original text per-item if a translation is missing so a
-     *  partial translation set still produces a coherent batch. */
-    private fun buildLanguageInputs(
-        report: Report,
-        secondaries: List<SecondaryResult>,
-        language: String?,
-        includeIds: Set<Int>?
-    ): Pair<String, String> {
-        if (language == null) {
-            return report.prompt to buildResultsBlock(report, includeIds)
-        }
-        val byTarget = secondaries
-            .filter { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == language && !it.content.isNullOrBlank() }
-            .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
-        val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
-        val sb = StringBuilder()
-        val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-        var emitted = 0
-        val total = if (includeIds != null) successful.indices.count { (it + 1) in includeIds } else successful.size
-        successful.forEachIndexed { idx, agent ->
-            val originalId = idx + 1
-            if (includeIds != null && originalId !in includeIds) return@forEachIndexed
-            val body = byTarget["AGENT:${agent.agentId}"]?.content ?: (agent.responseBody?.trim() ?: "")
-            sb.append("[").append(originalId).append("]\n").append(body)
-            emitted++
-            if (emitted != total) sb.append("\n\n")
-        }
-        return translatedPrompt to sb.toString()
-    }
 
     private suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
