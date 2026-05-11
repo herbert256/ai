@@ -10,6 +10,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -133,6 +136,14 @@ internal fun ColumnScope.GenerationPhase(
      *  ✅ status cell once a Report icons run lands. Opens the
      *  per-agent icon detail screen for the tapped agent. */
     onOpenAgentIconDetail: (agentId: String) -> Unit = { _ -> },
+    /** Prev / next navigation to the surrounding AI reports — sorted
+     *  newest-first like the hub. Disabled when the current report
+     *  is at either end. Wired by the parent via
+     *  ReportStorage.getAllReports + reportViewModel.restoreCompletedReport. */
+    onPrevReport: () -> Unit = {},
+    onNextReport: () -> Unit = {},
+    hasPrevReport: Boolean = false,
+    hasNextReport: Boolean = false,
     /** Per-agent icon results mirrored from disk, keyed by agentId.
      *  The parent screen rebuilds this on every iconRefreshTick bump
      *  so the row picks up new emojis / cleared values without a
@@ -245,11 +256,44 @@ internal fun ColumnScope.GenerationPhase(
     }
 
     // ----- Row 1 -----
-    ActionRow {
+    // Same horizontal layout as the original ActionRow (View / Edit /
+    // Create / Action) but with prev / next chevrons right-aligned on
+    // the same line. Switching from FlowRow to a regular Row so the
+    // weight-1 Spacer pushes the chevrons to the trailing edge; the
+    // four buttons are short enough that wrapping isn't a real risk
+    // on any phone we care about.
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         CompactButton(onClick = { toggleBar("view") }, color = rowOneColor("view", viewColor), text = "View")
         CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
         CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
         CompactButton(onClick = { toggleBar("action") }, color = rowOneColor("action", actionColor), text = "Action")
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(
+            onClick = onPrevReport,
+            enabled = hasPrevReport,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowLeft,
+                contentDescription = "Previous AI report",
+                tint = if (hasPrevReport) AppColors.Blue else AppColors.TextDisabled
+            )
+        }
+        IconButton(
+            onClick = onNextReport,
+            enabled = hasNextReport,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.KeyboardArrowRight,
+                contentDescription = "Next AI report",
+                tint = if (hasNextReport) AppColors.Blue else AppColors.TextDisabled
+            )
+        }
     }
 
     // ----- Row 2 (contextual) -----
@@ -953,7 +997,10 @@ internal fun RowTypeCell(text: String) {
         color = AppColors.TextTertiary,
         fontFamily = FontFamily.Monospace,
         maxLines = 1,
-        modifier = Modifier.width(72.dp).padding(end = 6.dp)
+        // Start padding adds a visible gap between every row's
+        // leftmost 24 dp status cell (✅ / emoji / ⏳ / ❌ / 🆕)
+        // and the type label here — the two were touching before.
+        modifier = Modifier.width(80.dp).padding(start = 8.dp, end = 6.dp)
     )
 }
 

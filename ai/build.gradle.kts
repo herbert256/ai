@@ -135,6 +135,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    // Core Material icons (Icons.Filled.KeyboardArrowLeft / Right
+    // and the ~360 most-common glyphs). The full extended set is a
+    // ~30 MB artifact we don't need — core covers everything used.
+    implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Networking

@@ -191,6 +191,23 @@ fun ReportsScreenNav(
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
 
+    // Prev / next AI-report navigation for the chevron icons on the
+    // result page's action row. Sorted newest-first like the hub —
+    // "<" picks the report one step UP (newer), ">" picks the one
+    // below (older). Re-derived on every iconRefreshTick bump too,
+    // since deleting a report (or creating one in the background)
+    // changes the list. Cheap — one disk read per re-derivation, and
+    // only when the current report id actually changes.
+    var reportIdsNewestFirst by remember { mutableStateOf<List<String>>(emptyList()) }
+    LaunchedEffect(uiState.currentReportId, uiState.iconRefreshTick) {
+        reportIdsNewestFirst = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getAllReports(context).map { it.id }
+        }
+    }
+    val currentIdx = reportIdsNewestFirst.indexOf(uiState.currentReportId)
+    val hasPrevReport = currentIdx > 0
+    val hasNextReport = currentIdx >= 0 && currentIdx < reportIdsNewestFirst.size - 1
+
     // If we re-enter the screen on a finished report whose in-memory agent results were
     // lost (Activity recreation, process death), rebuild them from ReportStorage so the
     // status icons reflect actual outcomes instead of spinning hourglasses forever.
@@ -249,6 +266,20 @@ fun ReportsScreenNav(
             reportViewModel.restartAgentIconFanOut(rid, agentId)
         },
         agentIconFanOutByAgent = agentIconFanOutByAgent,
+        onPrevReport = {
+            if (hasPrevReport) {
+                val targetId = reportIdsNewestFirst[currentIdx - 1]
+                scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
+            }
+        },
+        onNextReport = {
+            if (hasNextReport) {
+                val targetId = reportIdsNewestFirst[currentIdx + 1]
+                scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
+            }
+        },
+        hasPrevReport = hasPrevReport,
+        hasNextReport = hasNextReport,
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
@@ -452,6 +483,13 @@ fun ReportsScreen(
      *  Alternative icons screen reads from here when the active flow
      *  is per-agent (i.e. [fanOutTargetAgentId] is non-null). */
     agentIconFanOutByAgent: Map<String, List<IconCandidate>> = emptyMap(),
+    /** Navigate to the surrounding AI report on disk — sorted
+     *  newest-first like the hub. hasPrevReport / hasNextReport
+     *  gate the chevron icons' enabled state. */
+    onPrevReport: () -> Unit = {},
+    onNextReport: () -> Unit = {},
+    hasPrevReport: Boolean = false,
+    hasNextReport: Boolean = false,
     initialModels: List<ReportModel> = emptyList(),
     onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
     onDismiss: () -> Unit,
@@ -2272,7 +2310,11 @@ fun ReportsScreen(
                 reportIconModel = reportIconModel,
                 onOpenIconDetail = { showIconDetail = true },
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
-                agentIconRows = agentIconRows
+                agentIconRows = agentIconRows,
+                onPrevReport = onPrevReport,
+                onNextReport = onNextReport,
+                hasPrevReport = hasPrevReport,
+                hasNextReport = hasNextReport
             )
         }
     }
