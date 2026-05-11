@@ -301,18 +301,38 @@ internal fun ReportSelectModelsScreen(
         }
         LazyColumn(modifier = Modifier.weight(1f)) {
             // Recent section — surfaces the last 3 picks for the
-            // Report flow above the main alphabetical list. Filters
-            // and the search box don't trim it: the user's recent
-            // picks are a quick-access shortcut, not a slice of the
-            // current filter view.
+            // Report flow above the main alphabetical list. Mirrors
+            // every filter applied to the main list (provider, type
+            // toggle, search, alreadyAdded) so a Recent row never
+            // shows when the user has narrowed past it; the section
+            // is supposed to be a shortcut into the *current* view,
+            // not a view of recents outside the view.
             //
-            // Skip entries that are already on the report's selected
-            // list — surfacing them in Recent (dimmed, untappable)
-            // wastes the quick-access slot. If filtering empties the
-            // section we drop the header / "All" divider too so the
-            // user doesn't see a labelled-but-empty band.
-            val recentDeduped = recentEntries.filter { it !in alreadyAdded }
-            if (recentDeduped.isNotEmpty()) {
+            // If filtering empties the section we drop the header
+            // and the "All" divider too so the user doesn't see a
+            // labelled-but-empty band.
+            val recentFiltered = recentEntries.filter { entry ->
+                val (prov, model) = entry
+                if (entry in alreadyAdded) return@filter false
+                if (providerFilter != null && prov != providerFilter) return@filter false
+                if (typeOnly && modelTypeFilter != null) {
+                    val matchesType = prov.id == AppService.LOCAL.id ||
+                        aiSettings.getModelType(prov, model) == modelTypeFilter
+                    if (!matchesType) return@filter false
+                }
+                if (search.isNotBlank()) {
+                    val q = search.lowercase()
+                    if (!prov.id.lowercase().contains(q) && !model.lowercase().contains(q)) {
+                        return@filter false
+                    }
+                }
+                // Drop recents whose (provider, model) no longer exists
+                // in the catalog — a deleted model would otherwise
+                // surface as a Recent row that does nothing useful when
+                // tapped.
+                entry in all
+            }
+            if (recentFiltered.isNotEmpty()) {
                 item {
                     Text(
                         "Recent",
@@ -322,7 +342,7 @@ internal fun ReportSelectModelsScreen(
                         modifier = Modifier.padding(top = 4.dp, bottom = 4.dp, start = 4.dp)
                     )
                 }
-                items(recentDeduped, key = { "recent:${it.first.id}:${it.second}" }) { entry ->
+                items(recentFiltered, key = { "recent:${it.first.id}:${it.second}" }) { entry ->
                     ModelRow(entry)
                 }
                 item {
