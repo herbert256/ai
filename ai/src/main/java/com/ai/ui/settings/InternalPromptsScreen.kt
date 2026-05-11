@@ -122,11 +122,13 @@ fun InternalPromptEditScreen(
     // category from silently moving the prompt across buckets.
     val category = internalPrompt?.category ?: fixedCategory
     val isMeta = category.equals("meta", ignoreCase = true)
+    val isFanOut = category.equals("fan_out", ignoreCase = true)
     var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
-    // Meta-only: "Default" runs against every report agent (no
-    // SecondaryScopeScreen); "Select" routes the user through the
-    // scope picker before the model picker. Other categories carry
-    // the field verbatim so export/import round-trips don't drop it.
+    // Meta + Fan-out: "Default" runs against every successful report
+    // agent (no SecondaryScopeScreen); "Select" routes the user through
+    // the scope picker before the model picker (meta) or the call-count
+    // confirm dialog (fan_out). Other categories carry the field
+    // verbatim so export/import round-trips don't drop it.
     var scope by remember { mutableStateOf(internalPrompt?.scope?.ifBlank { "Default" } ?: "Default") }
     var agent by remember {
         mutableStateOf(
@@ -195,7 +197,7 @@ fun InternalPromptEditScreen(
                 }
             }
 
-            if (isMeta) {
+            if (isMeta || isFanOut) {
                 Text("Scope", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -213,9 +215,16 @@ fun InternalPromptEditScreen(
                     }
                 }
                 Text(
-                    if (scope.equals("Default", ignoreCase = true))
-                        "Runs against every successful report agent — the scope picker is skipped."
-                    else "Opens the scope picker so the user can pick a subset / top-N from a rerank / language fan-out before the model picker.",
+                    when {
+                        scope.equals("Default", ignoreCase = true) && isFanOut ->
+                            "Runs across every (answerer, source) pair of successful report agents — the scope picker is skipped, the run goes straight to the call-count confirm dialog."
+                        scope.equals("Default", ignoreCase = true) ->
+                            "Runs against every successful report agent — the scope picker is skipped."
+                        isFanOut ->
+                            "Opens the scope picker so the user can narrow the set of report agents before the call-count confirm dialog."
+                        else ->
+                            "Opens the scope picker so the user can pick a subset / top-N from a rerank / language fan-out before the model picker."
+                    },
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
             }

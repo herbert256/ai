@@ -1567,12 +1567,21 @@ fun ReportsScreen(
             secondaryScopeMetaPrompt = mp
         }
     }
-    // fan_out prompts always run the scope screen → confirm dialog
-    // → runFanOutPrompt path. The scope screen hides the language
-    // picker and the post-scope routing on line 645 jumps straight to
-    // the call-count confirm dialog when category == "fan_out".
+    // fan_out: same scope-field branch as launchMetaPrompt. "Default"
+    // skips the scope picker — fan-out runs across every (answerer,
+    // source) pair of successful report agents and goes straight to
+    // the call-count confirm dialog. "Select" preserves the prior
+    // behaviour of routing through SecondaryScopeScreen first (which
+    // already hides the language picker for fan_out and jumps to the
+    // confirm dialog on Continue).
     val launchFanOutPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        secondaryScopeMetaPrompt = mp
+        if (mp.scope.equals("Default", ignoreCase = true)) {
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            fanOutConfirmMetaPrompt = mp
+        } else {
+            secondaryScopeMetaPrompt = mp
+        }
     }
 
     if (showMetaScreen && currentReportId != null) {
