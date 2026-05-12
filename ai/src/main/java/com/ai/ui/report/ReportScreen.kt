@@ -2476,13 +2476,7 @@ fun ReportsScreen(
             )
         } else {
             // Generation phase
-            GenerationPhase(
-                uiState = uiState,
-                isComplete = isComplete,
-                reportsProgress = reportsProgress,
-                reportsTotal = reportsTotal,
-                reportsAgentResults = reportsAgentResults,
-                currentReportId = currentReportId,
+            val generationHandlers = GenerationPhaseHandlers(
                 onViewAgent = { agentId -> singleResultAgentId = agentId },
                 onShare = { showExport = true },
                 onTrace = { currentReportId?.let(onNavigateToTrace) },
@@ -2511,37 +2505,46 @@ fun ReportsScreen(
                 onRequestRegenerate = { showRegenerateConfirm = true },
                 onRequestDelete = { showDeleteConfirm = true },
                 onRequestExport = { showExport = true },
+                onCancelTranslation = translationLifecycle.onCancelRun,
+                onViewSecondaryName = { name, kind -> listKind = kind; listFilterByName = name },
+                onOpenSecondaryRun = { id -> openMetaResultId = id },
+                onOpenTranslationRun = { runId -> openTranslationRunId = runId },
+                onOpenMeta = { showMetaScreen = true },
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
+                onOpenIconDetail = { showIconDetail = true },
+                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
+                onPrevReport = onPrevReport,
+                onNextReport = onNextReport,
+                onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
+                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
+                onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language }
+            )
+            GenerationPhase(
+                uiState = uiState,
+                isComplete = isComplete,
+                reportsProgress = reportsProgress,
+                reportsTotal = reportsTotal,
+                reportsAgentResults = reportsAgentResults,
+                currentReportId = currentReportId,
+                handlers = generationHandlers,
                 secondaryCounts = secondaryCounts,
                 costsFromDeletedItems = costsFromDeletedItems,
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
                 translationRuns = translationRuns,
-                onCancelTranslation = translationLifecycle.onCancelRun,
                 translationRunSummaries = translationRunSummaries,
                 fanOutSummaries = fanOutSummaries,
-                onViewSecondaryName = { name, kind -> listKind = kind; listFilterByName = name },
-                onOpenSecondaryRun = { id -> openMetaResultId = id },
-                onOpenTranslationRun = { runId -> openTranslationRunId = runId },
-                onOpenMeta = { showMetaScreen = true },
                 metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
                 fanOutPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
                 reportIcon = reportIcon,
                 reportIconError = reportIconError,
                 reportIconCost = reportIconCost,
                 reportIconModel = reportIconModel,
-                onOpenIconDetail = { showIconDetail = true },
-                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 agentIconRows = agentIconRows,
-                onPrevReport = onPrevReport,
-                onNextReport = onNextReport,
                 hasPrevReport = hasPrevReport,
-                hasNextReport = hasNextReport,
-                onMissingPromptIcon = promptIconCallbacks.onKickoff,
-                onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
-                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
-                onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language }
+                hasNextReport = hasNextReport
             )
         }
     }

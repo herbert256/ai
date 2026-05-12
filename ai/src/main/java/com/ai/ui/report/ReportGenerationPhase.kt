@@ -52,6 +52,51 @@ data class AgentIconRow(val icon: String?, val cost: Double)
  *  only by this phase (the data-classes describing aggregated
  *  rows, the build* fns, RowTypeCell, CompactButton) live in the
  *  same file. */
+/** Bundle of every lambda callback consumed by [GenerationPhase].
+ *  Bundling slashes the ReportsScreen call site's bytecode (33+
+ *  function-typed args become one) — load-bearing for the JVM 64 KB
+ *  per-method limit on the parent. Defaulted no-ops so callers can
+ *  build the bundle piecewise. */
+internal data class GenerationPhaseHandlers(
+    val onViewAgent: (String) -> Unit = {},
+    val onShare: () -> Unit = {},
+    val onTrace: () -> Unit = {},
+    val onDelete: () -> Unit = {},
+    val onCopy: () -> Unit = {},
+    val onTogglePin: () -> Unit = {},
+    val onTranslate: () -> Unit = {},
+    val onOpenMetaPicker: () -> Unit = {},
+    val onOpenFanOutPicker: () -> Unit = {},
+    val onOpenRerankPicker: () -> Unit = {},
+    val onOpenHtmlPreview: () -> Unit = {},
+    val onViewReports: () -> Unit = {},
+    val onViewPrompt: () -> Unit = {},
+    val onViewCosts: () -> Unit = {},
+    val onViewIcons: () -> Unit = {},
+    val onEditTitle: () -> Unit = {},
+    val onEditPromptInline: () -> Unit = {},
+    val onEditModelsInline: () -> Unit = {},
+    val onEditParametersInline: () -> Unit = {},
+    val onRequestRegenerate: () -> Unit = {},
+    val onRequestDelete: () -> Unit = {},
+    val onRequestExport: () -> Unit = {},
+    val onCancelTranslation: (String) -> Unit = { _ -> },
+    val onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
+    val onOpenSecondaryRun: (String) -> Unit = { _ -> },
+    val onOpenTranslationRun: (String) -> Unit = { _ -> },
+    val onOpenMeta: () -> Unit = {},
+    val onNavigateToTraceFile: (String) -> Unit = { _ -> },
+    val onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
+    val onOpenIconDetail: () -> Unit = {},
+    val onOpenAgentIconDetail: (String) -> Unit = { _ -> },
+    val onPrevReport: () -> Unit = {},
+    val onNextReport: () -> Unit = {},
+    val onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    val onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    val onMissingTranslationIcon: (String) -> Unit = { _ -> },
+    val onOpenTranslationIconDetail: (String) -> Unit = { _ -> }
+)
+
 @Composable
 internal fun ColumnScope.GenerationPhase(
     uiState: UiState,
@@ -60,40 +105,7 @@ internal fun ColumnScope.GenerationPhase(
     reportsTotal: Int,
     reportsAgentResults: Map<String, AnalysisResponse>,
     currentReportId: String?,
-    onViewAgent: (String) -> Unit,
-    onShare: () -> Unit,
-    onTrace: () -> Unit,
-    onDelete: () -> Unit,
-    onCopy: () -> Unit = {},
-    onTogglePin: () -> Unit = {},
-    onTranslate: () -> Unit = {},
-    /** Open the action-row pickers (Meta / Fan-out / Rerank still drill
-     *  into their dedicated picker screens; the bodies live at
-     *  ReportsScreen scope so they render as proper full-screen
-     *  overlays). View and Edit no longer have pickers — their
-     *  sub-actions are inline in the new Row 2 toggle. */
-    onOpenMetaPicker: () -> Unit = {},
-    onOpenFanOutPicker: () -> Unit = {},
-    onOpenRerankPicker: () -> Unit = {},
-    onOpenHtmlPreview: () -> Unit = {},
-    /** Direct sub-actions for the new two-row action bar's View row. */
-    onViewReports: () -> Unit = {},
-    onViewPrompt: () -> Unit = {},
-    onViewCosts: () -> Unit = {},
-    /** Open the per-agent icons grid overlay. Only surfaced when
-     *  the user enabled "Generate per model icons" in Settings —
-     *  see the conditional render of the View → Icons button. */
-    onViewIcons: () -> Unit = {},
-    /** Direct sub-actions for the Edit row. */
-    onEditTitle: () -> Unit = {},
-    onEditPromptInline: () -> Unit = {},
-    onEditModelsInline: () -> Unit = {},
-    onEditParametersInline: () -> Unit = {},
-    /** Direct sub-actions for the Action row. Mirror existing TitleBar
-     *  icons (Regenerate / Delete / Export). */
-    onRequestRegenerate: () -> Unit = {},
-    onRequestDelete: () -> Unit = {},
-    onRequestExport: () -> Unit = {},
+    handlers: GenerationPhaseHandlers,
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     /** Sum of costs the user dropped from this report via Delete actions
      *  on agents / secondaries / fan-out pairs / translations. Surfaces
@@ -102,22 +114,10 @@ internal fun ColumnScope.GenerationPhase(
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
-    onCancelTranslation: (String) -> Unit = {},
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
     fanOutSummaries: List<FanOutRunSummary> = emptyList(),
-    onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
-    onOpenSecondaryRun: (String) -> Unit = {},
-    onOpenTranslationRun: (String) -> Unit = {},
-    onOpenMeta: () -> Unit = {},
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    /** Open a single trace file in the trace detail view. Wired to the
-     *  per-row 🐞 icons next to agent / secondary rows. */
-    onNavigateToTraceFile: (String) -> Unit = {},
-    /** Open the trace list filtered to (reportId, category). Wired to
-     *  the per-row 🐞 on translation runs which collapse multiple
-     *  per-call traces into a single category-scoped list. */
-    onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     /** Report.icon mirrored from disk, populated by the parent's
      *  iconRefreshTick-keyed effect. Null while the icon-gen call is
      *  in flight or when the prompt isn't configured. */
@@ -133,53 +133,55 @@ internal fun ColumnScope.GenerationPhase(
      *  middle text displays this instead of the bundled icon-prompt
      *  agent's resolved model. */
     reportIconModel: String? = null,
-    /** Tap-handler for the inline 'icon' row — opens the icon-gen
-     *  detail overlay (model + prompt + response). */
-    onOpenIconDetail: () -> Unit = {},
-    /** Tap-handler for the per-row emoji that replaced the leftmost
-     *  ✅ status cell once a Report icons run lands. Opens the
-     *  per-agent icon detail screen for the tapped agent. */
-    onOpenAgentIconDetail: (agentId: String) -> Unit = { _ -> },
-    /** Prev / next navigation to the surrounding AI reports — sorted
-     *  newest-first like the hub. Disabled when the current report
-     *  is at either end. Wired by the parent via
-     *  ReportStorage.getAllReports + reportViewModel.restoreCompletedReport. */
-    onPrevReport: () -> Unit = {},
-    onNextReport: () -> Unit = {},
-    hasPrevReport: Boolean = false,
-    hasNextReport: Boolean = false,
     /** Per-agent icon results mirrored from disk, keyed by agentId.
      *  The parent screen rebuilds this on every iconRefreshTick bump
      *  so the row picks up new emojis / cleared values without a
      *  manual subscribe. Rows without an entry (or with a null
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
-    /** Fire the bundled `internal/prompt_icon` LLM call for [prompt]
-     *  if [com.ai.viewmodel.GeneralSettings.useInternalPromptsIcons]
-     *  is on and the per-(name, title) emoji isn't already cached.
-     *  Idempotent — the cache plus
-     *  [com.ai.data.InternalPromptIconCache.markInFlight] dedupe.
-     *  Wired by the parent to
-     *  `reportViewModel.kickOffInternalPromptIcon(context, prompt,
-     *  aiSettings)`. */
-    onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
-    /** Open the full-screen Meta-icon detail overlay for the
-     *  tapped row's resolved `InternalPrompt`. Fired when the user
-     *  taps the cached emoji that replaces the ✅ status cell on a
-     *  successful secondary row. Wired by the parent to flip
-     *  ReportsScreen's `promptIconDetailFor` state. */
-    onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
-    /** Fire the bundled `internal/translation_icon` LLM call for
-     *  the given language when its cache entry doesn't yet exist.
-     *  Wired by the parent to `reportViewModel.kickOffTranslationIcon`.
-     *  Idempotent — cache + in-flight set dedupe. */
-    onMissingTranslationIcon: (String) -> Unit = { _ -> },
-    /** Open the full-screen translation-icon detail overlay for
-     *  the tapped translation summary row's language. Fired when
-     *  the user taps the cached emoji that replaces the ✅ status
-     *  cell on a successful translation summary row. */
-    onOpenTranslationIconDetail: (String) -> Unit = { _ -> }
+    hasPrevReport: Boolean = false,
+    hasNextReport: Boolean = false
 ) {
+    // Local aliases so the existing body keeps reading short names
+    // — avoids touching every call site inside this 1000-line phase.
+    val onViewAgent = handlers.onViewAgent
+    val onShare = handlers.onShare
+    val onTrace = handlers.onTrace
+    val onDelete = handlers.onDelete
+    val onCopy = handlers.onCopy
+    val onTogglePin = handlers.onTogglePin
+    val onTranslate = handlers.onTranslate
+    val onOpenMetaPicker = handlers.onOpenMetaPicker
+    val onOpenFanOutPicker = handlers.onOpenFanOutPicker
+    val onOpenRerankPicker = handlers.onOpenRerankPicker
+    val onOpenHtmlPreview = handlers.onOpenHtmlPreview
+    val onViewReports = handlers.onViewReports
+    val onViewPrompt = handlers.onViewPrompt
+    val onViewCosts = handlers.onViewCosts
+    val onViewIcons = handlers.onViewIcons
+    val onEditTitle = handlers.onEditTitle
+    val onEditPromptInline = handlers.onEditPromptInline
+    val onEditModelsInline = handlers.onEditModelsInline
+    val onEditParametersInline = handlers.onEditParametersInline
+    val onRequestRegenerate = handlers.onRequestRegenerate
+    val onRequestDelete = handlers.onRequestDelete
+    val onRequestExport = handlers.onRequestExport
+    val onCancelTranslation = handlers.onCancelTranslation
+    val onViewSecondaryName = handlers.onViewSecondaryName
+    val onOpenSecondaryRun = handlers.onOpenSecondaryRun
+    val onOpenTranslationRun = handlers.onOpenTranslationRun
+    val onOpenMeta = handlers.onOpenMeta
+    val onNavigateToTraceFile = handlers.onNavigateToTraceFile
+    val onNavigateToTraceListFiltered = handlers.onNavigateToTraceListFiltered
+    val onOpenIconDetail = handlers.onOpenIconDetail
+    val onOpenAgentIconDetail = handlers.onOpenAgentIconDetail
+    val onPrevReport = handlers.onPrevReport
+    val onNextReport = handlers.onNextReport
+    val onMissingPromptIcon = handlers.onMissingPromptIcon
+    val onOpenInternalPromptIconDetail = handlers.onOpenInternalPromptIconDetail
+    val onMissingTranslationIcon = handlers.onMissingTranslationIcon
+    val onOpenTranslationIconDetail = handlers.onOpenTranslationIconDetail
+
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
 
