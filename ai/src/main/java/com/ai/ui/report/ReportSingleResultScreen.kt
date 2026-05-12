@@ -60,7 +60,13 @@ fun ReportSingleResultScreen(
     /** Stash this agent's response as the next chat's input-box
      *  starter and route to the configure-on-the-fly chain
      *  (provider → model → params → session). */
-    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> }
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
+    /** Wired by the parent (ReportScreen) to set its
+     *  agentIconDetailFor state. The big agent-icon glyph rendered
+     *  below the response taps through here so a user can land
+     *  directly on the Agent Icon screen without backing out to
+     *  the report's agent grid. */
+    onOpenAgentIcon: (String) -> Unit = {}
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -242,10 +248,16 @@ fun ReportSingleResultScreen(
                         // Per-agent icon from the 3-tier chain — centered
                         // under the response in a very large emoji so the
                         // glyph the user picked / the chain resolved is
-                        // unmistakable on the per-model view.
+                        // unmistakable on the per-model view. Tap routes
+                        // to the Agent Icon detail screen so the user can
+                        // inspect / replace / fan-out alternatives.
                         agent.icon?.takeIf { it.isNotBlank() }?.let { glyph ->
                             Spacer(modifier = Modifier.height(24.dp))
-                            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { onOpenAgentIcon(currentAgentId) },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(glyph, fontSize = 96.sp, color = Color.White)
                             }
                         }

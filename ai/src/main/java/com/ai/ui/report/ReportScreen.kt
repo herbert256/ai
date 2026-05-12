@@ -1179,7 +1179,13 @@ fun ReportsScreen(
         return
     }
     val singleAgentId = singleResultAgentId
-    if (singleAgentId != null && currentReportId != null) {
+    // Layer-don't-replace: when agentIconDetailFor is set FROM the
+    // model-response screen (via the big-icon tap), keep
+    // singleResultAgentId alive in the back stack and let the
+    // agentIconDetailFor block lower down render its overlay on top.
+    // Back from the Agent Icon screen clears only agentIconDetailFor,
+    // re-renders this branch, and the user lands back on Model response.
+    if (singleAgentId != null && currentReportId != null && agentIconDetailFor == null) {
         // navigate-to-report shortcut (top-left report-icon tap) skips
         // every layered overlay above the result screen. Clears the
         // icons-grid flag in addition to singleResultAgentId so a user
@@ -1204,7 +1210,8 @@ fun ReportsScreen(
                 onRegenerateAgent = onRegenerateAgent,
                 onContinueWithCurrent = onContinueWithCurrent,
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
-                onContinueWithOnTheFly = onContinueWithOnTheFly
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
+                onOpenAgentIcon = { aid -> agentIconDetailFor = aid }
             )
         }
         return
