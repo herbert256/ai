@@ -36,6 +36,7 @@ fun RefreshScreen(
     onSave: (Settings) -> Unit,
     refreshAllState: RefreshAllState?,
     onStartRefreshAll: () -> Unit,
+    onStartRefreshWorkers: () -> Unit,
     onClearRefreshAllState: () -> Unit,
     /** Navigate the parent settings screen to AI Setup → Providers →
      *  edit page for a specific provider. Used by the Refresh-all
@@ -132,7 +133,7 @@ fun RefreshScreen(
             onBack = onBack
         )
         if (state.isFinished) {
-            RestartAppDialog(message = "Refresh all done", onConfirm = { doRestart() })
+            RestartAppDialog(message = "${state.title} done", onConfirm = { doRestart() })
         }
         return
     }
@@ -404,6 +405,17 @@ fun RefreshScreen(
                     enabled = !isAnyRunning,
                     onClick = { onStartRefreshAll() }
                 )
+                // Worker-only variant: same per-provider feedback as
+                // Refresh-all, but skips the six external catalog fetches.
+                // Useful when the user only wants to re-seed default
+                // agents or re-test keys without paying the catalog
+                // round-trip time / quota.
+                RefreshAction(
+                    label = "Providers / models / default agents",
+                    description = "Per-provider key test → model list fetch → default agent rewrite, in parallel. Skips every external pricing/spec catalog. Continues in the background if you navigate away.",
+                    enabled = !isAnyRunning,
+                    onClick = { onStartRefreshWorkers() }
+                )
             }
 
             // AI Info Providers sub-page — lets the user run a single
@@ -579,7 +591,7 @@ private fun RefreshAllProgressScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "refresh_all", title = "Refresh all", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_all", title = state.title, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
         val totalSteps = state.catalogSteps.size + state.workerRows.size
         val doneCatalogs = state.catalogSteps.count {
@@ -600,7 +612,13 @@ private fun RefreshAllProgressScreen(
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
 
-            Text("Info providers", fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
+            // Hide the catalogs section entirely on the worker-only
+            // variant (Housekeeping → Refresh → "Providers / models /
+            // default agents") so the user doesn't see a stray empty
+            // header above the worker rows.
+            if (state.catalogSteps.isNotEmpty()) {
+                Text("Info providers", fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
+            }
             state.catalogSteps.forEach { step ->
                 val (icon, statusText, color) = when (val s = step.status) {
                     RefreshStepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)

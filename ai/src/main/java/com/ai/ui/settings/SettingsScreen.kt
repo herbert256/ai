@@ -78,6 +78,7 @@ fun SettingsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     refreshAllState: com.ai.viewmodel.RefreshAllState? = null,
     onStartRefreshAll: () -> Unit = {},
+    onStartRefreshWorkers: () -> Unit = {},
     onClearRefreshAllState: () -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
@@ -597,6 +598,7 @@ fun SettingsScreen(
                 onSave = onSaveAi,
                 refreshAllState = refreshAllState,
                 onStartRefreshAll = onStartRefreshAll,
+                onStartRefreshWorkers = onStartRefreshWorkers,
                 onClearRefreshAllState = onClearRefreshAllState,
                 onOpenProvider = { svc ->
                     selectedProviderId = svc.id

@@ -367,6 +367,11 @@ data class WorkerRow(val serviceId: String, val stage: WorkerStage = WorkerStage
 data class RefreshAllState(
     val catalogSteps: List<CatalogStep>,
     val workerRows: List<WorkerRow>,
+    /** Screen title for the progress overlay. "Refresh all" for the
+     *  full catalog + worker flow; "Providers / models / default
+     *  agents" for the worker-only variant launched from the dedicated
+     *  Housekeeping card. */
+    val title: String = "Refresh all",
     val overallError: String? = null,
     val isFinished: Boolean = false
 )
@@ -1338,6 +1343,59 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val wrkJob = launch { runWorkerPhase(testable) }
                     catJob.join(); wrkJob.join()
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _refreshAllState.update { it?.copy(overallError = e.message?.takeIf { m -> m.isNotBlank() } ?: e.javaClass.simpleName) }
+            } finally {
+                _refreshAllState.update { it?.copy(isFinished = true) }
+            }
+        }
+    }
+
+    /** Worker-only variant of [startRefreshAll]. Skips every catalog
+     *  fetch (OpenRouter / LiteLLM / models.dev / Helicone / llm-prices
+     *  / Artificial Analysis) and runs only the per-provider clean-slate
+     *  + worker phase (test key → fetch model list → write default
+     *  agent). Used by the Housekeeping → Refresh → "Providers / models
+     *  / default agents" card so the user can re-seed providers without
+     *  paying for every external catalog round-trip. */
+    fun startRefreshWorkers() {
+        if (_refreshAllState.value != null && _refreshAllState.value?.isFinished == false) return
+
+        val snapshot0 = _uiState.value.aiSettings
+        val testable = AppService.entries
+            .sortedBy { it.id }
+            .filter { snapshot0.getProviderState(it) != "inactive" && snapshot0.getApiKey(it).isNotBlank() }
+
+        _refreshAllState.value = RefreshAllState(
+            catalogSteps = emptyList(),
+            workerRows = testable.map { WorkerRow(it.id) },
+            title = "Providers / models / default agents"
+        )
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Same clean-slate as startRefreshAll: drop every
+                // auto-generated default agent (name == provider id) and
+                // empty the "default agents" flock so this run repopulates
+                // both from scratch. User-authored agents survive.
+                run {
+                    val current = _uiState.value.aiSettings
+                    val keptAgents = current.agents.filterNot { it.provider.id == it.name }
+                    val droppedIds = current.agents.filter { it !in keptAgents }.map { it.id }.toSet()
+                    val flocks = current.flocks.map { f ->
+                        when {
+                            f.name == com.ai.model.DEFAULT_AGENTS_FLOCK_NAME -> f.copy(agentIds = emptyList())
+                            droppedIds.isEmpty() -> f
+                            else -> f.copy(agentIds = f.agentIds.filterNot { it in droppedIds })
+                        }
+                    }
+                    val cleaned = current.copy(agents = keptAgents, flocks = flocks)
+                    _uiState.update { it.copy(aiSettings = cleaned) }
+                    settingsPrefs.saveSettings(cleaned)
+                }
+                runWorkerPhase(testable)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Throwable) {

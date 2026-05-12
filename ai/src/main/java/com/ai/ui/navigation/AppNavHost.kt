@@ -1176,6 +1176,7 @@ fun SettingsScreenNav(
         onRefreshAllModels = { settings, force, progress -> viewModel.refreshAllModelLists(settings, force, progress) },
         refreshAllState = refreshAllState,
         onStartRefreshAll = { viewModel.startRefreshAll() },
+        onStartRefreshWorkers = { viewModel.startRefreshWorkers() },
         onClearRefreshAllState = { viewModel.clearRefreshAllState() },
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
