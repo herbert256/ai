@@ -1190,7 +1190,7 @@ fun ImportExportScreen(
                 ImportExportRow("prompts.json", importOnly,
                     onExport = { exportPromptsJson() },
                     onImport = { importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
-                ImportExportRow("Workers", importOnly,
+                ImportExportRow("Agents / Flocks / Swarms", importOnly,
                     onExport = { exportWorkers() },
                     onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Example prompts", importOnly,
