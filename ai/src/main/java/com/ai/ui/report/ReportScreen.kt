@@ -420,8 +420,8 @@ fun ReportsScreenNav(
         onResumeStaleFanOut = { rid, mp ->
             reportViewModel.resumeStaleFanOutPairs(context, rid, mp)
         },
-        onRecoverStaleSecondaries = { rid ->
-            reportViewModel.recoverStaleSecondariesAsync(context, rid)
+        onResumeStaleRuns = { rid ->
+            reportViewModel.resumeStaleRunsForReport(context, rid)
         },
         onRestartFailedTranslations = { rid, runId ->
             reportViewModel.restartFailedTranslations(context, rid, runId)
@@ -653,7 +653,7 @@ fun ReportsScreen(
      *  while something's actually running, but on app restart no
      *  in-memory job survives, so any "still in progress" row is
      *  an orphan placeholder. */
-    onRecoverStaleSecondaries: (String) -> Unit = {},
+    onResumeStaleRuns: (String) -> Unit = {},
     /** Re-run every errored row in the named translation run.
      *  Wired to ReportViewModel.restartFailedTranslations. */
     onRestartFailedTranslations: (String, String) -> Unit = { _, _ -> },
@@ -783,16 +783,19 @@ fun ReportsScreen(
     // the deleted row keeps showing in the inline meta-runs list and
     // the View counters above it.
     var secondaryRefreshTick by remember { mutableStateOf(0) }
-    // One-shot recovery sweep per report open. Marks every stuck
-    // placeholder secondary (blank content + null errorMessage + null
-    // durationMs that no in-memory job claims) as "Interrupted by app
-    // restart" so the inline rows / fan out summary / cost summary all
-    // show ❌ instead of an animated hourglass spinning forever. The
-    // bump on secondaryRefreshTick forces the polling LaunchedEffect
-    // below to immediately re-read disk and pick up the marked rows.
+    // Auto-resume sweep per report open. Re-launches every Translation
+    // run, Fan-out pair, and single-call Meta/Rerank/Moderation row
+    // that an app kill left mid-flight (blank content, null
+    // errorMessage, null durationMs, no in-memory claim). Anything we
+    // can't reconstruct from disk (legacy rows missing fields, prompts
+    // since deleted, fan-in single rows) falls back to the "Interrupted
+    // by app restart" marker so it stops spinning. The bump on
+    // secondaryRefreshTick forces the polling LaunchedEffect below to
+    // immediately re-read disk and pick up both the new ⏳ placeholders
+    // (fresh dispatch) and any ❌ markers.
     LaunchedEffect(currentReportId) {
         val rid = currentReportId ?: return@LaunchedEffect
-        onRecoverStaleSecondaries(rid)
+        onResumeStaleRuns(rid)
         kotlinx.coroutines.delay(150)
         secondaryRefreshTick++
     }

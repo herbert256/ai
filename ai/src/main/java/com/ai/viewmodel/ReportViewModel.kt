@@ -100,6 +100,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // work on the executor's semaphore.
     private val staleResumeScans = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
+    // Tracks single-call Meta/Rerank/Moderation placeholders the
+    // report-open auto-resume sweep is currently re-issuing, so a
+    // rapid back-then-forward navigation can't double-fire the same
+    // row. Keyed by SecondaryResult.id; entries removed in the
+    // finally of [resumeStaleMetaPlaceholder].
+    private val resumingMetaIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     // Separate flow from UiState so per-task completions don't force the UiState equality
     // checker to re-compare every other field. UI subscribers observe this independently.
     private val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
@@ -2491,62 +2498,230 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return rerunFanOutPlaceholders(context, reportId, metaPrompt, reset)
     }
 
-    /** Mark every stuck placeholder secondary on the report as errored.
-     *  The Report Result screen calls this on entry: animated-hourglass
-     *  rows should only spin while something is actually running, but
-     *  on app restart no in-memory job survives, so any row with blank
-     *  content + null errorMessage + null durationMs is an orphan. We
-     *  flip them to "Interrupted by app restart" so the row icon shows
-     *  ❌ honestly instead of a never-ending spinner.
+    /** Auto-resume every interrupted Translation, Fan-out, and
+     *  single-call Meta/Rerank/Moderation run on the report. Fires
+     *  on report open (replaces the previous mark-as-errored sweep).
      *
-     *  Fan-out per-pair rows (fanOutSourceAgentId != null) are skipped
-     *  here because they have a dedicated resume flow at L1
-     *  ([resumeStaleFanOutPairs]) — the user can re-enter L1 to relaunch
-     *  them. Other secondary kinds (fan-in / fan_in combine,
-     *  meta runs, Rerank, Moderation, Translate per-call) get the
-     *  honest red ❌. */
-    fun recoverStaleSecondariesAsync(
+     *  - **Translation**: groups disk rows by `translationRunId`; for
+     *    each runId that isn't already in [_translationRuns], calls
+     *    [startMissingTranslations] which dispatches every expected
+     *    item (prompt + successful agents + meta secondaries) that
+     *    doesn't yet have a row.
+     *  - **Fan-out**: groups stale fan-out placeholder rows by
+     *    `metaPromptId`; for each one whose [com.ai.model.InternalPrompt]
+     *    still exists in settings, calls [resumeStaleFanOutPairs].
+     *  - **Single Meta/Rerank/Moderation**: walks stale rows where
+     *    `fanOutSourceAgentId == null && fanInOf == null &&
+     *    translationRunId == null` and re-issues each via
+     *    [resumeStaleMetaPlaceholder] using the placeholder's persisted
+     *    `metaPromptId`, `providerId`, `model`, and `secondaryScope`.
+     *  - **Unrecoverable** (legacy rows missing fields, prompts since
+     *    deleted, fan-in / model-fan-in rows whose substitution data
+     *    can't be reconstructed): falls back to the existing
+     *    "Interrupted by app restart" marker so the row renders ❌
+     *    and the user can manually retry.
+     *
+     *  Only rows interrupted by app death (content blank, errorMessage
+     *  null, durationMs null) are touched — previously-errored rows are
+     *  left as-is. Translation runs use the same `translationRunId`
+     *  that was assigned at start, so the resume queues under the
+     *  original group on the result page. */
+    fun resumeStaleRunsForReport(
         context: Context,
         reportId: String
     ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
         val running = appViewModel.runningFanOutPairs.value
         val activeTranslationRunIds = _translationRuns.value.keys
         val rows = SecondaryResultStorage.listForReport(context, reportId)
+        val aiSettings = appViewModel.uiState.value.aiSettings
+
+        // 1. Translation: walk every distinct translationRunId on disk
+        //    that isn't actively running in memory and queue the
+        //    missing items. startMissingTranslations needs at least one
+        //    anchor row for the run; any runId with zero rows on disk
+        //    can't be resumed (no provider/model/language to read).
+        val translationRunIds = rows
+            .filter { it.kind == SecondaryKind.TRANSLATE && it.translationRunId != null }
+            .map { it.translationRunId!! }
+            .distinct()
+        translationRunIds.forEach { runId ->
+            if (runId in activeTranslationRunIds) return@forEach
+            startMissingTranslations(context, reportId, runId)
+        }
+
+        // 2. Fan-out pairs: group stale per-pair rows by metaPromptId
+        //    and dispatch resumeStaleFanOutPairs once per prompt.
+        //    resumeStaleFanOutPairs is itself a no-op when the in-flight
+        //    set already covers the run (defence-in-depth dedupe).
+        val stalePairsByPromptId = rows
+            .filter { it.kind == SecondaryKind.META &&
+                it.fanOutSourceAgentId != null &&
+                it.content.isNullOrBlank() &&
+                it.errorMessage == null &&
+                it.durationMs == null &&
+                it.id !in running }
+            .groupBy { it.metaPromptId }
+        stalePairsByPromptId.forEach { (promptId, pairs) ->
+            val prompt = promptId?.let { pid ->
+                aiSettings.internalPrompts.firstOrNull { it.id == pid }
+            }
+            if (prompt != null) {
+                resumeStaleFanOutPairs(context, reportId, prompt)
+            } else {
+                // Prompt deleted: mark each as ❌ so the row stops
+                // spinning. The user can drop the row and re-pick a
+                // prompt from scratch.
+                pairs.forEach { markRowAsInterrupted(context, reportId, it.id, "Interrupted — fan-out prompt deleted") }
+            }
+        }
+
+        // 3. Single-call Meta/Rerank/Moderation: re-issue each stale
+        //    placeholder via executeSecondaryTask. Fan-in single
+        //    (fanInOf != null) and model-fan-in (scopeProviderId != null)
+        //    rows are skipped here — they go to the legacy mark-as-❌
+        //    branch below since their substitution inputs aren't
+        //    derivable from the placeholder alone.
+        val staleSingleMeta = rows.filter {
+            it.kind != SecondaryKind.TRANSLATE &&
+                it.content.isNullOrBlank() &&
+                it.errorMessage == null &&
+                it.durationMs == null &&
+                it.fanOutSourceAgentId == null &&
+                it.fanInOf == null &&
+                it.scopeProviderId == null &&
+                it.scopeModel == null &&
+                it.translationRunId == null &&
+                it.id !in running &&
+                it.metaPromptId != null &&
+                aiSettings.internalPrompts.any { p -> p.id == it.metaPromptId } &&
+                AppService.findById(it.providerId) != null
+        }
+        staleSingleMeta.forEach { row ->
+            resumeStaleMetaPlaceholder(context, reportId, row)
+        }
+
+        // 4. Legacy fallback: any other stale row we can't reconstruct
+        //    (fan-in single, model-fan-in, deleted prompt for a non-
+        //    fan-out single meta, deleted provider) gets the honest ❌
+        //    so it stops spinning.
+        val handledIds = staleSingleMeta.map { it.id }.toSet() +
+            stalePairsByPromptId.values.flatten().map { it.id }.toSet()
         rows.forEach { row ->
-            // Already terminal — nothing to do.
             if (row.errorMessage != null) return@forEach
             if (!row.content.isNullOrBlank()) return@forEach
             if (row.durationMs != null) return@forEach
-            // Fan-out per-pair: leave alone, L1 handles resume.
-            if (row.fanOutSourceAgentId != null) return@forEach
-            // Defence in depth — id is currently mid-flight (shouldn't
-            // happen at startup but guards against a navigate-back-to-
-            // Report-Result-mid-run race).
             if (row.id in running) return@forEach
-            // Translation row that belongs to a still-active in-memory
-            // run — also defence in depth; per-item save means the row
-            // already has its outcome stamped in the active path.
+            if (row.id in handledIds) return@forEach
+            // Translation rows in an active or newly-resumed run are
+            // covered by startMissingTranslations; skip them here.
             if (row.kind == SecondaryKind.TRANSLATE &&
                 row.translationRunId != null &&
-                row.translationRunId in activeTranslationRunIds) return@forEach
-            // TOCTOU close: re-read the row right before saving the
-            // "Interrupted" marker. A non-fan-out, non-translation
-            // META/RERANK/MODERATION call in flight has its placeholder
-            // on disk as blank; if executeSecondaryTask saves the
-            // completion *between* our initial listForReport above and
-            // this save, the stale in-memory copy here would overwrite
-            // the real result with the interrupted marker. Re-reading
-            // shrinks the race window to the get → save microseconds
-            // (a full lock per row would close it entirely but isn't
-            // worth the complexity for a one-shot startup sweep).
-            val current = SecondaryResultStorage.get(context, reportId, row.id) ?: return@forEach
-            if (current.errorMessage != null) return@forEach
-            if (!current.content.isNullOrBlank()) return@forEach
-            if (current.durationMs != null) return@forEach
-            SecondaryResultStorage.save(context, current.copy(
-                errorMessage = "Interrupted by app restart",
-                durationMs = 0
-            ))
+                (row.translationRunId in activeTranslationRunIds ||
+                    row.translationRunId in translationRunIds)) return@forEach
+            // Anything still standing here is unrecoverable — mark ❌.
+            markRowAsInterrupted(context, reportId, row.id, "Interrupted by app restart")
+        }
+    }
+
+    /** TOCTOU-safe re-read + save pair that flips a stuck placeholder
+     *  into a terminal errored row. Used by [resumeStaleRunsForReport]'s
+     *  fallback branch for rows that can't be reconstructed (legacy
+     *  rows missing fields, prompts since deleted, fan-in single
+     *  rows). Re-reads the row right before saving so an in-flight
+     *  completion landing between our list scan and the save isn't
+     *  clobbered. */
+    private fun markRowAsInterrupted(
+        context: Context,
+        reportId: String,
+        rowId: String,
+        message: String
+    ) {
+        val current = SecondaryResultStorage.get(context, reportId, rowId) ?: return
+        if (current.errorMessage != null) return
+        if (!current.content.isNullOrBlank()) return
+        if (current.durationMs != null) return
+        SecondaryResultStorage.save(context, current.copy(
+            errorMessage = message,
+            durationMs = 0
+        ))
+    }
+
+    /** Re-issue a single interrupted META / RERANK / MODERATION
+     *  placeholder. Looks up the [com.ai.model.InternalPrompt] by
+     *  [SecondaryResult.metaPromptId] and the [AppService] by
+     *  [SecondaryResult.providerId], decodes the persisted
+     *  [SecondaryResult.secondaryScope], rebuilds the resolved prompt
+     *  from the current report state, and calls [executeSecondaryTask]
+     *  with the same placeholder so the in-place row transitions
+     *  from ⏳ to ✅/❌ rather than being replaced by a fresh row. */
+    private fun resumeStaleMetaPlaceholder(
+        context: Context,
+        reportId: String,
+        placeholder: SecondaryResult
+    ): Job? {
+        if (!resumingMetaIds.add(placeholder.id)) return null
+        val promptId = placeholder.metaPromptId ?: run {
+            resumingMetaIds.remove(placeholder.id); return null
+        }
+        val state = appViewModel.uiState.value
+        val aiSettings = state.aiSettings
+        val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId } ?: run {
+            resumingMetaIds.remove(placeholder.id); return null
+        }
+        val provider = AppService.findById(placeholder.providerId) ?: run {
+            resumingMetaIds.remove(placeholder.id); return null
+        }
+        val model = placeholder.model
+        val scope = com.ai.data.SecondaryScope.decodeOrAllReports(placeholder.secondaryScope)
+        val kind = placeholder.kind
+        val lang = placeholder.targetLanguage
+        val langNative = placeholder.targetLanguageNative
+        val cat = "Report ${kind.name.lowercase()}: ${metaPrompt.name}"
+
+        AppLog.i("Resume", "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model")
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                withTracerTags(reportId = reportId, category = cat) {
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                    // Same scope → includeIds resolution as runMetaPrompt.
+                    val includeIds: Set<Int>? = when (scope) {
+                        com.ai.data.SecondaryScope.AllReports -> null
+                        is com.ai.data.SecondaryScope.TopRanked -> {
+                            val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
+                            com.ai.data.extractTopRankedIds(rerank?.content, scope.count)?.toSet()
+                        }
+                        is com.ai.data.SecondaryScope.Manual -> {
+                            val successful = report.agents.filter {
+                                it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                            }
+                            val ids = successful.mapIndexedNotNull { idx, a ->
+                                if (a.agentId in scope.agentIds) idx + 1 else null
+                            }
+                            if (ids.isEmpty()) null else ids.toSet()
+                        }
+                    }
+                    val successfulCount = if (includeIds != null) includeIds.size
+                        else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
+                    val resolvedPrompt = resolveSecondaryPrompt(
+                        metaPrompt.text, question = translatedPrompt, results = resultsBlock,
+                        count = successfulCount, title = report.title
+                    )
+                    val referenceLegend = if (metaPrompt.reference) buildReferenceLegend(report, includeIds) else null
+                    executeSecondaryTask(
+                        context, reportId, kind, metaPrompt,
+                        provider, model, resolvedPrompt, aiSettings, report,
+                        lang, langNative, referenceLegend,
+                        existingPlaceholder = placeholder,
+                        scopeEncoded = placeholder.secondaryScope
+                    )
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+                resumingMetaIds.remove(placeholder.id)
+            }
         }
     }
 
