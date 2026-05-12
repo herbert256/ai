@@ -187,6 +187,7 @@ fun ReportsScreenNav(
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
+    val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val aiSettings = uiState.aiSettings
@@ -267,6 +268,16 @@ fun ReportsScreenNav(
         },
         onKickoffInternalPromptIcon = { prompt ->
             reportViewModel.kickOffInternalPromptIcon(context, prompt, aiSettings)
+        },
+        internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
+        onStartInternalPromptIconFanOut = { prompt, picks ->
+            reportViewModel.startInternalPromptIconFanOut(context, prompt, picks, aiSettings)
+        },
+        onPickInternalPromptIcon = { prompt, cand ->
+            reportViewModel.pickInternalPromptIcon(context, prompt, cand, aiSettings)
+        },
+        onRestartInternalPromptIconFanOut = { prompt ->
+            reportViewModel.restartInternalPromptIconFanOut(prompt)
         },
         agentIconFanOutByAgent = agentIconFanOutByAgent,
         onPrevReport = {
@@ -489,6 +500,22 @@ fun ReportsScreen(
      *  [ReportViewModel.kickOffInternalPromptIcon] — the cache and
      *  in-flight set make this idempotent. */
     onKickoffInternalPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Live per-prompt alternative-icons candidate state mirrored
+     *  from [AppViewModel.internalPromptIconFanOutByPrompt], keyed
+     *  by `name + U+001F + title`. The shared
+     *  AlternativeIconsScreen reads from here when
+     *  [promptIconDetailForId] is non-null. */
+    internalPromptIconFanOutByPrompt: Map<String, List<IconCandidate>> = emptyMap(),
+    /** Kick off a per-prompt alternative-icons fan-out for the
+     *  given [com.ai.model.InternalPrompt] across the user's
+     *  picked (provider, model) pairs. */
+    onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit = { _, _ -> },
+    /** Commit the picked candidate's emoji + provenance to
+     *  [com.ai.data.InternalPromptIconCache]. */
+    onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit = { _, _ -> },
+    /** Cancel any in-flight per-prompt fan-out and drop the
+     *  candidate list — the user tapped Restart. */
+    onRestartInternalPromptIconFanOut: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     /** Per-agent alternative-icons candidate state mirrored from
      *  [AppViewModel.agentIconFanOutByAgent], keyed by agentId. The
      *  Alternative icons screen reads from here when the active flow
@@ -836,6 +863,18 @@ fun ReportsScreen(
     var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
+    // ── Internal-prompt icon flow. When non-null, the user tapped
+    // the cached emoji that replaces ✅ on a successful secondary
+    // row and is now drilled into the Meta-icon detail screen.
+    // Drives the per-prompt detail overlay AND routes the shared
+    // showAlternativeIcons / showFindIconsPicker blocks below
+    // through `internalPromptIconFanOutByPrompt` /
+    // `onStartInternalPromptIconFanOut` /
+    // `onPickInternalPromptIcon` /
+    // `onRestartInternalPromptIconFanOut` so the per-prompt
+    // candidate list lives separately from the per-agent and
+    // per-report candidate maps. Cleared on back or after a pick.
+    var promptIconDetailForId by rememberSaveable { mutableStateOf<String?>(null) }
     // Non-null when the active "Find / View alternative icons" flow
     // is per-agent (reached from AgentIconDetailScreen). Drives the
     // Find-icons picker + Alternative-icons screen blocks to dispatch
@@ -1247,38 +1286,51 @@ fun ReportsScreen(
     if (showAlternativeIcons && currentReportId != null) {
         val rid = currentReportId
         val targetAgentId = fanOutTargetAgentId
-        val candidates = if (targetAgentId != null) {
-            agentIconFanOutByAgent[targetAgentId].orEmpty()
-        } else {
-            iconFanOutByReport[rid].orEmpty()
+        // Three-way routing: per-prompt > per-agent > per-report.
+        // `promptIconDetailForId` non-null means the user opened
+        // the Meta-icon detail screen and is now drilled into the
+        // per-prompt alt-icons; otherwise fall back to the
+        // legacy per-agent / per-report split.
+        val targetPrompt = promptIconDetailForId?.let { id ->
+            aiSettings.internalPrompts.firstOrNull { it.id == id }
+        }
+        val promptKey = targetPrompt?.let { it.name + "" + it.title }
+        val candidates = when {
+            promptKey != null -> internalPromptIconFanOutByPrompt[promptKey].orEmpty()
+            targetAgentId != null -> agentIconFanOutByAgent[targetAgentId].orEmpty()
+            else -> iconFanOutByReport[rid].orEmpty()
         }
         AlternativeIconsScreen(
             reportId = rid,
             candidates = candidates,
             onPickIcon = { emoji, iconModel ->
-                if (targetAgentId != null) {
-                    onPickAgentIcon(rid, targetAgentId, emoji)
-                } else {
-                    onPickAlternativeIcon(rid, emoji, iconModel)
+                when {
+                    targetPrompt != null -> {
+                        val cand = candidates
+                            .filterIsInstance<IconCandidate.Done>()
+                            .firstOrNull { "${it.provider.id}/${it.model}" == iconModel }
+                        if (cand != null) onPickInternalPromptIcon(targetPrompt, cand)
+                    }
+                    targetAgentId != null -> onPickAgentIcon(rid, targetAgentId, emoji)
+                    else -> onPickAlternativeIcon(rid, emoji, iconModel)
                 }
                 // Close every overlay in the icon chain so the user
-                // lands back on the Report result screen. fanOutTarget
-                // resets too so a later report-level run doesn't
-                // accidentally route through the per-agent path.
+                // lands back on the Report result screen.
                 showAlternativeIcons = false
                 showFindIconsPicker = false
                 showIconDetail = false
                 agentIconDetailFor = null
                 fanOutTargetAgentId = null
+                promptIconDetailForId = null
             },
             onRestart = {
                 // Cancel + drop the current list and re-open the
                 // picker so the user can choose a new set of models.
-                // Costs already bumped on the Report / agent stay.
-                if (targetAgentId != null) {
-                    onRestartAgentIconFanOut(rid, targetAgentId)
-                } else {
-                    onRestartIconFanOut(rid)
+                // Costs already bumped on the cache / Report / agent stay.
+                when {
+                    targetPrompt != null -> onRestartInternalPromptIconFanOut(targetPrompt)
+                    targetAgentId != null -> onRestartAgentIconFanOut(rid, targetAgentId)
+                    else -> onRestartIconFanOut(rid)
                 }
                 findIconsModels = emptyList()
                 showAlternativeIcons = false
@@ -1292,6 +1344,9 @@ fun ReportsScreen(
     if (showFindIconsPicker && currentReportId != null) {
         val rid = currentReportId
         val targetAgentId = fanOutTargetAgentId
+        val targetPrompt = promptIconDetailForId?.let { id ->
+            aiSettings.internalPrompts.firstOrNull { it.id == id }
+        }
         FindIconsSelectionScreen(
             models = findIconsModels,
             aiSettings = aiSettings,
@@ -1303,10 +1358,10 @@ fun ReportsScreen(
             onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
             onClearAll = { findIconsModels = emptyList() },
             onFindIcons = {
-                if (targetAgentId != null) {
-                    onStartAgentIconFanOut(rid, targetAgentId, findIconsModels)
-                } else {
-                    onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
+                when {
+                    targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, findIconsModels)
+                    targetAgentId != null -> onStartAgentIconFanOut(rid, targetAgentId, findIconsModels)
+                    else -> onStartIconFanOut(rid, uiState.genericPromptText, findIconsModels)
                 }
                 findIconsModels = emptyList()
                 pickerTarget = PickerTarget.NEW_REPORT
@@ -1421,6 +1476,54 @@ fun ReportsScreen(
         // hydrated — drop the overlay and fall through so we don't
         // sit on a blank screen.
         agentIconDetailFor = null
+    }
+
+    // Per-prompt Meta-icon detail — reached from the leftmost cell
+    // on a successful secondary-result row (where ✅ has been
+    // replaced by the cached emoji). Reads the row's resolved
+    // `InternalPrompt` and the corresponding entry from
+    // `InternalPromptIconCache`. The "Find alternative icons"
+    // button reuses the shared picker/alt-icons overlays via
+    // `promptIconDetailForId` routing.
+    promptIconDetailForId?.let { promptId ->
+        val prompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId }
+        if (prompt != null) {
+            val tick = uiState.iconRefreshTick
+            val entry = remember(promptId, prompt.name, prompt.title, tick) {
+                com.ai.data.InternalPromptIconCache.getEntry(prompt.name, prompt.title)
+            }
+            val promptKey = prompt.name + "\u001F" + prompt.title
+            val hasActiveFanOut = internalPromptIconFanOutByPrompt[promptKey].orEmpty().isNotEmpty()
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+                com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+                LocalNavigateToCurrentReport provides {
+                    promptIconDetailForId = null
+                }
+            ) {
+                InternalPromptIconDetailScreen(
+                    prompt = prompt,
+                    entry = entry,
+                    hasActiveFanOut = hasActiveFanOut,
+                    onFindAlternativeIcons = {
+                        // Hand off to the shared picker / alt-icons
+                        // blocks above; `promptIconDetailForId` is
+                        // already set so they route through the
+                        // per-prompt path.
+                        if (hasActiveFanOut) {
+                            showAlternativeIcons = true
+                        } else {
+                            showFindIconsPicker = true
+                        }
+                    },
+                    onBack = { promptIconDetailForId = null }
+                )
+            }
+            return
+        }
+        // Prompt was deleted while the overlay was open — drop
+        // the state so we don't sit on a blank screen.
+        promptIconDetailForId = null
     }
 
     // Scope screen — shown before the picker for chat-type Meta
@@ -2377,7 +2480,8 @@ fun ReportsScreen(
                 onNextReport = onNextReport,
                 hasPrevReport = hasPrevReport,
                 hasNextReport = hasNextReport,
-                onMissingPromptIcon = onKickoffInternalPromptIcon
+                onMissingPromptIcon = onKickoffInternalPromptIcon,
+                onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id }
             )
         }
     }
@@ -2618,6 +2722,116 @@ private fun AgentIconDetailScreen(
                         icon != null -> Text(icon, fontSize = 36.sp, color = Color.White)
                         else -> Text("(no response)",
                             fontSize = 13.sp, color = AppColors.TextTertiary)
+                    }
+                }
+            }
+
+            Button(
+                onClick = onFindAlternativeIcons,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) {
+                Text(
+                    if (hasActiveFanOut) "View alternative icons" else "Find alternative icons",
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+    }
+}
+
+/** Full-screen "Meta icon" detail for an [InternalPrompt]. Reached
+ *  by tapping the cached emoji that replaces ✅ on a successful
+ *  secondary-result row. Renders three cards mirroring
+ *  [AgentIconDetailScreen]:
+ *    - **Model card** — provider/model that produced the displayed
+ *      emoji + cumulative cost across initial generation + every
+ *      alternative-icons candidate.
+ *    - **Prompt card** — the resolved `internal/prompt_icon` text
+ *      with `@NAME@` + `@TITLE@` substituted.
+ *    - **Response card** — the raw API response (often a single
+ *      glyph, but the body can carry prose around it) plus the
+ *      resolved emoji at 36 sp.
+ *  Bottom button toggles "Find alternative icons" vs "View
+ *  alternative icons" based on [hasActiveFanOut]. */
+@Composable
+private fun InternalPromptIconDetailScreen(
+    prompt: com.ai.model.InternalPrompt,
+    entry: com.ai.data.InternalPromptIconCache.CacheEntry?,
+    hasActiveFanOut: Boolean,
+    onFindAlternativeIcons: () -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val running = entry == null
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "internal_prompt_icon_detail",
+            title = "Meta icon",
+            subject = prompt.name,
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold)
+                    val modelLabel = if (entry != null && entry.providerId.isNotBlank()) {
+                        com.ai.ui.shared.modelLabel(entry.providerId, entry.model)
+                    } else "(pending)"
+                    Text(modelLabel, fontSize = 14.sp, color = Color.White)
+                    val cost = (entry?.inputCost ?: 0.0) + (entry?.outputCost ?: 0.0)
+                    if (cost > 0.0) {
+                        Text("Cost: ${formatCents(cost)} ¢",
+                            fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Prompt — internal/prompt_icon",
+                        fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    val body = when {
+                        running -> "(generating…)"
+                        entry!!.promptText.isNotBlank() -> entry.promptText
+                        else -> "(prompt text not captured)"
+                    }
+                    Text(body, fontSize = 13.sp, color = Color.White, lineHeight = 18.sp)
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text("Response", fontSize = 11.sp, color = AppColors.TextTertiary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 4.dp))
+                    when {
+                        running -> {
+                            Text("⏳", fontSize = 36.sp, color = Color.White)
+                            Text("(running…)", fontSize = 13.sp, color = AppColors.TextTertiary,
+                                modifier = Modifier.padding(top = 4.dp))
+                        }
+                        else -> {
+                            Text(entry!!.emoji, fontSize = 36.sp, color = Color.White)
+                            if (entry.responseText.isNotBlank() && entry.responseText.trim() != entry.emoji) {
+                                Text(entry.responseText,
+                                    fontSize = 12.sp, color = AppColors.TextTertiary,
+                                    fontFamily = FontFamily.Monospace,
+                                    lineHeight = 16.sp,
+                                    modifier = Modifier.padding(top = 6.dp))
+                            }
+                        }
                     }
                 }
             }

@@ -455,7 +455,33 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                     if (response.error == null) {
                         val emoji = extractFirstEmoji(response.analysis) ?: "📝"
-                        InternalPromptIconCache.put(prompt.name, prompt.title, emoji)
+                        // Compute cost from this call's token usage ×
+                        // the (provider, model) pricing tier. Same
+                        // shape as kickOffIconGeneration.
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
+                        InternalPromptIconCache.recordInitial(
+                            name = prompt.name, title = prompt.title,
+                            emoji = emoji,
+                            providerId = agent.provider.id, model = agent.model,
+                            promptText = resolved,
+                            responseText = response.analysis.orEmpty(),
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inC, outputCost = outC
+                        )
+                        // Post to global UsageStats with kind="icon"
+                        // — matches the per-agent 3-tier chain. Only
+                        // post when the call actually used tokens
+                        // (some providers report 0 on error).
+                        if (inT > 0 || outT > 0) {
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                agent.provider, agent.model, inT, outT, kind = "icon"
+                            )
+                        }
                         appViewModel.updateUiState {
                             it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                         }
@@ -474,6 +500,174 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             }
         }
+    }
+
+    /** Tracks the active fan-out job per `(name + U+001F + title)` key so
+     *  [restartInternalPromptIconFanOut] can cancel-and-join an
+     *  in-flight batch without leaking coroutines. Same pattern as
+     *  [agentIconFanOutJobs] for per-agent runs. */
+    private val internalPromptIconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun internalPromptIconKey(prompt: InternalPrompt): String =
+        prompt.name + "\u001F" + prompt.title
+
+    /** Fan-out of `internal/prompt_icon` across user-picked [models]
+     *  for one `InternalPrompt`. Each call:
+     *  - Substitutes `@NAME@` + `@TITLE@`.
+     *  - Calls `analyzeWithAgent` on (provider, model).
+     *  - Bumps cumulative cost on [InternalPromptIconCache] and
+     *    posts to UsageStats with kind="icon".
+     *  - Captures the per-call (promptText, responseText) so
+     *    [pickInternalPromptIcon] can write them onto the cache
+     *    entry without an additional round-trip.
+     *  - Flips the matching [IconCandidate] to Done / Error.
+     *
+     *  Mirrors [startAgentIconFanOut] / [startIconFanOut]. */
+    fun startInternalPromptIconFanOut(
+        context: Context,
+        prompt: InternalPrompt,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        if (prompt.name.isBlank()) return
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name.equals("prompt_icon", ignoreCase = true)
+        } ?: run {
+            AppLog.w("InternalPromptIconAlt", "internal/prompt_icon not configured — skipping fan-out")
+            return
+        }
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        val resolved = iconPrompt.text
+            .replace("@NAME@", prompt.name)
+            .replace("@TITLE@", prompt.title)
+        val key = internalPromptIconKey(prompt)
+
+        // Pre-populate Running rows so the Alternative icons screen
+        // shows ⏳ for every pair the moment it opens.
+        appViewModel.updateInternalPromptIconFanOut(key) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            unique.forEach { item ->
+                launch(Dispatchers.IO) {
+                    withTracerTags(category = "Internal prompt icon (alt)") {
+                        val agent = Agent(
+                            id = "internal-prompt-icon-alt",
+                            name = "internal-prompt-icon-alt",
+                            provider = item.provider,
+                            model = item.model,
+                            apiKey = aiSettings.getApiKey(item.provider)
+                        )
+                        val baseUrl = aiSettings.getEffectiveEndpointUrl(item.provider)
+                        runCatching {
+                            val response = appViewModel.repository.analyzeWithAgent(
+                                agent, "", resolved, AgentParameters(),
+                                null, context, baseUrl
+                            )
+                            val tu = response.tokenUsage
+                            val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val inC = inT * pricing.promptPrice
+                            val outC = outT * pricing.completionPrice
+                            if (inT > 0 || outT > 0) {
+                                InternalPromptIconCache.bumpCost(
+                                    prompt.name, prompt.title, inT, outT, inC, outC
+                                )
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    item.provider, item.model, inT, outT, kind = "icon"
+                                )
+                            }
+                            // Capture promptText + responseText so a
+                            // subsequent pickInternalPromptIcon can
+                            // write them onto the cache entry.
+                            appViewModel.setInternalPromptIconCallTexts(
+                                key, item.provider.id, item.model,
+                                resolved, response.analysis.orEmpty()
+                            )
+                            val callCost = inC + outC
+                            val emoji = if (response.error == null) {
+                                extractFirstEmoji(response.analysis) ?: "📝"
+                            } else null
+                            appViewModel.updateInternalPromptIconFanOut(key) { list ->
+                                list.map { c ->
+                                    if (c.provider.id == item.provider.id && c.model == item.model) {
+                                        if (emoji != null) {
+                                            IconCandidate.Done(item.provider, item.model, emoji, callCost)
+                                        } else {
+                                            IconCandidate.Error(
+                                                item.provider, item.model,
+                                                response.error ?: "no emoji extracted",
+                                                callCost
+                                            )
+                                        }
+                                    } else c
+                                }
+                            }
+                        }.onFailure { e ->
+                            AppLog.w(
+                                "InternalPromptIconAlt",
+                                "exception for ${item.provider.id}/${item.model}: ${e.message}"
+                            )
+                            appViewModel.updateInternalPromptIconFanOut(key) { list ->
+                                list.map { c ->
+                                    if (c.provider.id == item.provider.id && c.model == item.model) {
+                                        IconCandidate.Error(
+                                            item.provider, item.model,
+                                            e.message ?: e.javaClass.simpleName, 0.0
+                                        )
+                                    } else c
+                                }
+                            }
+                        }
+                        appViewModel.updateUiState {
+                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                        }
+                    }
+                }
+            }
+        }
+        val previous = internalPromptIconFanOutJobs.put(key, outer)
+        previous?.cancel()
+        outer.invokeOnCompletion { internalPromptIconFanOutJobs.remove(key, outer) }
+    }
+
+    /** Commit a picked candidate to the cache. Writes the picked
+     *  emoji + the candidate's (provider, model, promptText,
+     *  responseText) so the Meta-icon detail screen renders that
+     *  call's provenance. Cost is **not** touched — bumps already
+     *  happened in `startInternalPromptIconFanOut` for each
+     *  candidate call. */
+    fun pickInternalPromptIcon(
+        context: Context,
+        prompt: InternalPrompt,
+        candidate: IconCandidate.Done,
+        @Suppress("UNUSED_PARAMETER") aiSettings: Settings
+    ) {
+        val key = internalPromptIconKey(prompt)
+        val captured = appViewModel.getInternalPromptIconCallTexts(
+            key, candidate.provider.id, candidate.model
+        ) ?: ("" to "")
+        InternalPromptIconCache.pickAlternative(
+            name = prompt.name, title = prompt.title,
+            emoji = candidate.emoji,
+            providerId = candidate.provider.id, model = candidate.model,
+            promptText = captured.first,
+            responseText = captured.second
+        )
+        appViewModel.updateUiState {
+            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+        }
+    }
+
+    /** Cancel any in-flight fan-out and drop the candidate list.
+     *  The user just tapped "Restart" on the Alternative icons
+     *  screen — start over from a clean slate. */
+    fun restartInternalPromptIconFanOut(prompt: InternalPrompt) {
+        val key = internalPromptIconKey(prompt)
+        internalPromptIconFanOutJobs.remove(key)?.cancel()
+        appViewModel.clearInternalPromptIconFanOut(key)
     }
 
     /** Fan-out of the `internal/icon` prompt across user-picked

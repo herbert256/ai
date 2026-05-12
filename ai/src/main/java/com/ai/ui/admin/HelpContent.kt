@@ -265,6 +265,19 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "When the chain commits the 📝 fallback (all three tiers failed), the Response card still shows 📝 because the storage layer treats it as success. The Prompt card's \"No tier succeeded — icon is the 📝 fallback\" line is how you tell that case apart from a normal tier win.")
         )
     ),
+    "internal_prompt_icon_detail" to HelpContent(
+        title = "Meta icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for one Internal-Prompt's emoji, reached by tapping the leading icon cell on a successful secondary-result row (compare / critique / rerank / fan-out / fan-in / etc.). Three cards (Model / Prompt / Response) plus a Find alternative icons button at the bottom. Only successful rows get this — running rows keep ⏳, failed rows keep ❌."),
+            HelpCard("Model", "Which (provider, model) produced the displayed emoji. For the initial generation this is the bundled DeepSeek (or whatever the user pinned the internal/prompt_icon prompt to). After a Find-alternative-icons pick it's the candidate model the user committed to."),
+            HelpCard("Prompt — internal/prompt_icon", "The resolved bundled prompt that was sent to the model: a fixed 'Please give a fitting emoji for below text…' instruction followed by `@NAME@` and `@TITLE@` substituted with the Internal Prompt's name + title."),
+            HelpCard("Response", "Large emoji at the top is the resolved one-glyph cache value. Below it (when the model returned more than a single glyph) is the raw response text for context — extractFirstEmoji() trims the displayed value to one grapheme cluster."),
+            HelpCard("Cost", "Cumulative spend across the initial generation plus every Find-alternative-icons candidate call that was ever fired for this prompt — same accumulation rule as the per-agent 3-tier chain. Every call also posts to global Usage statistics with kind=\"icon\"."),
+            HelpCard("Find alternative icons", "Bottom button — opens the model picker. Pick a set of (provider, model) pairs, tap Find Icons; each runs internal/prompt_icon with @NAME@ + @TITLE@ substituted, results land on the Alternative icons live list. Tap a returned emoji to commit it as the new displayed value — the InternalPromptIconCache entry is overwritten with that call's provider/model/prompt/response."),
+            HelpCard("View alternative icons", "When a per-prompt fan-out is already in flight or completed, the button label flips to View alternative icons and jumps straight back to the live list. Per-prompt candidates live on their own slot (keyed by name + title), so the per-report and per-agent Find alternative icons flows don't share state with this one."),
+            HelpCard("Persistence", "The cache file (`<filesDir>/internal_prompt_icons.json`) is captured by Backup & Restore and dropped by Housekeeping → Reset → Clear all configuration / Reset application. Clear all runtime data leaves it alone — the cache is configuration-level.")
+        )
+    ),
     "find_icons_selection" to HelpContent(
         title = "Find icons",
         cards = listOf(

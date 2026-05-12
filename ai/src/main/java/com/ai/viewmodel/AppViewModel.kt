@@ -439,6 +439,63 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _agentIconFanOutByAgent.update { it - agentId }
     }
 
+    /** Live state of any "Find alternative icons" run launched from
+     *  the Meta-icon detail screen for an [com.ai.model.InternalPrompt].
+     *  Keyed by the same `name + U+001F + title` join the
+     *  [com.ai.data.InternalPromptIconCache] uses. Same shape as
+     *  [agentIconFanOutByAgent] / [iconFanOutByReport] — a separate
+     *  map keeps each surface's candidates from leaking into the
+     *  others. */
+    private val _internalPromptIconFanOutByPrompt =
+        MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
+    val internalPromptIconFanOutByPrompt: StateFlow<Map<String, List<IconCandidate>>> =
+        _internalPromptIconFanOutByPrompt.asStateFlow()
+    internal fun updateInternalPromptIconFanOut(
+        key: String,
+        mutator: (List<IconCandidate>) -> List<IconCandidate>
+    ) {
+        _internalPromptIconFanOutByPrompt.update { current ->
+            val next = mutator(current[key].orEmpty())
+            current + (key to next)
+        }
+    }
+    internal fun clearInternalPromptIconFanOut(key: String) {
+        _internalPromptIconFanOutByPrompt.update { it - key }
+        // Drop captured prompt/response texts for every candidate of
+        // this prompt — they're only meaningful for the in-flight
+        // fan-out, not across restarts.
+        val prefix = "$key|"
+        internalPromptIconCallTexts.keys
+            .filter { it.startsWith(prefix) }
+            .forEach { internalPromptIconCallTexts.remove(it) }
+    }
+
+    /** Per-candidate `(promptText, responseText)` capture used by
+     *  [com.ai.viewmodel.ReportViewModel.pickInternalPromptIcon] —
+     *  the picked candidate's request + reply land in
+     *  [com.ai.data.InternalPromptIconCache.pickAlternative] from
+     *  here so the detail screen renders the actual call that
+     *  produced the picked emoji. Keyed by
+     *  `"$promptKey|$providerId|$model"` (unique because each
+     *  candidate is one (provider, model) pair within one prompt's
+     *  fan-out). Lives off UiState because it updates at the same
+     *  5-15 Hz the candidate map does and is read only on user
+     *  pick — recomposing every UI consumer of UiState for these
+     *  writes would be wasteful. */
+    private val internalPromptIconCallTexts =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<String, String>>()
+    internal fun setInternalPromptIconCallTexts(
+        key: String, providerId: String, model: String,
+        promptText: String, responseText: String
+    ) {
+        internalPromptIconCallTexts["$key|$providerId|$model"] =
+            promptText to responseText
+    }
+    internal fun getInternalPromptIconCallTexts(
+        key: String, providerId: String, model: String
+    ): Pair<String, String>? =
+        internalPromptIconCallTexts["$key|$providerId|$model"]
+
     // Refresh-all in-flight state. null = idle (nothing running, nothing to
     // resume). When non-null the user can navigate away from the
     // Refresh-all screen and come back to a live view of the same run.

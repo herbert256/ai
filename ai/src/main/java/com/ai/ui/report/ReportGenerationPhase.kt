@@ -162,7 +162,13 @@ internal fun ColumnScope.GenerationPhase(
      *  Wired by the parent to
      *  `reportViewModel.kickOffInternalPromptIcon(context, prompt,
      *  aiSettings)`. */
-    onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
+    onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Open the full-screen Meta-icon detail overlay for the
+     *  tapped row's resolved `InternalPrompt`. Fired when the user
+     *  taps the cached emoji that replaces the ✅ status cell on a
+     *  successful secondary row. Wired by the parent to flip
+     *  ReportsScreen's `promptIconDetailFor` state. */
+    onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -645,6 +651,20 @@ internal fun ColumnScope.GenerationPhase(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenSecondaryRun(run.id) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Resolve the InternalPrompt that produced this
+                    // row (by id — stable across renames). Falls
+                    // back to null when the prompt was deleted.
+                    // Cached emoji + miss-side kick-off live inside
+                    // the `else` (success) branch below so failed
+                    // and running rows keep ❌ / ⏳ unchanged.
+                    val resolvedPrompt = androidx.compose.runtime.remember(
+                        run.fanInOf, run.metaPromptId,
+                        aiSettings.internalPrompts.size
+                    ) {
+                        aiSettings.internalPrompts.firstOrNull {
+                            it.id == run.fanInOf || it.id == run.metaPromptId
+                        }
+                    }
                     when {
                         run.errorMessage != null -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         running -> {
@@ -656,7 +676,40 @@ internal fun ColumnScope.GenerationPhase(
                             )
                             Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
                         }
-                        else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        else -> {
+                            // SUCCESS branch: when the toggle is on
+                            // AND we resolve to a known InternalPrompt
+                            // AND its (name, title) emoji is cached,
+                            // replace ✅ with the emoji (clickable to
+                            // open the Meta-icon detail screen).
+                            // Otherwise fall back to plain ✅.
+                            val emoji = if (
+                                uiState.generalSettings.useInternalPromptsIcons &&
+                                resolvedPrompt != null &&
+                                resolvedPrompt.name.isNotBlank()
+                            ) {
+                                val tick = uiState.iconRefreshTick
+                                androidx.compose.runtime.remember(
+                                    resolvedPrompt.id, resolvedPrompt.name,
+                                    resolvedPrompt.title, tick
+                                ) {
+                                    val cached = com.ai.data.InternalPromptIconCache
+                                        .get(resolvedPrompt.name, resolvedPrompt.title)
+                                    if (cached == null) onMissingPromptIcon(resolvedPrompt)
+                                    cached
+                                }
+                            } else null
+                            if (emoji != null) {
+                                Text(
+                                    emoji, fontSize = 16.sp,
+                                    modifier = Modifier
+                                        .width(24.dp)
+                                        .clickable { onOpenInternalPromptIconDetail(resolvedPrompt!!) }
+                                )
+                            } else {
+                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            }
+                        }
                     }
                     // Live row "type" cell: fan_in rows always
                     // surface as "fan-in" (matching the prompt
@@ -676,31 +729,7 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.TRANSLATE -> "translate"
                         }
                     }
-                    // Per-(InternalPrompt name, title) emoji prefix —
-                    // gated by GeneralSettings.useInternalPromptsIcons.
-                    // Cache miss fires a single background generation
-                    // via onMissingPromptIcon; iconRefreshTick keys the
-                    // remember so the row recomposes when the call lands.
-                    val promptIconEmoji = run {
-                        if (!uiState.generalSettings.useInternalPromptsIcons) return@run null
-                        val tick = uiState.iconRefreshTick
-                        androidx.compose.runtime.remember(
-                            run.fanInOf, run.metaPromptId, run.metaPromptName, tick
-                        ) {
-                            val prompt = aiSettings.internalPrompts.firstOrNull {
-                                it.id == run.fanInOf || it.id == run.metaPromptId
-                            } ?: return@remember null
-                            if (prompt.name.isBlank()) return@remember null
-                            val cached = com.ai.data.InternalPromptIconCache
-                                .get(prompt.name, prompt.title)
-                            if (cached == null) onMissingPromptIcon(prompt)
-                            cached
-                        }
-                    }
-                    val labelWithIcon = if (promptIconEmoji != null) {
-                        "$promptIconEmoji $typeLabel"
-                    } else typeLabel
-                    RowTypeCell(labelWithIcon)
+                    RowTypeCell(typeLabel)
                     val langSuffix = run.targetLanguage?.let { " · $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
                         // Fan-in rows label by the PROMPT used (its
