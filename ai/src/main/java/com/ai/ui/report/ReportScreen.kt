@@ -1471,6 +1471,12 @@ fun ReportsScreen(
         val provider = agent?.let { AppService.findById(it.provider) }
         if (agent != null && provider != null) {
             val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
+            val agentIconTraceFilename = rememberAgentIconTrace(
+                reportId = currentReportId,
+                agentModel = agent.model,
+                iconKey = agent.icon,
+                winningTier = agent.iconWinningTier
+            )
             CompositionLocalProvider(
                 com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
                 LocalNavigateToCurrentReport provides {
@@ -1502,6 +1508,8 @@ fun ReportsScreen(
                         }
                     },
                     hasActiveFanOut = hasActiveAgentFanOut,
+                    traceFilename = agentIconTraceFilename,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
                     onBack = {
                         agentIconDetailFor = null
                         fanOutTargetAgentId = null
@@ -2634,6 +2642,46 @@ private fun ReportIconDetailScreen(
  *  Model card identifies the agent that ran the call. No
  *  "Find alternative icons" affordance — per-agent icons don't have
  *  a fan-out variant by design. */
+
+/** Resolve the most recent "Report icons tier N" trace file backing
+ *  an agent's icon call. Tier 1 / 2 traces use the agent's own model;
+ *  tier 3 falls back to a bundled icon agent so its trace's model is
+ *  different — match on category-tier and only tighten by model on
+ *  tiers 1/2. Null winningTier means the chain exhausted: surface the
+ *  most recent "Report icons" trace regardless of tier so the user
+ *  still has a path to the failure.
+ *
+ *  Extracted as a separate @Composable so the call site doesn't push
+ *  the parent ReportsScreen over the JVM 64KB method-size limit. */
+@Composable
+private fun rememberAgentIconTrace(
+    reportId: String?,
+    agentModel: String,
+    iconKey: String?,
+    winningTier: Int?
+): String? {
+    val state = androidx.compose.runtime.produceState<String?>(
+        initialValue = null, reportId, agentModel, iconKey, winningTier
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val candidates = ApiTracer.getTraceFiles().filter {
+                it.reportId == reportId &&
+                    it.category?.startsWith("Report icons ") == true
+            }
+            when (winningTier) {
+                null -> candidates.maxByOrNull { it.timestamp }?.filename
+                3 -> candidates.filter { it.category?.contains("tier 3") == true }
+                    .maxByOrNull { it.timestamp }?.filename
+                else -> candidates.filter {
+                    it.model == agentModel &&
+                        it.category?.contains("tier $winningTier") == true
+                }.maxByOrNull { it.timestamp }?.filename
+            }
+        }
+    }
+    return state.value
+}
+
 @Composable
 private fun AgentIconDetailScreen(
     /** The chat-continuation third-turn prompt (internal/report_icon_chat).
@@ -2668,6 +2716,11 @@ private fun AgentIconDetailScreen(
      *  detail: "View alternative icons" while a per-agent fan-out
      *  exists, "Find alternative icons" otherwise. */
     hasActiveFanOut: Boolean,
+    /** Filename of the most recent "Report icons tier N" trace that
+     *  matches this agent's icon call (caller resolves it via the
+     *  reportId / model / winningTier triple). Null hides the icon. */
+    traceFilename: String? = null,
+    onNavigateToTraceFile: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -2709,7 +2762,10 @@ private fun AgentIconDetailScreen(
         TitleBar(
             helpTopic = "agent_icon_detail",
             title = "Agent icon",
-            onBackClick = onBack
+            onBackClick = onBack,
+            onTrace = if (ApiTracer.isTracingEnabled && traceFilename != null) {
+                { onNavigateToTraceFile(traceFilename) }
+            } else null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
