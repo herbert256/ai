@@ -66,7 +66,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             subjectToTitleBarMode = prefs.getString(KEY_SUBJECT_TO_TITLE_BAR_MODE, null)?.let {
                 try { SubjectToTitleBarMode.valueOf(it) } catch (_: Exception) { null }
             } ?: SubjectToTitleBarMode.HARDCODED,
-            iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, false),
+            iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
