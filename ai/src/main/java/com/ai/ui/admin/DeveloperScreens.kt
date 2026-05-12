@@ -94,7 +94,7 @@ fun ApiTestScreen(
                     fontSize = 18.sp, color = AppColors.Green,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -164,7 +164,7 @@ fun ApiTestScreen(
                     fontSize = 18.sp, color = AppColors.Green,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))

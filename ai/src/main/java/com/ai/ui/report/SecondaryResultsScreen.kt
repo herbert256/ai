@@ -284,7 +284,7 @@ internal fun SecondaryResultsScreen(
                     fontSize = 18.sp, color = AppColors.Green,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -860,7 +860,7 @@ private fun ColumnScope.FanOutDrillInView(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
@@ -1055,7 +1055,7 @@ private fun ColumnScope.FanOutDrillInView(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
-                    .padding(top = 4.dp)
+                    .padding(top = 0.dp)
                     .modelInfoClickable(activeProviderService, activeMdl)
             )
         }
@@ -1877,7 +1877,7 @@ private fun OnePageView(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
-                    .padding(top = 4.dp)
+                    .padding(top = 0.dp)
                     .modelInfoClickable(activeProviderService, activeMdl)
             )
         }
@@ -2100,7 +2100,7 @@ internal fun SecondaryResultDetailScreen(
                 fontSize = 18.sp, color = AppColors.Green,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

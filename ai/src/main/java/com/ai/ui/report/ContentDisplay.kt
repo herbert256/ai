@@ -605,7 +605,7 @@ private fun OnePageReportView(
                 fontSize = 18.sp, color = AppColors.Green,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
             )
         }
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
