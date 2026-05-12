@@ -470,17 +470,27 @@ fun TitleBar(
         val barFontSize = titleStyle.fontSize * 1.25f
         val reportIconTap = LocalNavigateToCurrentReport.current
         // HARDCODED screen-title mode gives the leftmost report emoji
-        // 1.5× sizing so the per-report visual cue reads strongly even
-        // when the title slot is the fixed screen title.
-        val reportIconScale = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) 1.5f else 1f
+        // 2.0× sizing — the per-report glyph carries the whole visual
+        // identity of the page when the title slot is a fixed screen
+        // title, so it earns the extra real estate. It also sits
+        // pulled up a few dp so its baseline rises above the
+        // surrounding row, freeing vertical room for the title text
+        // and leaving the bottom edge of the icon flush with the
+        // title's baseline instead of stretching below it.
+        val isHardcoded = mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+        val reportIconScale = if (isHardcoded) 2.0f else 1f
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (resolvedReportIcon != null) {
-                TitleBarIcon(resolvedReportIcon, Color.Unspecified,
-                    onClick = reportIconTap ?: {},
-                    width = 22.dp, scale = reportIconScale)
+                Box(
+                    modifier = if (isHardcoded) Modifier.offset(y = (-10).dp) else Modifier
+                ) {
+                    TitleBarIcon(resolvedReportIcon, Color.Unspecified,
+                        onClick = reportIconTap ?: {},
+                        width = 22.dp, scale = reportIconScale)
+                }
                 Spacer(modifier = Modifier.width(4.dp))
             }
             if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
