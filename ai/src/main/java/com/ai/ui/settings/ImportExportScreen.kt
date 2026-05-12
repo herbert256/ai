@@ -638,6 +638,35 @@ fun ImportExportScreen(
         ).show()
     }
 
+    // Per-section exports share the same JSON shape as the combined
+    // Workers export — a single-key object that applyWorkers reads back
+    // with the missing two keys treated as empty arrays. That keeps the
+    // importer single-implementation: any of the three files just calls
+    // applyWorkers and only the present section upserts.
+    fun exportAgents() {
+        val gson = createAppGson()
+        val tree = JsonObject().apply { add("agents", gson.toJsonTree(aiSettings.agents)) }
+        shareExportText(context, "ai_agents-${exportTimestamp()}.json", "application/json", "Share agents",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Agents ready to share (${aiSettings.agents.size})", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportFlocks() {
+        val gson = createAppGson()
+        val tree = JsonObject().apply { add("flocks", gson.toJsonTree(aiSettings.flocks)) }
+        shareExportText(context, "ai_flocks-${exportTimestamp()}.json", "application/json", "Share flocks",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Flocks ready to share (${aiSettings.flocks.size})", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportSwarms() {
+        val gson = createAppGson()
+        val tree = JsonObject().apply { add("swarms", gson.toJsonTree(aiSettings.swarms)) }
+        shareExportText(context, "ai_swarms-${exportTimestamp()}.json", "application/json", "Share swarms",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Swarms ready to share (${aiSettings.swarms.size})", Toast.LENGTH_SHORT).show()
+    }
+
     fun exportSettings() {
         // GeneralSettings minus the three info-provider API keys (those
         // already round-trip through the API Keys export).
@@ -1190,8 +1219,19 @@ fun ImportExportScreen(
                 ImportExportRow("prompts.json", importOnly,
                     onExport = { exportPromptsJson() },
                     onImport = { importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
-                ImportExportRow("Agents / Flocks / Swarms", importOnly,
-                    onExport = { exportWorkers() },
+                // Agents / Flocks / Swarms split into three rows. The
+                // export side writes a single-key {agents|flocks|swarms}
+                // JSON object; the import side dispatches to "workers"
+                // for all three since applyWorkers reads the keys
+                // independently and skips any that are absent.
+                ImportExportRow("Agents", importOnly,
+                    onExport = { exportAgents() },
+                    onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Flocks", importOnly,
+                    onExport = { exportFlocks() },
+                    onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Swarms", importOnly,
+                    onExport = { exportSwarms() },
                     onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Example prompts", importOnly,
                     onExport = { exportExamplePrompts() },
