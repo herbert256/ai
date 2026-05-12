@@ -418,12 +418,15 @@ fun RefreshScreen(
                 )
             }
 
-            // AI Info Providers sub-page — lets the user run a single
-            // catalog refresh at a time. Workers / Refresh-all is the
-            // way to test/seed providers and agents.
-            RefreshNavCard(
-                title = "AI Info Providers",
+            // Info Providers sub-page — same RefreshAction shape as the
+            // two cards above so the three cards on this screen all
+            // read as one column of equal-weight buttons. The button
+            // drills into the sub-page that lists the six catalog
+            // sources with their own progress rows.
+            RefreshAction(
+                label = "Info providers",
                 description = "Catalog-source refreshes (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis).",
+                enabled = !isAnyRunning,
                 onClick = { subPage = RefreshSubPage.INFO_PROVIDERS }
             )
 
@@ -432,25 +435,6 @@ fun RefreshScreen(
 }
 
 private enum class RefreshSubPage { INFO_PROVIDERS }
-
-@Composable
-private fun RefreshNavCard(title: String, description: String, onClick: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
-            }
-            Text(">", color = AppColors.Blue, fontSize = 16.sp)
-        }
-    }
-}
 
 @Composable
 private fun InfoProvidersRefreshPage(
