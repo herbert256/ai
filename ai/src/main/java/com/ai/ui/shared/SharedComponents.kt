@@ -89,6 +89,34 @@ fun CollapsibleCard(
     }
 }
 
+/** Variant of [CollapsibleCard] where the open/closed state lives in
+ *  the caller — enables accordion behaviour: parent decides which card
+ *  is open and only one can be open at a time. Same visual shape as
+ *  the unmodified [CollapsibleCard]. */
+@Composable
+fun ControlledCollapsibleCard(
+    title: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onToggle() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
+            }
+            if (expanded) content()
+        }
+    }
+}
+
 /** App-wide layout choice for combined provider+model labels.
  *  Provided once at the top of the composition tree by AppNavHost
  *  from GeneralSettings; consumed by [modelLabel] and any caller

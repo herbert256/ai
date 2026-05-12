@@ -12,6 +12,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,7 +32,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.CollapsibleCard
+import com.ai.ui.shared.ControlledCollapsibleCard
 import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
@@ -1188,6 +1189,15 @@ fun ImportExportScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Accordion state for the three cards on this screen: at most
+        // one is expanded at a time. Tapping the open card's header
+        // collapses it; tapping a closed one collapses any sibling and
+        // opens this one. Cards keep their identity through the
+        // navigation hops via rememberSaveable so a back-pop returns
+        // to the same open card.
+        var openCard by rememberSaveable { mutableStateOf<String?>(null) }
+        fun toggle(id: String) { openCard = if (openCard == id) null else id }
+
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
             // API keys live in their own card so the Export "All" button
@@ -1195,7 +1205,11 @@ fun ImportExportScreen(
             // leak credentials. Importing keys from another install is
             // the first-run use case, so the Import button stays usable
             // even when the Export card below is hidden.
-            CollapsibleCard(title = "API keys") {
+            ControlledCollapsibleCard(
+                title = "API keys",
+                expanded = openCard == "keys",
+                onToggle = { toggle("keys") }
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!importOnly) {
                         OutlinedButton(onClick = { exportKeys() },
@@ -1212,7 +1226,11 @@ fun ImportExportScreen(
             // Export + Import buttons; importOnly mode hides the Export
             // column so the first-run shape is just a list of "Import X"
             // buttons.
-            CollapsibleCard(title = "Configuration") {
+            ControlledCollapsibleCard(
+                title = "Configuration",
+                expanded = openCard == "config",
+                onToggle = { toggle("config") }
+            ) {
                 ImportExportRow("providers.json", importOnly,
                     onExport = { exportProvidersJson() },
                     onImport = { importType = "providers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
@@ -1271,7 +1289,11 @@ fun ImportExportScreen(
             // merge additively (by id) — existing rows with the same id
             // are kept, only new ids land. Safer than replace for an
             // activity log the user accumulated on the source phone.
-            CollapsibleCard(title = "Runtime data") {
+            ControlledCollapsibleCard(
+                title = "Runtime data",
+                expanded = openCard == "runtime",
+                onToggle = { toggle("runtime") }
+            ) {
                 ImportExportRow("Reports", importOnly,
                     onExport = { exportRuntimeReports() },
                     onImport = { importType = "runtimeReports"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
