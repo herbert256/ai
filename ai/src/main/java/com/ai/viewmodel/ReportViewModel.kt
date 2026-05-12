@@ -2125,7 +2125,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     if (responses.isEmpty()) return@withTracerTags
                     val agentName = "Local / $modelName"
                     val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName)
-                    SecondaryResultStorage.save(context, placeholder)
                     ReportStorage.bumpReportTimestamp(context, reportId)
 
                     val started = System.currentTimeMillis()
@@ -2300,12 +2299,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val agentName = "${provider.id} / ${answerer.model}"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ).copy(
-                                metaPromptId = metaPrompt.id,
-                                metaPromptName = metaPrompt.name,
-                                fanOutSourceAgentId = source.agentId
-                            )
-                            SecondaryResultStorage.save(context, placeholder)
+                            ) {
+                                it.copy(
+                                    metaPromptId = metaPrompt.id,
+                                    metaPromptName = metaPrompt.name,
+                                    fanOutSourceAgentId = source.agentId
+                                )
+                            }
                             pending.add(PendingPair(answerer, source, placeholder))
                         }
                     }
@@ -2791,15 +2791,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     if (perReport.all { it.second.isEmpty() }) {
                         val (provider, model) = pick
                         val agentName = "${provider.id} / $model"
-                        val placeholder = SecondaryResultStorage.create(
+                        SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, provider.id, model, agentName
-                        ).copy(
-                            metaPromptId = metaPrompt.id,
-                            metaPromptName = metaPrompt.name,
-                            fanInOf = metaPrompt.id,
-                            errorMessage = "No fan-out responses available — run the fan-out prompt first."
-                        )
-                        SecondaryResultStorage.save(context, placeholder)
+                        ) {
+                            it.copy(
+                                metaPromptId = metaPrompt.id,
+                                metaPromptName = metaPrompt.name,
+                                fanInOf = metaPrompt.id,
+                                errorMessage = "No fan-out responses available — run the fan-out prompt first."
+                            )
+                        }
                         return@withTracerTags
                     }
                     val resolved = resolveFanInPrompt(
@@ -2922,17 +2923,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val nothingToCombine = responders.isEmpty() && responderPairs.isEmpty()
                     if (nothingToCombine) {
                         val agentName = "${provider.id} / $model"
-                        val placeholder = SecondaryResultStorage.create(
+                        SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, provider.id, model, agentName
-                        ).copy(
-                            metaPromptId = metaPrompt.id,
-                            metaPromptName = metaPrompt.name,
-                            fanInOf = metaPrompt.id,
-                            scopeProviderId = activeProviderId,
-                            scopeModel = activeModel,
-                            errorMessage = "No fan-out responses available for ${activeProviderId} / ${activeModel} — run the fan-out prompt first."
-                        )
-                        SecondaryResultStorage.save(context, placeholder)
+                        ) {
+                            it.copy(
+                                metaPromptId = metaPrompt.id,
+                                metaPromptName = metaPrompt.name,
+                                fanInOf = metaPrompt.id,
+                                scopeProviderId = activeProviderId,
+                                scopeModel = activeModel,
+                                errorMessage = "No fan-out responses available for ${activeProviderId} / ${activeModel} — run the fan-out prompt first."
+                            )
+                        }
                         return@withTracerTags
                     }
 
@@ -2952,14 +2954,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val agentName = "${provider.id} / $model"
                     val placeholder = SecondaryResultStorage.create(
                         context, reportId, SecondaryKind.META, provider.id, model, agentName
-                    ).copy(
-                        metaPromptId = metaPrompt.id,
-                        metaPromptName = metaPrompt.name,
-                        fanInOf = metaPrompt.id,
-                        scopeProviderId = activeProviderId,
-                        scopeModel = activeModel
-                    )
-                    SecondaryResultStorage.save(context, placeholder)
+                    ) {
+                        it.copy(
+                            metaPromptId = metaPrompt.id,
+                            metaPromptName = metaPrompt.name,
+                            fanInOf = metaPrompt.id,
+                            scopeProviderId = activeProviderId,
+                            scopeModel = activeModel
+                        )
+                    }
 
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.META, metaPrompt,
@@ -3205,19 +3208,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.id} / $model$langSuffix"
-        val placeholder = existingPlaceholder ?: run {
-            val fresh = SecondaryResultStorage.create(context, reportId, kind, provider.id, model, agentName)
-                .copy(
-                    targetLanguage = targetLanguage,
-                    targetLanguageNative = targetLanguageNative,
-                    metaPromptId = metaPrompt.id,
-                    metaPromptName = metaPrompt.name,
-                    fanOutSourceAgentId = fanOutSourceAgentId,
-                    fanInOf = fanInOf,
-                    secondaryScope = scopeEncoded
-                )
-            SecondaryResultStorage.save(context, fresh)
-            fresh
+        val placeholder = existingPlaceholder ?: SecondaryResultStorage.create(
+            context, reportId, kind, provider.id, model, agentName
+        ) {
+            it.copy(
+                targetLanguage = targetLanguage,
+                targetLanguageNative = targetLanguageNative,
+                metaPromptId = metaPrompt.id,
+                metaPromptName = metaPrompt.name,
+                fanOutSourceAgentId = fanOutSourceAgentId,
+                fanInOf = fanInOf,
+                secondaryScope = scopeEncoded
+            )
         }
 
         // Moderation runs through the dedicated /v1/moderations

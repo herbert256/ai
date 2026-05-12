@@ -101,7 +101,32 @@ fun AppLogListScreen(
                         }
                     }
                 } else {
-                    Text("(no log files yet)", color = AppColors.TextTertiary)
+                    // Empty-state hint: surface the current threshold so
+                    // the user can tell "I haven't done anything yet"
+                    // apart from "my threshold is dropping every call
+                    // before it gets to the file appender". A WARN /
+                    // ERROR threshold on a healthy app produces no file
+                    // until something actually warns or errors, which
+                    // looks indistinguishable from a broken logger
+                    // without this hint.
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("(no log files yet)", color = AppColors.TextTertiary)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Current threshold: ${AppLog.threshold.name}.",
+                            color = AppColors.TextTertiary, fontSize = 11.sp
+                        )
+                        if (AppLog.threshold.priority > LogLevel.INFO.priority) {
+                            Text(
+                                "INFO / DEBUG / TRACE calls are dropped before the file appender. " +
+                                    "Lower the threshold under Settings → Logging and tracing → " +
+                                    "Log level to see more activity here.",
+                                color = AppColors.TextTertiary, fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         } else {

@@ -183,9 +183,17 @@ object SecondaryResultStorage {
         return result
     }
 
+    /** Construct a placeholder row and persist it. [extras] runs on the
+     *  freshly-constructed [SecondaryResult] before it hits disk, so
+     *  callers that need to seed `metaPromptName` / `fanOutSourceAgentId` /
+     *  etc. up-front can do so atomically — no `.copy().save()` follow-up,
+     *  no window where the row exists on disk in a half-baked shape that
+     *  a concurrent `listForReport` could pick up and route as a plain
+     *  Meta row. Default no-op preserves the old call shape. */
     fun create(
         context: Context, reportId: String, kind: SecondaryKind,
-        providerId: String, model: String, agentName: String
+        providerId: String, model: String, agentName: String,
+        extras: (SecondaryResult) -> SecondaryResult = { it }
     ): SecondaryResult {
         val r = SecondaryResult(
             id = UUID.randomUUID().toString(),
@@ -193,7 +201,7 @@ object SecondaryResultStorage {
             providerId = providerId, model = model, agentName = agentName,
             timestamp = System.currentTimeMillis(), content = null
         )
-        return save(context, r)
+        return save(context, extras(r))
     }
 
     fun listForReport(context: Context, reportId: String, kind: SecondaryKind? = null): List<SecondaryResult> {
