@@ -477,7 +477,7 @@
       "adminUrl": "https://cloud.cerebras.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.cerebras.ai/",
-      "defaultModel": "llama-3.3-70b",
+      "defaultModel": "gpt-oss-120b",
       "extractApiCost": false,
       "hardcodedModels": [
         "llama-3.3-70b",
