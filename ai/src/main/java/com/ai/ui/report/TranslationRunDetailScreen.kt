@@ -72,6 +72,11 @@ internal fun TranslationRunDetailScreen(
      *  flow so PENDING / RUNNING items abort instead of continuing
      *  in the background after the user wipes the persisted results. */
     onCancelRun: (String) -> Unit = {},
+    /** Cancel a single pending/running item in [liveRun]. Removes
+     *  the item from the in-memory items list — the row disappears
+     *  and the runner's saveOneTranslationItem guard short-circuits
+     *  the disk write for any call that lands afterwards. */
+    onCancelItem: (String, String) -> Unit = { _, _ -> },
     /** Drop the runId from the live translationRuns map so the
      *  result page's live row disappears alongside the now-deleted
      *  persisted rows. */
@@ -84,6 +89,11 @@ internal fun TranslationRunDetailScreen(
     // destination (e.g. trace file detail) lands the user back on
     // the call detail screen instead of resetting to the run list.
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Pending/running TranslationItem.id — tapped from live mode
+    // when no persisted SecondaryResult exists yet. Routes to the
+    // placeholder detail overlay below; its trash icon calls
+    // onCancelItem to drop the item from the run.
+    var openLiveItemId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val results by produceState(initialValue = emptyList<SecondaryResult>(), reportId, runId, refreshTick) {
         value = withContext(Dispatchers.IO) {
@@ -141,7 +151,25 @@ internal fun TranslationRunDetailScreen(
             result = openResult,
             onBack = { openId = null },
             onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onDelete = {
+                onDelete(openResult.id)
+                openId = null
+                refreshTick++
+            }
+        )
+        return
+    }
+    val openLiveItem = openLiveItemId?.let { id -> liveRun?.items?.firstOrNull { it.id == id } }
+    if (openLiveItem != null) {
+        TranslationItemPlaceholderScreen(
+            item = openLiveItem,
+            targetLanguageName = liveRun?.targetLanguageName ?: "",
+            onBack = { openLiveItemId = null },
+            onCancel = {
+                onCancelItem(runId, openLiveItem.id)
+                openLiveItemId = null
+            }
         )
         return
     }
@@ -268,10 +296,15 @@ internal fun TranslationRunDetailScreen(
                         com.ai.viewmodel.ReportViewModel.TranslationKind.AGENT_RESPONSE -> "report"
                         com.ai.viewmodel.ReportViewModel.TranslationKind.META -> matching?.let { typeFor(it) } ?: "meta"
                     }
+                    // Every row tappable: persisted rows drill into the
+                    // split-pane call detail; pending/running rows
+                    // (no persisted match yet) drill into a placeholder
+                    // overlay where the trash icon removes the single
+                    // item from the run.
                     val rowMod = if (matching != null) {
                         Modifier.fillMaxWidth().clickable { openId = matching.id }.padding(vertical = 8.dp, horizontal = 4.dp)
                     } else {
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 4.dp)
+                        Modifier.fillMaxWidth().clickable { openLiveItemId = item.id }.padding(vertical = 8.dp, horizontal = 4.dp)
                     }
                     Row(modifier = rowMod, verticalAlignment = Alignment.CenterVertically) {
                         if (isRunning) {
@@ -430,6 +463,78 @@ internal fun TranslationRunDetailScreen(
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+}
+
+/** Per-item placeholder for a pending/running translation row that
+ *  has no persisted SecondaryResult yet. Reached from the live-mode
+ *  list when the user taps a queued / running row. Same chrome as
+ *  [TranslationCallDetailScreen] (title bar + green subject line)
+ *  with a trash icon that removes the single item from the run via
+ *  [onCancel]. The body shows status + the source label, since
+ *  there's no Original / Translation pair to render yet. */
+@Composable
+private fun TranslationItemPlaceholderScreen(
+    item: com.ai.viewmodel.ReportViewModel.TranslationItem,
+    targetLanguageName: String,
+    onBack: () -> Unit,
+    onCancel: () -> Unit
+) {
+    BackHandler { onBack() }
+    var confirmCancel by remember { mutableStateOf(false) }
+    val titleLang = targetLanguageName.takeIf { it.isNotBlank() }?.let { "Translate · $it" } ?: "Translate"
+    val statusLabel = when (item.status) {
+        com.ai.viewmodel.ReportViewModel.TranslationStatus.PENDING -> "Queued"
+        com.ai.viewmodel.ReportViewModel.TranslationStatus.RUNNING -> "In progress"
+        com.ai.viewmodel.ReportViewModel.TranslationStatus.DONE -> "Done — landing on disk…"
+        com.ai.viewmodel.ReportViewModel.TranslationStatus.ERROR -> "Errored"
+    }
+    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TitleBar(
+            helpTopic = "translation_call",
+            title = "Translation call",
+            subject = titleLang,
+            onBackClick = onBack,
+            onDelete = { confirmCancel = true }
+        )
+        if (!foldSubject) {
+            Text(
+                text = titleLang,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 4.dp)
+            )
+        }
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text("Status", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold)
+            Text(statusLabel, fontSize = 14.sp, color = Color.White, modifier = Modifier.padding(top = 4.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Source", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.Bold)
+            Text(item.label.ifBlank { item.kind.name.lowercase() },
+                fontSize = 14.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(top = 4.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Tap the trash icon to remove this item from the run. The translated row will not be saved.",
+                fontSize = 12.sp, color = AppColors.TextTertiary
+            )
+        }
+    }
+    if (confirmCancel) {
+        AlertDialog(
+            onDismissRequest = { confirmCancel = false },
+            title = { Text("Remove this translation?") },
+            text = { Text("Drops this single call from the run. The translated row won't be saved. Other calls in the run continue.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCancel = false
+                    onCancel()
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirmCancel = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 }

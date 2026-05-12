@@ -400,8 +400,11 @@ fun ReportsScreenNav(
         onStartTranslation = { sourceId, langName, langNative, prov, model ->
             reportViewModel.startTranslation(context, sourceId, langName, langNative, prov, model)
         },
-        onCancelTranslation = { runId -> reportViewModel.cancelTranslation(runId) },
-        onConsumeTranslation = { runId -> reportViewModel.consumeTranslationRun(runId) },
+        translationLifecycle = TranslationLifecycleCallbacks(
+            onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
+            onCancelItem = { runId, itemId -> reportViewModel.cancelTranslationItem(runId, itemId) },
+            onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) }
+        ),
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
         onContinueWithOnTheFly = onContinueWithOnTheFly,
@@ -483,6 +486,17 @@ private fun decodeSavedReportModelSelection(selection: String, aiSettings: Setti
         else -> emptyList()
     }
 }
+
+/** Three translation-run lifecycle callbacks (cancel-run /
+ *  cancel-item / consume-run) bundled so [ReportsScreen]'s parameter
+ *  list stays under the JVM 64 KB per-method bytecode limit. Wired
+ *  by [ReportsScreenNav] to `ReportViewModel.cancelTranslation /
+ *  cancelTranslationItem / consumeTranslationRun`. */
+data class TranslationLifecycleCallbacks(
+    val onCancelRun: (String) -> Unit = { _ -> },
+    val onCancelItem: (String, String) -> Unit = { _, _ -> },
+    val onConsumeRun: (String) -> Unit = { _ -> }
+)
 
 /** Four translation-icon callbacks plumbed through [ReportsScreen]
  *  as a single parameter so the Composable's parameter list stays
@@ -620,8 +634,7 @@ fun ReportsScreen(
     onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
-    onCancelTranslation: (String) -> Unit = {},
-    onConsumeTranslation: (String) -> Unit = {},
+    translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
@@ -879,7 +892,7 @@ fun ReportsScreen(
             // alongside the persisted summary, producing a duplicate.
             delay(200)
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                finishedSignature.forEach { onConsumeTranslation(it) }
+                finishedSignature.forEach { translationLifecycle.onConsumeRun(it) }
             }
         }
     }
@@ -2007,8 +2020,9 @@ fun ReportsScreen(
                 liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished },
                 // Delete = cancel the Job + drop persisted rows + consume
                 // the live map entry so nothing about this run lingers.
-                onCancelRun = { id -> onCancelTranslation(id) },
-                onConsumeRun = { id -> onConsumeTranslation(id) }
+                onCancelRun = { id -> translationLifecycle.onCancelRun(id) },
+                onCancelItem = { runId, itemId -> translationLifecycle.onCancelItem(runId, itemId) },
+                onConsumeRun = { id -> translationLifecycle.onConsumeRun(id) }
             )
         }
         return
@@ -2502,7 +2516,7 @@ fun ReportsScreen(
                 secondaryRuns = secondaryRuns,
                 secondaryTotals = secondaryTotals,
                 translationRuns = translationRuns,
-                onCancelTranslation = onCancelTranslation,
+                onCancelTranslation = translationLifecycle.onCancelRun,
                 translationRunSummaries = translationRunSummaries,
                 fanOutSummaries = fanOutSummaries,
                 onViewSecondaryName = { name, kind -> listKind = kind; listFilterByName = name },

@@ -607,10 +607,23 @@ internal fun ColumnScope.GenerationPhase(
     val activeTranslationRuns = remember(translationRuns) {
         translationRuns.filter { !it.isFinished && !it.cancelled }
     }
+    // Suppress the persisted summary row for any runId that has a
+    // live run currently in flight — restartFailedTranslations
+    // re-fires errored rows under the same runId, so the persisted
+    // summary (covering the kept OKs) and the live row (covering
+    // the in-flight retries) would otherwise double up on the main
+    // screen. Once the rerun finishes the runId is consumed and
+    // the persisted summary takes over with the full call count.
+    val activeTranslationRunIds = remember(activeTranslationRuns) {
+        activeTranslationRuns.map { it.runId }.toSet()
+    }
+    val visibleTranslationSummaries = remember(translationRunSummaries, activeTranslationRunIds) {
+        translationRunSummaries.filter { it.runId !in activeTranslationRunIds }
+    }
     val showSecondaryRuns = isComplete && secondaryRuns.isNotEmpty()
     val showFanOutSummaries = fanOutSummaries.isNotEmpty()
     val showLiveTranslations = isComplete && activeTranslationRuns.isNotEmpty()
-    val showTranslationSummaries = isComplete && translationRunSummaries.isNotEmpty()
+    val showTranslationSummaries = isComplete && visibleTranslationSummaries.isNotEmpty()
     // Anchor the list to the top while it's first loading. The
     // displayRows section composes immediately (it's derived from
     // uiState's selected agents) but the secondary / fan out /
@@ -630,7 +643,7 @@ internal fun ColumnScope.GenerationPhase(
     // translation moves from active → summary the trigger still
     // changes and we re-anchor to the top, which is what the user
     // wants to see.
-    val newRowTrigger = "${secondaryRuns.size}|${fanOutSummaries.size}|${activeTranslationRuns.size}|${translationRunSummaries.size}"
+    val newRowTrigger = "${secondaryRuns.size}|${fanOutSummaries.size}|${activeTranslationRuns.size}|${visibleTranslationSummaries.size}"
     LaunchedEffect(currentReportId, newRowTrigger) {
         if (currentReportId == null) return@LaunchedEffect
         resultListState.scrollToItem(0)
@@ -869,7 +882,7 @@ internal fun ColumnScope.GenerationPhase(
         // here so the user sees a single line per click. Tapping
         // opens TranslationRunDetailScreen with the call list.
         if (showTranslationSummaries) {
-            items(translationRunSummaries, key = { "trs-${it.runId}" }) { run ->
+            items(visibleTranslationSummaries, key = { "trs-${it.runId}" }) { run ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenTranslationRun(run.runId) },
                     verticalAlignment = Alignment.CenterVertically

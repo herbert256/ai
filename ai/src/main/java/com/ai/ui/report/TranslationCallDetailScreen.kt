@@ -41,7 +41,11 @@ internal fun TranslationCallDetailScreen(
     result: SecondaryResult,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToTraceFile: (String) -> Unit = {}
+    onNavigateToTraceFile: (String) -> Unit = {},
+    /** Drop the persisted row from disk and return to the run list.
+     *  Wired in [TranslationRunDetailScreen] to onDeletePersistedRow,
+     *  which delegates to the screen-level secondary delete callback. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -137,7 +141,8 @@ internal fun TranslationCallDetailScreen(
                 },
                 onShare = result.content?.takeIf { it.isNotBlank() }?.let { body ->
                     { com.ai.ui.shared.shareText(context, body, "Translation $titleLang") }
-                }
+                },
+                onDelete = onDelete
             )
             if (!foldSubject) {
                 Text(

@@ -3868,6 +3868,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         _translationRuns.update { it - runId }
     }
 
+    /** Drop one pending/running item from an in-flight translation
+     *  run. Removes the item from [_translationRuns] so its row
+     *  disappears on the detail screen; the [saveOneTranslationItem]
+     *  guard inside [runOneTranslation] will then skip the disk
+     *  write for any call that lands after this point (the guard
+     *  looks the item up by id and bails if it's gone). The
+     *  in-flight call itself is allowed to finish — there's no
+     *  per-item Job to cancel — but its result is discarded. */
+    fun cancelTranslationItem(runId: String, itemId: String) {
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            val filtered = cur.items.filter { it.id != itemId }
+            if (filtered.size == cur.items.size) return@update runs
+            runs + (runId to cur.copy(
+                items = filtered,
+                totalCostDollars = filtered.sumOf { it.costDollars }
+            ))
+        }
+    }
+
     /** Re-run every errored translation row in [runId]: deletes the
      *  failed [SecondaryResult]s on disk, rebuilds [TranslationItem]s
      *  from the current report state, and dispatches them through
