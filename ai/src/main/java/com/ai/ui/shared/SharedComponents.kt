@@ -440,13 +440,12 @@ fun TitleBar(
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
-            // Memo 📝 tracks the dynamic report icon's visibility — both
-            // appear together on report-scoped screens, both hide on
-            // non-report screens. On the main result page (where
-            // LocalNavigateToCurrentReport is null) the icon is a
-            // decorative no-op; on inline overlays it's the back-to-
-            // report navigation, same as the dynamic icon's tap.
-            onMemo = if (resolvedReportIcon != null) (LocalNavigateToCurrentReport.current ?: {}) else null
+            // When the per-report icon is shown in the top bar (leftmost
+            // slot above), the bottom bar's 📝 memo would be a
+            // visually-redundant second report glyph. Suppress it so the
+            // strip stays clean; the leftmost top-bar icon already
+            // carries the back-to-report tap target.
+            onMemo = null
         )
         if (state != null) {
             SideEffect { state.value = captured }
