@@ -511,7 +511,18 @@ fun ImportExportScreen(
      *  nothing meaningful to export before the user has at least
      *  one working API key, but Import from another install is
      *  exactly the use case. */
-    importOnly: Boolean = false
+    importOnly: Boolean = false,
+    /** Wired by SettingsScreenNav to [AppViewModel.startRefreshAll].
+     *  Fired by the post-keys-import dialog's "Run Refresh all"
+     *  branch — kicks the full catalog + workers pipeline that
+     *  finishes with its own RestartAppDialog. */
+    onStartRefreshAll: () -> Unit = {},
+    /** Navigates the host to the Refresh sub-screen so the user
+     *  lands on the progress overlay that's about to open. The
+     *  RefreshAllState is shared via AppViewModel; the overlay
+     *  reads it from anywhere, but landing on the Refresh screen
+     *  gives the visible feedback the user expects. */
+    onNavigateToRefresh: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -522,9 +533,41 @@ fun ImportExportScreen(
     // PricingCache caches) are out of sync with the freshly-imported
     // disk state, so a forced restart brings everything back fresh.
     var restartMessage by remember { mutableStateOf<String?>(null) }
+    // Set after a successful "API keys" import — opens a three-choice
+    // follow-up dialog: kick a full Refresh-all (catalogs + per-provider
+    // worker phase), restart only, or do nothing. The keys are already
+    // on disk by this point; the dialog only decides what to do with
+    // them now that we have them.
+    var showKeysImportedDialog by remember { mutableStateOf(false) }
 
     restartMessage?.let { msg ->
         RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
+    }
+
+    if (showKeysImportedDialog) {
+        AlertDialog(
+            onDismissRequest = { showKeysImportedDialog = false },
+            title = { Text("API keys imported") },
+            text = { Text("What should happen next?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showKeysImportedDialog = false
+                    onStartRefreshAll()
+                    onNavigateToRefresh()
+                }) { Text("Run Refresh all", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showKeysImportedDialog = false
+                        restartApp(context)
+                    }) { Text("Restart application", maxLines = 1, softWrap = false) }
+                    TextButton(onClick = { showKeysImportedDialog = false }) {
+                        Text("Do nothing", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        )
     }
 
     fun readFromUri(uri: Uri): String? {
@@ -751,6 +794,10 @@ fun ImportExportScreen(
                     onSave(result.settings)
                     val msg = "${result.imported} API keys imported" + if (result.skipped > 0) ", ${result.skipped} skipped" else ""
                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                    // Only prompt for the next step when at least one
+                    // key actually landed — a "0 imported, N skipped"
+                    // bundle has nothing to act on, no point asking.
+                    if (result.imported > 0) showKeysImportedDialog = true
                 } catch (e: ConfigBundleMistakenForKeysException) {
                     Toast.makeText(context, "This looks like a full config bundle, not an API keys file.", Toast.LENGTH_LONG).show()
                 } catch (e: JsonSyntaxException) {

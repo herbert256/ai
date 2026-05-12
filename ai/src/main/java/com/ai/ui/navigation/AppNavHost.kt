@@ -951,6 +951,16 @@ fun AppNavHost(
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
 
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                onNavigateToRefresh = {
+                    // Pop AI_IMPORT_EXPORT off the stack as we navigate
+                    // to AI_REFRESH so a back-press from Refresh lands
+                    // on the Housekeeping hub (the screen the user
+                    // originally came from) rather than bouncing back
+                    // into Import / Export.
+                    navController.navigate(NavRoutes.AI_REFRESH) {
+                        popUpTo(NavRoutes.AI_IMPORT_EXPORT) { inclusive = true }
+                    }
+                },
                 initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT
             )
         }
@@ -1150,6 +1160,10 @@ fun SettingsScreenNav(
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToHelpTopic: (String) -> Unit = {},
+    /** Forwarded into ImportExportScreen so the post-API-keys-import
+     *  dialog's "Run Refresh all" branch can land the user on the
+     *  Refresh sub-screen (where the progress overlay paints). */
+    onNavigateToRefresh: () -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -1176,6 +1190,7 @@ fun SettingsScreenNav(
         onStartRefreshAll = { viewModel.startRefreshAll() },
         onStartRefreshWorkers = { viewModel.startRefreshWorkers() },
         onClearRefreshAllState = { viewModel.clearRefreshAllState() },
+        onNavigateToRefresh = onNavigateToRefresh,
         onSaveHuggingFaceApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(huggingFaceApiKey = it)) },
         onSaveOpenRouterApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(openRouterApiKey = it)) },
         onSaveArtificialAnalysisApiKey = { viewModel.updateGeneralSettings(viewModel.uiState.value.generalSettings.copy(artificialAnalysisApiKey = it)) },

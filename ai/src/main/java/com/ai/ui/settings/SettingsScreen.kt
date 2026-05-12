@@ -80,6 +80,10 @@ fun SettingsScreen(
     onStartRefreshAll: () -> Unit = {},
     onStartRefreshWorkers: () -> Unit = {},
     onClearRefreshAllState: () -> Unit = {},
+    /** Replace the current sub-screen with the Refresh page. Used by
+     *  the post-API-keys-import dialog so "Run Refresh all" lands the
+     *  user on the progress overlay it just kicked off. */
+    onNavigateToRefresh: () -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
@@ -587,7 +591,9 @@ fun SettingsScreen(
                 onSave = onSaveAi,
                 onSaveGeneral = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome,
-                importOnly = importOnly
+                importOnly = importOnly,
+                onStartRefreshAll = onStartRefreshAll,
+                onNavigateToRefresh = onNavigateToRefresh
             )
         }
         SettingsSubScreen.AI_REFRESH -> {
