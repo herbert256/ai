@@ -1219,6 +1219,9 @@ fun ImportExportScreen(
                 ImportExportRow("prompts.json", importOnly,
                     onExport = { exportPromptsJson() },
                     onImport = { importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("examples.json", importOnly,
+                    onExport = { exportExamplePrompts() },
+                    onImport = { importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 // Agents / Flocks / Swarms split into three rows. The
                 // export side writes a single-key {agents|flocks|swarms}
                 // JSON object; the import side dispatches to "workers"
@@ -1233,9 +1236,6 @@ fun ImportExportScreen(
                 ImportExportRow("Swarms", importOnly,
                     onExport = { exportSwarms() },
                     onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
-                ImportExportRow("Example prompts", importOnly,
-                    onExport = { exportExamplePrompts() },
-                    onImport = { importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Settings", importOnly,
                     onExport = { exportSettings() },
                     onImport = { importType = "settings"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
