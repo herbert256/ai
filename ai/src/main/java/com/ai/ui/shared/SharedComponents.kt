@@ -479,8 +479,15 @@ fun TitleBar(
         // title's baseline instead of stretching below it.
         val isHardcoded = mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         val reportIconScale = if (isHardcoded) 2.0f else 1f
+        // HARDCODED mode always pairs the title bar with a green
+        // subject row below it (each consumer screen renders one).
+        // Tighten the bottom padding to 2 dp so the two sit visually
+        // bonded as one header block; the other modes fold the
+        // subject into the bar itself and keep the standard 8 dp
+        // breathing room before whatever body content follows.
+        val barBottomPadding = if (isHardcoded) 2.dp else 8.dp
         Row(
-            modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
+            modifier = modifier.fillMaxWidth().padding(bottom = barBottomPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (resolvedReportIcon != null) {
