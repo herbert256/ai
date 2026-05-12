@@ -12,6 +12,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -1134,63 +1135,51 @@ fun ImportExportScreen(
                 }
             }
 
-            CollapsibleCard(title = "Import configuration") {
-                    // Bundle-shape imports: provider catalog and internal
-                    // prompts. Upsert by id (providers) or by name
-                    // (prompts).
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "providers"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "settings"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            importType = "modelLists"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "parameters"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            importType = "systemPrompts"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "endpoints"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = {
-                            importType = "modelTypeOverrides"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream"))
-                        }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                // The All importer still tolerates an apiKeys section
-                // for older bundles; new exports omit it.
-                OutlinedButton(onClick = {
-                    importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                    Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                }
+            // Configuration: every catalog / prompt / agent section
+            // collapsed into a single card. One row per section with
+            // Export + Import buttons; importOnly mode hides the Export
+            // column so the first-run shape is just a list of "Import X"
+            // buttons.
+            CollapsibleCard(title = "Configuration") {
+                ImportExportRow("providers.json", importOnly,
+                    onExport = { exportProvidersJson() },
+                    onImport = { importType = "providers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("prompts.json", importOnly,
+                    onExport = { exportPromptsJson() },
+                    onImport = { importType = "prompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Workers", importOnly,
+                    onExport = { exportWorkers() },
+                    onImport = { importType = "workers"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Example prompts", importOnly,
+                    onExport = { exportExamplePrompts() },
+                    onImport = { importType = "examples"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Settings", importOnly,
+                    onExport = { exportSettings() },
+                    onImport = { importType = "settings"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Model lists", importOnly,
+                    onExport = { exportModelLists() },
+                    onImport = { importType = "modelLists"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Parameters", importOnly,
+                    onExport = { exportParameters() },
+                    onImport = { importType = "parameters"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("System prompts", importOnly,
+                    onExport = { exportSystemPrompts() },
+                    onImport = { importType = "systemPrompts"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Endpoints", importOnly,
+                    onExport = { exportEndpoints() },
+                    onImport = { importType = "endpoints"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Model overrides", importOnly,
+                    onExport = { exportModelTypeOverrides() },
+                    onImport = { importType = "modelTypeOverrides"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Costs Overrides", importOnly,
+                    onExport = { exportCosts() },
+                    onImport = { importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) })
+                // "All" bundles every section above; Export omits API
+                // keys (their dedicated card handles that), the Import
+                // still tolerates an apiKeys section for older bundles.
+                ImportExportRow("All", importOnly,
+                    onExport = { exportAll() },
+                    onImport = { importType = "all"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
             }
 
             // Runtime data = reports + chat sessions. Different from
@@ -1199,94 +1188,50 @@ fun ImportExportScreen(
             // merge additively (by id) — existing rows with the same id
             // are kept, only new ids land. Safer than replace for an
             // activity log the user accumulated on the source phone.
-            CollapsibleCard(title = "Import runtime data") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
-                        importType = "runtimeReports"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                    }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                        Text("Reports", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                    }
-                    OutlinedButton(onClick = {
-                        importType = "runtimeChats"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                    }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                        Text("Chat", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                    }
-                }
-                OutlinedButton(onClick = {
-                    importType = "runtimeAll"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
-                }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                    Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                }
+            CollapsibleCard(title = "Runtime data") {
+                ImportExportRow("Reports", importOnly,
+                    onExport = { exportRuntimeReports() },
+                    onImport = { importType = "runtimeReports"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Chat", importOnly,
+                    onExport = { exportRuntimeChats() },
+                    onImport = { importType = "runtimeChats"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("All", importOnly,
+                    onExport = { exportRuntimeAll() },
+                    onImport = { importType = "runtimeAll"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
             }
 
-            if (!importOnly) {
-                CollapsibleCard(title = "Export configuration") {
-                    // Bundle-shape exports: provider catalog and internal
-                    // prompts. Drop-in shape for assets/providers.json
-                    // and assets/prompts.json so a developer can ship the
-                    // user's tuned catalog as the new bundled defaults.
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportProvidersJson() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("providers.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportPromptsJson() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("prompts.json", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportWorkers() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Workers", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportExamplePrompts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Example prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportSettings() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Settings", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportModelLists() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model lists", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportParameters() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Parameters", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportSystemPrompts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("System prompts", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportEndpoints() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Endpoints", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        OutlinedButton(onClick = { exportModelTypeOverrides() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Model overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportCosts() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Costs Overrides", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                    // "All": single JSON file bundling every section
-                    // above. API keys are excluded — they ship via the
-                    // dedicated API keys card.
-                    OutlinedButton(onClick = { exportAll() },
-                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                    }
-                }
+        }
+    }
+}
 
-                CollapsibleCard(title = "Export runtime data") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { exportRuntimeReports() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Reports", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                        OutlinedButton(onClick = { exportRuntimeChats() },
-                            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-                            Text("Chat", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                        }
-                    }
-                    OutlinedButton(onClick = { exportRuntimeAll() },
-                        modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
-                        Text("All", fontSize = 12.sp, maxLines = 1, softWrap = false)
-                    }
-                }
+/** One row inside the Configuration / Runtime data cards: section
+ *  label on the left, Export and Import buttons on the right. The
+ *  Export column drops out in [importOnly] mode (first-run Restore /
+ *  Import variant of the screen) so the button strip narrows to a
+ *  single Import column. */
+@Composable
+private fun ImportExportRow(
+    label: String,
+    importOnly: Boolean,
+    onExport: () -> Unit,
+    onImport: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 12.sp, color = Color.White, modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+        if (!importOnly) {
+            OutlinedButton(onClick = onExport,
+                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+                Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false)
             }
-
+        }
+        OutlinedButton(onClick = onImport,
+            modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
+            Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false)
         }
     }
 }
