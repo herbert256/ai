@@ -55,6 +55,19 @@ fun TraceListScreen(
     initialCategory: String? = null
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
+    // Resolve the per-report icon when this list is scoped to a
+    // report — the trace-list screen is reached via Compose
+    // Navigation, so it sits outside the LocalReportIcon provider
+    // ReportsScreenNav installs for its inline overlays. Without
+    // this lookup the report-icon slot on the top bar stays empty.
+    val resolvedReportIcon by produceState<String?>(initialValue = null, reportId) {
+        val rid = reportId ?: return@produceState
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, rid)?.icon?.takeIf { it.isNotBlank() }
+                ?: "📝"
+        }
+    }
     // First call of the session populates ApiTracer's cache via a
     // streaming parse over the trace dir; subsequent calls are O(1) off
     // the cache. Kept on Dispatchers.IO so the cold load can't stall
@@ -207,6 +220,7 @@ fun TraceListScreen(
                 helpTopic = "trace_list",
                 title = "API Traces",
                 subject = subHeader,
+                reportIcon = resolvedReportIcon,
                 onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null
             )
