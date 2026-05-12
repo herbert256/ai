@@ -102,6 +102,18 @@ data class GeneralSettings(
      *  chain finishes for that row. When false the chain never
      *  runs automatically; per-agent rows keep their plain ✅. */
     val perModelIconGenEnabled: Boolean = true,
+    /** Master switch for the per-internal-prompt icon cache. When true
+     *  (default), every secondary-result row on the report result page
+     *  whose `metaPromptId` resolves to a known InternalPrompt gets a
+     *  leading emoji generated once via the bundled
+     *  `internal/prompt_icon` prompt and persisted in
+     *  [com.ai.data.InternalPromptIconCache]. The cache is keyed on
+     *  `(InternalPrompt.name, InternalPrompt.title)` so editing
+     *  either field re-fires generation; cache hits cost nothing.
+     *  When false, no new icons are generated and rows fall back to
+     *  the plain text type label; already-cached entries stay on disk
+     *  for re-enable. */
+    val useInternalPromptsIcons: Boolean = true,
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through
@@ -545,6 +557,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.v(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
         AppLog.v(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
         AppLog.v(tag, "  init PromptCache"); PromptCache.init(application)
+        AppLog.v(tag, "  init InternalPromptIconCache"); InternalPromptIconCache.init(application)
         AppLog.d(tag, "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms")
 
         AppLog.d(tag, "→ Load prefs")
@@ -758,6 +771,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         updateGeneralSettings(GeneralSettings())
         val llms = LocalLlm.clearAll(context)
         val embedders = LocalEmbedder.clearAll(context)
+        // Drop the per-(name, title) emoji cache. The prompts themselves
+        // are reset to defaults above; the icons should match.
+        InternalPromptIconCache.clearAll(context)
         AppLog.i("Housekeeping", "← Clear all configuration: localLlms=$llms embedders=$embedders")
         return ConfigWipeResult(llms, embedders)
     }
@@ -798,6 +814,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 //    Reset is "factory style", so all of this goes.
                 ReportStorage.getAllReports(context).forEach { ReportStorage.deleteReport(context, it.id) }
                 PromptCache.clearAll()
+                InternalPromptIconCache.clearAll(context)
                 settingsPrefs.clearPromptHistory()
                 settingsPrefs.clearLastReportPrompt()
                 KnowledgeStore.clearAll(context)

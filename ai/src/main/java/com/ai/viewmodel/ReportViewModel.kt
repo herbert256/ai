@@ -402,6 +402,80 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Background helper that resolves the bundled `internal/prompt_icon`
+     *  prompt against its pinned agent and caches a one-emoji result for
+     *  [prompt] in [InternalPromptIconCache]. Idempotent: bails when the
+     *  master switch is off, when the cache already has a value, or when
+     *  another call for the same `(name, title)` is already in flight.
+     *  Lives on AppViewModel.viewModelScope so it survives the user
+     *  navigating away from whatever screen kicked it off. */
+    fun kickOffInternalPromptIcon(
+        context: Context,
+        prompt: InternalPrompt,
+        aiSettings: Settings
+    ) {
+        if (!appViewModel.uiState.value.generalSettings.useInternalPromptsIcons) return
+        if (prompt.name.isBlank()) return
+        if (InternalPromptIconCache.get(prompt.name, prompt.title) != null) return
+        // Atomically claim the slot; if another caller is already
+        // working on the same (name, title) key, bail.
+        if (!InternalPromptIconCache.markInFlight(prompt.name, prompt.title)) return
+
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name.equals("prompt_icon", ignoreCase = true)
+        }
+        if (iconPrompt == null) {
+            AppLog.w("InternalPromptIcon", "internal/prompt_icon not configured — skipping")
+            InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
+            return
+        }
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(iconPrompt.agent, ignoreCase = true)
+        }
+        if (rawAgent == null) {
+            AppLog.w("InternalPromptIcon", "agent '${iconPrompt.agent}' not found — skipping")
+            InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
+            return
+        }
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val resolved = iconPrompt.text
+            .replace("@NAME@", prompt.name)
+            .replace("@TITLE@", prompt.title)
+
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            withTracerTags(category = "Internal prompt icon") {
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(),
+                        null, context, baseUrl
+                    )
+                    if (response.error == null) {
+                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                        InternalPromptIconCache.put(prompt.name, prompt.title, emoji)
+                        appViewModel.updateUiState {
+                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                        }
+                    } else {
+                        AppLog.w(
+                            "InternalPromptIcon",
+                            "call failed for name='${prompt.name}': ${response.error}"
+                        )
+                    }
+                }.onFailure { e ->
+                    AppLog.w(
+                        "InternalPromptIcon",
+                        "exception generating icon for name='${prompt.name}': ${e.message}"
+                    )
+                }
+                InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
+            }
+        }
+    }
+
     /** Fan-out of the `internal/icon` prompt across user-picked
      *  [models] for one report. Per call: pre-acquire the per-provider
      *  throttle permit, run the prompt against (provider, model), bump

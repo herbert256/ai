@@ -975,15 +975,17 @@ private fun OtherSettingsSubScreen(
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
+    var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
         defaultEmail = defaultEmail,
         iconGenEnabled = iconGenEnabled,
-        perModelIconGenEnabled = perModelIconGenEnabled
+        perModelIconGenEnabled = perModelIconGenEnabled,
+        useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled) {
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1028,6 +1030,12 @@ private fun OtherSettingsSubScreen(
                 description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
                 checked = perModelIconGenEnabled,
                 onCheckedChange = { perModelIconGenEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Use internal prompts icons",
+                description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
+                checked = useInternalPromptsIcons,
+                onCheckedChange = { useInternalPromptsIcons = it }
             )
         }
     }

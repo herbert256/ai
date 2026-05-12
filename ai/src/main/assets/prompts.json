@@ -107,6 +107,15 @@
     "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
   },
   {
+    "name": "prompt_icon",
+    "title": "Find a fitting emoji for an internal prompt",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
+  },
+  {
     "name": "response",
     "title": "Just the response",
     "reference": false,

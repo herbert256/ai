@@ -69,6 +69,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             iconBarAtBottom = prefs.getBoolean(KEY_ICON_BAR_AT_BOTTOM, false),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
+            useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
                 ?.split("\n")?.filter { it.isNotBlank() }
@@ -112,6 +113,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_ICON_BAR_AT_BOTTOM, settings.iconBarAtBottom)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
+            putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             // Newline-joined: entries are "providerId|model" so newline
             // is a safe delimiter — neither side can contain it.
@@ -478,6 +480,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_ICON_BAR_AT_BOTTOM = "icon_bar_at_bottom"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
+        private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
         private const val KEY_STREAMING_READ_TIMEOUT_SEC = "streaming_read_timeout_sec"

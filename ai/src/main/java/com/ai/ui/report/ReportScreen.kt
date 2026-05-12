@@ -265,6 +265,9 @@ fun ReportsScreenNav(
         onRestartAgentIconFanOut = { rid, agentId ->
             reportViewModel.restartAgentIconFanOut(rid, agentId)
         },
+        onKickoffInternalPromptIcon = { prompt ->
+            reportViewModel.kickOffInternalPromptIcon(context, prompt, aiSettings)
+        },
         agentIconFanOutByAgent = agentIconFanOutByAgent,
         onPrevReport = {
             if (hasPrevReport) {
@@ -478,6 +481,14 @@ fun ReportsScreen(
     onStartAgentIconFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
     onPickAgentIcon: (reportId: String, agentId: String, emoji: String) -> Unit = { _, _, _ -> },
     onRestartAgentIconFanOut: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+    /** Fire the bundled `internal/prompt_icon` LLM call for the
+     *  given [com.ai.model.InternalPrompt] (typically a Meta /
+     *  Fan-out / Fan-in prompt whose row is currently rendering on
+     *  the result page) when its (name, title) emoji isn't cached.
+     *  Routed by [ReportsScreenNav] to
+     *  [ReportViewModel.kickOffInternalPromptIcon] — the cache and
+     *  in-flight set make this idempotent. */
+    onKickoffInternalPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     /** Per-agent alternative-icons candidate state mirrored from
      *  [AppViewModel.agentIconFanOutByAgent], keyed by agentId. The
      *  Alternative icons screen reads from here when the active flow
@@ -2365,7 +2376,8 @@ fun ReportsScreen(
                 onPrevReport = onPrevReport,
                 onNextReport = onNextReport,
                 hasPrevReport = hasPrevReport,
-                hasNextReport = hasNextReport
+                hasNextReport = hasNextReport,
+                onMissingPromptIcon = onKickoffInternalPromptIcon
             )
         }
     }

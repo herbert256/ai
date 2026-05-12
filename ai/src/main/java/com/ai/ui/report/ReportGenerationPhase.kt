@@ -153,7 +153,16 @@ internal fun ColumnScope.GenerationPhase(
      *  so the row picks up new emojis / cleared values without a
      *  manual subscribe. Rows without an entry (or with a null
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
-    agentIconRows: Map<String, AgentIconRow> = emptyMap()
+    agentIconRows: Map<String, AgentIconRow> = emptyMap(),
+    /** Fire the bundled `internal/prompt_icon` LLM call for [prompt]
+     *  if [com.ai.viewmodel.GeneralSettings.useInternalPromptsIcons]
+     *  is on and the per-(name, title) emoji isn't already cached.
+     *  Idempotent — the cache plus
+     *  [com.ai.data.InternalPromptIconCache.markInFlight] dedupe.
+     *  Wired by the parent to
+     *  `reportViewModel.kickOffInternalPromptIcon(context, prompt,
+     *  aiSettings)`. */
+    onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -667,7 +676,31 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.TRANSLATE -> "translate"
                         }
                     }
-                    RowTypeCell(typeLabel)
+                    // Per-(InternalPrompt name, title) emoji prefix —
+                    // gated by GeneralSettings.useInternalPromptsIcons.
+                    // Cache miss fires a single background generation
+                    // via onMissingPromptIcon; iconRefreshTick keys the
+                    // remember so the row recomposes when the call lands.
+                    val promptIconEmoji = run {
+                        if (!uiState.generalSettings.useInternalPromptsIcons) return@run null
+                        val tick = uiState.iconRefreshTick
+                        androidx.compose.runtime.remember(
+                            run.fanInOf, run.metaPromptId, run.metaPromptName, tick
+                        ) {
+                            val prompt = aiSettings.internalPrompts.firstOrNull {
+                                it.id == run.fanInOf || it.id == run.metaPromptId
+                            } ?: return@remember null
+                            if (prompt.name.isBlank()) return@remember null
+                            val cached = com.ai.data.InternalPromptIconCache
+                                .get(prompt.name, prompt.title)
+                            if (cached == null) onMissingPromptIcon(prompt)
+                            cached
+                        }
+                    }
+                    val labelWithIcon = if (promptIconEmoji != null) {
+                        "$promptIconEmoji $typeLabel"
+                    } else typeLabel
+                    RowTypeCell(labelWithIcon)
                     val langSuffix = run.targetLanguage?.let { " · $it" } ?: ""
                     Column(modifier = Modifier.weight(1f)) {
                         // Fan-in rows label by the PROMPT used (its
