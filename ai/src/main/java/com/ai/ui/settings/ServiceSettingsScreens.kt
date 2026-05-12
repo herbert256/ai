@@ -1173,7 +1173,7 @@ fun ProviderSettingsScreen(
             ) {
                 Text(
                     "Override the app-wide per-provider rate / concurrency caps and the 429-retry policy for this provider. " +
-                        "Leave a field blank to inherit the global default (see Settings → Per-provider throttling and Per-provider retries). " +
+                        "Leave a field blank to inherit the global default (see Settings → Per-provider throttling and 429 error handling). " +
                         "Useful when one provider has a stricter API tier than the rest.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )

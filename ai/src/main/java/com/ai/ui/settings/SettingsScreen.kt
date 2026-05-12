@@ -836,7 +836,7 @@ private fun NetworkSettingsSubScreen(
                 )
             }
             SettingCard(
-                "Per-provider retries",
+                "429 error handling",
                 "When a provider answers HTTP 429 (rate-limited), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 4xx). Defaults: 3 retries, 1000 ms between each."
             ) {
                 OutlinedTextField(
