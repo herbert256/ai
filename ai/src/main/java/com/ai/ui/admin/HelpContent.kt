@@ -278,6 +278,20 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Persistence", "The cache file (`<filesDir>/internal_prompt_icons.json`) is captured by Backup & Restore and dropped by Housekeeping → Reset → Clear all configuration / Reset application. Clear all runtime data leaves it alone — the cache is configuration-level.")
         )
     ),
+    "translation_icon_detail" to HelpContent(
+        title = "Translation icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for one language's emoji, reached by tapping the leading icon cell on a successful translation summary row on the report result page. Three cards (Model / Prompt / Response) plus a Find alternative icons button at the bottom. Only successful runs (errorCount = 0) get this — failed runs keep ❌, in-flight live rows keep the animated ⏳."),
+            HelpCard("Model", "Which (provider, model) produced the displayed emoji. Initial generation runs against the bundled `internal/translation_icon` prompt's pinned agent (DeepSeek by default). After a Find-alternative-icons pick this becomes the candidate model the user committed to."),
+            HelpCard("Prompt — internal/translation_icon", "The resolved bundled prompt sent to the model: a fixed 'Please give a fitting emoji for …, give only this emoji as feedback, nothing more !!!' instruction with `@LANGUAGE@` substituted with the run's target language (English name like Dutch / Japanese / etc.)."),
+            HelpCard("Response", "Large emoji at the top is the resolved one-glyph cache value. Below it (when the model returned more than a single glyph) is the raw response text for context — extractFirstEmoji() trims the displayed value to one grapheme cluster."),
+            HelpCard("Cost", "Cumulative spend across the initial generation plus every Find-alternative-icons candidate call that was ever fired for this language — same accumulation rule as the per-prompt and per-agent icon flows. Every call also posts to global Usage statistics with kind=\"icon\"."),
+            HelpCard("Find alternative icons", "Bottom button — opens the model picker. Pick a set of (provider, model) pairs, tap Find Icons; each runs internal/translation_icon with @LANGUAGE@ substituted, results land on the Alternative icons live list. Tap a returned emoji to commit it as the new displayed value — the cache entry is overwritten with that call's provider/model/prompt/response."),
+            HelpCard("View alternative icons", "When a per-language fan-out is already in flight or completed, the button label flips to View alternative icons and jumps straight back to the live list. Per-language candidates live on their own slot (keyed by language) — separate from the per-prompt / per-agent / per-report fan-out maps."),
+            HelpCard("Cache scope", "One entry per distinct language across every report and run. The first Dutch row anywhere in the app pays the API call; every subsequent Dutch row hits the cache. Editing the bundled `internal/translation_icon` prompt's text does NOT invalidate existing entries — only manually picking a new alternative or running Reset clears them."),
+            HelpCard("Persistence", "The cache file (`<filesDir>/internal_prompt_icons.json`) holds entries with synthetic key `\"translation_icon\" + U+001F + language` alongside the per-prompt meta-icon entries. Captured by Backup & Restore; dropped by Housekeeping → Reset → Clear all configuration / Reset application. Clear all runtime data leaves it alone — the cache is configuration-level.")
+        )
+    ),
     "find_icons_selection" to HelpContent(
         title = "Find icons",
         cards = listOf(

@@ -670,6 +670,247 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.clearInternalPromptIconFanOut(key)
     }
 
+    // ── Translation icons ───────────────────────────────────────
+    // Sibling flow to the per-`InternalPrompt` icon flow above.
+    // Stores per-language entries in [InternalPromptIconCache]
+    // under a synthetic `(name = "translation_icon", title =
+    // language)` key, reusing the cache + fan-out maps verbatim.
+    // The bundled `internal/translation_icon` prompt substitutes
+    // `@LANGUAGE@` with the row's target language name.
+
+    private fun translationIconKey(language: String): String =
+        "translation_icon" + "" + language
+
+    /** Background helper that resolves the bundled
+     *  `internal/translation_icon` prompt against its pinned agent
+     *  and caches a one-emoji result for [language] in
+     *  [InternalPromptIconCache]. Idempotent (same dedupe rules as
+     *  [kickOffInternalPromptIcon]). Bails when
+     *  [com.ai.viewmodel.GeneralSettings.useInternalPromptsIcons]
+     *  is off — the master switch covers every internal-prompt
+     *  icon flow. */
+    fun kickOffTranslationIcon(
+        context: Context,
+        language: String,
+        aiSettings: Settings
+    ) {
+        if (!appViewModel.uiState.value.generalSettings.useInternalPromptsIcons) return
+        if (language.isBlank()) return
+        if (InternalPromptIconCache.get("translation_icon", language) != null) return
+        if (!InternalPromptIconCache.markInFlight("translation_icon", language)) return
+
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name.equals("translation_icon", ignoreCase = true)
+        }
+        if (iconPrompt == null) {
+            AppLog.w("TranslationIcon", "internal/translation_icon not configured — skipping")
+            InternalPromptIconCache.clearInFlight("translation_icon", language)
+            return
+        }
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(iconPrompt.agent, ignoreCase = true)
+        }
+        if (rawAgent == null) {
+            AppLog.w("TranslationIcon", "agent '${iconPrompt.agent}' not found — skipping")
+            InternalPromptIconCache.clearInFlight("translation_icon", language)
+            return
+        }
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
+
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            withTracerTags(category = "Translation icon") {
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(),
+                        null, context, baseUrl
+                    )
+                    if (response.error == null) {
+                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
+                        InternalPromptIconCache.recordInitial(
+                            name = "translation_icon", title = language,
+                            emoji = emoji,
+                            providerId = agent.provider.id, model = agent.model,
+                            promptText = resolved,
+                            responseText = response.analysis.orEmpty(),
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inC, outputCost = outC
+                        )
+                        if (inT > 0 || outT > 0) {
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                agent.provider, agent.model, inT, outT, kind = "icon"
+                            )
+                        }
+                        appViewModel.updateUiState {
+                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                        }
+                    } else {
+                        AppLog.w(
+                            "TranslationIcon",
+                            "call failed for language='$language': ${response.error}"
+                        )
+                    }
+                }.onFailure { e ->
+                    AppLog.w(
+                        "TranslationIcon",
+                        "exception generating icon for language='$language': ${e.message}"
+                    )
+                }
+                InternalPromptIconCache.clearInFlight("translation_icon", language)
+            }
+        }
+    }
+
+    /** Fan-out of `internal/translation_icon` across user-picked
+     *  [models] for one [language]. Mirrors
+     *  [startInternalPromptIconFanOut] — same dedupe, throttle,
+     *  cost-accumulation, and call-text capture rules. */
+    fun startTranslationIconFanOut(
+        context: Context,
+        language: String,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        if (language.isBlank()) return
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name.equals("translation_icon", ignoreCase = true)
+        } ?: run {
+            AppLog.w("TranslationIconAlt", "internal/translation_icon not configured — skipping fan-out")
+            return
+        }
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
+        val key = translationIconKey(language)
+
+        appViewModel.updateInternalPromptIconFanOut(key) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+
+        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            unique.forEach { item ->
+                launch(Dispatchers.IO) {
+                    withTracerTags(category = "Translation icon (alt)") {
+                        val agent = Agent(
+                            id = "translation-icon-alt",
+                            name = "translation-icon-alt",
+                            provider = item.provider,
+                            model = item.model,
+                            apiKey = aiSettings.getApiKey(item.provider)
+                        )
+                        val baseUrl = aiSettings.getEffectiveEndpointUrl(item.provider)
+                        runCatching {
+                            val response = appViewModel.repository.analyzeWithAgent(
+                                agent, "", resolved, AgentParameters(),
+                                null, context, baseUrl
+                            )
+                            val tu = response.tokenUsage
+                            val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val inC = inT * pricing.promptPrice
+                            val outC = outT * pricing.completionPrice
+                            if (inT > 0 || outT > 0) {
+                                InternalPromptIconCache.bumpCost(
+                                    "translation_icon", language, inT, outT, inC, outC
+                                )
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    item.provider, item.model, inT, outT, kind = "icon"
+                                )
+                            }
+                            appViewModel.setInternalPromptIconCallTexts(
+                                key, item.provider.id, item.model,
+                                resolved, response.analysis.orEmpty()
+                            )
+                            val callCost = inC + outC
+                            val emoji = if (response.error == null) {
+                                extractFirstEmoji(response.analysis) ?: "📝"
+                            } else null
+                            appViewModel.updateInternalPromptIconFanOut(key) { list ->
+                                list.map { c ->
+                                    if (c.provider.id == item.provider.id && c.model == item.model) {
+                                        if (emoji != null) {
+                                            IconCandidate.Done(item.provider, item.model, emoji, callCost)
+                                        } else {
+                                            IconCandidate.Error(
+                                                item.provider, item.model,
+                                                response.error ?: "no emoji extracted",
+                                                callCost
+                                            )
+                                        }
+                                    } else c
+                                }
+                            }
+                        }.onFailure { e ->
+                            AppLog.w(
+                                "TranslationIconAlt",
+                                "exception for ${item.provider.id}/${item.model}: ${e.message}"
+                            )
+                            appViewModel.updateInternalPromptIconFanOut(key) { list ->
+                                list.map { c ->
+                                    if (c.provider.id == item.provider.id && c.model == item.model) {
+                                        IconCandidate.Error(
+                                            item.provider, item.model,
+                                            e.message ?: e.javaClass.simpleName, 0.0
+                                        )
+                                    } else c
+                                }
+                            }
+                        }
+                        appViewModel.updateUiState {
+                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                        }
+                    }
+                }
+            }
+        }
+        val previous = internalPromptIconFanOutJobs.put(key, outer)
+        previous?.cancel()
+        outer.invokeOnCompletion { internalPromptIconFanOutJobs.remove(key, outer) }
+    }
+
+    /** Commit a picked candidate for [language] to the cache.
+     *  Mirrors [pickInternalPromptIcon]. */
+    fun pickTranslationIcon(
+        context: Context,
+        language: String,
+        candidate: IconCandidate.Done,
+        @Suppress("UNUSED_PARAMETER") aiSettings: Settings
+    ) {
+        val key = translationIconKey(language)
+        val captured = appViewModel.getInternalPromptIconCallTexts(
+            key, candidate.provider.id, candidate.model
+        ) ?: ("" to "")
+        InternalPromptIconCache.pickAlternative(
+            name = "translation_icon", title = language,
+            emoji = candidate.emoji,
+            providerId = candidate.provider.id, model = candidate.model,
+            promptText = captured.first,
+            responseText = captured.second
+        )
+        appViewModel.updateUiState {
+            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+        }
+    }
+
+    /** Cancel any in-flight per-language fan-out and drop the
+     *  candidate list. */
+    fun restartTranslationIconFanOut(language: String) {
+        val key = translationIconKey(language)
+        internalPromptIconFanOutJobs.remove(key)?.cancel()
+        appViewModel.clearInternalPromptIconFanOut(key)
+    }
+
     /** Fan-out of the `internal/icon` prompt across user-picked
      *  [models] for one report. Per call: pre-acquire the per-provider
      *  throttle permit, run the prompt against (provider, model), bump

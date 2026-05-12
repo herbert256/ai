@@ -168,7 +168,17 @@ internal fun ColumnScope.GenerationPhase(
      *  taps the cached emoji that replaces the ✅ status cell on a
      *  successful secondary row. Wired by the parent to flip
      *  ReportsScreen's `promptIconDetailFor` state. */
-    onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
+    onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Fire the bundled `internal/translation_icon` LLM call for
+     *  the given language when its cache entry doesn't yet exist.
+     *  Wired by the parent to `reportViewModel.kickOffTranslationIcon`.
+     *  Idempotent — cache + in-flight set dedupe. */
+    onMissingTranslationIcon: (String) -> Unit = { _ -> },
+    /** Open the full-screen translation-icon detail overlay for
+     *  the tapped translation summary row's language. Fired when
+     *  the user taps the cached emoji that replaces the ✅ status
+     *  cell on a successful translation summary row. */
+    onOpenTranslationIconDetail: (String) -> Unit = { _ -> }
 ) {
     val context = LocalContext.current
     val aiSettings = uiState.aiSettings
@@ -864,8 +874,42 @@ internal fun ColumnScope.GenerationPhase(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onOpenTranslationRun(run.runId) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val statusEmoji = if (run.errorCount > 0) "❌" else "✅"
-                    Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    // Per-language icon swap — on success (no errored
+                    // calls) AND the master switch on AND a cached
+                    // emoji exists for run.targetLanguage, render the
+                    // emoji in place of ✅. Cache miss kicks off a
+                    // single background generation; iconRefreshTick
+                    // keys the remember so the row recomposes when
+                    // the call lands. Failed runs (errorCount > 0)
+                    // keep ❌ unchanged.
+                    when {
+                        run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        else -> {
+                            val lang = run.targetLanguage
+                            val emoji = if (
+                                uiState.generalSettings.useInternalPromptsIcons &&
+                                !lang.isNullOrBlank()
+                            ) {
+                                val tick = uiState.iconRefreshTick
+                                androidx.compose.runtime.remember(lang, tick) {
+                                    val cached = com.ai.data.InternalPromptIconCache
+                                        .get("translation_icon", lang)
+                                    if (cached == null) onMissingTranslationIcon(lang)
+                                    cached
+                                }
+                            } else null
+                            if (emoji != null && lang != null) {
+                                Text(
+                                    emoji, fontSize = 16.sp,
+                                    modifier = Modifier
+                                        .width(24.dp)
+                                        .clickable { onOpenTranslationIconDetail(lang) }
+                                )
+                            } else {
+                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            }
+                        }
+                    }
                     RowTypeCell("translate")
                     val info = listOfNotNull(run.targetLanguage, run.model).joinToString(" · ")
                     Column(modifier = Modifier.weight(1f)) {

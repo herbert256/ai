@@ -116,6 +116,15 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
   },
   {
+    "name": "translation_icon",
+    "title": "Find a fitting emoji for a translation",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
+  },
+  {
     "name": "response",
     "title": "Just the response",
     "reference": false,
