@@ -533,6 +533,11 @@ fun TitleBar(
         // keep the icons at 1× whenever foldSubject is on.
         val scale = if (showBackButton) 1f else 1.25f
         val iconScale = if (showBackButton || foldSubject) 1f else 1.5f
+        // Report icon-only scale: HARDCODED screen-title mode (foldSubject
+        // off) gives the leftmost report emoji 1.5× sizing regardless of
+        // the showBackButton state, so the per-report visual cue reads
+        // strongly even when the title slot is the fixed screen title.
+        val reportIconScale = if (foldSubject) 1f else 1.5f
         val titleStyle = MaterialTheme.typography.titleLarge
         // Tap target for the leftmost report icon. Goes back to the
         // main report when the active screen is a sub-screen (memo
@@ -551,7 +556,7 @@ fun TitleBar(
             if (resolvedReportIcon != null) {
                 TitleBarIcon(resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
-                    width = 22.dp, scale = iconScale)
+                    width = 22.dp, scale = reportIconScale)
             }
             if (leftContent != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
