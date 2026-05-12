@@ -400,7 +400,10 @@ correctness here.
   explicit `Looper.myLooper() == getMainLooper()` guard. Don't
   remove it. Retry caps come from
   `ProviderThrottle.retryLimitsFor(host)` — per-provider override
-  → `NetworkSettings.maxRetriesOn429 / retryBackoffMs429`. Setting
+  → `NetworkSettings.maxRetriesOn429 / retryBackoffMs429`. The
+  sibling `OverloadedRetryInterceptor` does the same for 529 via
+  `retryLimitsFor529` / `maxRetriesOn529 / retryBackoffMs529`.
+  Setting
   `maxRetriesOn429 = 0` is valid (no in-line retries — outer
   `withRetry` still applies). `withRetry` itself treats 408 /
   425 / 429 as transient.

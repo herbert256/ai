@@ -494,6 +494,8 @@ per-provider table.
 | maxConcurrentCallsPerProvider | `Int?` | per-provider override for the concurrency cap. Null → inherit |
 | maxRetriesOn429 | `Int?` | per-provider override for the 429-retry cap (0 = disable in-line retries). Null → inherit |
 | retryBackoffMs429 | `Long?` | per-provider override for the wait between 429 retries. Null → inherit |
+| maxRetriesOn529 | `Int?` | per-provider override for the 529 retry cap (0 = disable in-line retries). Null → inherit |
+| retryBackoffMs529 | `Long?` | per-provider override for the wait between 529 retries. Null → inherit. Seeded to 5000 ms for Anthropic |
 
 There is also a synthetic singleton `AppService.LOCAL` (`id =
 "Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
@@ -645,6 +647,8 @@ threading a `Settings` reference through their constructors.
 | maxConcurrentCallsPerProvider | `Int` (default 3) | per-host concurrency cap |
 | maxRetriesOn429 | `Int` (default 3) | in-line 429 retries |
 | retryBackoffMs429 | `Long` (default 1000) | wait between retries |
+| maxRetriesOn529 | `Int` (default 3) | in-line 529 (server overloaded) retries |
+| retryBackoffMs529 | `Long` (default 1000) | wait between 529 retries |
 
 ### `ProviderThrottle`
 Per-hostname rate + concurrency gate. One `Semaphore` + one
@@ -758,6 +762,8 @@ Computed:
 | maxConcurrentCallsPerProvider | `Int` (default 3) | per-provider concurrency cap. Replaces the prior hardcoded fan-out semaphore — applies globally across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
 | maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
 | retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
+| maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |
+| retryBackoffMs529 | `Long` (default 1000) | wait between 529 retry attempts in milliseconds |
 | logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
 | showKnowledgeCard | `Boolean` (default false) | gates the AI Knowledge card on the home Hub. Default off keeps the Hub approachable on a fresh install; the Knowledge subsystem itself stays fully functional whether or not the card is visible |
 

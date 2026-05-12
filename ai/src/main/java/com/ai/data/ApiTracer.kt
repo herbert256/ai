@@ -620,6 +620,12 @@ object NetworkSettings {
     @Volatile var maxRetriesOn429: Int = 3
     /** Wait between successive 429 retry attempts, in milliseconds. */
     @Volatile var retryBackoffMs429: Long = 1_000L
+    /** Maximum number of in-line 529 (server overloaded) retries
+     *  [OverloadedRetryInterceptor] attempts per call. Independent of
+     *  the 429 budget — a 529 burst does not eat the 429 retry count. */
+    @Volatile var maxRetriesOn529: Int = 3
+    /** Wait between successive 529 retry attempts, in milliseconds. */
+    @Volatile var retryBackoffMs529: Long = 1_000L
 }
 
 /** Per-hostname rate + concurrency gate. Backs
@@ -672,13 +678,27 @@ object ProviderThrottle {
      *  is coerced ≥ 0 (zero is a valid "no in-line retries" setting),
      *  backoffMs is coerced ≥ 1 so a typo can't degenerate into a
      *  busy loop. */
-    fun retryLimitsFor(host: String): Pair<Int, Long> {
+    fun retryLimitsFor429(host: String): Pair<Int, Long> {
         if (host.isBlank()) return NetworkSettings.maxRetriesOn429 to NetworkSettings.retryBackoffMs429
         val override = ProviderRegistry.findByHost(host)
         val maxRetries = (override?.maxRetriesOn429
             ?: NetworkSettings.maxRetriesOn429).coerceAtLeast(0)
         val backoffMs = (override?.retryBackoffMs429
             ?: NetworkSettings.retryBackoffMs429).coerceAtLeast(1L)
+        return maxRetries to backoffMs
+    }
+
+    /** Resolve the effective (maxRetries, backoffMs) for [host]'s 529
+     *  (server overloaded) retry loop. Same shape and clamping as
+     *  [retryLimitsFor429] — kept separate so the two retry loops can
+     *  be tuned independently. */
+    fun retryLimitsFor529(host: String): Pair<Int, Long> {
+        if (host.isBlank()) return NetworkSettings.maxRetriesOn529 to NetworkSettings.retryBackoffMs529
+        val override = ProviderRegistry.findByHost(host)
+        val maxRetries = (override?.maxRetriesOn529
+            ?: NetworkSettings.maxRetriesOn529).coerceAtLeast(0)
+        val backoffMs = (override?.retryBackoffMs529
+            ?: NetworkSettings.retryBackoffMs529).coerceAtLeast(1L)
         return maxRetries to backoffMs
     }
 
@@ -874,7 +894,7 @@ class RateLimitRetryInterceptor : Interceptor {
         // values. maxRetries == 0 is a valid "no in-line retries"
         // setting; the loop exits immediately and the original 429
         // bubbles up to the outer withRetry layer.
-        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor(request.url.host)
+        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor429(request.url.host)
         AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0
@@ -899,6 +919,43 @@ class RateLimitRetryInterceptor : Interceptor {
             AppLog.w("RateLimit", "429 still present after $attempt retries on ${request.url.host}")
         } else if (attempt > 0) {
             AppLog.d("RateLimit", "recovered after $attempt retry (status=${current.code})")
+        }
+        return current
+    }
+}
+
+/** Retry on HTTP 529 (server overloaded) responses. Mirror of
+ *  [RateLimitRetryInterceptor] but for Anthropic-style
+ *  `overloaded_error`. Independent of the 429 budget — a 529 burst
+ *  cannot exhaust the 429 retry count and vice versa. Same main-thread
+ *  guard, same cancellation check, same close-before-reissue pattern. */
+class OverloadedRetryInterceptor : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        val request = chain.request()
+        val response = chain.proceed(request)
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
+        if (response.code != 529) return response
+        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor529(request.url.host)
+        AppLog.d("Overloaded", "529 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
+        var current = response
+        var attempt = 0
+        while (current.code == 529 && attempt < maxRetries) {
+            if (chain.call().isCanceled()) return current
+            current.close()
+            try {
+                Thread.sleep(backoffMs)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw e
+            }
+            attempt++
+            AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${backoffMs}ms on ${request.url.host}")
+            current = chain.proceed(request)
+        }
+        if (current.code == 529) {
+            AppLog.w("Overloaded", "529 still present after $attempt retries on ${request.url.host}")
+        } else if (attempt > 0) {
+            AppLog.d("Overloaded", "recovered after $attempt retry (status=${current.code})")
         }
         return current
     }

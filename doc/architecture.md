@@ -473,9 +473,12 @@ separate from `UiState`.
   back-off (`NetworkSettings.maxRetriesOn429` ×
   `retryBackoffMs429`, both per-provider overridable), bails on
   coroutine cancellation, and has an explicit main-thread guard
-  so it can never ANR the UI. `withRetry` treats `408 / 425 /
-  429` as transient (in addition to network errors) and skips
-  retries on permanent 4xx failures.
+  so it can never ANR the UI. `OverloadedRetryInterceptor` is the
+  529 (server overloaded) sibling — independent budget
+  (`maxRetriesOn529` × `retryBackoffMs529`), same shape.
+  `withRetry` treats `408 / 425 / 429` as transient (in addition
+  to network errors) and skips retries on permanent 4xx failures;
+  5xx (including 529 after the in-line loop) is transient.
 - Multiple Translate batches can be in flight at once (one per
   `runId`); they share the per-provider throttle but their
   results land in their own rows.

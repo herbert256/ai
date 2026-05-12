@@ -682,6 +682,8 @@ fun ProviderSettingsScreen(
     var defMaxConcurrentCalls by remember(service.id) { mutableStateOf(service.maxConcurrentCallsPerProvider?.toString() ?: "") }
     var defMaxRetriesOn429 by remember(service.id) { mutableStateOf(service.maxRetriesOn429?.toString() ?: "") }
     var defRetryBackoffMs429 by remember(service.id) { mutableStateOf(service.retryBackoffMs429?.toString() ?: "") }
+    var defMaxRetriesOn529 by remember(service.id) { mutableStateOf(service.maxRetriesOn529?.toString() ?: "") }
+    var defRetryBackoffMs529 by remember(service.id) { mutableStateOf(service.retryBackoffMs529?.toString() ?: "") }
 
     LaunchedEffect(
         defBaseUrl, defAdminUrl, defaultModel, defOpenRouterName, defApiFormat,
@@ -694,7 +696,8 @@ fun ProviderSettingsScreen(
         defReasoningEffortAcceptPatternsJson, defWebSearchModelPatternsJson,
         defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson,
         defMaxCallsPerMinute, defMaxConcurrentCalls,
-        defMaxRetriesOn429, defRetryBackoffMs429
+        defMaxRetriesOn429, defRetryBackoffMs429,
+        defMaxRetriesOn529, defRetryBackoffMs529
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -733,7 +736,9 @@ fun ProviderSettingsScreen(
             defMaxCallsPerMinute == (service.maxCallsPerProviderPerMinute?.toString() ?: "") &&
             defMaxConcurrentCalls == (service.maxConcurrentCallsPerProvider?.toString() ?: "") &&
             defMaxRetriesOn429 == (service.maxRetriesOn429?.toString() ?: "") &&
-            defRetryBackoffMs429 == (service.retryBackoffMs429?.toString() ?: "")
+            defRetryBackoffMs429 == (service.retryBackoffMs429?.toString() ?: "") &&
+            defMaxRetriesOn529 == (service.maxRetriesOn529?.toString() ?: "") &&
+            defRetryBackoffMs529 == (service.retryBackoffMs529?.toString() ?: "")
         if (same) return@LaunchedEffect
         if (defBaseUrl.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -799,7 +804,9 @@ fun ProviderSettingsScreen(
             // maxRetriesOn429 accepts 0 (means "no in-line retries").
             // Empty / negative / non-numeric → null (inherit default).
             maxRetriesOn429 = defMaxRetriesOn429.trim().toIntOrNull()?.takeIf { it >= 0 },
-            retryBackoffMs429 = defRetryBackoffMs429.trim().toLongOrNull()?.takeIf { it > 0L }
+            retryBackoffMs429 = defRetryBackoffMs429.trim().toLongOrNull()?.takeIf { it > 0L },
+            maxRetriesOn529 = defMaxRetriesOn529.trim().toIntOrNull()?.takeIf { it >= 0 },
+            retryBackoffMs529 = defRetryBackoffMs529.trim().toLongOrNull()?.takeIf { it > 0L }
         ))
     }
 
@@ -1172,8 +1179,8 @@ fun ProviderSettingsScreen(
                 helpTopic = "provider_card_throttle"
             ) {
                 Text(
-                    "Override the app-wide per-provider rate / concurrency caps and the 429-retry policy for this provider. " +
-                        "Leave a field blank to inherit the global default (see Settings → Per-provider throttling and 429 error handling). " +
+                    "Override the app-wide per-provider rate / concurrency caps and the 429 / 529 retry policy for this provider. " +
+                        "Leave a field blank to inherit the global default (see Settings → Per-provider throttling, 429 error handling and 529 error handling). " +
                         "Useful when one provider has a stricter API tier than the rest.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
@@ -1198,7 +1205,19 @@ fun ProviderSettingsScreen(
                 OutlinedTextField(
                     value = defRetryBackoffMs429,
                     onValueChange = { defRetryBackoffMs429 = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Wait between retries — ms (blank = default)") }, singleLine = true,
+                    label = { Text("Wait between 429 retries — ms (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defMaxRetriesOn529,
+                    onValueChange = { defMaxRetriesOn529 = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max retries on 529 (blank = default)") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = defRetryBackoffMs529,
+                    onValueChange = { defRetryBackoffMs529 = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Wait between 529 retries — ms (blank = default)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
             }

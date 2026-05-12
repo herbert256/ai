@@ -91,7 +91,14 @@ class AppService(
     /** Per-provider override for the wait between 429 retries (in
      *  milliseconds). Null → inherit
      *  [GeneralSettings.retryBackoffMs429]. */
-    val retryBackoffMs429: Long? = null
+    val retryBackoffMs429: Long? = null,
+    /** Per-provider override for the 529 (server overloaded) retry cap.
+     *  Null → inherit [GeneralSettings.maxRetriesOn529]. */
+    val maxRetriesOn529: Int? = null,
+    /** Per-provider override for the wait between 529 retries (in
+     *  milliseconds). Null → inherit
+     *  [GeneralSettings.retryBackoffMs529]. */
+    val retryBackoffMs529: Long? = null
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 
@@ -156,7 +163,9 @@ class AppService(
         maxCallsPerProviderPerMinute: Int? = this.maxCallsPerProviderPerMinute,
         maxConcurrentCallsPerProvider: Int? = this.maxConcurrentCallsPerProvider,
         maxRetriesOn429: Int? = this.maxRetriesOn429,
-        retryBackoffMs429: Long? = this.retryBackoffMs429
+        retryBackoffMs429: Long? = this.retryBackoffMs429,
+        maxRetriesOn529: Int? = this.maxRetriesOn529,
+        retryBackoffMs529: Long? = this.retryBackoffMs529
     ): AppService = AppService(
         id = id, baseUrl = baseUrl, adminUrl = adminUrl,
         defaultModel = defaultModel,
@@ -188,7 +197,9 @@ class AppService(
         maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute,
         maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider,
         maxRetriesOn429 = maxRetriesOn429,
-        retryBackoffMs429 = retryBackoffMs429
+        retryBackoffMs429 = retryBackoffMs429,
+        maxRetriesOn529 = maxRetriesOn529,
+        retryBackoffMs529 = retryBackoffMs529
     )
 
     companion object {

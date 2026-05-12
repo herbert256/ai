@@ -198,9 +198,13 @@ object ApiFactory {
         // Rate-limit retry first so each attempt (including retries) flows
         // through the trace recorder below — visible on the Trace screen.
         .addInterceptor(RateLimitRetryInterceptor())
+        // 529 (server overloaded) retry sibling. Independent budget so a
+        // 529 burst can't eat the 429 retry count. Sits outside throttle
+        // / timeout / tracing for the same reason as the 429 retry.
+        .addInterceptor(OverloadedRetryInterceptor())
         // Per-provider concurrency + per-minute rate gate. Sits inside
-        // the retry interceptor so each 429 retry re-acquires its own
-        // slot; sits outside the timeout / tracing interceptors so a
+        // the retry interceptors so each 429 / 529 retry re-acquires its
+        // own slot; sits outside the timeout / tracing interceptors so a
         // throttle wait doesn't count against the read-timeout window.
         .addInterceptor(ProviderThrottleInterceptor())
         // Sets the per-call read timeout from the user-tunable

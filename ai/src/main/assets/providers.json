@@ -63,6 +63,7 @@
         { "contains": "opus-4-7" }
       ],
       "id": "Anthropic",
+      "maxRetriesOn529": 5,
       "maxTokensDefaults": [
         { "pattern": { "contains": "opus-4" }, "maxTokens": 32000 },
         { "pattern": { "contains": "sonnet-4" }, "maxTokens": 8192 },
@@ -81,6 +82,7 @@
         { "contains": "sonnet-4" },
         { "contains": "haiku-4" }
       ],
+      "retryBackoffMs529": 5000,
       "seedFieldName": "seed",
       "supportsCitations": false,
       "supportsSearchRecency": false,

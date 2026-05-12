@@ -1078,7 +1078,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Settings",
         cards = listOf(
             HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
-            HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 retry policy. Tap the row to open the dedicated sub-screen."),
+            HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
             HelpCard("UI tweaks", "Model name layout, title-bar mode, icon-bar position, < Back visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
@@ -1097,12 +1097,13 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "settings_network" to HelpContent(
         title = "Network settings",
         cards = listOf(
-            HelpCard("Overview", "Three cards for how the app talks to remote providers: read timeouts, per-provider throttling, and the in-line 429 retry policy. Every field autosaves with a 400 ms debounce."),
+            HelpCard("Overview", "Four cards for how the app talks to remote providers: read timeouts, per-provider throttling, the in-line 429 retry policy, and the in-line 529 (server overloaded) retry policy. Every field autosaves with a 400 ms debounce."),
             HelpCard("Network read timeouts", "How long the OkHttp client waits for an API response before giving up. Streaming applies to SSE chat / report streams — the timeout is the gap between chunks, so the long default (600 s) is normal for slow-reasoning models. Non-streaming applies to analyze, meta, rerank, fetch-models, translate — anything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."),
             HelpCard("Per-provider throttling", "Two caps applied per provider hostname across every flow in the app. Max calls per minute uses a 60-second sliding window — calls beyond the limit sleep until the oldest entry ages out. Max concurrent calls per provider queues additional calls on a per-host semaphore. Defaults: 30 calls/minute, 3 in flight at once."),
             HelpCard("429 error handling", "When a provider answers HTTP 429 (rate-limited), the OkHttp interceptor sleeps for the wait time and re-issues the same request up to the retry cap. Set retries to 0 to disable in-line retries entirely — the outer withRetry layer still gets one more attempt on transient 4xx. Defaults: 3 retries, 1000 ms between each."),
+            HelpCard("529 error handling", "When a provider answers HTTP 529 (server overloaded — typically Anthropic), the OkHttp interceptor sleeps for the wait time and re-issues the same request up to the retry cap. Independent of the 429 budget — a 529 burst doesn't eat the 429 retry count. Set retries to 0 to disable in-line retries entirely; the outer withRetry layer still gets one more attempt on transient 5xx. Defaults: 3 retries, 1000 ms between each. Anthropic ships with a stricter override (5 retries, 5000 ms) seeded from providers.json."),
             HelpCard("Per-provider overrides", "Any of these globals can be overridden on a per-provider basis via Settings → AI Setup → Providers → <provider> → Throttle & retry overrides. Leave a field blank there to inherit the default set here."),
-            HelpCard("Tips", "If a provider sends frequent 429s, increasing the wait time tends to recover faster than increasing the retry count — bigger backoffs let the rate-limit window actually open. If you're being throttled before reaching 429, drop the max-calls-per-minute instead.")
+            HelpCard("Tips", "If a provider sends frequent 429s, increasing the wait time tends to recover faster than increasing the retry count — bigger backoffs let the rate-limit window actually open. 529s are server-side overload (not your fault) and respond similarly to longer waits. If you're being throttled before reaching 429, drop the max-calls-per-minute instead.")
         )
     ),
     "settings_ui" to HelpContent(

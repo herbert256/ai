@@ -661,7 +661,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = "🌐",
                 title = "Network settings",
-                description = "Read timeouts, per-provider throttling, 429 retry policy.",
+                description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
             )
             SettingsNavCard(
@@ -756,6 +756,12 @@ private fun NetworkSettingsSubScreen(
     var retryBackoffMs429Text by remember {
         mutableStateOf(generalSettings.retryBackoffMs429.toString())
     }
+    var maxRetries529Text by remember {
+        mutableStateOf(generalSettings.maxRetriesOn529.toString())
+    }
+    var retryBackoffMs529Text by remember {
+        mutableStateOf(generalSettings.retryBackoffMs529.toString())
+    }
 
     fun build(): GeneralSettings = generalSettings.copy(
         streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
@@ -770,13 +776,18 @@ private fun NetworkSettingsSubScreen(
         maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
             ?: generalSettings.maxRetriesOn429,
         retryBackoffMs429 = retryBackoffMs429Text.toLongOrNull()?.coerceAtLeast(1L)
-            ?: generalSettings.retryBackoffMs429
+            ?: generalSettings.retryBackoffMs429,
+        maxRetriesOn529 = maxRetries529Text.toIntOrNull()?.coerceAtLeast(0)
+            ?: generalSettings.maxRetriesOn529,
+        retryBackoffMs529 = retryBackoffMs529Text.toLongOrNull()?.coerceAtLeast(1L)
+            ?: generalSettings.retryBackoffMs529
     )
 
     LaunchedEffect(
         streamingReadTimeoutText, nonStreamingReadTimeoutText,
         maxCallsPerMinuteText, maxConcurrentCallsText,
-        maxRetriesText, retryBackoffMs429Text
+        maxRetriesText, retryBackoffMs429Text,
+        maxRetries529Text, retryBackoffMs529Text
     ) {
         val updated = build()
         if (updated != generalSettings) {
@@ -849,6 +860,25 @@ private fun NetworkSettingsSubScreen(
                 OutlinedTextField(
                     value = retryBackoffMs429Text,
                     onValueChange = { retryBackoffMs429Text = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Wait between retries (ms)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "529 error handling",
+                "When a provider answers HTTP 529 (server overloaded), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 5xx). Defaults: 3 retries, 1000 ms between each."
+            ) {
+                OutlinedTextField(
+                    value = maxRetries529Text,
+                    onValueChange = { maxRetries529Text = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max retries on 529") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = retryBackoffMs529Text,
+                    onValueChange = { retryBackoffMs529Text = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Wait between retries (ms)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()

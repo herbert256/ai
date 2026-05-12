@@ -35,6 +35,8 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `max_concurrent_calls_per_provider` | Int (default 3) | per-host concurrency cap |
 | `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
 | `retry_backoff_ms_429` | Long (default 1000) | wait between 429 retry attempts in milliseconds |
+| `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
+| `retry_backoff_ms_529` | Long (default 1000) | wait between 529 retry attempts in milliseconds |
 | `log_level` | String (default `INFO`) | threshold for the in-app file logger (`com.ai.data.AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly by `AppLog.init` from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start |
 | `show_knowledge_card` | Boolean (default false) | gates the AI Knowledge card on the home Hub. The Knowledge subsystem itself stays fully functional whether the card is visible or not |
 | `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |

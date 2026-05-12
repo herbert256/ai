@@ -84,6 +84,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
+            maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),
+            retryBackoffMs529 = prefs.getLong(KEY_RETRY_BACKOFF_MS_529, 1_000L),
             logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.data.LogLevel.INFO
@@ -124,6 +126,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
             putInt(KEY_MAX_RETRIES_ON_429, settings.maxRetriesOn429)
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
+            putInt(KEY_MAX_RETRIES_ON_529, settings.maxRetriesOn529)
+            putLong(KEY_RETRY_BACKOFF_MS_529, settings.retryBackoffMs529)
             putString(KEY_LOG_LEVEL, settings.logLevel.name)
         }
         com.ai.data.AppLog.d(
@@ -489,6 +493,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER = "max_concurrent_calls_per_provider"
         private const val KEY_MAX_RETRIES_ON_429 = "max_retries_on_429"
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"
+        private const val KEY_MAX_RETRIES_ON_529 = "max_retries_on_529"
+        private const val KEY_RETRY_BACKOFF_MS_529 = "retry_backoff_ms_529"
         private const val KEY_LOG_LEVEL = "log_level"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"
