@@ -19,12 +19,15 @@ fun HousekeepingScreen(
     onBackToHome: () -> Unit,
     /** True when at least one provider has a working API key (state ==
      *  "ok"). When false the screen folds to a minimal "first-run"
-     *  shape: only Refresh + a Restore-only / Import-only pair remain.
-     *  Trim by age / Reset are hidden because neither has anything
+     *  shape: only Refresh + Reset + a Restore-only / Import-only
+     *  pair remain. Trim by age is hidden because it has nothing
      *  meaningful to operate on (no reports, no traces yet). Backup is
      *  hidden because there's nothing worth backing up; Export is
-     *  hidden because there's nothing to export. The user can still
-     *  Restore / Import to bring data in from another install. */
+     *  hidden because there's nothing to export. Reset stays visible
+     *  unconditionally — it's a recovery tool the user might need to
+     *  reach when something is wrong, including on a broken first run.
+     *  The user can still Restore / Import to bring data in from
+     *  another install. */
     hasActiveProvider: Boolean = true,
     /** True when there's at least one report, chat session, or trace
      *  file on disk for the Trim flow to delete. Even with an active
@@ -64,9 +67,7 @@ fun HousekeepingScreen(
             // wholesale-state operations that finish with a forced app
             // restart popup.
             NavCard("Refresh", onClick = onNavigateToRefresh)
-            if (hasActiveProvider) {
-                NavCard("Reset", onClick = onNavigateToReset)
-            }
+            NavCard("Reset", onClick = onNavigateToReset)
         }
     }
 }
