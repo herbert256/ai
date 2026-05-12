@@ -432,6 +432,9 @@ fun ReportsScreenNav(
         onRerunCompleteFanOut = { rid, mp ->
             reportViewModel.rerunCompleteFanOut(context, rid, mp)
         },
+        onRerunFanOutPair = { rid, mp, pair ->
+            reportViewModel.rerunSingleFanOutPair(context, rid, mp, pair)
+        },
         onDeleteFanOutModel = { rid, pid, prov, model ->
             reportViewModel.deleteFanOutModel(context, rid, pid, prov, model)
         }
@@ -627,6 +630,9 @@ fun ReportsScreen(
     onResumeStaleFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRestartFailedFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRerunCompleteFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    /** Re-run a single fan-out pair from the L3 "Fan out - pair"
+     *  TitleBar's 🔄 reload icon. */
+    onRerunFanOutPair: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryResult) -> Unit = { _, _, _ -> },
     onDeleteFanOutModel: (String, String, String, String) -> Unit = { _, _, _, _ -> },
     /** Mark every blank-content / no-error / no-duration secondary
      *  on the report as errored. Fired once per report open from a
@@ -2079,6 +2085,10 @@ fun ReportsScreen(
             onRestartFailedFanOut = { mp -> onRestartFailedFanOut(rid, mp) },
             onRerunCompleteFanOut = { mp ->
                 onRerunCompleteFanOut(rid, mp)
+                secondaryRefreshTick++
+            },
+            onRerunFanOutPair = { mp, pair ->
+                onRerunFanOutPair(rid, mp, pair)
                 secondaryRefreshTick++
             },
             onDeleteFanOutModel = { mpid, prov, model ->

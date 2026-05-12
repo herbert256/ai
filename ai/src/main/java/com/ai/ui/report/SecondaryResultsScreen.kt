@@ -74,6 +74,9 @@ internal fun SecondaryResultsScreen(
     onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    /** Re-run a single fan-out pair from the L3 "Fan out - pair"
+     *  TitleBar's 🔄 reload icon. */
+    onRerunFanOutPair: (com.ai.model.InternalPrompt, SecondaryResult) -> Unit = { _, _ -> },
     onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> }
 ) {
     BackHandler { onBack() }
@@ -357,6 +360,7 @@ internal fun SecondaryResultsScreen(
                 onResumeStaleFanOut = onResumeStaleFanOut,
                 onRestartFailedFanOut = onRestartFailedFanOut,
                 onRerunCompleteFanOut = onRerunCompleteFanOut,
+                onRerunFanOutPair = onRerunFanOutPair,
                 // The other lifecycle callbacks (resume/restart/rerun)
                 // each kick a fresh batch, which spins the polling
                 // loop and refreshes implicitly. Per-model delete is
@@ -541,6 +545,7 @@ private fun ColumnScope.FanOutDrillInView(
     onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRerunFanOutPair: (com.ai.model.InternalPrompt, SecondaryResult) -> Unit = { _, _ -> },
     onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> },
     /** Exit the fan out drill-in entirely. Wired to the L1 TitleBar's
      *  "< Back" — L2 / L3 back arrows pop one level instead. */
@@ -803,6 +808,7 @@ private fun ColumnScope.FanOutDrillInView(
             }
         }
         val srcTrace = srcTraceState.value
+        var confirmPairDelete by remember(pairResult?.id) { mutableStateOf(false) }
         TitleBar(
             helpTopic = "secondary_fan_out_l3",
             title = "Fan out - pair",
@@ -811,8 +817,41 @@ private fun ColumnScope.FanOutDrillInView(
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
+            } else null,
+            // Reload re-runs only THIS pair (reset + relaunch the
+            // single placeholder). Visible only when both the fan-out
+            // prompt and the pair row are resolved — without either
+            // there's no placeholder to re-run.
+            onReload = if (fanOutPrompt != null && pairResult != null) {
+                { onRerunFanOutPair(fanOutPrompt, pairResult) }
+            } else null,
+            // Trash deletes only THIS pair's placeholder. Pops back to
+            // L2 once the row is gone so the user doesn't sit on a
+            // dangling detail page for a deleted row.
+            onDelete = if (pairResult != null) {
+                { confirmPairDelete = true }
             } else null
         )
+        if (confirmPairDelete && pairResult != null) {
+            AlertDialog(
+                onDismissRequest = { confirmPairDelete = false },
+                title = { Text("Delete this pair?") },
+                text = { Text("Removes the answerer's response for $sourceLabel.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmPairDelete = false
+                        onDelete(pairResult.id)
+                        l3AnswererKey = null
+                        l3SourceAgentId = null
+                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmPairDelete = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
+        }
         if (!foldSubject) {
             Text(
                 text = sourceLabel,

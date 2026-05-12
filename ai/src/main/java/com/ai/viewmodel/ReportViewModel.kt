@@ -2595,6 +2595,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return job
     }
 
+    /** Re-run a single fan-out pair row. Resets it on disk (clears
+     *  content / errorMessage / token usage / cost / duration so it
+     *  reads as queued again) and dispatches via [resetAndRelaunch].
+     *  Used by the L3 "Fan out - pair" TitleBar's 🔄 reload icon. */
+    fun rerunSingleFanOutPair(
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        pair: SecondaryResult
+    ): Job? = resetAndRelaunch(context, reportId, metaPrompt, listOf(pair))
+
     /** Re-run fan-out pair rows that errored. Resets the rows on disk
      *  (clears errorMessage so they read as queued again) and dispatches
      *  via [rerunFanOutPlaceholders]. */
