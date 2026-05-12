@@ -529,6 +529,24 @@ fun TitleBar(
                 }
             }
         }
+        // HARDCODED fallback: when the consumer didn't supply a
+        // subject (or it was blank), but a per-report icon IS in scope
+        // and a report title is available, paint the report title as
+        // the green sub-header below the bar. The consumer screens
+        // that DO supply a subject still render their own inline
+        // green text below this — this fallback only fills the gap
+        // when nothing else would surface there.
+        if (isHardcoded && resolvedReportIcon != null && subject.isNullOrBlank()) {
+            LocalReportTitle.current?.takeIf { it.isNotBlank() }?.let { fallbackSubject ->
+                Text(
+                    text = fallbackSubject,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
