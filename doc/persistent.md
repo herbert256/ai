@@ -23,9 +23,7 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
-| `show_back_button` | Boolean (default true) | when false hides the visible Back button |
 | `subject_to_title_bar_mode` | String (default `BOTH`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
-| `icon_bar_at_bottom` | Boolean (default true) | when true the action icons + back arrow live in a bar pinned at the bottom of the screen |
 | `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
 | `per_model_icon_gen_enabled` | Boolean (default true) | master switch for the per-agent 3-tier icon chain (auto-fires `runReportIconsForAgent` on every successful agent call) |
 | `recent_report_models` | String (newline-separated) | last 3 (provider, model) picks from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings |

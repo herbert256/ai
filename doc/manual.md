@@ -554,11 +554,9 @@ only the title; tapping expands it.
   line; **BOTH** (default) joins them with `/` (and falls back
   to the title when the subject is blank) and drops the green
   line.
-- **Show < Back** — when off the visible Back button hides;
-  system / gesture back still works.
-- **Icon bar at bottom** — default on. When on, the action icons
-  + back arrow move into a bar pinned at the bottom of the
-  screen; the top bar shows only the title. The bar lives at
+- The action icons + back arrow always live in a fixed bar
+  pinned at the bottom of the screen; the top bar shows only the
+  per-report icon (when set) and the title. The bar lives at
   AppNavHost scope so it survives nav transitions.
 - **Generate report icons** — master switch for the per-report
   emoji. Default on. See [report-icons.md](report-icons.md).

@@ -902,19 +902,15 @@ private fun UiTweaksSubScreen(
 ) {
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
-    var iconBarAtBottom by remember { mutableStateOf(generalSettings.iconBarAtBottom) }
-    var showBackButton by remember { mutableStateOf(generalSettings.showBackButton) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         subjectToTitleBarMode = subjectToTitleBarMode,
-        iconBarAtBottom = iconBarAtBottom,
-        showBackButton = showBackButton,
         showKnowledgeCard = showKnowledgeCard
     )
 
-    LaunchedEffect(modelNameLayout, subjectToTitleBarMode, iconBarAtBottom, showBackButton, showKnowledgeCard) {
+    LaunchedEffect(modelNameLayout, subjectToTitleBarMode, showKnowledgeCard) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -970,18 +966,6 @@ private fun UiTweaksSubScreen(
                     )
                 }
             }
-            ToggleSettingCard(
-                title = "Icon bar at bottom",
-                description = "Move every action icon (Home / Help / Trace / Delete / Info / Reload / Chat / Memo) and the back arrow into a fixed bar at the bottom of the screen. The top bar then shows only the screen title.",
-                checked = iconBarAtBottom,
-                onCheckedChange = { iconBarAtBottom = it }
-            )
-            ToggleSettingCard(
-                title = "Show < Back",
-                description = "Show the < Back button in the top bar. Off → title aligns left; system / gesture back still works.",
-                checked = showBackButton,
-                onCheckedChange = { showBackButton = it }
-            )
             ToggleSettingCard(
                 title = "Show AI Knowledge card on home page",
                 description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",

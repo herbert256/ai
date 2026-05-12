@@ -61,12 +61,6 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
-    /** When false the visible "< Back" button on every TitleBar is
-     *  hidden and the screen title slides to the left edge. The
-     *  system / gesture back still works because TitleBar's
-     *  BackHandler is registered independently of the button.
-     *  Provided to the composition tree via LocalShowBackButton. */
-    val showBackButton: Boolean = true,
     /** Compact-header mode (tri-state). HARDCODED keeps the legacy
      *  layout: fixed label in the title bar + green dynamic-subject
      *  sub-header below. SUBJECT folds the subject into the title bar
@@ -74,13 +68,6 @@ data class GeneralSettings(
      *  in the title bar and drops the green line. Provided via
      *  LocalSubjectToTitleBarMode. */
     val subjectToTitleBarMode: SubjectToTitleBarMode = SubjectToTitleBarMode.BOTH,
-    /** When true, every TitleBar's action icons (Home / Help / Trace /
-     *  Delete / Info / Reload / Chat / Memo + the back arrow) move into
-     *  a fixed bar at the bottom of the screen and the top bar shows
-     *  only the screen title. Default false keeps the legacy
-     *  icons-on-top-right layout. The bar lives at AppNavHost scope so
-     *  it survives nav transitions and is always visible. */
-    val iconBarAtBottom: Boolean = true,
     /** Master switch for the per-report icon-gen feature. When true
      *  (default) every new report kicks off a background LLM call that
      *  generates a fitting emoji, the icon-row appears on the result

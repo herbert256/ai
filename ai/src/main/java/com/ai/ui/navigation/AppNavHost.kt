@@ -214,19 +214,19 @@ fun AppNavHost(
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
     }
-    val iconBarAtBottom = rootUiStateForLayout.generalSettings.iconBarAtBottom
+    // The bottom icon bar is now the fixed layout (the old top-bar
+    // alternative has been retired) — every TitleBar publishes its
+    // action icons here, and AppNavHost paints the bar at the bottom
+    // of every nav destination except the Hub.
     val bottomBarIconState = androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<com.ai.ui.shared.TitleBarIcons?>(null)
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
-        com.ai.ui.shared.LocalShowBackButton provides rootUiStateForLayout.generalSettings.showBackButton,
         com.ai.ui.shared.LocalSubjectToTitleBarMode provides rootUiStateForLayout.generalSettings.subjectToTitleBarMode,
-        com.ai.ui.shared.LocalIconBarAtBottom provides iconBarAtBottom,
         com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
-        com.ai.ui.shared.LocalBottomIconState provides
-            if (iconBarAtBottom) bottomBarIconState else null,
+        com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp
     ) {
@@ -234,7 +234,7 @@ fun AppNavHost(
     NavHost(
         navController = navController,
         startDestination = NavRoutes.AI,
-        modifier = if (iconBarAtBottom) Modifier.weight(1f) else modifier
+        modifier = Modifier.weight(1f)
     ) {
 
         // ===== Hub =====
@@ -1130,15 +1130,13 @@ fun AppNavHost(
                 onNavigateToTraceDetail = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
     }
-    if (iconBarAtBottom) {
-        // Hide the bar on the home Hub — that screen has no TitleBar
-        // (it's the centered "AI" logo) so the bar would just show
-        // the bare Home + Help fallback. The Hub already routes home /
-        // help via its own card list; no need for a duplicate strip.
-        val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-        if (currentRoute != NavRoutes.AI) {
-            com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
-        }
+    // Hide the bar on the home Hub — that screen has no TitleBar
+    // (it's the centered "AI" logo) so the bar would just show
+    // the bare Home + Help fallback. The Hub already routes home /
+    // help via its own card list; no need for a duplicate strip.
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    if (currentRoute != NavRoutes.AI) {
+        com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
     }
     } // end Column
     } // end CompositionLocalProvider

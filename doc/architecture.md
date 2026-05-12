@@ -226,11 +226,12 @@ the static label, BOTH joins them with `/` — and drops the
 green sub-header line in both cases. When BOTH is selected and
 the subject is empty (e.g. a report whose title is still being
 generated), the title bar gracefully falls back to the report's
-title rather than rendering a trailing `/`. `iconBarAtBottom`
-(default true) moves the action icons + back arrow into a bar
-pinned at the bottom of the screen so the top bar shows only the
-title; the bar lives at AppNavHost scope so it survives nav
-transitions. Report-scoped screens get the per-report icon as
+title rather than rendering a trailing `/`. The action icons +
+back arrow are always rendered in a bar pinned at the bottom of
+the screen; the top title bar shows only the per-report icon
+(when set) and the title. The bar lives at AppNavHost scope so
+it survives nav transitions. Report-scoped screens get the
+per-report icon as
 the leftmost glyph in the top title bar (propagated via
 `LocalReportIcon` so picker overlays inherit it).
 

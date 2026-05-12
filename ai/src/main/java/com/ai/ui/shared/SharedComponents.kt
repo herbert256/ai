@@ -104,11 +104,6 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
     { _, _ -> }
 }
 
-/** When false, [TitleBar] hides its visible "< Back" button and the
- *  screen title left-aligns. The system / gesture back still works
- *  because TitleBar registers its BackHandler independently. */
-val LocalShowBackButton = compositionLocalOf { true }
-
 /** Tri-state: how detail screens that have both a fixed label and a
  *  dynamic subject (Model Info, Trace detail, KB, Translation run,
  *  Agent result, …) compose their title. HARDCODED keeps the legacy
@@ -139,14 +134,6 @@ val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
  *  Memo icon renders only when this is non-null. The callback
  *  takes the user back to the active report's result page. */
 val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
-
-/** When true, every TitleBar renders only its title (no back arrow,
- *  no action icons) and publishes its icon callbacks to
- *  [LocalBottomIconState]; the single [BottomIconBar] composable at
- *  AppNavHost scope reads from that and renders the same action strip
- *  pinned to the screen bottom. Default false keeps the legacy
- *  icons-on-top-right layout. Driven by GeneralSettings.iconBarAtBottom. */
-val LocalIconBarAtBottom = compositionLocalOf { false }
 
 /** Master switch for the per-report icon-gen feature, mirrored from
  *  GeneralSettings.iconGenEnabled. Provided once by AppNavHost so
@@ -218,7 +205,6 @@ fun shareText(context: android.content.Context, text: String, subject: String? =
 data class TitleBarIcons(
     val helpTopic: String?,
     val onBack: (() -> Unit)?,
-    val backText: String,
     val onChat: (() -> Unit)?,
     val onInfo: (() -> Unit)?,
     val onCopy: (() -> Unit)?,
@@ -348,8 +334,6 @@ fun TitleBar(
      *  as the green sub-header below the bar at each consumer site. */
     subject: String? = null,
     onBackClick: (() -> Unit)? = null,
-    backText: String = "< Back",
-    leftContent: (@Composable RowScope.() -> Unit)? = null,
     centered: Boolean = false,
     helpTopic: String? = null,
     onTrace: (() -> Unit)? = null,
@@ -389,22 +373,15 @@ fun TitleBar(
      *  the standard pattern. */
     modifier: Modifier = Modifier
 ) {
-    val backDispatcher = androidx.activity.compose.LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+    // Register BackHandler so the system / gesture back fires
+    // onBackClick when the screen asks for back-handling. Visible "<
+    // Back" affordances live only in the BottomIconBar now — the top
+    // bar never renders a back button — but a screen that passes
+    // onBackClick still wants the system back to flow through it.
     if (onBackClick != null) {
         androidx.activity.compose.BackHandler { onBackClick() }
     }
-    val handleBack: () -> Unit = remember(backDispatcher, onBackClick) {
-        {
-            when {
-                backDispatcher != null -> backDispatcher.onBackPressed()
-                onBackClick != null -> onBackClick()
-                else -> {}
-            }
-        }
-    }
     val navigateHome = LocalNavigateHome.current
-    val navigateHelp = LocalNavigateToHelp.current
-    val navigateToCurrentReport = LocalNavigateToCurrentReport.current
     // Explicit reportIcon param wins when non-null; otherwise inherit
     // from LocalReportIcon (provided by ReportsScreen at every inline
     // overlay so pickers / viewer / etc. see it without having to be
@@ -420,19 +397,19 @@ fun TitleBar(
                 modifier = Modifier.clickable { navigateHome() }
             )
         }
-    } else if (LocalIconBarAtBottom.current) {
-        // Bottom-bar mode: top bar renders only the title text. Every
-        // icon (and the back arrow) gets published into
-        // LocalBottomIconState so the global BottomIconBar paints them.
-        // SideEffect on every recomposition keeps the published state
-        // fresh; DisposableEffect clears it on screen exit (with an
-        // identity check so a racing nav transition doesn't clobber
+    } else {
+        // Non-centered TitleBar: the top bar renders title + leftmost
+        // per-report icon only. Every action callback (and the back
+        // arrow) is published into LocalBottomIconState so the global
+        // BottomIconBar paints the action strip pinned to the screen
+        // bottom. SideEffect on every recomposition keeps the published
+        // state fresh; DisposableEffect clears it on screen exit (with
+        // an identity check so a racing nav transition doesn't clobber
         // the next screen's just-published state).
         val state = LocalBottomIconState.current
         val captured = TitleBarIcons(
             helpTopic = helpTopic,
             onBack = onBackClick,
-            backText = backText,
             onChat = onChat,
             onInfo = onInfo,
             onCopy = onCopy,
@@ -440,11 +417,9 @@ fun TitleBar(
             onReload = onReload,
             onDelete = onDelete,
             onTrace = onTrace,
-            // When the per-report icon is shown in the top bar (leftmost
-            // slot above), the bottom bar's 📝 memo would be a
-            // visually-redundant second report glyph. Suppress it so the
-            // strip stays clean; the leftmost top-bar icon already
-            // carries the back-to-report tap target.
+            // The leftmost top-bar icon already carries the back-to-
+            // report tap target, so the bottom strip's 📝 memo would be
+            // visually redundant. Suppress it unconditionally.
             onMemo = null
         )
         if (state != null) {
@@ -453,10 +428,6 @@ fun TitleBar(
                 onDispose { if (state.value === captured) state.value = null }
             }
         }
-        // Bare top bar — honours the same SubjectToTitleBarMode the
-        // top-bar branch below does, so BOTH renders the subject left
-        // and the title right with no separator (and SUBJECT folds the
-        // subject into the title slot).
         val titleStyle = MaterialTheme.typography.titleLarge
         val mode = LocalSubjectToTitleBarMode.current
         // BOTH-mode subject fallback: when the caller didn't pass a
@@ -470,16 +441,18 @@ fun TitleBar(
         val subjectNonBlank = !resolvedSubject.isNullOrBlank()
         val barFontSize = titleStyle.fontSize * 1.25f
         val reportIconTap = LocalNavigateToCurrentReport.current
+        // HARDCODED screen-title mode gives the leftmost report emoji
+        // 1.5× sizing so the per-report visual cue reads strongly even
+        // when the title slot is the fixed screen title.
+        val reportIconScale = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) 1.5f else 1f
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Leftmost slot: per-report emoji (with 📝 fallback at the
-            // callsite). Same slot the top-bar branch renders below.
             if (resolvedReportIcon != null) {
                 TitleBarIcon(resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
-                    width = 22.dp, scale = 1.5f)
+                    width = 22.dp, scale = reportIconScale)
                 Spacer(modifier = Modifier.width(4.dp))
             }
             if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
@@ -509,148 +482,6 @@ fun TitleBar(
                     )
                 }
             }
-        }
-    } else {
-        val showBackButton = LocalShowBackButton.current
-        val foldSubject = LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
-        val backVisible = onBackClick != null && showBackButton
-        val hasLeftSlot = leftContent != null || backVisible
-        // When the user has hidden the "< Back" button the title row
-        // has more horizontal room and a less crowded look. Scale up
-        // the title text by 25 % so the bar takes advantage of that
-        // space and reads larger at a glance. Standard back-button
-        // mode keeps the original 1× sizing so the layout still fits
-        // next to "< Back".
-        //
-        // Icons get a bigger 1.5× bump in the same "no Back, no
-        // folded subject" mode — the action strip on result-phase
-        // screens (Reports / Chat / Trace detail) carries the most
-        // tap targets and benefits from the larger glyph more than
-        // the title text does. Subject-to-title-bar mode is the
-        // exception: it folds the page subject (often a long model
-        // id or KB name) into the title slot, so that slot is the
-        // bottleneck and the icons shouldn't steal width from it —
-        // keep the icons at 1× whenever foldSubject is on.
-        val scale = if (showBackButton) 1f else 1.25f
-        val iconScale = if (showBackButton || foldSubject) 1f else 1.5f
-        // Report icon-only scale: HARDCODED screen-title mode (foldSubject
-        // off) gives the leftmost report emoji 1.5× sizing regardless of
-        // the showBackButton state, so the per-report visual cue reads
-        // strongly even when the title slot is the fixed screen title.
-        val reportIconScale = if (foldSubject) 1f else 1.5f
-        val titleStyle = MaterialTheme.typography.titleLarge
-        // Tap target for the leftmost report icon. Goes back to the
-        // main report when the active screen is a sub-screen (memo
-        // semantics) — null on the report screen itself.
-        val reportIconTap = LocalNavigateToCurrentReport.current
-        Row(
-            modifier = modifier.fillMaxWidth().padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Leftmost slot (before back / leftContent): the per-report
-            // emoji when this screen is report-scoped. Always renders
-            // when [reportIcon] is non-null — callers should pass
-            // `report.icon ?: "📝"` so the slot is filled even while
-            // the icon-gen call is in flight.
-            if (resolvedReportIcon != null) {
-                TitleBarIcon(resolvedReportIcon, Color.Unspecified,
-                    onClick = reportIconTap ?: {},
-                    width = 22.dp, scale = reportIconScale)
-            }
-            if (leftContent != null) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    leftContent()
-                }
-            } else if (backVisible) {
-                TextButton(onClick = handleBack) {
-                    Text(backText, color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false)
-                }
-            }
-            // Title slot — three layouts depending on
-            // LocalSubjectToTitleBarMode:
-            //  HARDCODED: render only [title].
-            //  SUBJECT  : render [subject] (fall back to [title] when
-            //             subject is null/blank).
-            //  BOTH     : when [subject] is non-blank, render two
-            //             Texts side-by-side: subject on the left,
-            //             title on the right, with no separator. Falls
-            //             back to single [title] when subject is blank.
-            val mode = LocalSubjectToTitleBarMode.current
-            // BOTH-mode subject fallback: when the caller didn't pass
-            // a per-screen subject, borrow the active Report's title
-            // so the bar reads "<report> <screen>" instead of just
-            // the screen's fixed title. Only kicks in when BOTH is
-            // active.
-            val resolvedSubject = subject?.takeIf { it.isNotBlank() }
-                ?: if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH)
-                    LocalReportTitle.current?.takeIf { it.isNotBlank() }
-                  else null
-            val subjectNonBlank = !resolvedSubject.isNullOrBlank()
-            if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = resolvedSubject!!, style = titleStyle, color = Color.White,
-                        fontSize = titleStyle.fontSize * scale,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Start,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = title, style = titleStyle, color = Color.White,
-                        fontSize = titleStyle.fontSize * scale,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.End,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-            } else {
-                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) resolvedSubject!! else title
-                if (effective != null) {
-                    // Always right-align the title — keeps it flush
-                    // against the action strip, matches the right-side
-                    // placement that BOTH-mode's title gets when a
-                    // subject is present.
-                    Text(
-                        text = effective, style = titleStyle, color = Color.White,
-                        fontSize = titleStyle.fontSize * scale,
-                        fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-            }
-            TitleBarActionStrip(
-                onHome = navigateHome,
-                onReload = onReload,
-                onChat = onChat,
-                onInfo = onInfo,
-                onCopy = onCopy,
-                onShare = onShare,
-                onDelete = onDelete,
-                onTrace = onTrace,
-                onHelp = { navigateHelp(helpTopic) },
-                // Suppress 📝 memo when the leftmost report icon is
-                // shown — that icon already provides the back-to-
-                // report tap target.
-                // Memo 📝 visibility tracks the dynamic top-left icon —
-                // both shown on report-scoped screens, both hidden
-                // otherwise. Tap delegates to the same navigate-back
-                // callback the dynamic icon uses (no-op on the main
-                // result page).
-                onMemo = if (resolvedReportIcon != null) (navigateToCurrentReport ?: {}) else null,
-                scale = iconScale,
-                // Tight inter-icon spacing in the 1.5× mode. Without
-                // this, scaled-up slots leave 1.5× the air too —
-                // the strip looks loose. With it, slots shrink so
-                // the glyphs sit nearly shoulder-to-shoulder.
-                compactSpacing = iconScale > 1f
-            )
         }
     }
 }
@@ -774,12 +605,11 @@ private fun TitleBarIcon(
 }
 
 /** Fixed-position bottom bar that mirrors the active TitleBar's
- *  action icons + back arrow. Always present (every nav destination,
- *  every screen) when GeneralSettings.iconBarAtBottom is on; the
- *  AppNavHost renders one instance and feeds it the icons published
- *  by whichever TitleBar is currently composed. Falls back to a
- *  dim "no icons" bar during the brief sub-frame between two
- *  screens' nav transitions. */
+ *  action icons + back arrow. Always present (every nav destination
+ *  except the Hub) — AppNavHost renders one instance and feeds it the
+ *  icons published by whichever TitleBar is currently composed. Falls
+ *  back to a dim "no icons" bar during the brief sub-frame between
+ *  two screens' nav transitions. */
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val navigateHome = LocalNavigateHome.current

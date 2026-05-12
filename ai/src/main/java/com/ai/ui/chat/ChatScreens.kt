@@ -636,16 +636,16 @@ fun ChatSessionScreen(
         TitleBar(
             helpTopic = "chat_session",
             title = "Chat", onBackClick = onNavigateBack,
-            leftContent = {
-                TextButton(onClick = onNavigateBack) { Text("< Back", color = Color.White, fontSize = 16.sp, maxLines = 1, softWrap = false) }
-                if (totalCost > 0) {
-                    // Sub-cent costs round to 0.00 on the 2-decimal
-                    // format; show "<0.01c" so the user can tell a
-                    // tiny cost from a literal zero.
-                    val label = if (totalCost < 0.01) "<0.01c" else "%.2fc".format(totalCost)
-                    Text(label, fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                }
-            },
+            // Cost label used to ride in the (now-retired) leftContent
+            // slot of the top bar. With the bottom bar carrying back
+            // and every action icon, the chat's running cost surfaces
+            // here as the title bar's subject — when set, it slots
+            // alongside the "Chat" title in BOTH mode or replaces it
+            // in SUBJECT mode. Sub-cent costs render "<0.01c" so a
+            // tiny cost reads differently from a literal zero.
+            subject = if (totalCost > 0) {
+                if (totalCost < 0.01) "<0.01c" else "%.2fc".format(totalCost)
+            } else null,
             onInfo = { navToModelInfo(provider, model) }
         )
         Row(verticalAlignment = Alignment.CenterVertically) {

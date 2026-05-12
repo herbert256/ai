@@ -241,9 +241,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     })
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("modelNameLayout", g.modelNameLayout.name)
-    addProperty("showBackButton", g.showBackButton)
     addProperty("subjectToTitleBarMode", g.subjectToTitleBarMode.name)
-    addProperty("iconBarAtBottom", g.iconBarAtBottom)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
 }
@@ -272,9 +270,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         modelNameLayout = layout ?: current.modelNameLayout,
-        showBackButton = bool("showBackButton") ?: current.showBackButton,
         subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode,
-        iconBarAtBottom = bool("iconBarAtBottom") ?: current.iconBarAtBottom,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard
     )
