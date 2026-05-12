@@ -471,7 +471,7 @@ separate from `UiState`.
   drop in-flight stats.
 - `RateLimitRetryInterceptor` retries 429s with a configurable
   back-off (`NetworkSettings.maxRetriesOn429` ×
-  `retryBackoffMs`, both per-provider overridable), bails on
+  `retryBackoffMs429`, both per-provider overridable), bails on
   coroutine cancellation, and has an explicit main-thread guard
   so it can never ANR the UI. `withRetry` treats `408 / 425 /
   429` as transient (in addition to network errors) and skips

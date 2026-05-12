@@ -753,8 +753,8 @@ private fun NetworkSettingsSubScreen(
     var maxRetriesText by remember {
         mutableStateOf(generalSettings.maxRetriesOn429.toString())
     }
-    var retryBackoffMsText by remember {
-        mutableStateOf(generalSettings.retryBackoffMs.toString())
+    var retryBackoffMs429Text by remember {
+        mutableStateOf(generalSettings.retryBackoffMs429.toString())
     }
 
     fun build(): GeneralSettings = generalSettings.copy(
@@ -769,14 +769,14 @@ private fun NetworkSettingsSubScreen(
         // 0 is a valid maxRetries setting (no in-line retries) — coerce ≥ 0.
         maxRetriesOn429 = maxRetriesText.toIntOrNull()?.coerceAtLeast(0)
             ?: generalSettings.maxRetriesOn429,
-        retryBackoffMs = retryBackoffMsText.toLongOrNull()?.coerceAtLeast(1L)
-            ?: generalSettings.retryBackoffMs
+        retryBackoffMs429 = retryBackoffMs429Text.toLongOrNull()?.coerceAtLeast(1L)
+            ?: generalSettings.retryBackoffMs429
     )
 
     LaunchedEffect(
         streamingReadTimeoutText, nonStreamingReadTimeoutText,
         maxCallsPerMinuteText, maxConcurrentCallsText,
-        maxRetriesText, retryBackoffMsText
+        maxRetriesText, retryBackoffMs429Text
     ) {
         val updated = build()
         if (updated != generalSettings) {
@@ -847,8 +847,8 @@ private fun NetworkSettingsSubScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
                 OutlinedTextField(
-                    value = retryBackoffMsText,
-                    onValueChange = { retryBackoffMsText = it.filter { ch -> ch.isDigit() } },
+                    value = retryBackoffMs429Text,
+                    onValueChange = { retryBackoffMs429Text = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Wait between retries (ms)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()

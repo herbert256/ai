@@ -22,7 +22,7 @@ Provider edit) and falls through to a global default
   | `maxCallsPerProviderPerMinute` | 30 | sliding-window rate cap |
   | `maxConcurrentCallsPerProvider` | 3 | concurrency cap |
   | `maxRetriesOn429` | 3 | in-line 429 retries |
-  | `retryBackoffMs` | 1000 | wait between retries |
+  | `retryBackoffMs429` | 1000 | wait between retries |
 
 - **`ProviderThrottle`** — per-hostname rate + concurrency
   gate. One `Semaphore` per host caps in-flight calls; a
@@ -134,7 +134,7 @@ Four nullable fields on `AppService`:
 val maxCallsPerProviderPerMinute: Int? = null,
 val maxConcurrentCallsPerProvider: Int? = null,
 val maxRetriesOn429: Int? = null,
-val retryBackoffMs: Long? = null
+val retryBackoffMs429: Long? = null
 ```
 
 Null = inherit the global default. Resolved by

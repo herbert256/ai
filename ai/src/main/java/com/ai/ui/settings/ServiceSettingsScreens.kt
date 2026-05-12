@@ -681,7 +681,7 @@ fun ProviderSettingsScreen(
     var defMaxCallsPerMinute by remember(service.id) { mutableStateOf(service.maxCallsPerProviderPerMinute?.toString() ?: "") }
     var defMaxConcurrentCalls by remember(service.id) { mutableStateOf(service.maxConcurrentCallsPerProvider?.toString() ?: "") }
     var defMaxRetriesOn429 by remember(service.id) { mutableStateOf(service.maxRetriesOn429?.toString() ?: "") }
-    var defRetryBackoffMs by remember(service.id) { mutableStateOf(service.retryBackoffMs?.toString() ?: "") }
+    var defRetryBackoffMs429 by remember(service.id) { mutableStateOf(service.retryBackoffMs429?.toString() ?: "") }
 
     LaunchedEffect(
         defBaseUrl, defAdminUrl, defaultModel, defOpenRouterName, defApiFormat,
@@ -694,7 +694,7 @@ fun ProviderSettingsScreen(
         defReasoningEffortAcceptPatternsJson, defWebSearchModelPatternsJson,
         defAdaptiveThinkingPatternsJson, defMaxTokensDefaultsJson, defBuiltInEndpointsJson,
         defMaxCallsPerMinute, defMaxConcurrentCalls,
-        defMaxRetriesOn429, defRetryBackoffMs
+        defMaxRetriesOn429, defRetryBackoffMs429
     ) {
         // Don't push back garbage during the very first composition. Only update if the user
         // actually changed something — i.e. a field differs from its catalog source value.
@@ -733,7 +733,7 @@ fun ProviderSettingsScreen(
             defMaxCallsPerMinute == (service.maxCallsPerProviderPerMinute?.toString() ?: "") &&
             defMaxConcurrentCalls == (service.maxConcurrentCallsPerProvider?.toString() ?: "") &&
             defMaxRetriesOn429 == (service.maxRetriesOn429?.toString() ?: "") &&
-            defRetryBackoffMs == (service.retryBackoffMs?.toString() ?: "")
+            defRetryBackoffMs429 == (service.retryBackoffMs429?.toString() ?: "")
         if (same) return@LaunchedEffect
         if (defBaseUrl.isBlank()) return@LaunchedEffect
         val hardcoded = defHardcodedModelsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
@@ -799,7 +799,7 @@ fun ProviderSettingsScreen(
             // maxRetriesOn429 accepts 0 (means "no in-line retries").
             // Empty / negative / non-numeric → null (inherit default).
             maxRetriesOn429 = defMaxRetriesOn429.trim().toIntOrNull()?.takeIf { it >= 0 },
-            retryBackoffMs = defRetryBackoffMs.trim().toLongOrNull()?.takeIf { it > 0L }
+            retryBackoffMs429 = defRetryBackoffMs429.trim().toLongOrNull()?.takeIf { it > 0L }
         ))
     }
 
@@ -1196,8 +1196,8 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
                 OutlinedTextField(
-                    value = defRetryBackoffMs,
-                    onValueChange = { defRetryBackoffMs = it.filter { ch -> ch.isDigit() } },
+                    value = defRetryBackoffMs429,
+                    onValueChange = { defRetryBackoffMs429 = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Wait between retries — ms (blank = default)") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )

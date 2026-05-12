@@ -493,7 +493,7 @@ per-provider table.
 | maxCallsPerProviderPerMinute | `Int?` | per-provider override for `GeneralSettings.maxCallsPerProviderPerMinute`. Null → inherit. Read by `ProviderThrottle.acquire` when this provider's hostname matches. See [throttle.md](throttle.md) |
 | maxConcurrentCallsPerProvider | `Int?` | per-provider override for the concurrency cap. Null → inherit |
 | maxRetriesOn429 | `Int?` | per-provider override for the 429-retry cap (0 = disable in-line retries). Null → inherit |
-| retryBackoffMs | `Long?` | per-provider override for the wait between 429 retries. Null → inherit |
+| retryBackoffMs429 | `Long?` | per-provider override for the wait between 429 retries. Null → inherit |
 
 There is also a synthetic singleton `AppService.LOCAL` (`id =
 "Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
@@ -644,7 +644,7 @@ threading a `Settings` reference through their constructors.
 | maxCallsPerProviderPerMinute | `Int` (default 30) | per-host sliding-window rate cap |
 | maxConcurrentCallsPerProvider | `Int` (default 3) | per-host concurrency cap |
 | maxRetriesOn429 | `Int` (default 3) | in-line 429 retries |
-| retryBackoffMs | `Long` (default 1000) | wait between retries |
+| retryBackoffMs429 | `Long` (default 1000) | wait between retries |
 
 ### `ProviderThrottle`
 Per-hostname rate + concurrency gate. One `Semaphore` + one
@@ -757,7 +757,7 @@ Computed:
 | maxCallsPerProviderPerMinute | `Int` (default 30) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | maxConcurrentCallsPerProvider | `Int` (default 3) | per-provider concurrency cap. Replaces the prior hardcoded fan-out semaphore — applies globally across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
 | maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
-| retryBackoffMs | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
+| retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
 | logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
 | showKnowledgeCard | `Boolean` (default false) | gates the AI Knowledge card on the home Hub. Default off keeps the Hub approachable on a fresh install; the Knowledge subsystem itself stays fully functional whether or not the card is visible |
 

@@ -619,7 +619,7 @@ object NetworkSettings {
      *  default that was hardcoded before this knob was exposed). */
     @Volatile var maxRetriesOn429: Int = 3
     /** Wait between successive 429 retry attempts, in milliseconds. */
-    @Volatile var retryBackoffMs: Long = 1_000L
+    @Volatile var retryBackoffMs429: Long = 1_000L
 }
 
 /** Per-hostname rate + concurrency gate. Backs
@@ -673,12 +673,12 @@ object ProviderThrottle {
      *  backoffMs is coerced ≥ 1 so a typo can't degenerate into a
      *  busy loop. */
     fun retryLimitsFor(host: String): Pair<Int, Long> {
-        if (host.isBlank()) return NetworkSettings.maxRetriesOn429 to NetworkSettings.retryBackoffMs
+        if (host.isBlank()) return NetworkSettings.maxRetriesOn429 to NetworkSettings.retryBackoffMs429
         val override = ProviderRegistry.findByHost(host)
         val maxRetries = (override?.maxRetriesOn429
             ?: NetworkSettings.maxRetriesOn429).coerceAtLeast(0)
-        val backoffMs = (override?.retryBackoffMs
-            ?: NetworkSettings.retryBackoffMs).coerceAtLeast(1L)
+        val backoffMs = (override?.retryBackoffMs429
+            ?: NetworkSettings.retryBackoffMs429).coerceAtLeast(1L)
         return maxRetries to backoffMs
     }
 

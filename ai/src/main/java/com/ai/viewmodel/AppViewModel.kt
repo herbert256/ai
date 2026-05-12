@@ -158,8 +158,8 @@ data class GeneralSettings(
     val maxRetriesOn429: Int = 3,
     /** Wait between successive 429 retry attempts, in milliseconds.
      *  Defaults to 1000 (1 s). Mirrored to
-     *  [com.ai.data.NetworkSettings.retryBackoffMs]. */
-    val retryBackoffMs: Long = 1_000L,
+     *  [com.ai.data.NetworkSettings.retryBackoffMs429]. */
+    val retryBackoffMs429: Long = 1_000L,
     /** Threshold for the in-app file logger
      *  ([com.ai.data.AppLog]). Calls at this level or higher land in
      *  `<filesDir>/applog/applog_<yyyyMMdd>.log` in addition to
@@ -535,12 +535,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
             NetworkSettings.maxConcurrentCallsPerProvider = bs.first.maxConcurrentCallsPerProvider
             NetworkSettings.maxRetriesOn429 = bs.first.maxRetriesOn429
-            NetworkSettings.retryBackoffMs = bs.first.retryBackoffMs
+            NetworkSettings.retryBackoffMs429 = bs.first.retryBackoffMs429
             AppLog.v(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
                     "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " +
-                    "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs}ms"
+                    "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs429}ms"
             )
             AppLog.threshold = bs.first.logLevel
             AppLog.v(startTag, "  AppLog.threshold=${bs.first.logLevel}")
@@ -940,7 +940,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute
         NetworkSettings.maxConcurrentCallsPerProvider = settings.maxConcurrentCallsPerProvider
         NetworkSettings.maxRetriesOn429 = settings.maxRetriesOn429
-        NetworkSettings.retryBackoffMs = settings.retryBackoffMs
+        NetworkSettings.retryBackoffMs429 = settings.retryBackoffMs429
         AppLog.threshold = settings.logLevel
         // Java's Semaphore can't be resized in place — clear the
         // per-host map so the next acquire builds a fresh semaphore at

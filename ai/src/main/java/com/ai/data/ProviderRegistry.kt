@@ -346,7 +346,7 @@ object ProviderRegistry {
         "webSearchModelPatterns", "adaptiveThinkingPatterns",
         "maxTokensDefaults", "builtInEndpoints",
         "maxCallsPerProviderPerMinute", "maxConcurrentCallsPerProvider",
-        "maxRetriesOn429", "retryBackoffMs"
+        "maxRetriesOn429", "retryBackoffMs429"
     )
 
     private fun appServiceFieldMap(s: AppService): Map<String, Any?> = mapOf(
@@ -385,7 +385,7 @@ object ProviderRegistry {
         "maxCallsPerProviderPerMinute" to s.maxCallsPerProviderPerMinute,
         "maxConcurrentCallsPerProvider" to s.maxConcurrentCallsPerProvider,
         "maxRetriesOn429" to s.maxRetriesOn429,
-        "retryBackoffMs" to s.retryBackoffMs
+        "retryBackoffMs429" to s.retryBackoffMs429
     )
 
     private fun diffTrackedFields(a: AppService, b: AppService): Set<String> {
@@ -436,7 +436,7 @@ object ProviderRegistry {
             maxCallsPerProviderPerMinute = p("maxCallsPerProviderPerMinute", existing.maxCallsPerProviderPerMinute, asset.maxCallsPerProviderPerMinute),
             maxConcurrentCallsPerProvider = p("maxConcurrentCallsPerProvider", existing.maxConcurrentCallsPerProvider, asset.maxConcurrentCallsPerProvider),
             maxRetriesOn429 = p("maxRetriesOn429", existing.maxRetriesOn429, asset.maxRetriesOn429),
-            retryBackoffMs = p("retryBackoffMs", existing.retryBackoffMs, asset.retryBackoffMs)
+            retryBackoffMs429 = p("retryBackoffMs429", existing.retryBackoffMs429, asset.retryBackoffMs429)
         )
     }
 }
@@ -591,8 +591,8 @@ data class ProviderDefinition(
     val maxRetriesOn429: Int? = null,
     /** Per-provider override for the wait between 429 retries
      *  (milliseconds). Null → inherit
-     *  [com.ai.viewmodel.GeneralSettings.retryBackoffMs]. */
-    val retryBackoffMs: Long? = null,
+     *  [com.ai.viewmodel.GeneralSettings.retryBackoffMs429]. */
+    val retryBackoffMs429: Long? = null,
     /** Deprecated — kept on the deserialization shape so old prefs / setup.json
      *  files with the field still parse, but ignored at dispatch time
      *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
@@ -637,7 +637,7 @@ data class ProviderDefinition(
             maxCallsPerProviderPerMinute = maxCallsPerProviderPerMinute?.takeIf { it > 0 },
             maxConcurrentCallsPerProvider = maxConcurrentCallsPerProvider?.takeIf { it > 0 },
             maxRetriesOn429 = maxRetriesOn429?.takeIf { it >= 0 },
-            retryBackoffMs = retryBackoffMs?.takeIf { it > 0 }
+            retryBackoffMs429 = retryBackoffMs429?.takeIf { it > 0 }
         )
     }
 
@@ -674,7 +674,7 @@ data class ProviderDefinition(
             maxCallsPerProviderPerMinute = s.maxCallsPerProviderPerMinute,
             maxConcurrentCallsPerProvider = s.maxConcurrentCallsPerProvider,
             maxRetriesOn429 = s.maxRetriesOn429,
-            retryBackoffMs = s.retryBackoffMs
+            retryBackoffMs429 = s.retryBackoffMs429
         )
     }
 }
