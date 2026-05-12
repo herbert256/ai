@@ -897,7 +897,7 @@ private fun NetworkSettingsSubScreen(
 }
 
 /** Visual / layout preferences that don't affect the network layer.
- *  Five cards: Model name layout, Subject to title bar, Icon bar
+ *  Five cards: Model name layout, Title bar layout, Icon bar
  *  position, Show < Back, Show AI Knowledge card on home page. */
 @Composable
 private fun UiTweaksSubScreen(
@@ -951,7 +951,7 @@ private fun UiTweaksSubScreen(
                 }
             }
             SettingCard(
-                "Subject to title bar",
+                "Title bar layout",
                 "Detail screens have a fixed label and a dynamic subject. Pick which one (or both) goes in the title bar."
             ) {
                 Column {
