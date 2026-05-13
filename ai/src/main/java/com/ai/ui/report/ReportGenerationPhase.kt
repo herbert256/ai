@@ -815,12 +815,57 @@ internal fun ColumnScope.GenerationPhase(
                     },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Resolve the InternalPrompt that produced this
+                    // fan-out run so its cached emoji can replace ✅
+                    // (mirrors the meta-run row classifier above).
+                    // Fan-out summaries identify by prompt NAME (no
+                    // promptId on the summary itself), so we walk the
+                    // user's fan_out prompts and match by name.
+                    val fanOutPrompt = androidx.compose.runtime.remember(
+                        run.metaPromptName, aiSettings.internalPrompts.size
+                    ) {
+                        aiSettings.internalPrompts.firstOrNull {
+                            it.category == "fan_out" && it.name == run.metaPromptName
+                        }
+                    }
                     when {
                         run.pendingCount > 0 -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                             AnimatedHourglass(fontSize = 16.sp)
                         }
                         run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        else -> {
+                            // Success: try the per-prompt cached emoji
+                            // before falling back to ✅. Cache miss fires
+                            // a one-shot kick-off via onMissingPromptIcon;
+                            // the row recomposes on iconRefreshTick once
+                            // the call lands.
+                            val emoji = if (
+                                uiState.generalSettings.useInternalPromptsIcons &&
+                                fanOutPrompt != null &&
+                                fanOutPrompt.name.isNotBlank()
+                            ) {
+                                val tick = uiState.iconRefreshTick
+                                androidx.compose.runtime.remember(
+                                    fanOutPrompt.id, fanOutPrompt.name,
+                                    fanOutPrompt.title, tick
+                                ) {
+                                    val cached = com.ai.data.InternalPromptIconCache
+                                        .get(fanOutPrompt.name, fanOutPrompt.title)
+                                    if (cached == null) onMissingPromptIcon(fanOutPrompt)
+                                    cached
+                                }
+                            } else null
+                            if (emoji != null) {
+                                Text(
+                                    emoji, fontSize = 16.sp,
+                                    modifier = Modifier
+                                        .width(24.dp)
+                                        .clickable { onOpenInternalPromptIconDetail(fanOutPrompt!!) }
+                                )
+                            } else {
+                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            }
+                        }
                     }
                     RowTypeCell("fan-out")
                     val pendingSuffix = if (run.pendingCount > 0) " · ${run.pendingCount} pending" else ""
