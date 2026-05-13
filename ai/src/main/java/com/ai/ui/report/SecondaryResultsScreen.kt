@@ -617,14 +617,17 @@ private fun ColumnScope.FanOutDrillInView(
         byKey
     }
 
-    // Re-enqueue placeholders that survived an app kill (no content,
-    // no error, and not currently in flight). The viewmodel filters by
-    // metaPromptId so other Fan out runs on the same report aren't
-    // touched. No-op when fanOutPrompt is null (legacy rows without a
-    // metaPromptId).
-    LaunchedEffect(reportId, fanOutPrompt?.id) {
-        fanOutPrompt?.let { onResumeStaleFanOut(it) }
-    }
+    // The L1 LaunchedEffect that fired resumeStaleFanOutPairs was
+    // retired — the report-open orchestrator (resumeStaleRunsForReport,
+    // ReportViewModel.kt) already walks every metaPromptId and calls
+    // resumeStaleFanOutPairs for each. Keeping the L1 trigger meant
+    // the L1 fired on every aiSettings re-emit (fanOutPrompt re-keys
+    // by object identity), which under config-change churn could
+    // overlap with the orchestrator's call and slip past the
+    // staleResumeScans guard between scan-body-exit and rerun-Job-
+    // start. The viewmodel now holds the dedup key through the
+    // rerun Job's full lifetime, so even if both call sites fired
+    // serially they'd dedup correctly.
 
     // Scope rememberSaveable buckets per-(report, fan out prompt). Without
     // the key suffix, rotating the device while looking at Fan out

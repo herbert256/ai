@@ -2738,36 +2738,46 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         val key = fanOutJobKey(reportId, metaPrompt.id)
         // Drop the call if a previous resume scan for the same
-        // (report, prompt) is already in flight. The L1 LaunchedEffect
-        // can re-key spuriously when aiSettings flows a new copy.
+        // (report, prompt) is in flight OR has dispatched a rerun
+        // that hasn't finished yet. The lifetime of the key extends
+        // past the scan body all the way through the dispatched
+        // rerun Job — without that, a second resume scan firing
+        // milliseconds after the first scan body exits could re-read
+        // the same stale placeholders (still blank on disk, the
+        // rerun hasn't filled them yet) and dispatch a duplicate
+        // rerun, double-billing the user. Both
+        // [resumeStaleRunsForReport] (report-open orchestrator) and
+        // any direct caller share the same guard.
         if (!staleResumeScans.add(key)) return null
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val running = appViewModel.runningFanOutPairs.value
-                val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPrompt.id &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            it.content.isNullOrBlank() &&
-                            it.errorMessage == null &&
-                            // durationMs is stamped on every successful + errored
-                            // save and cleared by resetAndRelaunch. A row with
-                            // durationMs set but blank content is a successful
-                            // empty-body completion — re-firing it would
-                            // duplicate-bill the user (same fix as the L1 stats
-                            // classifier in SecondaryResultsScreen).
-                            it.durationMs == null &&
-                            it.id !in running
-                    }
-                if (stale.isNotEmpty()) {
-                    rerunFanOutPlaceholders(context, reportId, metaPrompt, stale)
+        val scanJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val running = appViewModel.runningFanOutPairs.value
+            val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                .filter {
+                    it.metaPromptId == metaPrompt.id &&
+                        it.fanOutSourceAgentId != null &&
+                        it.fanInOf == null &&
+                        it.content.isNullOrBlank() &&
+                        it.errorMessage == null &&
+                        // durationMs is stamped on every successful + errored
+                        // save and cleared by resetAndRelaunch. A row with
+                        // durationMs set but blank content is a successful
+                        // empty-body completion — re-firing it would
+                        // duplicate-bill the user (same fix as the L1 stats
+                        // classifier in SecondaryResultsScreen).
+                        it.durationMs == null &&
+                        it.id !in running
                 }
-            } finally {
-                staleResumeScans.remove(key)
-            }
+            val rerunJob = if (stale.isNotEmpty()) {
+                rerunFanOutPlaceholders(context, reportId, metaPrompt, stale)
+            } else null
+            // Wait for the rerun to fully complete before releasing
+            // the dedup key — only at that point can we safely admit
+            // a new scan; until then a fresh scan would re-read the
+            // same placeholders (still blank) and re-dispatch.
+            rerunJob?.join()
         }
-        return job
+        scanJob.invokeOnCompletion { staleResumeScans.remove(key) }
+        return scanJob
     }
 
     /** Re-run a single fan-out pair row. Resets it on disk (clears
