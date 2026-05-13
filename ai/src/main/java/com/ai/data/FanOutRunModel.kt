@@ -69,10 +69,17 @@ data class PairState(
     val outputCost: Double? = null,
     val durationMs: Long? = null,
     val tokenUsage: TokenUsage? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Emoji produced by the fan-out pair icon chain. Null until
+     *  the chain finishes for this pair (or the feature is off). */
+    val icon: String? = null,
+    val iconWinningTier: Int? = null,
+    val iconInputCost: Double = 0.0,
+    val iconOutputCost: Double = 0.0
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
-    val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
+    val totalCost: Double get() =
+        (inputCost ?: 0.0) + (outputCost ?: 0.0) + iconInputCost + iconOutputCost
 }
 
 /** Promote a disk-derived [PairStatus] to RUNNING when the pair's
@@ -202,7 +209,11 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         outputCost = outputCost,
         durationMs = durationMs,
         tokenUsage = tokenUsage,
-        timestamp = timestamp
+        timestamp = timestamp,
+        icon = icon,
+        iconWinningTier = iconWinningTier,
+        iconInputCost = iconInputCost,
+        iconOutputCost = iconOutputCost
     )
 }
 

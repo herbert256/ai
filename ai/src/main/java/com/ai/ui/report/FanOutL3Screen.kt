@@ -188,9 +188,18 @@ internal fun FanOutL3Screen(
             // Source pane — header row carries the source's "provider /
             // model" label plus info / trace icons for the source
             // agent's own run (peeking out of the pair view into the
-            // upstream call that produced the body shown below).
+            // upstream call that produced the body shown below). The
+            // source agent's per-model report icon (if generated) is
+            // shown as a leading emoji.
             Column(Modifier.fillMaxWidth().heightIn(max = halfMax).padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val sourceIcon = sourceAgent?.icon
+                    if (!sourceIcon.isNullOrBlank()) {
+                        Text(
+                            sourceIcon, fontSize = 16.sp,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                    }
                     Text(
                         sourceLabel, fontSize = 14.sp, color = AppColors.Blue,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
@@ -223,9 +232,16 @@ internal fun FanOutL3Screen(
             }
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
-            // Answerer / response pane
+            // Answerer / response pane. Leading emoji is the icon
+            // produced by the fan-out icon chain (fanOutIconGenEnabled).
             Column(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!pair.icon.isNullOrBlank()) {
+                        Text(
+                            pair.icon, fontSize = 16.sp,
+                            modifier = Modifier.padding(end = 6.dp)
+                        )
+                    }
                     Text(
                         answererLabel, fontSize = 14.sp, color = AppColors.Green,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,

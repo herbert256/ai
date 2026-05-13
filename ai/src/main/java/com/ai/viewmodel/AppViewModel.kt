@@ -89,6 +89,18 @@ data class GeneralSettings(
      *  chain finishes for that row. When false the chain never
      *  runs automatically; per-agent rows keep their plain ✅. */
     val perModelIconGenEnabled: Boolean = true,
+    /** Master switch for the per-fan-out-pair 3-tier icon chain
+     *  ([com.ai.viewmodel.ReportViewModel.runFanOutIconChain]). When
+     *  true (default) every fan-out pair API call's successful
+     *  response auto-fires the chain (chat continuation →
+     *  one-shot template → fixed-agent fallback). The L3 "Fan out
+     *  - pair" screen then shows both this icon and the source
+     *  model's report icon. Costs accumulate on the pair's
+     *  iconInputCost / iconOutputCost (rolled into PairState
+     *  totalCost) and post to UsageStats with kind="icon". When
+     *  false the chain never fires; the L3 screen shows no
+     *  answerer-side icon. */
+    val fanOutIconGenEnabled: Boolean = true,
     /** Master switch for the per-internal-prompt icon cache. When true
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a

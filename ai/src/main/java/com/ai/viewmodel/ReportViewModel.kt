@@ -1540,6 +1540,289 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    // -----------------------------------------------------------------
+    // Fan-out pair icon chain (mirrors runReportIconsForAgent)
+    // -----------------------------------------------------------------
+
+    /** Per-fan-out-pair 3-tier icon chain. Tier 1 = chat continuation
+     *  with one extra turn beyond the report-icon chain (so the model
+     *  sees the question → source response → meta prompt → its own
+     *  response, then is asked for an emoji). Tier 2 = one-shot
+     *  fan_out_icon template substitution against the pair's own
+     *  (provider, model). Tier 3 = fixed-agent fan_out_icon_3th
+     *  fallback. Fire-and-forget on viewModelScope so the per-pair
+     *  coroutine can return its throttle permit immediately. */
+    fun runFanOutIconChain(
+        context: Context, reportId: String,
+        pair: SecondaryResult,
+        metaPromptText: String,
+        reportPrompt: String,
+        sourceResponse: String,
+        aiSettings: Settings
+    ) {
+        val chatPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "fan_out_icon_chat"
+        }
+        val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "fan_out_icon"
+        }
+        val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "fan_out_icon_3th"
+        }
+        if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
+            AppLog.w("FanOutIcons", "no icon prompts configured — skipping (pair=${pair.id})")
+            return
+        }
+        val pairProvider = AppService.findById(pair.providerId) ?: return
+        val pairContent = pair.content
+        if (pairContent.isNullOrBlank()) return
+
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val tier1 = chatPrompt?.let { p ->
+                runFanOutTier1(
+                    context, reportId, pairProvider, pair, p,
+                    reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
+                )
+            }
+            if (tier1 != null) {
+                commitFanOutIconResult(context, reportId, pair.id, tier1, winningTier = 1)
+                return@launch
+            }
+
+            val tier2 = tier2Prompt?.let { p ->
+                runFanOutTier2(
+                    context, reportId, pairProvider, pair, p,
+                    reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
+                )
+            }
+            if (tier2 != null) {
+                commitFanOutIconResult(context, reportId, pair.id, tier2, winningTier = 2)
+                return@launch
+            }
+
+            val tier3 = tier3Prompt?.let { p ->
+                runFanOutTier3(context, reportId, pair, p, pairContent, aiSettings)
+            }
+            if (tier3 != null) {
+                commitFanOutIconResult(context, reportId, pair.id, tier3, winningTier = 3)
+                return@launch
+            }
+
+            commitFanOutIconResult(context, reportId, pair.id, "📝", winningTier = null)
+        }
+    }
+
+    private suspend fun runFanOutTier1(
+        context: Context, reportId: String, provider: AppService,
+        pair: SecondaryResult, chatPrompt: InternalPrompt,
+        reportPrompt: String, sourceResponse: String,
+        metaPromptText: String, pairContent: String,
+        aiSettings: Settings
+    ): String? {
+        val host = providerHost(provider)
+        val releaser = ProviderThrottle.acquire(host)
+        return try {
+            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                withTracerTags(reportId = reportId, category = "Fan-out icons tier 1 (chat)") {
+                    val started = System.currentTimeMillis()
+                    runCatching {
+                        val messages = listOf(
+                            ChatMessage(role = "user", content = reportPrompt),
+                            ChatMessage(role = "assistant", content = sourceResponse),
+                            ChatMessage(role = "user", content = metaPromptText),
+                            ChatMessage(role = "assistant", content = pairContent),
+                            ChatMessage(role = "user", content = chatPrompt.text)
+                        )
+                        val apiKey = aiSettings.getApiKey(provider)
+                        val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
+                        val responseText = appViewModel.repository.sendChat(
+                            service = provider, apiKey = apiKey, model = pair.model,
+                            messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                        )
+                        val durationMs = System.currentTimeMillis() - started
+                        val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+                        val outT = AppViewModel.estimateTokens(responseText)
+                        val emoji = extractFirstEmoji(responseText)
+                        recordFanOutTierCall(
+                            context, reportId, pair, tier = 1,
+                            provider = provider, model = pair.model,
+                            inT = inT, outT = outT, durationMs = durationMs,
+                            success = emoji != null
+                        )
+                        emoji
+                    }.getOrElse { e ->
+                        AppLog.w("FanOutIcons", "tier 1 failed for pair=${pair.id}: ${e.message}")
+                        null
+                    }
+                }
+            }
+        } finally {
+            releaser.release()
+        }
+    }
+
+    private suspend fun runFanOutTier2(
+        context: Context, reportId: String, provider: AppService,
+        pair: SecondaryResult, tier2Prompt: InternalPrompt,
+        reportPrompt: String, sourceResponse: String,
+        metaPromptText: String, pairContent: String,
+        aiSettings: Settings
+    ): String? {
+        val host = providerHost(provider)
+        val releaser = ProviderThrottle.acquire(host)
+        return try {
+            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                withTracerTags(reportId = reportId, category = "Fan-out icons tier 2 (one-shot)") {
+                    val started = System.currentTimeMillis()
+                    runCatching {
+                        val syntheticAgent = Agent(
+                            id = "fan-out-icon-tier2-${pair.id}",
+                            name = pair.agentName,
+                            provider = provider,
+                            model = pair.model,
+                            apiKey = aiSettings.getApiKey(provider)
+                        )
+                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                        val resolved = tier2Prompt.text
+                            .replace("@QUESTION@", reportPrompt)
+                            .replace("@SOURCE_RESPONSE@", sourceResponse)
+                            .replace("@META_PROMPT@", metaPromptText)
+                            .replace("@RESPONSE@", pairContent)
+                        val response = appViewModel.repository.analyzeWithAgent(
+                            syntheticAgent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                        val durationMs = System.currentTimeMillis() - started
+                        val tu = response.tokenUsage
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
+                        recordFanOutTierCall(
+                            context, reportId, pair, tier = 2,
+                            provider = provider, model = pair.model,
+                            inT = inT, outT = outT, durationMs = durationMs,
+                            success = emoji != null
+                        )
+                        emoji
+                    }.getOrElse { e ->
+                        AppLog.w("FanOutIcons", "tier 2 failed for pair=${pair.id}: ${e.message}")
+                        null
+                    }
+                }
+            }
+        } finally {
+            releaser.release()
+        }
+    }
+
+    private suspend fun runFanOutTier3(
+        context: Context, reportId: String,
+        pair: SecondaryResult, tier3Prompt: InternalPrompt,
+        pairContent: String, aiSettings: Settings
+    ): String? {
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(tier3Prompt.agent, ignoreCase = true)
+        } ?: run {
+            AppLog.w("FanOutIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
+            return null
+        }
+        val effectiveAgent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val host = providerHost(effectiveAgent.provider)
+        val releaser = ProviderThrottle.acquire(host)
+        return try {
+            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                withTracerTags(reportId = reportId, category = "Fan-out icons tier 3 (fixed agent)") {
+                    val started = System.currentTimeMillis()
+                    runCatching {
+                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
+                        val resolved = tier3Prompt.text.replace("@RESPONSE@", pairContent)
+                        val response = appViewModel.repository.analyzeWithAgent(
+                            effectiveAgent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                        val durationMs = System.currentTimeMillis() - started
+                        val tu = response.tokenUsage
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
+                        recordFanOutTierCall(
+                            context, reportId, pair, tier = 3,
+                            // Cost attribution goes to the actual model
+                            // that ran (DeepSeek), matching the report-
+                            // icon tier 3 behaviour.
+                            provider = effectiveAgent.provider, model = effectiveAgent.model,
+                            inT = inT, outT = outT, durationMs = durationMs,
+                            success = emoji != null
+                        )
+                        emoji
+                    }.getOrElse { e ->
+                        AppLog.w("FanOutIcons", "tier 3 failed for pair=${pair.id}: ${e.message}")
+                        null
+                    }
+                }
+            }
+        } finally {
+            releaser.release()
+        }
+    }
+
+    /** Shared write-side of a fan-out icon tier call. Bumps the per-
+     *  pair iconInput/OutputCost on the SecondaryResult so the row's
+     *  L2 / L1 cost cells absorb the cost, updates the global
+     *  UsageStats ledger with kind="icon" attributed to the actual
+     *  (provider, model) that billed, and appends an IconCallRecord
+     *  to Report.iconCalls for the export's per-call All-tab.
+     *
+     *  IconCallRecord.agentId is set to the pair's UUID so the audit
+     *  log can distinguish fan-out icon rows from per-agent icon
+     *  rows (which use the agentId of the parent ReportAgent). */
+    private suspend fun recordFanOutTierCall(
+        context: Context, reportId: String, pair: SecondaryResult, tier: Int,
+        provider: AppService, model: String,
+        inT: Int, outT: Int, durationMs: Long, success: Boolean
+    ) {
+        val pricing = PricingCache.getPricing(context, provider, model)
+        val inC = inT * pricing.promptPrice
+        val outC = outT * pricing.completionPrice
+        if (inT > 0 || outT > 0) {
+            SecondaryResultStorage.bumpFanOutIconCost(
+                context, reportId, pair.id,
+                inputTokens = inT, outputTokens = outT,
+                inputCost = inC, outputCost = outC
+            )
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                provider, model, inT, outT, kind = "icon"
+            )
+        }
+        ReportStorage.appendIconCall(
+            context, reportId,
+            IconCallRecord(
+                agentId = pair.id, tier = tier,
+                provider = provider.id, model = model,
+                pricingTier = pricing.source,
+                inputTokens = inT, outputTokens = outT,
+                inputCost = inC, outputCost = outC,
+                durationMs = durationMs,
+                success = success
+            )
+        )
+    }
+
+    private suspend fun commitFanOutIconResult(
+        context: Context, reportId: String, pairId: String,
+        emoji: String, winningTier: Int?
+    ) {
+        SecondaryResultStorage.setFanOutIconAndTier(
+            context, reportId, pairId, emoji, winningTier
+        )
+        appViewModel.updateUiState {
+            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+        }
+    }
+
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
         selectionParamsById: Map<String, List<String>>, externalSystemPrompt: String?,
@@ -2426,6 +2709,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 fanOutSourceAgentId = item.source.agentId,
                                                 existingPlaceholder = item.placeholder
                                             )
+                                            // Fire the per-pair icon chain (fan_out_icon_chat
+                                            // → fan_out_icon → fan_out_icon_3th) on the
+                                            // successful save. Gated by fanOutIconGenEnabled
+                                            // so users can opt out. Read the row back from
+                                            // disk to pick up the content stamped by
+                                            // executeSecondaryTask.
+                                            val fanOutIconOn = appViewModel.uiState.value
+                                                .generalSettings.fanOutIconGenEnabled
+                                            if (fanOutIconOn) {
+                                                val saved = SecondaryResultStorage.get(context, reportId, item.placeholder.id)
+                                                if (saved?.content != null && saved.errorMessage == null) {
+                                                    runFanOutIconChain(
+                                                        context, reportId, saved,
+                                                        metaPromptText = resolved,
+                                                        reportPrompt = report.prompt,
+                                                        sourceResponse = item.source.responseBody.orEmpty(),
+                                                        aiSettings = aiSettings
+                                                    )
+                                                }
+                                            }
                                         } finally {
                                             appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
                                             AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
@@ -2542,6 +2845,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 fanOutSourceAgentId = source.agentId,
                                                 existingPlaceholder = ph
                                             )
+                                            // Re-fire the per-pair icon chain after a
+                                            // successful rerun — mirrors the runFanOutPrompt
+                                            // hook. The reset cleared any previous icon /
+                                            // iconWinningTier (they are not reset by
+                                            // resetAndRelaunch, but the new content will
+                                            // produce a fresh emoji that overwrites the
+                                            // stale one once tier-1+ commits).
+                                            val fanOutIconOn = appViewModel.uiState.value
+                                                .generalSettings.fanOutIconGenEnabled
+                                            if (fanOutIconOn) {
+                                                val saved = SecondaryResultStorage.get(context, reportId, ph.id)
+                                                if (saved?.content != null && saved.errorMessage == null) {
+                                                    runFanOutIconChain(
+                                                        context, reportId, saved,
+                                                        metaPromptText = resolved,
+                                                        reportPrompt = report.prompt,
+                                                        sourceResponse = source.responseBody.orEmpty(),
+                                                        aiSettings = aiSettings
+                                                    )
+                                                }
+                                            }
                                         } finally {
                                             appViewModel.updateRunningFanOutPairs { it - ph.id }
                                             AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
@@ -2591,7 +2915,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 tokenUsage = null,
                 inputCost = null,
                 outputCost = null,
-                durationMs = null
+                durationMs = null,
+                icon = null,
+                iconWinningTier = null,
+                iconErrorMessage = null,
+                iconInputTokens = 0,
+                iconOutputTokens = 0,
+                iconInputCost = 0.0,
+                iconOutputCost = 0.0
             ).also { SecondaryResultStorage.save(context, it) }
         }
         return rerunFanOutPlaceholders(context, reportId, metaPrompt, reset)

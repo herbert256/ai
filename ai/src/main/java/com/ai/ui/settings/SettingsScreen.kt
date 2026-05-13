@@ -997,6 +997,7 @@ private fun OtherSettingsSubScreen(
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
+    var fanOutIconGenEnabled by remember { mutableStateOf(generalSettings.fanOutIconGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
 
     fun build(): GeneralSettings = generalSettings.copy(
@@ -1004,10 +1005,11 @@ private fun OtherSettingsSubScreen(
         defaultEmail = defaultEmail,
         iconGenEnabled = iconGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
+        fanOutIconGenEnabled = fanOutIconGenEnabled,
         useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, fanOutIconGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1052,6 +1054,12 @@ private fun OtherSettingsSubScreen(
                 description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
                 checked = perModelIconGenEnabled,
                 onCheckedChange = { perModelIconGenEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Generate Fan Out response icons",
+                description = "Auto-run the 3-tier icon chain (chat continuation → one-shot template → fixed-agent fallback) on every fan-out pair response. The L3 'Fan out - pair' screen shows both this icon and the source model's report icon. Costs accumulate on the pair's cost cell and post to Usage statistics with kind=\"icon\".",
+                checked = fanOutIconGenEnabled,
+                onCheckedChange = { fanOutIconGenEnabled = it }
             )
             ToggleSettingCard(
                 title = "Use internal prompts icons",

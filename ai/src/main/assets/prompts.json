@@ -98,6 +98,32 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
   },
   {
+    "name": "fan_out_icon_chat",
+    "title": "Find a fitting emoji for a fan-out pair response, chat version",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "*N/A",
+    "text": "Please give your previous response back as an emoji, just one emoji, nothing more."
+  },
+  {
+    "name": "fan_out_icon",
+    "title": "Find a fitting emoji for a fan-out pair response",
+    "reference": false,
+    "category": "internal",
+    "agent": "*N/A",
+    "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
+  },
+  {
+    "name": "fan_out_icon_3th",
+    "title": "Find a fitting emoji for a fan-out pair response, 3th try",
+    "reference": false,
+    "category": "internal",
+    "scope": "Default",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
+  },
+  {
     "name": "chat_title",
     "title": "Decide the chat title",
     "reference": false,

@@ -99,7 +99,25 @@ data class SecondaryResult(
      *  other row including the legacy "total" fan_in (which combines
      *  the whole report and is shown on L1's combinedRows section). */
     val scopeProviderId: String? = null,
-    val scopeModel: String? = null
+    val scopeModel: String? = null,
+    /** Per-fan-out-pair emoji produced by the
+     *  [com.ai.viewmodel.ReportViewModel.runFanOutIconChain] 3-tier
+     *  chain (chat continuation → one-shot fan_out_icon →
+     *  fixed-agent fan_out_icon_3th). Null until the chain finishes
+     *  (or skipped — feature gated by
+     *  [com.ai.viewmodel.GeneralSettings.fanOutIconGenEnabled]).
+     *  Empty / non-fan-out rows leave this null forever. */
+    val icon: String? = null,
+    /** Which tier of the fan-out icon chain produced [icon]. 1 =
+     *  chat continuation, 2 = one-shot fan_out_icon, 3 = fixed-
+     *  agent fan_out_icon_3th. Null when no tier succeeded and the
+     *  icon is the 📝 fallback, or when [icon] is null. */
+    val iconWinningTier: Int? = null,
+    val iconErrorMessage: String? = null,
+    val iconInputTokens: Int = 0,
+    val iconOutputTokens: Int = 0,
+    val iconInputCost: Double = 0.0,
+    val iconOutputCost: Double = 0.0
 )
 
 /**
@@ -311,6 +329,56 @@ object SecondaryResultStorage {
             listCache[result.reportId]?.remove(target.name)
         }
         return true
+    }
+
+    /** Atomically bumps the per-pair icon-chain cost counters on the
+     *  [resultId] row under [reportId]. No-op when the row is gone
+     *  (user deleted the pair mid-chain) so a late-arriving tier
+     *  doesn't resurrect a deleted placeholder. Mirrors
+     *  [ReportStorage.bumpReportAgentIconCost] — same atomic-write
+     *  shape, same per-tier accumulation. */
+    fun bumpFanOutIconCost(
+        context: Context, reportId: String, resultId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                iconInputTokens = current.iconInputTokens + inputTokens,
+                iconOutputTokens = current.iconOutputTokens + outputTokens,
+                iconInputCost = current.iconInputCost + inputCost,
+                iconOutputCost = current.iconOutputCost + outputCost
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Final commit step of the fan-out icon chain — stamps [icon] +
+     *  [winningTier] on the row, leaving the cost / token counters
+     *  bumped by earlier [bumpFanOutIconCost] calls intact. No-op
+     *  when the row was deleted while the chain ran. */
+    fun setFanOutIconAndTier(
+        context: Context, reportId: String, resultId: String,
+        icon: String, winningTier: Int?
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(icon = icon, iconWinningTier = winningTier)
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
     }
 
     fun delete(context: Context, reportId: String, resultId: String) {

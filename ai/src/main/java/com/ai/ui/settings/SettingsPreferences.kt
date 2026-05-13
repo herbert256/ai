@@ -67,6 +67,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             } ?: SubjectToTitleBarMode.HARDCODED,
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
+            fanOutIconGenEnabled = prefs.getBoolean(KEY_FAN_OUT_ICON_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -111,6 +112,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_SUBJECT_TO_TITLE_BAR_MODE, settings.subjectToTitleBarMode.name)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
+            putBoolean(KEY_FAN_OUT_ICON_GEN_ENABLED, settings.fanOutIconGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             // Newline-joined: entries are "providerId|model" so newline
@@ -478,6 +480,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_SUBJECT_TO_TITLE_BAR_MODE = "subject_to_title_bar_mode"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
+        private const val KEY_FAN_OUT_ICON_GEN_ENABLED = "fan_out_icon_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
