@@ -455,6 +455,7 @@ internal fun SecondaryResultsScreen(
                 reportId = reportId,
                 runKey = runKey,
                 actions = actions,
+                runningSet = effectiveRunningFanOutPairs,
                 onBack = onBack
             )
             return@Column

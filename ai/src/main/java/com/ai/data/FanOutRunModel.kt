@@ -75,6 +75,21 @@ data class PairState(
     val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
 }
 
+/** Promote a disk-derived [PairStatus] to RUNNING when the pair's
+ *  id is in the live in-flight set ([runningSet]). The disk row of
+ *  an in-flight pair looks identical to a queued one (blank
+ *  content, no error, no duration), so we can't tell them apart
+ *  from disk alone — the legacy `runningFanOutPairs` StateFlow
+ *  fills the gap.
+ *
+ *  DONE / ERROR always win: once content / errorMessage has
+ *  landed the pair is settled, regardless of whether its id is
+ *  still in [runningSet] for a brief window. */
+fun PairState.effectiveStatus(runningSet: Set<String>): PairStatus = when (status) {
+    PairStatus.DONE, PairStatus.ERROR -> status
+    else -> if (id in runningSet) PairStatus.RUNNING else PairStatus.PENDING
+}
+
 /** A combined-reports / fan-in row attached to a Fan Out run.
  *  Identified on disk by `fanInOf != null && fanOutSourceAgentId
  *  == null`. Whole-run fan-ins leave [scopeProviderId] /
@@ -133,6 +148,19 @@ data class FanOutRunState(
     val queuedCount: Int get() = pairs.values.count { it.status == PairStatus.PENDING }
     val totalCost: Double get() =
         pairs.values.sumOf { it.totalCost } + combinedReports.sumOf { it.totalCost }
+
+    /** Live RUNNING count — counts pairs whose disk row says
+     *  PENDING but whose id is in [runningSet] (the legacy in-flight
+     *  set the existing `runFanOutPrompt` runner maintains). Used
+     *  by the L1 stats panel until the launch path is migrated to
+     *  [com.ai.viewmodel.FanOutEngine.startRun]. */
+    fun effectiveRunningCount(runningSet: Set<String>): Int =
+        pairs.values.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
+
+    /** Live QUEUED count — pairs whose disk row says PENDING AND
+     *  are not (yet) in [runningSet]. */
+    fun effectiveQueuedCount(runningSet: Set<String>): Int =
+        pairs.values.count { it.effectiveStatus(runningSet) == PairStatus.PENDING }
 
     /** UI helper — every pair's answerer key, deduplicated, in
      *  the order they first appear. Used by the L1 model row list

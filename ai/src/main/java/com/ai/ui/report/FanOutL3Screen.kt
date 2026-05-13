@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairStatus
+import com.ai.data.effectiveStatus
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -56,6 +57,7 @@ import kotlinx.coroutines.withContext
 internal fun FanOutL3Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
+    runningSet: Set<String>,
     answererKey: String,
     sourceAgentId: String,
     role: String,
@@ -175,7 +177,7 @@ internal fun FanOutL3Screen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                    when (pair.status) {
+                    when (pair.effectiveStatus(runningSet)) {
                         PairStatus.ERROR -> Text(
                             "❌ ${pair.errorMessage}",
                             color = AppColors.Red, fontSize = 13.sp

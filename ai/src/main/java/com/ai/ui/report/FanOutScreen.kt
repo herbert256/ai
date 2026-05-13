@@ -108,6 +108,14 @@ fun FanOutScreen(
     reportId: String,
     runKey: FanOutRunKey,
     actions: FanOutActions,
+    /** Live in-flight pair ids — passed from the parent to bridge
+     *  the legacy `runningFanOutPairs` StateFlow into the new
+     *  screens. Each level's classifier consults this set to
+     *  promote a disk-derived PENDING into RUNNING for pairs whose
+     *  per-pair coroutine has acquired its throttle permit. Empty
+     *  set is a valid degenerate case (no in-flight info — every
+     *  pair reads as the disk says). */
+    runningSet: Set<String> = emptySet(),
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -148,6 +156,7 @@ fun FanOutScreen(
         is FanOutNav.L1 -> FanOutL1Screen(
             engine = engine,
             run = runState,
+            runningSet = runningSet,
             actions = actions,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
             onBack = onBack
@@ -155,6 +164,7 @@ fun FanOutScreen(
         is FanOutNav.L2 -> FanOutL2Screen(
             engine = engine,
             run = runState,
+            runningSet = runningSet,
             answererKey = n.answererKey,
             role = n.role,
             actions = actions,
@@ -168,6 +178,7 @@ fun FanOutScreen(
         is FanOutNav.L3 -> FanOutL3Screen(
             engine = engine,
             run = runState,
+            runningSet = runningSet,
             answererKey = n.answererKey,
             sourceAgentId = n.sourceAgentId,
             role = n.role,

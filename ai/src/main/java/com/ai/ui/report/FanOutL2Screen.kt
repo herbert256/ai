@@ -41,6 +41,7 @@ import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
+import com.ai.data.effectiveStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -62,6 +63,7 @@ import com.ai.viewmodel.FanOutEngine
 internal fun FanOutL2Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
+    runningSet: Set<String>,
     answererKey: String,
     role: String,
     actions: FanOutActions,
@@ -249,7 +251,7 @@ internal fun FanOutL2Screen(
                             .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val icon = when (p.status) {
+                        val icon = when (p.effectiveStatus(runningSet)) {
                             PairStatus.ERROR -> "❌"
                             PairStatus.DONE -> "✅"
                             PairStatus.RUNNING -> "⏳"

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.FanOutRunState
 import com.ai.data.PairStatus
+import com.ai.data.effectiveStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -58,6 +59,7 @@ import com.ai.viewmodel.FanOutEngine
 internal fun FanOutL1Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
+    runningSet: Set<String>,
     actions: FanOutActions,
     onOpenModel: (String) -> Unit,
     onBack: () -> Unit
@@ -102,7 +104,7 @@ internal fun FanOutL1Screen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Top progress bar — while any pair is pending or running.
-        val pending = run.queuedCount + run.runningCount
+        val pending = run.effectiveQueuedCount(runningSet) + run.effectiveRunningCount(runningSet)
         if (pending > 0 && run.totalPairs > 0) {
             val finished = (run.doneCount + run.errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
@@ -179,7 +181,8 @@ internal fun FanOutL1Screen(
                 }
                 val ok = pairs.count { it.status == PairStatus.DONE }
                 val err = pairs.count { it.status == PairStatus.ERROR }
-                val running = pairs.count { it.status == PairStatus.RUNNING }
+                // Live in-flight overlay — see PairState.effectiveStatus.
+                val running = pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
                 val total = pairs.size
                 val cost = pairs.sumOf { it.totalCost }
                 Row(
@@ -259,8 +262,8 @@ internal fun FanOutL1Screen(
                 Row { Text("Total API calls", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.weight(1f)); Text(run.totalPairs.toString(), color = AppColors.Blue) }
                 Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(run.doneCount.toString(), color = AppColors.Green) }
                 Row { Text("Errored", fontSize = 13.sp, color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.errorCount.toString(), color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
-                Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(run.runningCount.toString(), color = AppColors.Orange) }
-                Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.queuedCount.toString(), color = AppColors.TextTertiary) }
+                Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(run.effectiveRunningCount(runningSet).toString(), color = AppColors.Orange) }
+                Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.effectiveQueuedCount(runningSet).toString(), color = AppColors.TextTertiary) }
             }
         }
 
