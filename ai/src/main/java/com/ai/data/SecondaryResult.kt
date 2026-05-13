@@ -113,15 +113,22 @@ object SecondaryResultStorage {
     private val lock = ReentrantLock()
     @Volatile private var rootDir: File? = null
 
-    /** Per-report cache of the full row list keyed on a per-file
-     *  fingerprint: (name, mtime, length) joined across every json
-     *  file in the directory. This catches in-place edits to a single
-     *  file inside the directory's coarse-grained mtime window — the
-     *  previous (mtime, count) key collided when two save() calls
-     *  landed in the same coarse second on a file whose new content
-     *  was the same length, returning the OLD parsed row. */
-    private data class ListSnapshot(val fingerprint: String, val rows: List<SecondaryResult>)
-    @Volatile private var listCache: HashMap<String, ListSnapshot> = HashMap()
+    /** Per-file cache of parsed [SecondaryResult] rows. Keyed by
+     *  reportId → filename → (mtime, length, parsed). Each save /
+     *  delete invalidates only the affected filename's entry, so the
+     *  next [listForReport] only re-parses the changed file instead
+     *  of re-parsing the entire report directory. For a 56-pair
+     *  fan-out at steady state, this turns ~56 redundant parses per
+     *  pair completion into 1.
+     *
+     *  Coarse-mtime collisions (two saves to the same file landing
+     *  in the same filesystem second with identical content length)
+     *  are handled by the cache invalidation that fires on the save
+     *  itself — the entry is removed before the next listForReport
+     *  reads it, so the mtime+length match check is only relevant
+     *  to OTHER files in the same directory that didn't change. */
+    private data class CachedEntry(val mtime: Long, val length: Long, val parsed: SecondaryResult)
+    @Volatile private var listCache: HashMap<String, HashMap<String, CachedEntry>> = HashMap()
 
     fun init(context: Context) {
         if (rootDir == null) lock.withLock {
@@ -173,12 +180,13 @@ object SecondaryResultStorage {
                 return result
             }
             target.writeTextAtomic(gson.toJson(result))
-            // listForReport keys its cache on (name, mtime, length). An
-            // overwrite-save keeps name and can keep length; on a
-            // coarse-mtime filesystem the cached fingerprint matches
-            // and a stale row is served. delete() already invalidates
-            // for the same reason — save must too.
-            listCache.remove(result.reportId)
+            // Invalidate only this file's cache entry — other files in
+            // the report directory stay cached, so the next
+            // listForReport only re-parses what changed. Coarse-mtime
+            // collisions (same-second overwrite, same content length)
+            // can't bite here because the entry is removed BEFORE the
+            // next listForReport re-reads it.
+            listCache[result.reportId]?.remove(target.name)
         }
         return result
     }
@@ -210,25 +218,40 @@ object SecondaryResultStorage {
             val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyList()
             if (!dir.exists()) return@withLock emptyList()
             val files = dir.listFiles { f -> f.extension == "json" } ?: return@withLock emptyList()
-            val fingerprint = files
-                .sortedBy { it.name }
-                .joinToString("|") { "${it.name}:${it.lastModified()}:${it.length()}" }
-            val cached = listCache[reportId]
-            val rows = if (cached != null && cached.fingerprint == fingerprint) {
-                cached.rows
-            } else {
-                val parsed = files.mapNotNull { file ->
-                    try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
+            val cacheForReport = listCache.getOrPut(reportId) { HashMap(files.size.coerceAtLeast(16)) }
+            val rows = ArrayList<SecondaryResult>(files.size)
+            val seenFilenames = HashSet<String>(files.size)
+            for (file in files) {
+                val name = file.name
+                seenFilenames.add(name)
+                val mtime = file.lastModified()
+                val length = file.length()
+                val cached = cacheForReport[name]
+                if (cached != null && cached.mtime == mtime && cached.length == length) {
+                    rows.add(cached.parsed)
+                    continue
                 }
-                    // Tiebreaker on collision — burst-saved rows can
-                    // share a millisecond timestamp; sort-by-timestamp
-                    // alone produced an unstable order across listFiles
-                    // calls. Adding the id as a secondary key gives
-                    // deterministic ordering.
-                    .sortedWith(compareBy({ it.timestamp }, { it.id }))
-                listCache[reportId] = ListSnapshot(fingerprint, parsed)
-                parsed
+                val parsed = try {
+                    gson.fromJson(file.readText(), SecondaryResult::class.java)
+                } catch (_: Exception) {
+                    null
+                }
+                if (parsed != null) {
+                    cacheForReport[name] = CachedEntry(mtime, length, parsed)
+                    rows.add(parsed)
+                } else {
+                    cacheForReport.remove(name)
+                }
             }
+            // Drop cache entries for files that have been deleted
+            // since the last call — keeps the cache bounded to the
+            // current on-disk set.
+            cacheForReport.keys.retainAll(seenFilenames)
+            // Tiebreaker on collision — burst-saved rows can share a
+            // millisecond timestamp; sort-by-timestamp alone produced
+            // an unstable order across listFiles calls. Adding the id
+            // as a secondary key gives deterministic ordering.
+            rows.sortWith(compareBy({ it.timestamp }, { it.id }))
             if (kind != null) rows.filter { it.kind == kind } else rows
         }
     }
@@ -285,7 +308,7 @@ object SecondaryResultStorage {
                 return false
             }
             target.writeTextAtomic(gson.toJson(result))
-            listCache.remove(result.reportId)
+            listCache[result.reportId]?.remove(target.name)
         }
         return true
     }
@@ -294,12 +317,11 @@ object SecondaryResultStorage {
         init(context)
         lock.withLock {
             val dir = rootDir?.let { File(it, reportId) } ?: return
-            File(dir, "$resultId.json").delete()
-            // Without invalidating, listForReport's mtime-keyed cache
-            // can return the deleted row on the next read because the
-            // file count + mtime can match the pre-delete snapshot
-            // when filesystem mtime resolution is coarse.
-            listCache.remove(reportId)
+            val target = File(dir, "$resultId.json")
+            target.delete()
+            // Drop only this file's cache entry — the remaining files
+            // for the report stay parsed and ready for the next read.
+            listCache[reportId]?.remove(target.name)
         }
     }
 
@@ -309,6 +331,7 @@ object SecondaryResultStorage {
             val dir = rootDir?.let { File(it, reportId) } ?: return
             dir.listFiles()?.forEach { it.delete() }
             dir.delete()
+            // Whole report gone — drop the entire per-report bucket.
             listCache.remove(reportId)
         }
     }
