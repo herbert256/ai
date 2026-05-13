@@ -4080,6 +4080,88 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         runTranslationSubset(context, sourceReportId, runId, rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() }, deleteRowIds = rows.map { it.id })
     }
 
+    /** Drop every errored translation row from [runId] without
+     *  re-firing. Wired to the run detail screen's "Remove failed
+     *  items" button so the user can clear failures without burning
+     *  more tokens. */
+    fun removeFailedTranslations(
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val failed = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
+        if (failed.isEmpty()) return@launch
+        failed.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
+        // Also drop the items from any live state so the detail
+        // screen's row count updates immediately instead of waiting
+        // for the next list refresh.
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            val failedTargetKeys = failed
+                .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+                .toSet()
+            val filtered = cur.items.filterNot { item ->
+                val srcKind = when (item.kind) {
+                    TranslationKind.PROMPT -> "PROMPT"
+                    TranslationKind.AGENT_RESPONSE -> "AGENT"
+                    TranslationKind.META -> "META"
+                }
+                val srcId = if (item.kind == TranslationKind.PROMPT) "prompt" else (item.target ?: "")
+                item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in failedTargetKeys
+            }
+            runs + (runId to cur.copy(
+                items = filtered,
+                totalCostDollars = filtered.sumOf { it.costDollars }
+            ))
+        }
+        ReportStorage.bumpReportTimestamp(context, sourceReportId)
+    }
+
+    /** Re-fire every expected entry in [runId]: deletes all existing
+     *  rows (success or error) and re-dispatches the full prompt +
+     *  agent + meta set from the current report state. The existing
+     *  Semaphore(3) throttle inside [runTranslationSubset] still
+     *  applies, so a large run shows a mix of RUNNING + PENDING rows
+     *  in the detail screen rather than firing N calls in parallel. */
+    fun restartAllTranslations(
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        // Cancel any in-flight run for this runId so its already-
+        // dispatched coroutines don't keep writing fresh rows under
+        // the about-to-be-restarted runId. Cancellation is co-operative;
+        // in-flight API calls finish but the post-call writes are
+        // gated by translationJobs[runId] cancellation.
+        cancelTranslation(runId)
+        _translationRuns.update { it - runId }
+
+        val existing = SecondaryResultStorage
+            .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+            .filter { translationRunGroupingId(it) == runId }
+        if (existing.isEmpty()) return@launch
+
+        val report = ReportStorage.getReport(context, sourceReportId) ?: return@launch
+        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
+        val pairs = buildList<Pair<String, String>> {
+            add("prompt" to "PROMPT")
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .forEach { add(it.agentId to "AGENT") }
+            secondaries
+                .filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
+                .forEach { add(it.id to "META") }
+        }
+        if (pairs.isEmpty()) return@launch
+
+        runTranslationSubset(
+            context, sourceReportId, runId, pairs,
+            deleteRowIds = existing.map { it.id }
+        )
+    }
+
     /** Run every expected translation item that has no row in [runId]
      *  yet: prompt + each successful agent + each chat-type Meta row.
      *  Used after an interrupted batch to fill in the items that

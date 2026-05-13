@@ -426,6 +426,12 @@ fun ReportsScreenNav(
         onRestartFailedTranslations = { rid, runId ->
             reportViewModel.restartFailedTranslations(context, rid, runId)
         },
+        onRemoveFailedTranslations = { rid, runId ->
+            reportViewModel.removeFailedTranslations(context, rid, runId)
+        },
+        onRestartAllTranslations = { rid, runId ->
+            reportViewModel.restartAllTranslations(context, rid, runId)
+        },
         onStartMissingTranslations = { rid, runId ->
             reportViewModel.startMissingTranslations(context, rid, runId)
         },
@@ -657,6 +663,14 @@ fun ReportsScreen(
     /** Re-run every errored row in the named translation run.
      *  Wired to ReportViewModel.restartFailedTranslations. */
     onRestartFailedTranslations: (String, String) -> Unit = { _, _ -> },
+    /** Drop every errored row from the named translation run
+     *  without re-firing. Wired to
+     *  ReportViewModel.removeFailedTranslations. */
+    onRemoveFailedTranslations: (String, String) -> Unit = { _, _ -> },
+    /** Delete every row of the named translation run and dispatch
+     *  the full set fresh, throttled by the runner's Semaphore(3).
+     *  Wired to ReportViewModel.restartAllTranslations. */
+    onRestartAllTranslations: (String, String) -> Unit = { _, _ -> },
     /** Run every expected translation item not yet covered by the
      *  named run's persisted rows. Wired to
      *  ReportViewModel.startMissingTranslations. */
@@ -2009,6 +2023,14 @@ fun ReportsScreen(
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onRestartFailed = { srcRid, runId ->
                     onRestartFailedTranslations(srcRid, runId)
+                    secondaryRefreshTick++
+                },
+                onRemoveFailed = { srcRid, runId ->
+                    onRemoveFailedTranslations(srcRid, runId)
+                    secondaryRefreshTick++
+                },
+                onRestartAll = { srcRid, runId ->
+                    onRestartAllTranslations(srcRid, runId)
                     secondaryRefreshTick++
                 },
                 onStartMissing = { srcRid, runId ->

@@ -58,6 +58,14 @@ internal fun TranslationRunDetailScreen(
     /** Re-runs every errored row in this translation run. Wired to
      *  [com.ai.viewmodel.ReportViewModel.restartFailedTranslations]. */
     onRestartFailed: (String, String) -> Unit = { _, _ -> },
+    /** Drops every errored row without re-firing. Wired to
+     *  [com.ai.viewmodel.ReportViewModel.removeFailedTranslations]. */
+    onRemoveFailed: (String, String) -> Unit = { _, _ -> },
+    /** Deletes every row of this run and dispatches the full set
+     *  fresh, throttled by [com.ai.viewmodel.ReportViewModel.runTranslationSubset]'s
+     *  Semaphore(3). Wired to
+     *  [com.ai.viewmodel.ReportViewModel.restartAllTranslations]. */
+    onRestartAll: (String, String) -> Unit = { _, _ -> },
     /** Fills in every expected translation item that has no row in
      *  this run yet (e.g., after an interrupted batch). Wired to
      *  [com.ai.viewmodel.ReportViewModel.startMissingTranslations]. */
@@ -198,6 +206,8 @@ internal fun TranslationRunDetailScreen(
     }
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
+    var confirmRestartFailed by remember { mutableStateOf(false) }
+    var confirmRemoveFailed by remember { mutableStateOf(false) }
 
     val erroredCount = results.count { it.errorMessage != null }
 
@@ -216,9 +226,13 @@ internal fun TranslationRunDetailScreen(
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = targetLang,
             onBackClick = onBack,
-            // 🔄 combines "restart failed" + "start missing" — fires
-            // a fresh API call for any errored row plus any expected
-            // call that hasn't landed yet. Successful rows are kept.
+            // 🔄: redo every entry — deletes all rows for this run
+            // and dispatches the full prompt + agent + meta set fresh.
+            // The Semaphore(3) throttle inside runTranslationSubset
+            // keeps concurrency bounded, so big runs surface as a mix
+            // of ⏳ RUNNING + 🕓 PENDING rows. Per-failure controls
+            // ("Remove failed items" / "Restart failed items") live as
+            // dedicated buttons below the call count when errors exist.
             onReload = { confirmReload = true },
             onTrace = if (traceEnabled) onNavigateToTraceList else null,
             onDelete = { confirmDelete = true },
@@ -263,6 +277,30 @@ internal fun TranslationRunDetailScreen(
             Text(callsLabel, fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             if (totalCost > 0.0) {
                 Text("${formatCents(totalCost)} ¢", fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        // Per-failure controls surface only when at least one row
+        // errored. Drop the failures (no API spend) or re-fire them
+        // (throttled by the runner's Semaphore(3) — large failure
+        // sets dispatch as ⏳ RUNNING + 🕓 PENDING).
+        if (erroredCount > 0) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { confirmRemoveFailed = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                }
+                Button(
+                    onClick = { confirmRestartFailed = true },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false)
+                }
             }
         }
 
@@ -403,27 +441,54 @@ internal fun TranslationRunDetailScreen(
             }
         }
 
-        // The Actions card (Restart failed / Start missing) collapsed
-        // into the title-bar 🔄 — confirm dialog spells out which
-        // calls get re-fired.
+        // The title-bar 🔄 is "redo all entries"; per-failure
+        // recovery lives in the two buttons above the list when
+        // erroredCount > 0.
     }
 
     if (confirmReload) {
-        val parts = buildList {
-            if (erroredCount > 0) add("re-fire ${erroredCount} failed call${if (erroredCount == 1) "" else "s"}")
-            add("start any missing calls (rows expected by this run that haven't landed yet)")
-        }
+        val totalCalls = if (liveRun?.items.orEmpty().isNotEmpty()) liveRun!!.items.size else results.size
         com.ai.ui.shared.ReloadConfirmationDialog(
             target = "",
-            title = "Reload translation run?",
-            message = "This will ${parts.joinToString(" and ")}. Successful translations on disk are kept; only errored and missing rows are touched.",
-            confirmLabel = "Reload",
+            title = "Redo every entry?",
+            message = "Deletes all $totalCalls row${if (totalCalls == 1) "" else "s"} for this translation and dispatches the full set fresh (prompt + every successful agent + every Meta result). The runner's concurrency cap still applies, so a large run shows a mix of running and queued rows.",
+            confirmLabel = "Redo all",
             onConfirm = {
                 confirmReload = false
-                if (erroredCount > 0) onRestartFailed(reportId, runId)
-                onStartMissing(reportId, runId)
+                onRestartAll(reportId, runId)
             },
             onDismiss = { confirmReload = false }
+        )
+    }
+
+    if (confirmRestartFailed) {
+        com.ai.ui.shared.ReloadConfirmationDialog(
+            target = "",
+            title = "Restart failed items?",
+            message = "Re-fires $erroredCount failed call${if (erroredCount == 1) "" else "s"}. The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
+            confirmLabel = "Restart",
+            onConfirm = {
+                confirmRestartFailed = false
+                onRestartFailed(reportId, runId)
+            },
+            onDismiss = { confirmRestartFailed = false }
+        )
+    }
+
+    if (confirmRemoveFailed) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveFailed = false },
+            title = { Text("Remove failed items?") },
+            text = {
+                Text("Drops $erroredCount failed row${if (erroredCount == 1) "" else "s"} from this translation. No API calls are made. Successful translations are kept.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveFailed = false
+                    onRemoveFailed(reportId, runId)
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 
