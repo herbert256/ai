@@ -126,6 +126,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
     val agentResults: StateFlow<Map<String, AnalysisResponse>> = _agentResults.asStateFlow()
 
+    /** Authoritative Fan Out runtime state. Phase C of the fan-out
+     *  redesign creates this engine alongside the existing
+     *  fan-out paths in this ViewModel; Phase E wires the UI to it
+     *  and removes the duplicate paths. Phase F deletes the
+     *  legacy `runningFanOutPairs`, `fanOutPairJobs`, and the 500 ms
+     *  polling loop. */
+    val fanOutEngine: FanOutEngine = FanOutEngine(appViewModel, this)
+
     private data class ReportTask(
         val resultId: String,
         val reportAgent: ReportAgent,
@@ -3545,7 +3553,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
 
-    private suspend fun executeSecondaryTask(
+    internal suspend fun executeSecondaryTask(
         context: Context, reportId: String, kind: SecondaryKind,
         metaPrompt: com.ai.model.InternalPrompt,
         provider: AppService, model: String, resolvedPrompt: String, aiSettings: Settings,
