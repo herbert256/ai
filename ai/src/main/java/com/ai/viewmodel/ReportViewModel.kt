@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.report.translationRunGroupingId
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -2344,7 +2345,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // and skips its own acquire — no double-counting.
                     coroutineScope {
                         pending.map { item ->
-                            val deferred = async {
+                            // CoroutineStart.LAZY so the async body
+                            // doesn't run until we've registered the
+                            // Deferred in fanOutPairJobs below. Without
+                            // LAZY there's a microsecond window between
+                            // `async {}` returning and the registration
+                            // line where the pair is mid-flight but
+                            // can't be looked up by deleteFanOutModel,
+                            // letting it slip past cancellation and
+                            // either land a result on a row that's
+                            // about to be deleted (silent drop) or
+                            // worse, burn the API call entirely.
+                            val deferred = async(start = CoroutineStart.LAZY) {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val host = providerHost(provider)
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
@@ -2394,10 +2406,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // rerunCompleteFanOut can target it for cancelAndJoin
                             // before deleting the row, closing the "result lands
                             // after delete and is silently dropped" race.
+                            // Registration happens BEFORE start() so a concurrent
+                            // delete can always find the Job.
                             fanOutPairJobs[item.placeholder.id] = deferred
                             deferred.invokeOnCompletion {
                                 fanOutPairJobs.remove(item.placeholder.id, deferred)
                             }
+                            deferred.start()
                             deferred
                         }.awaitAll()
                     }
@@ -2444,7 +2459,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // explanation.
                     coroutineScope {
                         placeholders.map { ph ->
-                            val deferred = async {
+                            // CoroutineStart.LAZY mirrors runFanOutPrompt
+                            // — see the comment there for why the start
+                            // is gated on the post-registration .start()
+                            // call below.
+                            val deferred = async(start = CoroutineStart.LAZY) {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
@@ -2491,6 +2510,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             deferred.invokeOnCompletion {
                                 fanOutPairJobs.remove(ph.id, deferred)
                             }
+                            deferred.start()
                             deferred
                         }.awaitAll()
                     }
