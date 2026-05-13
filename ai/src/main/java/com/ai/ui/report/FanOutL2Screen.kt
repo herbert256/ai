@@ -76,6 +76,7 @@ internal fun FanOutL2Screen(
     onSwitchRole: (String) -> Unit,
     onOpenPair: (String) -> Unit,
     onOpenOnePage: () -> Unit,
+    onOpenIcons: () -> Unit,
     onBack: () -> Unit
 ) {
     val (activePid, activeMdl) = answererKey.split("|").let {
@@ -249,6 +250,18 @@ internal fun FanOutL2Screen(
                 onClick = onOpenOnePage,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("One Page View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Icons overview — gated on the role-scoped rows having at
+        // least one non-blank fan-out icon. Opens the L2 Icons
+        // grid for the current (answerer, role).
+        val hasIcons = remember(rows) { rows.any { !it.icon.isNullOrBlank() } }
+        if (hasIcons) {
+            OutlinedButton(
+                onClick = onOpenIcons,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         }
 

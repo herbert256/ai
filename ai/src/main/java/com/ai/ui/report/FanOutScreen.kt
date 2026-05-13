@@ -42,6 +42,8 @@ sealed class FanOutNav {
     data class L2(val answererKey: String, val role: String) : FanOutNav()
     data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanOutNav()
     data class L2OnePage(val answererKey: String, val role: String) : FanOutNav()
+    object L1Icons : FanOutNav()
+    data class L2Icons(val answererKey: String, val role: String) : FanOutNav()
 }
 
 /** Custom Saver — serialises to a 4-string list so rememberSaveable
@@ -53,6 +55,8 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             is FanOutNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
             is FanOutNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role)
             is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role)
+            is FanOutNav.L1Icons -> listOf("L1IC", "", "", "")
+            is FanOutNav.L2Icons -> listOf("L2IC", nav.answererKey, "", nav.role)
         }
     },
     restore = { list ->
@@ -63,6 +67,8 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             "L2" -> FanOutNav.L2(l[1], l[3].ifEmpty { "Responder" })
             "L3" -> FanOutNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" })
             "L2OP" -> FanOutNav.L2OnePage(l[1], l[3].ifEmpty { "Responder" })
+            "L1IC" -> FanOutNav.L1Icons
+            "L2IC" -> FanOutNav.L2Icons(l[1], l[3].ifEmpty { "Responder" })
             else -> FanOutNav.L1
         }
     }
@@ -138,6 +144,8 @@ fun FanOutScreen(
             is FanOutNav.L2 -> FanOutNav.L1
             is FanOutNav.L3 -> FanOutNav.L2(n.answererKey, n.role)
             is FanOutNav.L2OnePage -> FanOutNav.L2(n.answererKey, n.role)
+            FanOutNav.L1Icons -> FanOutNav.L1
+            is FanOutNav.L2Icons -> FanOutNav.L2(n.answererKey, n.role)
         }
     }
 
@@ -159,6 +167,7 @@ fun FanOutScreen(
             runningSet = runningSet,
             actions = actions,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
+            onOpenIcons = { nav = FanOutNav.L1Icons },
             onBack = onBack
         )
         is FanOutNav.L2 -> FanOutL2Screen(
@@ -173,6 +182,7 @@ fun FanOutScreen(
                 nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role)
             },
             onOpenOnePage = { nav = FanOutNav.L2OnePage(n.answererKey, n.role) },
+            onOpenIcons = { nav = FanOutNav.L2Icons(n.answererKey, n.role) },
             onBack = { nav = FanOutNav.L1 }
         )
         is FanOutNav.L3 -> FanOutL3Screen(
@@ -193,6 +203,23 @@ fun FanOutScreen(
             run = runState,
             answererKey = n.answererKey,
             role = n.role,
+            onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
+        )
+        FanOutNav.L1Icons -> FanOutL1IconsScreen(
+            run = runState,
+            onOpenPair = { ak, srcAgentId, r ->
+                nav = FanOutNav.L3(ak, srcAgentId, r)
+            },
+            onBack = { nav = FanOutNav.L1 }
+        )
+        is FanOutNav.L2Icons -> FanOutL2IconsScreen(
+            run = runState,
+            answererKey = n.answererKey,
+            role = n.role,
+            onSwitchRole = { newRole -> nav = FanOutNav.L2Icons(n.answererKey, newRole) },
+            onOpenPair = { srcAgentId ->
+                nav = FanOutNav.L3(n.answererKey, srcAgentId, n.role)
+            },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
         )
     }

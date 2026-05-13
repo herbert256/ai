@@ -62,6 +62,7 @@ internal fun FanOutL1Screen(
     runningSet: Set<String>,
     actions: FanOutActions,
     onOpenModel: (String) -> Unit,
+    onOpenIcons: () -> Unit,
     onBack: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
@@ -99,6 +100,17 @@ internal fun FanOutL1Screen(
                     modifier = Modifier.weight(1f)
                 ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
+        }
+
+        // Icons overview button — gated on at least one pair having
+        // a non-blank fan-out icon. Opens the L1 Icons grid.
+        val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
+        if (hasIcons) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onOpenIcons,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
