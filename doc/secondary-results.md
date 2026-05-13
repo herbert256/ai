@@ -267,6 +267,53 @@ A separate code path under `ReportViewModel.runFanOutPrompt` /
   state lives outside `UiState` so 5–15 Hz updates don't ripple
   through the rest of the composition.
 
+### Fan-out runtime model (redesign)
+
+As of the from-scratch redesign (commits `865fb443`..`af0521aa`):
+
+- **`FanOutRunState`** (`ai/src/main/java/com/ai/data/FanOutRunModel.kt`)
+  is the canonical per-run snapshot — `pairs: Map<PairKey,
+  PairState>`, plus `combinedReports`, scope, and the meta-prompt.
+  Each `PairState` carries an explicit `PairStatus`
+  (PENDING/RUNNING/DONE/ERROR) so the UI's classifier reads a
+  single field instead of merging three loosely-coupled views.
+
+- **`FanOutEngine`** (`ai/src/main/java/com/ai/viewmodel/FanOutEngine.kt`)
+  owns the authoritative `runs: StateFlow<Map<FanOutRunKey,
+  FanOutRunState>>`. Every state transition (pair queued, permit
+  acquired, HTTP completed, error stamped, row deleted) is an
+  atomic `_runs.update { … }` call — subscribers see exactly one
+  value per transition, no flicker. The engine hydrates from disk
+  on demand (`hydrate(context, reportId)`) and delegates the
+  actual HTTP+save to `ReportViewModel.executeSecondaryTask`.
+
+- **Per-pair Job map** (`fanOutPairJobs`) keyed by `PairState.id`
+  so destructive paths can `cancelAndJoin` a specific pair before
+  deleting its disk row — closes the "result lands after delete"
+  race. Registration happens BEFORE `start()` via
+  `CoroutineStart.LAZY` so concurrent deletes always find the Job.
+
+- **Per-pair IO-thread cap** (`Semaphore(8)` inside the runner)
+  bounds how many pair coroutines sit in the BLOCKING
+  `ProviderThrottle.acquire` call at once. Without it,
+  Dispatchers.IO got starved on large fan-outs and new
+  `generateGenericReports` calls queued forever.
+
+- The redesigned **UI** lives in
+  `ai/src/main/java/com/ai/ui/report/FanOutScreen.kt` (parent + nav)
+  + `FanOutL1Screen.kt` / `FanOutL2Screen.kt` / `FanOutL3Screen.kt`
+  (each level). The parent holds a `FanOutNav` sealed-class state
+  in `rememberSaveable`; back-stack survives rotation. Each level
+  subscribes to `engine.runs.collectAsState()` and renders the
+  current snapshot — no polling, no `recentlySettled` grace
+  window, no merging of disk + StateFlow.
+
+The launch path (`runFanOutPrompt`) still lives on `ReportViewModel`
+for now; the engine hydrates after each refresh tick to pick up its
+disk writes. A follow-up commit migrates the launch path to
+`engine.startRun` and removes the legacy `FanOutDrillInView` +
+`runningFanOutPairs` StateFlow.
+
 - **Fan-in** runs the chosen `category="fan_in"` Internal Prompt
   once per source agent (NOT once per answerer × source pair).
   The `***Report*** @REPORT@@RESPONSES@` iterable block is
