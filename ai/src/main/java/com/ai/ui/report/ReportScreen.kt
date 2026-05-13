@@ -831,6 +831,25 @@ fun ReportsScreen(
         kotlinx.coroutines.delay(150)
         secondaryRefreshTick++
     }
+    // Bump the polling-effect tick whenever the engine's set of
+    // run keys for THIS report changes (add or remove). Without
+    // this, deleting a fan-out run via the L1 trash icon left the
+    // summary row on the main page until the next manual refresh —
+    // engine.deleteRun removes the run from engine.runs but
+    // fanOutSummaries rebuilds from disk on the tick. Per-pair
+    // status transitions during a live batch don't change the
+    // key set so this stays quiet during normal execution.
+    if (fanOutEngine != null) {
+        val engineRuns by fanOutEngine.runs.collectAsState()
+        val ridForKeys = currentReportId
+        val currentRunKeys = remember(engineRuns, ridForKeys) {
+            if (ridForKeys == null) emptySet()
+            else engineRuns.keys.filter { it.startsWith("$ridForKeys|") }.toSet()
+        }
+        LaunchedEffect(currentRunKeys) {
+            secondaryRefreshTick++
+        }
+    }
     val onDeleteSecondaryWithRefresh: (String, String) -> Unit = { rid, sid ->
         onDeleteSecondary(rid, sid)
         secondaryRefreshTick++

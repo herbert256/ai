@@ -621,28 +621,69 @@ class FanOutEngine internal constructor(
     fun rerunComplete(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
+            // Cancel both engine and legacy in-flight Jobs (see
+            // deleteRun for the parallel-maps rationale).
             runJobs[runKey]?.cancelAndJoin()
+            reportViewModel.fanOutJobs[runKey]?.cancelAndJoin()
             run.pairs.values.forEach { pair ->
                 pairJobs[pair.id]?.cancelAndJoin()
+                reportViewModel.fanOutPairJobs[pair.id]?.cancelAndJoin()
+            }
+            run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
             }
+            val deletedIds = run.pairs.values.map { it.id }.toSet()
+            if (deletedIds.isNotEmpty()) {
+                appViewModel.updateRunningFanOutPairs { it - deletedIds }
+            }
             dropRun(runKey)
-            startRun(context, run.reportId, run.metaPrompt, run.scope, run.responderIds)
+            // Re-fire via the legacy launch path so an in-flight
+            // launch via runFanOutPrompt and our rerun share the
+            // same fanOutJobs dedupe key.
+            reportViewModel.runFanOutPrompt(context, run.reportId, run.metaPrompt, run.scope, run.responderIds)
         }
 
     /** Drop every pair row in the run + the run itself. Combined-
      *  reports for the prompt are also dropped (this is the title-
-     *  bar 🗑 — the user wants the whole run gone). */
+     *  bar 🗑 — the user wants the whole run gone).
+     *
+     *  Cancels in-flight coroutines from BOTH the engine's own Job
+     *  maps AND the legacy [ReportViewModel.fanOutJobs] /
+     *  [ReportViewModel.fanOutPairJobs] (populated by the still-
+     *  active launch path `runFanOutPrompt`). Without consulting
+     *  the legacy maps, the engine's own maps are empty (engine
+     *  .startRun isn't wired anywhere yet) and the destructive
+     *  path completed without actually killing the running API
+     *  calls — they kept burning tokens after the row was deleted. */
     fun deleteRun(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
+            // Cancel the outer batch Job — both engine-owned and the
+            // legacy one keyed by the same "$reportId|$metaPromptId"
+            // string.
             runJobs[runKey]?.cancelAndJoin()
+            reportViewModel.fanOutJobs[runKey]?.cancelAndJoin()
+            // Cancel every per-pair coroutine in flight. Engine and
+            // legacy maps both key by SecondaryResult id so we look
+            // up in both.
             run.pairs.values.forEach { pair ->
                 pairJobs[pair.id]?.cancelAndJoin()
+                reportViewModel.fanOutPairJobs[pair.id]?.cancelAndJoin()
+            }
+            // Now disk deletes — safe because no coroutine can still
+            // be heading toward a saveIfStillPresent against these ids.
+            run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
             }
             run.combinedReports.forEach { cr ->
                 SecondaryResultStorage.delete(context, run.reportId, cr.id)
+            }
+            // Drop from the legacy in-flight set so the report-page
+            // summary classifier doesn't think a deleted pair is
+            // still running.
+            val deletedIds = run.pairs.values.map { it.id }.toSet()
+            if (deletedIds.isNotEmpty()) {
+                appViewModel.updateRunningFanOutPairs { it - deletedIds }
             }
             dropRun(runKey)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
@@ -668,9 +709,16 @@ class FanOutEngine internal constructor(
                 (it.sourceAgentId in matchingAgentIds)
         }
         if (victims.isEmpty()) return@launch
+        // Cancel from both engine and legacy per-pair Job maps —
+        // see deleteRun for why.
         victims.forEach { pairJobs[it.id]?.cancelAndJoin() }
+        victims.forEach { reportViewModel.fanOutPairJobs[it.id]?.cancelAndJoin() }
         val costDelta = victims.sumOf { it.totalCost }
         victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+        val victimIds = victims.map { it.id }.toSet()
+        if (victimIds.isNotEmpty()) {
+            appViewModel.updateRunningFanOutPairs { it - victimIds }
+        }
         _runs.update { runs ->
             val cur = runs[runKey] ?: return@update runs
             val keepKeys = victims.map { it.key }.toSet()

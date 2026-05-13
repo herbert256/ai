@@ -41,7 +41,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // SecondaryResultStorage.save on the just-deleted ids, resurrecting
     // zombie rows alongside the freshly-created placeholders and
     // double-billing the user.
-    private val fanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    internal val fanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private fun fanOutJobKey(reportId: String, metaPromptId: String) = "$reportId|$metaPromptId"
     private fun registerFanOutJob(reportId: String, metaPromptId: String, job: Job) {
         val key = fanOutJobKey(reportId, metaPromptId)
@@ -112,7 +112,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // (exists() returns false) or, worse, resurrect the row in a
     // half-written state. Concurrent map for cross-thread access
     // from the UI-thread Delete handler.
-    private val fanOutPairJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    internal val fanOutPairJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
     // Tracks single-call Meta/Rerank/Moderation placeholders the
     // report-open auto-resume sweep is currently re-issuing, so a
