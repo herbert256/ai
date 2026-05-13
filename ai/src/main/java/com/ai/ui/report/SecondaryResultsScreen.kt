@@ -92,20 +92,35 @@ internal fun SecondaryResultsScreen(
     // rememberSaveable so the user can drill into a row, jump out to a
     // trace, and return to the same row instead of the list root.
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    // 500 ms polling while a batch is in flight, plus one final
-    // refresh after the batch ends so the last 0–500 ms of pair
-    // completions (which landed on disk after the last in-loop tick
-    // but before isBatching flipped) are reread instead of leaving
-    // the screen stuck with a few "queued" / "running" rows.
+    // Disk refresh is event-driven, not poll-based. Three signals
+    // cover every meaningful disk transition:
+    //   (1) The runningFanOutPairs LaunchedEffect below bumps
+    //       refreshTick whenever a pair leaves the in-flight set —
+    //       so every "queued → running" or "running → done /
+    //       errored" transition lands a fresh disk read within
+    //       milliseconds.
+    //   (2) Manual deletes / restarts wire their own
+    //       secondaryRefreshTick bumps via the action callbacks.
+    //   (3) The brief poll burst at the start of `isBatching`
+    //       below catches the synchronous placeholder writes that
+    //       happen BEFORE any pair acquires a permit — 5 ticks of
+    //       500 ms = ~2.5 s, plenty for ~100 placeholder file
+    //       writes to settle. Beyond that the loop exits and we
+    //       stop wasting disk reads on idle batches (e.g. the
+    //       throttle saturated, all pairs queued, no transitions
+    //       to observe).
     var sawBatching by remember { mutableStateOf(false) }
     LaunchedEffect(isBatching) {
         if (isBatching) {
             sawBatching = true
-            while (true) {
+            repeat(5) {
                 delay(500)
                 refreshTick++
             }
         } else if (sawBatching) {
+            // One last read after the batch ends so the final
+            // completion (which landed on disk after the last burst
+            // tick but before isBatching flipped) is reflected.
             refreshTick++
             sawBatching = false
         }
