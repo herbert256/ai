@@ -2351,21 +2351,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // The OkHttp interceptor sees permitPreAcquired=true
                     // on the worker (propagated via TagPropagatingExecutor)
                     // and skips its own acquire — no double-counting.
-                    // Cap concurrent in-flight pair coroutines to prevent
-                    // Dispatchers.IO starvation. ProviderThrottle.acquire
-                    // is blocking (java.util.concurrent.Semaphore.acquire)
-                    // — on a 90-pair fan-out with per-host concurrent limit
-                    // 3, 87 pairs would otherwise pin an IO thread each in
-                    // the blocking acquire(). Dispatchers.IO defaults to
-                    // 64 threads; once pinned, new coroutines (including
-                    // the next generateGenericReports call) can't get a
-                    // thread → the app appears frozen and the user "can't
-                    // create new AI reports until they restart". The outer
-                    // suspending semaphore here only permits 8 pairs into
-                    // the blocking-acquire region at a time; the rest are
-                    // suspended via withPermit (releasing their IO thread)
-                    // until a slot frees up.
-                    val pairThreadCap = kotlinx.coroutines.sync.Semaphore(8)
+                    //
+                    // Per-host suspending caps below — sized to each
+                    // host's ProviderThrottle concurrent limit — replace
+                    // the single global Semaphore(8) that earlier hot-
+                    // fixed Dispatchers.IO starvation. A global cap
+                    // ignored the per-provider setting; with per-host
+                    // caps Provider A at concurrent=5 can run 5 pairs
+                    // in parallel even while Provider B is at its own
+                    // separate cap. The suspending withPermit releases
+                    // the IO thread while a pair waits its turn, so
+                    // the blocking ProviderThrottle.acquire below
+                    // (java.util.concurrent.Semaphore.acquire) returns
+                    // immediately for every pair the suspending gate
+                    // admitted — no IO threads pinned in waiting.
+                    val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
+                        .mapNotNull { AppService.findById(it.answerer.provider) }
+                        .map { providerHost(it) }
+                        .distinct()
+                        .associateWith { host ->
+                            val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                            kotlinx.coroutines.sync.Semaphore(concurrent)
+                        }
                     coroutineScope {
                         pending.map { item ->
                             // CoroutineStart.LAZY so the async body
@@ -2380,9 +2387,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // about to be deleted (silent drop) or
                             // worse, burn the API call entirely.
                             val deferred = async(start = CoroutineStart.LAZY) {
-                                pairThreadCap.withPermit {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val host = providerHost(provider)
+                                val hostCap = perHostCaps[host]
+                                    ?: kotlinx.coroutines.sync.Semaphore(1)
+                                hostCap.withPermit {
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
@@ -2425,7 +2434,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 } finally {
                                     releaser.release()
                                 }
-                                } // pairThreadCap.withPermit
+                                } // hostCap.withPermit
                             }
                             // Register the per-pair Job so deleteFanOutModel /
                             // rerunCompleteFanOut can target it for cancelAndJoin
@@ -2481,10 +2490,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // Per-pair pre-acquire mirrors runFanOutPrompt so the
                     // queued / running flip on the UI lines up with the
                     // permit being held. See that function for the full
-                    // explanation. Cap concurrent in-flight pair coroutines
-                    // via a suspending semaphore — see runFanOutPrompt for
-                    // why this prevents Dispatchers.IO starvation.
-                    val pairThreadCap = kotlinx.coroutines.sync.Semaphore(8)
+                    // explanation. Per-host suspending caps mirror the
+                    // ProviderThrottle concurrent limit so each host gets
+                    // its own gate (vs a single global cap, which under-
+                    // utilised fast providers).
+                    val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = placeholders
+                        .mapNotNull { AppService.findById(it.providerId) }
+                        .map { providerHost(it) }
+                        .distinct()
+                        .associateWith { host ->
+                            val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                            kotlinx.coroutines.sync.Semaphore(concurrent)
+                        }
                     coroutineScope {
                         placeholders.map { ph ->
                             // CoroutineStart.LAZY mirrors runFanOutPrompt
@@ -2492,11 +2509,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // is gated on the post-registration .start()
                             // call below.
                             val deferred = async(start = CoroutineStart.LAZY) {
-                                pairThreadCap.withPermit {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
                                 val host = providerHost(provider)
+                                val hostCap = perHostCaps[host]
+                                    ?: kotlinx.coroutines.sync.Semaphore(1)
+                                hostCap.withPermit {
                                 AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
@@ -2531,7 +2550,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 } finally {
                                     releaser.release()
                                 }
-                                } // pairThreadCap.withPermit
+                                } // hostCap.withPermit
                             }
                             // Per-pair Job registration mirrors runFanOutPrompt
                             // — see the comment there for the cancel-on-delete
