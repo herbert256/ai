@@ -684,11 +684,22 @@ private fun ColumnScope.FanOutDrillInView(
     // composable instance alive — without this, the L2 role + drill-in
     // selection from Prompt A would carry over to a freshly opened
     // Prompt B (whose agent set may not even contain the carried key).
+    //
+    // The reset must NOT fire on initial composition (e.g. after a
+    // device rotation or process-death restoration): rememberSaveable
+    // has just restored the prior L2 / L3 state, and an unconditional
+    // reset would wipe it. Track the last-applied id and only act on
+    // an actual transition.
+    var lastResetPromptId by remember { mutableStateOf(fanOutPrompt?.id) }
     LaunchedEffect(fanOutPrompt?.id) {
-        selectedRole = "Responder"
-        selectedModelKey = null
-        l3AnswererKey = null
-        l3SourceAgentId = null
+        val curId = fanOutPrompt?.id
+        if (curId != lastResetPromptId) {
+            selectedRole = "Responder"
+            selectedModelKey = null
+            l3AnswererKey = null
+            l3SourceAgentId = null
+            lastResetPromptId = curId
+        }
     }
     // Likewise: opening a different model on the same Fan out should
     // start in Responder mode and with no L3 selection. Without this,
