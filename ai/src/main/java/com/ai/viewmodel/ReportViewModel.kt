@@ -2218,7 +2218,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .distinct()
             for (t in translates) SecondaryResultStorage.delete(context, reportId, t.id)
             for (run in translateRuns) {
-                startTranslation(context, reportId, run.lang, run.native, run.provider, run.model).join()
+                startTranslation(context, reportId, run.lang, run.native, listOf(run.provider to run.model)).join()
             }
         }
     }
@@ -4302,9 +4302,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         sourceReportId: String,
         targetLanguageName: String,
         targetLanguageNative: String,
-        provider: AppService,
-        model: String
+        models: List<Pair<AppService, String>>
     ): Job {
+        if (models.isEmpty()) {
+            AppLog.w("Translation", "startTranslation called with empty models — skipping")
+            return appViewModel.viewModelScope.launch {}
+        }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
@@ -4365,25 +4368,71 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguageNative = targetLanguageNative,
                 items = items
             )) }
-            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${items.size} items via ${provider.id}/$model")
+            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${items.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
             val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
-            val apiKey = aiSettings.getApiKey(provider)
-            val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-            val pricing = PricingCache.getPricing(context, provider, model)
+
+            // Pre-resolve apiKey / baseUrl / pricing once per
+            // distinct (provider, model) so the inner loop doesn't
+            // hit PricingCache repeatedly for items that share a
+            // model.
+            data class ModelCtx(
+                val provider: AppService, val model: String,
+                val apiKey: String, val baseUrl: String,
+                val pricing: PricingCache.ModelPricing
+            )
+            val ctxByKey: Map<Pair<String, String>, ModelCtx> = models
+                .distinct()
+                .associate { (p, m) ->
+                    (p.id to m) to ModelCtx(
+                        provider = p, model = m,
+                        apiKey = aiSettings.getApiKey(p),
+                        baseUrl = aiSettings.getEffectiveEndpointUrl(p),
+                        pricing = PricingCache.getPricing(context, p, m)
+                    )
+                }
+
+            // Round-robin assignment of items to picked models.
+            // models[i % size] is deterministic + balanced; a run
+            // with N items and M models gives each model
+            // ceil(N/M) or floor(N/M) work units.
+            val assignments: List<Pair<TranslationItem, ModelCtx>> =
+                items.mapIndexed { idx, item ->
+                    val (p, m) = models[idx % models.size]
+                    item to (ctxByKey[p.id to m] ?: error("missing ctx for ${p.id}/$m"))
+                }
+
+            // Per-host suspending caps — mirrors runFanOutPrompt /
+            // rerunFanOutPlaceholders. Each provider host gets its
+            // own concurrent gate sized from ProviderThrottle so a
+            // multi-model run on (OpenAI + Anthropic + Google)
+            // doesn't bottleneck one host on the other's rate
+            // limit.
+            val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = models
+                .map { (p, _) -> providerHost(p) }
+                .distinct()
+                .associateWith { host ->
+                    val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                    kotlinx.coroutines.sync.Semaphore(concurrent)
+                }
 
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
             // translated copy to keep traces with.
             withTracerTags(reportId = sourceReportId, category = "Translation") {
-                // Concurrency 3: translation calls are typically the slowest
-                // I/O in the app; cap so a 30-item report doesn't blow past
-                // provider rate limits.
-                val sem = Semaphore(3)
                 coroutineScope {
-                    items.map { item ->
+                    assignments.map { (item, ctx) ->
                         async {
-                            sem.withPermit { runOneTranslation(runId, context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing) }
+                            val host = providerHost(ctx.provider)
+                            val cap = perHostCaps[host]
+                                ?: kotlinx.coroutines.sync.Semaphore(1)
+                            cap.withPermit {
+                                runOneTranslation(
+                                    runId, context, ctx.provider, ctx.apiKey,
+                                    ctx.model, ctx.baseUrl, template,
+                                    targetLanguageName, item, ctx.pricing
+                                )
+                            }
                         }
                     }.awaitAll()
                 }
@@ -4743,10 +4792,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }
         val anchor = translateRows.firstOrNull() ?: return
-        val provider = AppService.findById(anchor.providerId) ?: return
-        val model = anchor.model
         val targetLanguageName = anchor.targetLanguage ?: return
         val targetLanguageNative = anchor.targetLanguageNative ?: targetLanguageName
+
+        // Distinct (provider, model) tuples present on the run's
+        // existing rows — this is the model set the original run
+        // launched with. New items (startMissing path) round-robin
+        // over this set; failed-row retries reuse each row's own
+        // recorded (provider, model) so a retry hits the same
+        // model that failed.
+        val runModels: List<Pair<AppService, String>> = translateRows
+            .mapNotNull { r -> AppService.findById(r.providerId)?.let { it to r.model } }
+            .distinct()
+        if (runModels.isEmpty()) return
+        // Index BEFORE deletion so a restart-failed flow can read
+        // back each failed row's original (provider, model) and
+        // retry on the same model. Keys are (kind, targetId).
+        val rowByKindTarget: Map<Pair<String, String>, SecondaryResult> = translateRows
+            .mapNotNull { r ->
+                val k = r.translateSourceKind ?: return@mapNotNull null
+                val t = r.translateSourceTargetId ?: return@mapNotNull null
+                (k to t) to r
+            }
+            .toMap()
 
         val report = ReportStorage.getReport(context, sourceReportId) ?: return
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
@@ -4791,9 +4859,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val state = appViewModel.uiState.value
         val aiSettings = state.aiSettings
         val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
-        val apiKey = aiSettings.getApiKey(provider)
-        val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-        val pricing = PricingCache.getPricing(context, provider, model)
+
+        // Pre-resolve per-(provider, model) context — mirrors
+        // startTranslation. Keys are (providerId, model).
+        data class ModelCtx(
+            val provider: AppService, val model: String,
+            val apiKey: String, val baseUrl: String,
+            val pricing: PricingCache.ModelPricing
+        )
+        val ctxByKey: Map<Pair<String, String>, ModelCtx> = runModels
+            .associate { (p, m) ->
+                (p.id to m) to ModelCtx(
+                    provider = p, model = m,
+                    apiKey = aiSettings.getApiKey(p),
+                    baseUrl = aiSettings.getEffectiveEndpointUrl(p),
+                    pricing = PricingCache.getPricing(context, p, m)
+                )
+            }
+
+        // Per-host caps mirror startTranslation. Each host gets
+        // its own concurrent gate, so multi-host runs aren't
+        // bottlenecked on the slowest provider's limit.
+        val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = runModels
+            .map { (p, _) -> providerHost(p) }
+            .distinct()
+            .associateWith { host ->
+                val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                kotlinx.coroutines.sync.Semaphore(concurrent)
+            }
 
         // When the in-memory run state is gone (post-kill resume or
         // manual reload on a finished run), seed the fresh state with
@@ -4866,15 +4959,42 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             runs + (runId to merged)
         }
 
+        // Pair each item with the model context it should run
+        // under. Failed-row retries reuse the (provider, model)
+        // recorded on disk for that (kind, target). New items
+        // (startMissing — no row yet) round-robin over the run's
+        // distinct model set.
+        val assignments: List<Pair<TranslationItem, ModelCtx>> = items.mapIndexed { idx, item ->
+            val targetKey = when (item.kind) {
+                TranslationKind.PROMPT -> "PROMPT" to "prompt"
+                TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
+                TranslationKind.META -> "META" to (item.target ?: "")
+            }
+            val originRow = rowByKindTarget[targetKey]
+            val ctx = originRow
+                ?.let { r -> AppService.findById(r.providerId)?.let { p -> ctxByKey[p.id to r.model] } }
+                ?: run {
+                    val (p, m) = runModels[idx % runModels.size]
+                    ctxByKey[p.id to m]
+                }
+            item to (ctx ?: ctxByKey.values.first())
+        }
+
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         try {
             withTracerTags(reportId = sourceReportId, category = "Translation") {
-                val sem = Semaphore(3)
                 coroutineScope {
-                    items.map { item ->
+                    assignments.map { (item, ctx) ->
                         async {
-                            sem.withPermit {
-                                runOneTranslation(runId, context, provider, apiKey, model, baseUrl, template, targetLanguageName, item, pricing)
+                            val host = providerHost(ctx.provider)
+                            val cap = perHostCaps[host]
+                                ?: kotlinx.coroutines.sync.Semaphore(1)
+                            cap.withPermit {
+                                runOneTranslation(
+                                    runId, context, ctx.provider, ctx.apiKey,
+                                    ctx.model, ctx.baseUrl, template,
+                                    targetLanguageName, item, ctx.pricing
+                                )
                             }
                         }
                     }.awaitAll()

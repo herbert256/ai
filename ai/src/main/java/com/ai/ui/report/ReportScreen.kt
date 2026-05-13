@@ -398,8 +398,8 @@ fun ReportsScreenNav(
             bulkExportAndShare(context, rid, onProgress)
         },
         translationRuns = reportViewModel.translationRuns.collectAsState().value.values.toList(),
-        onStartTranslation = { sourceId, langName, langNative, prov, model ->
-            reportViewModel.startTranslation(context, sourceId, langName, langNative, prov, model)
+        onStartTranslation = { sourceId, langName, langNative, models ->
+            reportViewModel.startTranslation(context, sourceId, langName, langNative, models)
         },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
@@ -654,7 +654,7 @@ fun ReportsScreen(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> },
     onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
-    onStartTranslation: (String, String, String, AppService, String) -> Unit = { _, _, _, _, _ -> },
+    onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -1987,13 +1987,18 @@ fun ReportsScreen(
     val pickingTranslateModelFor = showTranslateModelPicker
     if (pickingTranslateModelFor != null && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
-            ReportSelectModelsScreen(
+            TranslateSelectModelsScreen(
+                targetLanguage = pickingTranslateModelFor,
                 aiSettings = aiSettings,
-                titleText = "Pick translation model",
                 recentEntries = recentReportPairs,
-                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { (prov, m) ->
-                    onStartTranslation(currentReportId, pickingTranslateModelFor.name, pickingTranslateModelFor.native, prov, m)
+                onRecordRecent = { pid, mdl -> onRecordRecentReportModel(pid, mdl) },
+                onStart = { picks ->
+                    onStartTranslation(
+                        currentReportId,
+                        pickingTranslateModelFor.name,
+                        pickingTranslateModelFor.native,
+                        picks
+                    )
                     showTranslateModelPicker = null
                 },
                 onBack = { showTranslateModelPicker = null },
