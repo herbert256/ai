@@ -1,6 +1,7 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.CombinedReportState
@@ -400,6 +401,8 @@ class FanOutEngine internal constructor(
             }
             return
         }
+        ApiCallCaps.global.withPermit {
+        ApiCallCaps.fanOut.withPermit {
         ioCap.withPermit {
             val host = providerHost(provider)
             AppLog.d("FanOut", "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel")
@@ -460,6 +463,8 @@ class FanOutEngine internal constructor(
             } finally {
                 releaser.release()
             }
+        }
+        }
         }
     }
 

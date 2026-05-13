@@ -45,6 +45,7 @@ enum class SettingsSubScreen {
     // so the top page stays a short nav list. Each sub-screen owns
     // its own help topic and renders only the cards from its bucket.
     SETTINGS_NETWORK,
+    SETTINGS_NETWORK_API_CALLS,
     SETTINGS_UI,
     SETTINGS_LOGGING,
     SETTINGS_OTHER
@@ -216,6 +217,8 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_UI,
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->
+                currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
         }
     }
 
@@ -617,6 +620,13 @@ fun SettingsScreen(
         SettingsSubScreen.SETTINGS_NETWORK -> {
             NetworkSettingsSubScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onOpenSubScreen = { currentSubScreen = it }
+            )
+        }
+        SettingsSubScreen.SETTINGS_NETWORK_API_CALLS -> {
+            MaximalApiCallsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
@@ -744,7 +754,8 @@ private fun NetworkSettingsSubScreen(
     generalSettings: GeneralSettings,
     onSave: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onOpenSubScreen: (SettingsSubScreen) -> Unit
 ) {
     var streamingReadTimeoutText by remember {
         mutableStateOf(generalSettings.streamingReadTimeoutSec.toString())
@@ -816,6 +827,12 @@ private fun NetworkSettingsSubScreen(
         TitleBar(helpTopic = "settings_network", title = "Network settings", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingsNavCard(
+                icon = "🚦",
+                title = "Maximal API calls",
+                description = "Global + per-kind caps on concurrent API calls. Defaults: 30 global, 15 each for reports / translations / fan-out.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK_API_CALLS) }
+            )
             SettingCard(
                 "Network read timeouts",
                 "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."
@@ -888,6 +905,111 @@ private fun NetworkSettingsSubScreen(
                     value = retryBackoffMs529Text,
                     onValueChange = { retryBackoffMs529Text = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Wait between retries (ms)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+        }
+    }
+}
+
+/** Maximal API calls — global + per-kind concurrency caps. Sits
+ *  one tap deeper than Network settings; each field flows into
+ *  [com.ai.data.ApiCallCaps] via [updateGeneralSettings]. */
+@Composable
+private fun MaximalApiCallsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var apiText by remember { mutableStateOf(generalSettings.maxConcurrentApiCalls.toString()) }
+    var reportText by remember { mutableStateOf(generalSettings.maxConcurrentReportCalls.toString()) }
+    var translationText by remember { mutableStateOf(generalSettings.maxConcurrentTranslationCalls.toString()) }
+    var fanOutText by remember { mutableStateOf(generalSettings.maxConcurrentFanOutCalls.toString()) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        maxConcurrentApiCalls = apiText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentApiCalls,
+        maxConcurrentReportCalls = reportText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentReportCalls,
+        maxConcurrentTranslationCalls = translationText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentTranslationCalls,
+        maxConcurrentFanOutCalls = fanOutText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentFanOutCalls
+    )
+
+    LaunchedEffect(apiText, reportText, translationText, fanOutText) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "settings_network_api_calls",
+            title = "Maximal API calls",
+            onBackClick = onBack
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SettingCard(
+                "Concurrent API calls at the same time",
+                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 30."
+            ) {
+                OutlinedTextField(
+                    value = apiText,
+                    onValueChange = { apiText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent API calls") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Concurrent Model reports API calls",
+                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 15."
+            ) {
+                OutlinedTextField(
+                    value = reportText,
+                    onValueChange = { reportText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Model reports calls") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Concurrent Translations API calls",
+                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 15."
+            ) {
+                OutlinedTextField(
+                    value = translationText,
+                    onValueChange = { translationText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Translation calls") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Concurrent Fan Out API calls",
+                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 15."
+            ) {
+                OutlinedTextField(
+                    value = fanOutText,
+                    onValueChange = { fanOutText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Fan Out calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

@@ -146,6 +146,26 @@ data class GeneralSettings(
      *  the same provider host. Mirrored to
      *  [com.ai.data.NetworkSettings.maxConcurrentCallsPerProvider]. */
     val maxConcurrentCallsPerProvider: Int = 3,
+    /** Global hard ceiling on in-flight API calls across the whole
+     *  app — report-gen + translation + fan-out dispatchers all
+     *  withPermit-wrap each per-call coroutine in
+     *  [com.ai.data.ApiCallCaps.global] before going through the
+     *  per-kind / per-host caps. Surfaced in Settings → Network
+     *  settings → Maximal API calls. */
+    val maxConcurrentApiCalls: Int = 30,
+    /** Cap on concurrent primary report-gen calls (per-agent calls
+     *  fired during a new-report run). Replaces the legacy
+     *  hardcoded `REPORT_CONCURRENCY_LIMIT = 4`. */
+    val maxConcurrentReportCalls: Int = 15,
+    /** Cap on concurrent translation calls (each item × language
+     *  inside a translation run). With multi-model translation
+     *  runs, the cap is on the total across models, not per
+     *  model. */
+    val maxConcurrentTranslationCalls: Int = 15,
+    /** Cap on concurrent fan-out pair calls. Applied per-pair on
+     *  top of the per-host throttle, so a fan-out against a
+     *  single 3-per-host provider still bottlenecks at 3. */
+    val maxConcurrentFanOutCalls: Int = 15,
     /** Maximum number of in-line retries the OkHttp client performs on
      *  a 429 response from a single provider host. Defaults to 3 —
      *  three retries × the backoff below = ~3 s of in-line waiting.
@@ -550,6 +570,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.retryBackoffMs429 = bs.first.retryBackoffMs429
             NetworkSettings.maxRetriesOn529 = bs.first.maxRetriesOn529
             NetworkSettings.retryBackoffMs529 = bs.first.retryBackoffMs529
+            ApiCallCaps.resetForNewLimits(
+                globalMax = bs.first.maxConcurrentApiCalls,
+                reportMax = bs.first.maxConcurrentReportCalls,
+                translationMax = bs.first.maxConcurrentTranslationCalls,
+                fanOutMax = bs.first.maxConcurrentFanOutCalls
+            )
             AppLog.v(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
@@ -965,6 +991,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // so it takes effect immediately and needs no reset.
         if (settings.maxConcurrentCallsPerProvider != previous.maxConcurrentCallsPerProvider) {
             ProviderThrottle.resetForNewLimits()
+        }
+        // Rebuild the cross-host concurrency semaphores when any of
+        // the four caps changed. Already-held permits release against
+        // their original semaphore (held alive by the holder), so
+        // swap-on-change is safe.
+        if (settings.maxConcurrentApiCalls != previous.maxConcurrentApiCalls
+            || settings.maxConcurrentReportCalls != previous.maxConcurrentReportCalls
+            || settings.maxConcurrentTranslationCalls != previous.maxConcurrentTranslationCalls
+            || settings.maxConcurrentFanOutCalls != previous.maxConcurrentFanOutCalls
+        ) {
+            ApiCallCaps.resetForNewLimits(
+                globalMax = settings.maxConcurrentApiCalls,
+                reportMax = settings.maxConcurrentReportCalls,
+                translationMax = settings.maxConcurrentTranslationCalls,
+                fanOutMax = settings.maxConcurrentFanOutCalls
+            )
         }
         if (settings.logLevel != previous.logLevel) {
             AppLog.i("Settings", "Log level changed: ${previous.logLevel} → ${settings.logLevel}")
@@ -1654,7 +1696,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val PREFS_NAME = "eval_prefs"
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
-        internal const val REPORT_CONCURRENCY_LIMIT = 4
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
         internal val USER_TAG_REGEX = Regex("""<user>(.*?)</user>""", RegexOption.DOT_MATCHES_ALL)

@@ -600,6 +600,43 @@ class TracingInterceptor : Interceptor {
  *  built-in defaults below are the cold-start values used before
  *  bootstrap completes (matters for the very first call on a fresh
  *  install / process restart). */
+/** Cross-host, cross-dispatcher concurrency caps. Sit one layer
+ *  above [ProviderThrottle] — the report / translation / fan-out
+ *  dispatchers withPermit-wrap each per-call coroutine in
+ *  [global] plus the matching kind permit ([report] /
+ *  [translation] / [fanOut]) so the total in-flight count across
+ *  the whole app stays bounded. Surfaces in Settings → Network
+ *  settings → Maximal API calls.
+ *
+ *  Caps are reset at runtime via [resetForNewLimits]; rebuilding
+ *  a semaphore is safe because already-held permits release
+ *  against their original semaphore (still alive as long as the
+ *  holder keeps a reference). New withPermit calls always read
+ *  the current getter. */
+object ApiCallCaps {
+    @Volatile private var globalSem: kotlinx.coroutines.sync.Semaphore = sem(30)
+    @Volatile private var reportSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+    @Volatile private var translationSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+    @Volatile private var fanOutSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+
+    val global: kotlinx.coroutines.sync.Semaphore get() = globalSem
+    val report: kotlinx.coroutines.sync.Semaphore get() = reportSem
+    val translation: kotlinx.coroutines.sync.Semaphore get() = translationSem
+    val fanOut: kotlinx.coroutines.sync.Semaphore get() = fanOutSem
+
+    fun resetForNewLimits(
+        globalMax: Int, reportMax: Int,
+        translationMax: Int, fanOutMax: Int
+    ) {
+        globalSem = sem(globalMax)
+        reportSem = sem(reportMax)
+        translationSem = sem(translationMax)
+        fanOutSem = sem(fanOutMax)
+    }
+
+    private fun sem(n: Int) = kotlinx.coroutines.sync.Semaphore(n.coerceAtLeast(1))
+}
+
 object NetworkSettings {
     @Volatile var streamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC
     @Volatile var nonStreamingReadTimeoutSec: Int = com.ai.BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC

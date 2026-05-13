@@ -1106,6 +1106,18 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "If a provider sends frequent 429s, increasing the wait time tends to recover faster than increasing the retry count — bigger backoffs let the rate-limit window actually open. 529s are server-side overload (not your fault) and respond similarly to longer waits. If you're being throttled before reaching 429, drop the max-calls-per-minute instead.")
         )
     ),
+    "settings_network_api_calls" to HelpContent(
+        title = "Maximal API calls",
+        cards = listOf(
+            HelpCard("Overview", "Four caps on how many API calls the app keeps in flight at once. Stack as nested suspending semaphores — every coroutine-level call goes through the global cap first, then through its matching per-kind cap, then through the existing per-provider cap (Network settings → Per-provider throttling). When a cap is full, further calls suspend until a permit frees up; no calls are dropped or errored. Defaults: 30 / 15 / 15 / 15."),
+            HelpCard("Concurrent API calls at the same time", "Hard global ceiling, applies to every API call the app keeps in flight — reports, translations, fan-out. Set lower if you're hitting provider rate limits across the board or your device is thermal-throttling. Default 30."),
+            HelpCard("Concurrent Model reports API calls", "Cap on the primary per-agent calls fired during a new-report run (the boxes you see filling in on the report result page). Replaces the legacy hardcoded ceiling of 4. Bumping this past your global cap has no effect — the global wins. Default 15."),
+            HelpCard("Concurrent Translations API calls", "Cap on per-item translation calls (prompt + each agent response + each chat-type Meta result). With a multi-model translation run, the cap is on the total across models, not per model. Default 15."),
+            HelpCard("Concurrent Fan Out API calls", "Cap on per-pair fan-out calls. A 6-agent fan out has 30 pairs and the run would top at 15 simultaneously with this default. Bump higher for fast providers that handle parallel load gracefully; drop lower if you regularly see 529s during fan-out. Default 15."),
+            HelpCard("Per-kind ≠ per-host", "These caps don't replace the per-provider concurrency cap (Network settings → Per-provider throttling) — they sit on top of it. A run with 20 fan-out pairs going to the same provider with a 3-per-host cap will still bottleneck at 3 in flight even with a 15 fan-out cap."),
+            HelpCard("Live updates", "Changing a cap takes effect immediately for any new dispatch — calls already in flight keep running on their original permit and release it normally. No restart needed.")
+        )
+    ),
     "settings_ui" to HelpContent(
         title = "UI tweaks",
         cards = listOf(

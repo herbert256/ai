@@ -296,13 +296,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
 
-                val semaphore = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 try {
                     coroutineScope {
                         reportTasks.map { task ->
                             async {
-                                semaphore.withPermit {
-                                    executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.report.withPermit {
+                                        executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
+                                    }
                                 }
                                 // Per-task auto-fire: kick off this
                                 // agent's 3-tier icon chain the moment
@@ -2116,13 +2117,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val baseOverride = state.reportAdvancedParameters
                     val withWeb = if (finalReport.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
                     val overrideParams = if (finalReport.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = finalReport.reasoningEffort) else withWeb
-                    val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                     coroutineScope {
                         tasksToRun.map { task ->
                             async {
-                                sem.withPermit {
-                                    executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
-                                        finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.report.withPermit {
+                                        executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
+                                            finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
+                                    }
                                 }
                                 // Per-task auto-fire — same shape as
                                 // generateGenericReports. Each agent's
@@ -2674,6 +2676,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
+                                ApiCallCaps.global.withPermit {
+                                ApiCallCaps.fanOut.withPermit {
                                 hostCap.withPermit {
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                 val releaser = ProviderThrottle.acquire(host)
@@ -2738,6 +2742,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     releaser.release()
                                 }
                                 } // hostCap.withPermit
+                                } // ApiCallCaps.fanOut.withPermit
+                                } // ApiCallCaps.global.withPermit
                             }
                             // Register the per-pair Job so deleteFanOutModel /
                             // rerunCompleteFanOut can target it for cancelAndJoin
@@ -2818,6 +2824,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
+                                ApiCallCaps.global.withPermit {
+                                ApiCallCaps.fanOut.withPermit {
                                 hostCap.withPermit {
                                 AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                 val releaser = ProviderThrottle.acquire(host)
@@ -2875,6 +2883,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     releaser.release()
                                 }
                                 } // hostCap.withPermit
+                                } // ApiCallCaps.fanOut.withPermit
+                                } // ApiCallCaps.global.withPermit
                             }
                             // Per-pair Job registration mirrors runFanOutPrompt
                             // — see the comment there for the cancel-on-delete
@@ -3861,11 +3871,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     (if (includeOriginal) listOf<Pair<String?, String?>>(null to null) else emptyList()) +
                     translationLanguages.map { (lang, native) -> lang to native }
 
-                // Per-batch semaphore: bounds the in-batch fan-out across
-                // every (language, pick) tuple. Overlapping batches are
-                // not capped against each other (intentional; that's the
-                // whole point of allowing concurrent runs).
-                val sem = Semaphore(AppViewModel.REPORT_CONCURRENCY_LIMIT)
                 // Reference legend — built when the prompt's reference
                 // flag is on. Computed once per batch.
                 val referenceLegend = if (metaPrompt.reference)
@@ -3879,7 +3884,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         )
                         picks.map { (provider, model) ->
                             async {
-                                sem.withPermit {
+                                ApiCallCaps.global.withPermit {
                                     executeSecondaryTask(
                                         context, reportId, kind, metaPrompt,
                                         provider, model, resolvedPrompt, aiSettings, report,
@@ -4426,12 +4431,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val host = providerHost(ctx.provider)
                             val cap = perHostCaps[host]
                                 ?: kotlinx.coroutines.sync.Semaphore(1)
-                            cap.withPermit {
-                                runOneTranslation(
-                                    runId, context, ctx.provider, ctx.apiKey,
-                                    ctx.model, ctx.baseUrl, template,
-                                    targetLanguageName, item, ctx.pricing
-                                )
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.translation.withPermit {
+                                    cap.withPermit {
+                                        runOneTranslation(
+                                            runId, context, ctx.provider, ctx.apiKey,
+                                            ctx.model, ctx.baseUrl, template,
+                                            targetLanguageName, item, ctx.pricing
+                                        )
+                                    }
+                                }
                             }
                         }
                     }.awaitAll()
@@ -4989,12 +4998,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val host = providerHost(ctx.provider)
                             val cap = perHostCaps[host]
                                 ?: kotlinx.coroutines.sync.Semaphore(1)
-                            cap.withPermit {
-                                runOneTranslation(
-                                    runId, context, ctx.provider, ctx.apiKey,
-                                    ctx.model, ctx.baseUrl, template,
-                                    targetLanguageName, item, ctx.pricing
-                                )
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.translation.withPermit {
+                                    cap.withPermit {
+                                        runOneTranslation(
+                                            runId, context, ctx.provider, ctx.apiKey,
+                                            ctx.model, ctx.baseUrl, template,
+                                            targetLanguageName, item, ctx.pricing
+                                        )
+                                    }
+                                }
                             }
                         }
                     }.awaitAll()
