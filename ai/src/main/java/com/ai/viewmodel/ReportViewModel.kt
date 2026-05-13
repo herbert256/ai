@@ -100,6 +100,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // work on the executor's semaphore.
     private val staleResumeScans = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
+    // Per-pair fan-out coroutines, keyed by SecondaryResult.id (the
+    // placeholder id). Populated inside runFanOutPrompt /
+    // rerunFanOutPlaceholders right before the async block enters its
+    // HTTP path, removed via invokeOnCompletion. deleteFanOutModel
+    // and rerunCompleteFanOut cancelAndJoin the relevant entries
+    // BEFORE deleting their rows, so a coroutine mid-flight can't
+    // land a completion via saveIfStillPresent after the delete —
+    // which would either silently drop the just-purchased result
+    // (exists() returns false) or, worse, resurrect the row in a
+    // half-written state. Concurrent map for cross-thread access
+    // from the UI-thread Delete handler.
+    private val fanOutPairJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+
     // Tracks single-call Meta/Rerank/Moderation placeholders the
     // report-open auto-resume sweep is currently re-issuing, so a
     // rapid back-then-forward navigation can't double-fire the same
@@ -2331,7 +2344,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // and skips its own acquire — no double-counting.
                     coroutineScope {
                         pending.map { item ->
-                            async {
+                            val deferred = async {
                                 val provider = AppService.findById(item.answerer.provider) ?: return@async
                                 val host = providerHost(provider)
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
@@ -2377,6 +2390,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     releaser.release()
                                 }
                             }
+                            // Register the per-pair Job so deleteFanOutModel /
+                            // rerunCompleteFanOut can target it for cancelAndJoin
+                            // before deleting the row, closing the "result lands
+                            // after delete and is silently dropped" race.
+                            fanOutPairJobs[item.placeholder.id] = deferred
+                            deferred.invokeOnCompletion {
+                                fanOutPairJobs.remove(item.placeholder.id, deferred)
+                            }
+                            deferred
                         }.awaitAll()
                     }
                     AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
@@ -2422,7 +2444,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // explanation.
                     coroutineScope {
                         placeholders.map { ph ->
-                            async {
+                            val deferred = async {
                                 val provider = AppService.findById(ph.providerId) ?: return@async
                                 val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
                                     ?: return@async
@@ -2462,6 +2484,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     releaser.release()
                                 }
                             }
+                            // Per-pair Job registration mirrors runFanOutPrompt
+                            // — see the comment there for the cancel-on-delete
+                            // race the registration closes.
+                            fanOutPairJobs[ph.id] = deferred
+                            deferred.invokeOnCompletion {
+                                fanOutPairJobs.remove(ph.id, deferred)
+                            }
+                            deferred
                         }.awaitAll()
                     }
                 }
@@ -2928,15 +2958,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  the model appears as the answerer (providerId, model match) OR
      *  as the source (the row's fanOutSourceAgentId points at an agent
      *  whose (provider, model) matches). Other Fan out runs on the same
-     *  report (different metaPromptId) are untouched. */
+     *  report (different metaPromptId) are untouched.
+     *
+     *  Returns a Job so the caller (or tests) can await completion of
+     *  the cancellation sweep + disk delete. The cancellation phase
+     *  cancelAndJoins every per-pair coroutine for the rows we're about
+     *  to delete (registered in [fanOutPairJobs]), so a coroutine that's
+     *  mid-HTTP or mid-save can't land a completion via
+     *  saveIfStillPresent AFTER the delete (silently dropping a result
+     *  the user paid for) or interleave a write with the delete. */
     fun deleteFanOutModel(
         context: Context,
         reportId: String,
         metaPromptId: String,
         providerId: String,
         model: String
-    ) {
-        val report = ReportStorage.getReport(context, reportId) ?: return
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val report = ReportStorage.getReport(context, reportId) ?: return@launch
         // Provider ids are looked up via AppService.findById (case-
         // insensitive); the on-disk values can be either case
         // depending on when the row was written. Compare equalsIgnoreCase
@@ -2955,20 +2993,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             (it.fanOutSourceAgentId in matchingAgentIds)
                     )
             }
-        val costDelta = toDelete.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-        toDelete.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-        // Drop the deleted ids from runningFanOutPairs immediately so
-        // the UI flips them out of "running" / "queued" the moment the
-        // trash icon is tapped, instead of waiting for each in-flight
-        // coroutine to land in its finally block. The coroutines
-        // themselves bail at the exists-check inside the fan-out
-        // launch path (or have saveIfStillPresent suppress the final
-        // write); their finally-block removal is now a redundant
-        // no-op on these ids.
-        val deletedIds = toDelete.map { it.id }.toSet()
-        if (deletedIds.isNotEmpty()) {
-            appViewModel.updateRunningFanOutPairs { it - deletedIds }
+        if (toDelete.isEmpty()) return@launch
+        // Cancel + join the per-pair coroutines BEFORE deleting their
+        // rows. Each cancelled coroutine either bails inside its
+        // ProviderThrottle.acquire suspend point (no HTTP fired) or
+        // throws CancellationException out of the HTTP suspend (no
+        // saveIfStillPresent call). Either way, no zombie write lands
+        // after we delete the row. join() waits for the finally
+        // blocks (running-set removal + permit release) to run.
+        val toDeleteIds = toDelete.map { it.id }
+        toDeleteIds.forEach { id ->
+            fanOutPairJobs[id]?.cancelAndJoin()
         }
+        val costDelta = toDelete.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        toDeleteIds.forEach { SecondaryResultStorage.delete(context, reportId, it) }
+        // The per-pair finally blocks already removed these ids from
+        // runningFanOutPairs during join, but a stale-cache window
+        // could leave the UI showing them as "running" until the next
+        // refresh tick. Force-prune the set so the trash icon's
+        // visual effect is immediate.
+        val deletedIds = toDeleteIds.toSet()
+        appViewModel.updateRunningFanOutPairs { it - deletedIds }
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         ReportStorage.bumpReportTimestamp(context, reportId)
     }
