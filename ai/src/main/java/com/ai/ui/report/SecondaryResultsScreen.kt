@@ -134,11 +134,14 @@ internal fun SecondaryResultsScreen(
     // Two fixes layered:
     //   (1) Bump refreshTick immediately so the IO re-read kicks off
     //       on the same frame.
-    //   (2) Keep the just-finished ids in `recentlySettled` for ~600 ms
-    //       — enough time for produceState's IO block to complete on
-    //       any reasonable device. The classifier treats those ids
-    //       as still in-flight, so a settling pair reads as "running"
-    //       until the disk row catches up to "done".
+    //   (2) Keep the just-finished ids in `recentlySettled` for ~1 s
+    //       — long enough for produceState's IO block to complete
+    //       even on slow storage / under heavy I/O load (the original
+    //       600 ms was tight on cold caches). The classifier treats
+    //       those ids as still in-flight, so a settling pair reads
+    //       as "running" until the disk row catches up to "done".
+    //       Imperceptible to the user once a row has truly settled
+    //       (done/error wins over running in the classifier).
     var prevRunning by remember { mutableStateOf(emptySet<String>()) }
     var recentlySettled by remember { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(runningFanOutPairs) {
@@ -147,7 +150,7 @@ internal fun SecondaryResultsScreen(
         if (finished.isNotEmpty()) {
             recentlySettled = recentlySettled + finished
             refreshTick++
-            kotlinx.coroutines.delay(600)
+            kotlinx.coroutines.delay(1000)
             recentlySettled = recentlySettled - finished
         }
     }
