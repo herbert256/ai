@@ -261,6 +261,7 @@ internal fun FanOutL2Screen(
                 )
             }
         } else {
+            val rowsTotalCost = rows.sumOf { it.totalCost }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     val otherAgentId = if (role == "Responder") p.sourceAgentId else p.answererAgentId
@@ -311,6 +312,27 @@ internal fun FanOutL2Screen(
                         }
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
+                }
+                if (rowsTotalCost > 0.0) {
+                    item(key = "l2-total-footer") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.width(20.dp))
+                            Text(
+                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            )
+                            Text(
+                                formatCents(rowsTotalCost), fontSize = 11.sp,
+                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Box(modifier = Modifier.width(16.dp))
+                        }
+                    }
                 }
             }
         }

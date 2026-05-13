@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairStatus
@@ -45,6 +46,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.modelLabel
 import com.ai.viewmodel.FanOutEngine
 import kotlinx.coroutines.Dispatchers
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.withContext
 
@@ -134,7 +136,34 @@ internal fun FanOutL3Screen(
             ?.let { resolveModelLabel("${it.provider}|${it.model}") }
             ?: pair.sourceAgentId
     }
+    val sourceAgent = remember(report, pair.sourceAgentId) {
+        report?.agents?.firstOrNull { it.agentId == pair.sourceAgentId }
+    }
+    val sourceProviderService = remember(sourceAgent) {
+        sourceAgent?.provider?.let { AppService.findById(it) }
+    }
     val answererLabel = modelLabel(pair.providerId, pair.model)
+    val answererProviderService = remember(pair.providerId) {
+        AppService.findById(pair.providerId)
+    }
+
+    // Trace lookups — answerer trace = closest-timestamp trace for
+    // this pair's reportId + model. Source trace = most-recent trace
+    // for the source agent's reportId + model.
+    val answererTrace by produceState<String?>(initialValue = null, pair.id, pair.model, pair.timestamp) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == run.reportId && it.model == pair.model }
+                .minByOrNull { kotlin.math.abs(it.timestamp - pair.timestamp) }?.filename
+        }
+    }
+    val sourceTrace by produceState<String?>(initialValue = null, run.reportId, sourceAgent?.model) {
+        value = if (sourceAgent == null) null else withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == run.reportId && it.model == sourceAgent.model }
+                .maxByOrNull { it.timestamp }?.filename
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val halfMax = maxHeight / 2
@@ -144,14 +173,44 @@ internal fun FanOutL3Screen(
                 title = "Fan out - pair",
                 subject = answererLabel,
                 onBackClick = onBack,
+                onInfo = answererProviderService?.let { svc ->
+                    { actions.onNavigateToModelInfo(svc, pair.model) }
+                },
+                onTrace = if (ApiTracer.isTracingEnabled && answererTrace != null) {
+                    { actions.onNavigateToTraceFile(answererTrace!!) }
+                } else null,
                 onReload = { actions.onRerunPair(run.key, pair.key) },
                 onDelete = { confirmDelete = true }
             )
             Spacer(Modifier.height(8.dp))
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
-            // Source pane
+            // Source pane — header row carries the source's "provider /
+            // model" label plus info / trace icons for the source
+            // agent's own run (peeking out of the pair view into the
+            // upstream call that produced the body shown below).
             Column(Modifier.fillMaxWidth().heightIn(max = halfMax).padding(vertical = 8.dp)) {
-                Text(sourceLabel, fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        sourceLabel, fontSize = 14.sp, color = AppColors.Blue,
+                        fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (sourceProviderService != null && sourceAgent != null) {
+                        Text(
+                            "ℹ️", fontSize = 16.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                                .clickable { actions.onNavigateToModelInfo(sourceProviderService, sourceAgent.model) }
+                        )
+                    }
+                    if (ApiTracer.isTracingEnabled && sourceTrace != null) {
+                        Text(
+                            "🐞", fontSize = 16.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                                .clickable { actions.onNavigateToTraceFile(sourceTrace!!) }
+                        )
+                    }
+                }
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     val body = sourceBody
