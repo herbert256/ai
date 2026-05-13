@@ -696,7 +696,7 @@ fun ReportCostTable(report: Report) {
     val iconRow: CostRow? = if (report.iconInputCost > 0.0 || report.iconOutputCost > 0.0) {
         val ai = com.ai.model.SettingsHolder.current
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "internal" && it.name == "icon"
+            it.category == "icons" && it.name == "icon"
         }
         val iconAgent = iconPrompt?.let { p ->
             ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }

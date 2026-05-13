@@ -225,6 +225,8 @@ fun PromptsSetupScreen(
                 onClick = onOpenFanInOutHub)
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
+            ModelsSetupNavCard("🎨", "Icons prompts", "Bundled prompts the icon chains use (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be removed or added to.", "${countByCategory("icons")}",
+                onClick = { onOpenInternalPrompts("icons") })
             ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
         }

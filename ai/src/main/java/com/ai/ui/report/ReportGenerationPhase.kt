@@ -1000,7 +1000,7 @@ internal fun ColumnScope.GenerationPhase(
         // Report.icon / Report.iconErrorMessage.
         run {
             val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-                it.category == "internal" && it.name == "icon"
+                it.category == "icons" && it.name == "icon"
             }
             val iconAgent = iconPrompt?.let { p ->
                 aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }

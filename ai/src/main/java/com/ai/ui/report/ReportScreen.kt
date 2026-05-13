@@ -1482,7 +1482,7 @@ fun ReportsScreen(
     }
     if (showIconDetail && currentReportId != null) {
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "icon"
+            it.category == "icons" && it.name == "icon"
         }
         val iconAgent = iconPrompt?.let { p ->
             aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
@@ -1526,13 +1526,13 @@ fun ReportsScreen(
     // was the agent's responseBody, not the report's prompt).
     agentIconDetailFor?.let { agentId ->
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_icon_chat"
+            it.category == "icons" && it.name == "report_icon_chat"
         }
         val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_icon"
+            it.category == "icons" && it.name == "report_icon"
         }
         val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_icon_3th"
+            it.category == "icons" && it.name == "report_icon_3th"
         }
         val agent = agentRecordsByAgentId[agentId]
         val provider = agent?.let { AppService.findById(it.provider) }

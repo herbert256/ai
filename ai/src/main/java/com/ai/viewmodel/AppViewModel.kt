@@ -713,6 +713,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms", it)
         }
 
+        // One-shot migration: nine bundled icon prompts moved from
+        // category "internal" to a new "icons" category. Rewrite any
+        // persisted row that still carries the old category so the
+        // upcoming delta-merge dedupe key (category, name) stays
+        // stable — otherwise the bundled ("icons", "report_icon")
+        // would be appended next to the legacy ("internal",
+        // "report_icon") and the user would see a duplicate.
+        // Idempotent: a no-op once every row already reads "icons".
+        run {
+            val iconNames = setOf(
+                "icon", "report_icon", "report_icon_chat", "report_icon_3th",
+                "fan_out_icon", "fan_out_icon_chat", "fan_out_icon_3th",
+                "prompt_icon", "translation_icon"
+            )
+            val migrated = ai.internalPrompts.map { p ->
+                if (p.category.equals("internal", ignoreCase = true) &&
+                    p.name.lowercase() in iconNames) p.copy(category = "icons") else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Migrated ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} icon prompts from category 'internal' → 'icons'")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get

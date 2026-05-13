@@ -66,7 +66,7 @@
     "name": "icon",
     "title": "Find a fitting title for a report",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
@@ -75,7 +75,7 @@
     "name": "report_icon",
     "title": "Find a fitting emoji for a model report",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "agent": "*N/A",
     "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
   },
@@ -83,7 +83,7 @@
     "name": "report_icon_chat",
     "title": "Find a fitting emoji for a report, chat version",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "*N/A",
     "text": "Please give your previous response back as an emoji, just one emoji, nothing more."
@@ -92,7 +92,7 @@
     "name": "report_icon_3th",
     "title": "Find a fitting emoji for a report, 3th try",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
@@ -101,7 +101,7 @@
     "name": "fan_out_icon_chat",
     "title": "Find a fitting emoji for a fan-out pair response, chat version",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "*N/A",
     "text": "Please give your previous response back as an emoji, just one emoji, nothing more."
@@ -110,7 +110,7 @@
     "name": "fan_out_icon",
     "title": "Find a fitting emoji for a fan-out pair response",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "agent": "*N/A",
     "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
   },
@@ -118,7 +118,7 @@
     "name": "fan_out_icon_3th",
     "title": "Find a fitting emoji for a fan-out pair response, 3th try",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
@@ -136,7 +136,7 @@
     "name": "prompt_icon",
     "title": "Find a fitting emoji for an internal prompt",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
@@ -145,7 +145,7 @@
     "name": "translation_icon",
     "title": "Find a fitting emoji for a translation",
     "reference": false,
-    "category": "internal",
+    "category": "icons",
     "scope": "Default",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
