@@ -112,15 +112,38 @@ internal fun SecondaryResultsScreen(
     }
     // When a pair leaves runningFanOutPairs (its semaphore-permitted
     // coroutine finished and dropped its id) the on-disk row already
-    // has content/durationMs, but the next polling tick is up to
-    // 500 ms away. Force an immediate disk reread so the stats
-    // classifier doesn't briefly read the row as "queued" (it isn't
-    // running and the stale results snapshot still shows it as blank).
+    // has content/durationMs, but Compose's recomposition fires from
+    // the StateFlow change BEFORE produceState's IO block has re-read
+    // disk — so the classifier briefly sees `id !in running` and
+    // `content == null` and renders "queued" until the next tick.
+    // Two fixes layered:
+    //   (1) Bump refreshTick immediately so the IO re-read kicks off
+    //       on the same frame.
+    //   (2) Keep the just-finished ids in `recentlySettled` for ~600 ms
+    //       — enough time for produceState's IO block to complete on
+    //       any reasonable device. The classifier treats those ids
+    //       as still in-flight, so a settling pair reads as "running"
+    //       until the disk row catches up to "done".
     var prevRunning by remember { mutableStateOf(emptySet<String>()) }
+    var recentlySettled by remember { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(runningFanOutPairs) {
         val finished = prevRunning - runningFanOutPairs
         prevRunning = runningFanOutPairs
-        if (finished.isNotEmpty()) refreshTick++
+        if (finished.isNotEmpty()) {
+            recentlySettled = recentlySettled + finished
+            refreshTick++
+            kotlinx.coroutines.delay(600)
+            recentlySettled = recentlySettled - finished
+        }
+    }
+    // Effective in-flight set passed downstream — the classifier
+    // treats anything here as "still running". `done` (content set
+    // or durationMs stamped) takes precedence either way, so a row
+    // that landed cleanly on disk still reads as ✅ even while it's
+    // briefly in `recentlySettled`.
+    val effectiveRunningFanOutPairs = remember(runningFanOutPairs, recentlySettled) {
+        if (recentlySettled.isEmpty()) runningFanOutPairs
+        else runningFanOutPairs + recentlySettled
     }
     // Single disk pass per refreshTick. Previously three separate
     // produceStates each called SecondaryResultStorage.listForReport,
@@ -354,7 +377,7 @@ internal fun SecondaryResultsScreen(
                 fanInPrompts = fanInPrompts,
                 fanInModelPrompts = fanInModelPrompts,
                 fanOutPrompt = fanOutPrompt,
-                runningFanOutPairs = runningFanOutPairs,
+                runningFanOutPairs = effectiveRunningFanOutPairs,
                 onRunFanIn = onRunFanIn,
                 onRunModelFanIn = onRunModelFanIn,
                 onCreateReportFromFanOut = onCreateReportFromFanOut,
