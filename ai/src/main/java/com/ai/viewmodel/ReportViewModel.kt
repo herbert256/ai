@@ -2799,6 +2799,82 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return resetAndRelaunch(context, reportId, metaPrompt, failed)
     }
 
+    /** Drop every errored fan-out pair row for this metaPromptId
+     *  without re-firing. Wired to the L1 Fan out detail screen's
+     *  "Remove failed items" button. */
+    fun removeFailedFanOutPairs(
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPrompt.id &&
+                    it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
+                    it.errorMessage != null
+            }
+        if (failed.isEmpty()) return@launch
+        val costDelta = failed.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        // Removed rows weren't in runningFanOutPairs (errored is a
+        // terminal state), so no need to update that set.
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        ReportStorage.bumpReportTimestamp(context, reportId)
+    }
+
+    /** L2-scoped "Restart failed items". Re-fires only the errored
+     *  pair rows for this metaPromptId where the active (provider,
+     *  model) is the answerer — pairs where another model is the
+     *  answerer are left alone so a partial failure in one row of L1
+     *  doesn't drag in other models' calls. Throttled through the
+     *  same [rerunFanOutPlaceholders] semaphore as the original run. */
+    fun rerunFailedFanOutPairsForModel(
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        providerId: String,
+        model: String
+    ): Job? {
+        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPrompt.id &&
+                    it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
+                    it.errorMessage != null &&
+                    it.providerId.equals(providerId, ignoreCase = true) &&
+                    it.model == model
+            }
+        if (failed.isEmpty()) return null
+        return resetAndRelaunch(context, reportId, metaPrompt, failed)
+    }
+
+    /** L2-scoped "Remove failed items". Mirrors
+     *  [removeFailedFanOutPairs] but only drops rows where the
+     *  active (provider, model) is the answerer. */
+    fun removeFailedFanOutPairsForModel(
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        providerId: String,
+        model: String
+    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter {
+                it.metaPromptId == metaPrompt.id &&
+                    it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
+                    it.errorMessage != null &&
+                    it.providerId.equals(providerId, ignoreCase = true) &&
+                    it.model == model
+            }
+        if (failed.isEmpty()) return@launch
+        val costDelta = failed.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+        failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        ReportStorage.bumpReportTimestamp(context, reportId)
+    }
+
     /** Drop every fan_out pair-row + every fan_in combine-row for this
      *  metaPromptId on this report, then kick a fresh
      *  [runFanOutPrompt]. Used by the Fan out L1 "Rerun the complete

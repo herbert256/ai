@@ -73,6 +73,13 @@ internal fun SecondaryResultsScreen(
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    /** Drop every errored fan-out pair without re-firing. */
+    onRemoveFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    /** L2-scoped restart: re-fire only the errored pair rows where
+     *  the (providerId, model) is the answerer. */
+    onRestartFailedFanOutForModel: (com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _ -> },
+    /** L2-scoped remove. */
+    onRemoveFailedFanOutForModel: (com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _ -> },
     onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     /** Re-run a single fan-out pair from the L3 "Fan out - pair"
      *  TitleBar's 🔄 reload icon. */
@@ -358,7 +365,18 @@ internal fun SecondaryResultsScreen(
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
                 onResumeStaleFanOut = onResumeStaleFanOut,
-                onRestartFailedFanOut = onRestartFailedFanOut,
+                onRestartFailedFanOut = { mp ->
+                    onRestartFailedFanOut(mp); refreshTick++
+                },
+                onRemoveFailedFanOut = { mp ->
+                    onRemoveFailedFanOut(mp); refreshTick++
+                },
+                onRestartFailedFanOutForModel = { mp, prov, mdl ->
+                    onRestartFailedFanOutForModel(mp, prov, mdl); refreshTick++
+                },
+                onRemoveFailedFanOutForModel = { mp, prov, mdl ->
+                    onRemoveFailedFanOutForModel(mp, prov, mdl); refreshTick++
+                },
                 onRerunCompleteFanOut = onRerunCompleteFanOut,
                 onRerunFanOutPair = onRerunFanOutPair,
                 // The other lifecycle callbacks (resume/restart/rerun)
@@ -544,6 +562,9 @@ private fun ColumnScope.FanOutDrillInView(
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRestartFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRemoveFailedFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
+    onRestartFailedFanOutForModel: (com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _ -> },
+    onRemoveFailedFanOutForModel: (com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _ -> },
     onRerunCompleteFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
     onRerunFanOutPair: (com.ai.model.InternalPrompt, SecondaryResult) -> Unit = { _, _ -> },
     onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> },
@@ -1013,6 +1034,8 @@ private fun ColumnScope.FanOutDrillInView(
         val provName = AppService.findById(activePid)?.id ?: activePid
         val activeProviderService = AppService.findById(activePid)
         var confirmModelDelete by remember { mutableStateOf(false) }
+        var confirmRestartFailedL2 by remember { mutableStateOf(false) }
+        var confirmRemoveFailedL2 by remember { mutableStateOf(false) }
         // Trace filename for the active model's report-agent run.
         // Hoisted out of the `if (selectedRole == "Initiator")` block
         // so toggling role doesn't kill and restart the produceState
@@ -1100,6 +1123,37 @@ private fun ColumnScope.FanOutDrillInView(
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("New Fan In", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
+        // L2-scoped error count: failed pair rows where the active
+        // (provider, model) is the answerer. Errors on OTHER models'
+        // rows aren't touched by the L2 buttons — the user came here
+        // to look at THIS model's slice.
+        val l2ErroredCount = remember(results, activePid, activeMdl) {
+            results.count {
+                it.fanOutSourceAgentId != null &&
+                    it.fanInOf == null &&
+                    it.errorMessage != null &&
+                    it.providerId.equals(activePid, ignoreCase = true) &&
+                    it.model == activeMdl
+            }
+        }
+        if (l2ErroredCount > 0 && fanOutPrompt != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { confirmRemoveFailedL2 = true },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { confirmRestartFailedL2 = true },
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         // Per-model total cost across the per-pair rows. Memoised so
         // role flip / batching tick recompositions don't re-walk the
@@ -1108,6 +1162,39 @@ private fun ColumnScope.FanOutDrillInView(
         // total visually belongs to the rows it sums.
         val totalCost = remember(l2Rows) {
             l2Rows.sumOf { it.pair?.let { p -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0) } ?: 0.0 }
+        }
+        if (confirmRestartFailedL2 && fanOutPrompt != null) {
+            com.ai.ui.shared.ReloadConfirmationDialog(
+                target = "",
+                title = "Restart failed items for this model?",
+                message = "Re-fires $l2ErroredCount failed pair${if (l2ErroredCount == 1) "" else "s"} where ${activePid}/${activeMdl} is the answerer. The runner's concurrency cap still applies, so larger failure sets surface as a mix of running and queued rows. Other models' rows are kept.",
+                confirmLabel = "Restart",
+                onConfirm = {
+                    confirmRestartFailedL2 = false
+                    onRestartFailedFanOutForModel(fanOutPrompt, activePid, activeMdl)
+                },
+                onDismiss = { confirmRestartFailedL2 = false }
+            )
+        }
+        if (confirmRemoveFailedL2 && fanOutPrompt != null) {
+            AlertDialog(
+                onDismissRequest = { confirmRemoveFailedL2 = false },
+                title = { Text("Remove failed items for this model?") },
+                text = {
+                    Text("Drops $l2ErroredCount failed pair${if (l2ErroredCount == 1) "" else "s"} where ${activePid}/${activeMdl} is the answerer. No API calls are made. Other models' rows are kept.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmRemoveFailedL2 = false
+                        onRemoveFailedFanOutForModel(fanOutPrompt, activePid, activeMdl)
+                    }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { confirmRemoveFailedL2 = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
         }
 
         // Model-scoped fan-in rows for THIS L2 active model. Filtered
@@ -1377,6 +1464,8 @@ private fun ColumnScope.FanOutDrillInView(
     // used to.
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmFanOutDelete by remember { mutableStateOf(false) }
+    var confirmRestartFailedL1 by remember { mutableStateOf(false) }
+    var confirmRemoveFailedL1 by remember { mutableStateOf(false) }
     // Static "Fan out" page title in the menu bar; the dynamic
     // prompt name + title surfaces as a green sub-header in the body
     // (or folded into the TitleBar when "Subject to title bar" is
@@ -1413,6 +1502,25 @@ private fun ColumnScope.FanOutDrillInView(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
         ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    }
+    // Per-failure controls — only visible when at least one pair row
+    // errored. Both buttons follow the runner's throttle, so a big
+    // failure set re-fires as a mix of ⏳ RUNNING + 🕓 PENDING rows.
+    if (erroredCount > 0 && fanOutPrompt != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { confirmRemoveFailedL1 = true },
+                modifier = Modifier.weight(1f)
+            ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { confirmRestartFailedL1 = true },
+                modifier = Modifier.weight(1f)
+            ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
     }
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -1647,31 +1755,46 @@ private fun ColumnScope.FanOutDrillInView(
         }
     }
 
-    // Action buttons — collapsed by default so the L1 page leads with
-    // the model rows + stats, and the user expands to find the
-    // run-management actions. The Rerun / Delete actions live on the
-    // TitleBar's reload / delete icons; the Run-a-Fan-in-prompt button
-    // sits above the sub-header at the top of the page.
-    Spacer(modifier = Modifier.height(8.dp))
-    CollapsibleCard("Actions") {
-        Button(
-            onClick = { fanOutPrompt?.let { onRestartFailedFanOut(it) } },
-            enabled = fanOutPrompt != null && erroredCount > 0,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-        ) { Text("Restart all failed API calls", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { showPromptViewer = true },
-            enabled = fanOutPrompt != null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) { Text("Show the used Fan out prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        Button(
-            onClick = { fanOutPrompt?.let { onNavigateToInternalPromptEdit(it.id) } },
-            enabled = fanOutPrompt != null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) { Text("Edit the used Fan out prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+    // The "Actions" CollapsibleCard (Restart all failed / Show /
+    // Edit fan-out prompt) was retired. Per-failure controls live in
+    // the dedicated Remove failed items / Restart failed items
+    // buttons surfaced above the L1 list when erroredCount > 0;
+    // Rerun / Delete actions are on the TitleBar's reload / delete
+    // icons; Run-a-Fan-in-prompt sits above the sub-header at the
+    // top of the page.
+
+    if (confirmRestartFailedL1) {
+        com.ai.ui.shared.ReloadConfirmationDialog(
+            target = "",
+            title = "Restart failed items?",
+            message = "Re-fires $erroredCount failed fan-out call${if (erroredCount == 1) "" else "s"} for this prompt. The runner's concurrency cap still applies, so larger failure sets surface as a mix of running and queued rows. Successful pairs are kept.",
+            confirmLabel = "Restart",
+            onConfirm = {
+                confirmRestartFailedL1 = false
+                fanOutPrompt?.let { onRestartFailedFanOut(it) }
+            },
+            onDismiss = { confirmRestartFailedL1 = false }
+        )
+    }
+    if (confirmRemoveFailedL1) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveFailedL1 = false },
+            title = { Text("Remove failed items?") },
+            text = {
+                Text("Drops $erroredCount failed fan-out row${if (erroredCount == 1) "" else "s"} for this prompt. No API calls are made. Successful pairs are kept.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveFailedL1 = false
+                    fanOutPrompt?.let { onRemoveFailedFanOut(it) }
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveFailedL1 = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
     }
 
     if (confirmRerunComplete) {

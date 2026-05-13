@@ -438,6 +438,15 @@ fun ReportsScreenNav(
         onRestartFailedFanOut = { rid, mp ->
             reportViewModel.rerunFailedFanOutPairs(context, rid, mp)
         },
+        onRemoveFailedFanOut = { rid, mp ->
+            reportViewModel.removeFailedFanOutPairs(context, rid, mp)
+        },
+        onRestartFailedFanOutForModel = { rid, mp, prov, mdl ->
+            reportViewModel.rerunFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+        },
+        onRemoveFailedFanOutForModel = { rid, mp, prov, mdl ->
+            reportViewModel.removeFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+        },
         onRerunCompleteFanOut = { rid, mp ->
             reportViewModel.rerunCompleteFanOut(context, rid, mp)
         },
@@ -648,6 +657,9 @@ fun ReportsScreen(
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onResumeStaleFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     onRestartFailedFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRemoveFailedFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
+    onRestartFailedFanOutForModel: (String, com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _, _ -> },
+    onRemoveFailedFanOutForModel: (String, com.ai.model.InternalPrompt, String, String) -> Unit = { _, _, _, _ -> },
     onRerunCompleteFanOut: (String, com.ai.model.InternalPrompt) -> Unit = { _, _ -> },
     /** Re-run a single fan-out pair from the L3 "Fan out - pair"
      *  TitleBar's 🔄 reload icon. */
@@ -2137,6 +2149,17 @@ fun ReportsScreen(
             onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
             onResumeStaleFanOut = { mp -> onResumeStaleFanOut(rid, mp) },
             onRestartFailedFanOut = { mp -> onRestartFailedFanOut(rid, mp) },
+            onRemoveFailedFanOut = { mp ->
+                onRemoveFailedFanOut(rid, mp)
+                secondaryRefreshTick++
+            },
+            onRestartFailedFanOutForModel = { mp, prov, mdl ->
+                onRestartFailedFanOutForModel(rid, mp, prov, mdl)
+            },
+            onRemoveFailedFanOutForModel = { mp, prov, mdl ->
+                onRemoveFailedFanOutForModel(rid, mp, prov, mdl)
+                secondaryRefreshTick++
+            },
             onRerunCompleteFanOut = { mp ->
                 onRerunCompleteFanOut(rid, mp)
                 secondaryRefreshTick++
