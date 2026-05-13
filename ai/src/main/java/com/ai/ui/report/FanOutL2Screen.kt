@@ -27,11 +27,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +43,8 @@ import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
+import com.ai.data.Report
+import com.ai.data.ReportStorage
 import com.ai.data.effectiveStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -48,6 +52,8 @@ import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.FanOutEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * L2: shows every pair where the active model is the answerer
@@ -109,6 +115,18 @@ internal fun FanOutL2Screen(
     }
 
     val erroredHere = rows.count { it.status == PairStatus.ERROR }
+
+    // Load report lazily so source agent ids can resolve to model
+    // labels in the row list (mirrors the L1 "provider / model"
+    // format). Falls back to the UUID before the report has loaded.
+    val context = LocalContext.current
+    val report by produceState<Report?>(initialValue = null, run.reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, run.reportId) }
+    }
+    val agentLabels: Map<String, String> = remember(report) {
+        report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
+            ?: emptyMap()
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -265,15 +283,18 @@ internal fun FanOutL2Screen(
                             Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                            // For Responder mode, the row label is the
-                            // SOURCE — display its agent id; the
-                            // resolveModelLabel helper is keyed on
-                            // (provider, model) so we don't have an
-                            // exact label for sources. Show agentId
-                            // truncated.
+                            // Responder mode: row is a SOURCE — resolve
+                            // its agentId to "provider / model" via the
+                            // report's agent list (same format L1 uses).
+                            // Initiator mode: row is the ANSWERER and the
+                            // pair already carries provider / model.
+                            val label = if (role == "Responder") {
+                                agentLabels[otherAgentId] ?: otherAgentId
+                            } else {
+                                resolveModelLabel("${p.providerId}|${p.model}")
+                            }
                             Text(
-                                if (role == "Responder") "source: $otherAgentId"
-                                else resolveModelLabel("${p.providerId}|${p.model}"),
+                                label,
                                 fontSize = 14.sp, color = Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
@@ -375,6 +396,15 @@ internal fun FanOutL2OnePageScreen(
         else -> run.pairs.values.filter { "${it.providerId}|${it.model}" == answererKey }
     }.sortedBy { it.timestamp }
 
+    val context = LocalContext.current
+    val report by produceState<Report?>(initialValue = null, run.reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, run.reportId) }
+    }
+    val agentLabels: Map<String, String> = remember(report) {
+        report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
+            ?: emptyMap()
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
@@ -387,7 +417,7 @@ internal fun FanOutL2OnePageScreen(
             items(rows, key = { it.key }) { p ->
                 Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Text(
-                        "source: ${p.sourceAgentId}",
+                        agentLabels[p.sourceAgentId] ?: p.sourceAgentId,
                         fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
                     )
                     Spacer(Modifier.height(4.dp))

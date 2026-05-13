@@ -129,7 +129,11 @@ internal fun FanOutL3Screen(
     val prev = if (curIdx > 0) l2Rows[curIdx - 1] else null
     val next = if (curIdx in 0 until l2Rows.size - 1) l2Rows[curIdx + 1] else null
 
-    val sourceLabel = "source: ${pair.sourceAgentId}"
+    val sourceLabel = remember(report, pair.sourceAgentId) {
+        report?.agents?.firstOrNull { it.agentId == pair.sourceAgentId }
+            ?.let { resolveModelLabel("${it.provider}|${it.model}") }
+            ?: pair.sourceAgentId
+    }
     val answererLabel = modelLabel(pair.providerId, pair.model)
 
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
