@@ -46,6 +46,13 @@ internal fun SecondaryResultsScreen(
     nameFilter: String? = null,
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
+    /** Authoritative Fan Out runtime. When non-null and the screen
+     *  is in fan-out drill-in mode, the redesigned FanOutScreen
+     *  takes over; legacy FanOutDrillInView remains only for the
+     *  edge case where the engine isn't wired (back-compat for
+     *  legacy callers that haven't been migrated). Phase F removes
+     *  the legacy path entirely. */
+    fanOutEngine: com.ai.viewmodel.FanOutEngine? = null,
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     /** Per-model fan-in prompt list driving the L2 "New Fan In"
      *  button. Filtered to category="fan-in-model". */
@@ -387,7 +394,75 @@ internal fun SecondaryResultsScreen(
         // fan_in combine-reports rows live in fanInRows
         // (loaded unconditionally above so the nameFilter doesn't hide
         // them) and surface as the second list above the answerers.
+        if (isFanOutDrillIn && fanOutEngine != null && fanOutPrompt != null) {
+            // Redesigned fan-out drill-in. Resolves the runKey from
+            // (reportId, prompt.id) and hands off to FanOutScreen,
+            // which subscribes to fanOutEngine.runs and renders L1/L2/L3
+            // reactively. Hydration on entry seeds the StateFlow from
+            // disk; subsequent disk changes (via the existing
+            // ReportViewModel runners) re-hydrate on each refresh tick.
+            val runKey = com.ai.data.runKey(reportId, fanOutPrompt.id)
+            LaunchedEffect(reportId, runKey, refreshTick) {
+                withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
+            }
+            val actions = FanOutActions(
+                onDeleteRun = { rk ->
+                    fanOutEngine.deleteRun(context, rk)
+                    refreshTick++
+                },
+                onRerunComplete = { rk ->
+                    fanOutEngine.rerunComplete(context, rk)
+                    refreshTick++
+                },
+                onRemoveFailedPairs = { rk ->
+                    fanOutEngine.removeFailedPairs(context, rk)
+                    refreshTick++
+                },
+                onRestartFailedPairs = { rk ->
+                    fanOutEngine.restartFailedPairs(context, rk)
+                    refreshTick++
+                },
+                onRemoveFailedPairsForModel = { rk, prov, mdl ->
+                    fanOutEngine.removeFailedPairsForModel(context, rk, prov, mdl)
+                    refreshTick++
+                },
+                onRestartFailedPairsForModel = { rk, prov, mdl ->
+                    fanOutEngine.restartFailedPairsForModel(context, rk, prov, mdl)
+                    refreshTick++
+                },
+                onRerunPair = { rk, pk ->
+                    fanOutEngine.rerunPair(context, rk, pk)
+                    refreshTick++
+                },
+                onCancelPair = { rk, pk ->
+                    fanOutEngine.cancelPair(context, rk, pk)
+                    refreshTick++
+                },
+                onDeleteModelFromRun = { rk, prov, mdl ->
+                    fanOutEngine.deleteModelFromRun(context, rk, prov, mdl)
+                    refreshTick++
+                },
+                onRunFanIn = { _ -> onRunFanIn?.invoke() },
+                onRunModelFanIn = { _, prov, mdl -> onRunModelFanIn?.invoke(prov, mdl) },
+                onCreateReportFromFanOut = { _, prov, mdl -> onCreateReportFromFanOut?.invoke(prov, mdl) },
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+                onOpenSecondary = { id -> openId = id }
+            )
+            FanOutScreen(
+                engine = fanOutEngine,
+                reportId = reportId,
+                runKey = runKey,
+                actions = actions,
+                onBack = onBack
+            )
+            return@Column
+        }
         if (isFanOutDrillIn) {
+            // Legacy path — kept only for callers that haven't been
+            // migrated to pass `fanOutEngine`. Phase F deletes both
+            // the call and the FanOutDrillInView Composable.
             FanOutDrillInView(
                 reportId = reportId,
                 results = fanOutRowsAll,
@@ -420,12 +495,6 @@ internal fun SecondaryResultsScreen(
                 },
                 onRerunCompleteFanOut = onRerunCompleteFanOut,
                 onRerunFanOutPair = onRerunFanOutPair,
-                // The other lifecycle callbacks (resume/restart/rerun)
-                // each kick a fresh batch, which spins the polling
-                // loop and refreshes implicitly. Per-model delete is
-                // the standout — it removes rows but never starts a
-                // batch, so without an explicit bump L1 paints stale
-                // data once L2 pops back.
                 onDeleteFanOutModel = { mpid, prov, model ->
                     onDeleteFanOutModel(mpid, prov, model); refreshTick++
                 },

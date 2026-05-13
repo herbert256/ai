@@ -249,6 +249,7 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         runningFanOutPairs = runningFanOutPairs,
+        fanOutEngine = reportViewModel.fanOutEngine,
         iconFanOutByReport = iconFanOutByReport,
         onStartIconFanOut = { rid, prompt, models ->
             reportViewModel.startIconFanOut(context, rid, prompt, models, aiSettings)
@@ -545,6 +546,11 @@ fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
     runningFanOutPairs: Set<String> = emptySet(),
+    /** Authoritative Fan Out runtime owner. Passed through from
+     *  [ReportsScreenNav] so the redesigned [FanOutScreen] under
+     *  [SecondaryResultsScreen] subscribes directly to its
+     *  StateFlow. */
+    fanOutEngine: com.ai.viewmodel.FanOutEngine? = null,
     /** Live state of any "Find alternative icons" fan-out, keyed by
      *  reportId. Collected from [AppViewModel.iconFanOutByReport] in
      *  [ReportsScreenNav] and threaded through here. */
@@ -2107,6 +2113,7 @@ fun ReportsScreen(
             nameFilter = listFilterByName,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
+            fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,
             fanInModelPrompts = fanInModelList,
             fanOutPrompt = fanOutPrompt,
