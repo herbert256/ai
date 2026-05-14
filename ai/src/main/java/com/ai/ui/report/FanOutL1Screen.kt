@@ -324,6 +324,27 @@ internal fun FanOutL1Screen(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row { Text("Total API calls", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.weight(1f)); Text(run.totalPairs.toString(), color = AppColors.Blue) }
                 Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(doneCount.toString(), color = AppColors.Green) }
+                if (isIconsMode) {
+                    // Per-tier tally of which chain-tier produced the
+                    // landed emoji. Only the DONE pairs carry a
+                    // non-null iconWinningTier, so the three counts
+                    // sum to doneCount.
+                    val tier1 = run.pairs.values.count { it.iconWinningTier == 1 }
+                    val tier2 = run.pairs.values.count { it.iconWinningTier == 2 }
+                    val tier3 = run.pairs.values.count { it.iconWinningTier == 3 }
+                    Row {
+                        Text("  Tier 1 (chat)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+                        Text(tier1.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
+                    }
+                    Row {
+                        Text("  Tier 2 (one-shot)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+                        Text(tier2.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
+                    }
+                    Row {
+                        Text("  Tier 3 (fixed agent)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+                        Text(tier3.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
+                    }
+                }
                 Row { Text("Errored", fontSize = 13.sp, color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(errorCount.toString(), color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
                 Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(runningCount.toString(), color = AppColors.Orange) }
                 val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
