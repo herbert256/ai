@@ -431,6 +431,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _runningFanOutPairs.update(block)
     }
 
+    /** Pair ids currently blocked inside
+     *  [com.ai.data.ProviderThrottle.acquire] — i.e. waiting on
+     *  the provider's per-minute sliding window before the actual
+     *  HTTP call. Surfaces in the L1 stats panel as a "Throttled"
+     *  counter so users can tell apart "queued behind a cap" from
+     *  "queued behind a provider rate limit". */
+    private val _throttledFanOutPairs = MutableStateFlow<Set<String>>(emptySet())
+    val throttledFanOutPairs: StateFlow<Set<String>> = _throttledFanOutPairs.asStateFlow()
+    internal fun updateThrottledFanOutPairs(block: (Set<String>) -> Set<String>) {
+        _throttledFanOutPairs.update(block)
+    }
+
     /** Live state of any "Find alternative icons" fan-out, keyed by
      *  reportId. Lives outside [UiState] for the same reason as
      *  [runningFanOutPairs] — per-call status flips fire faster than

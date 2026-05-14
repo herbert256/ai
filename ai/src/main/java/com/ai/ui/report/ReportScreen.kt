@@ -185,6 +185,7 @@ fun ReportsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
+    val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
@@ -249,6 +250,7 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         runningFanOutPairs = runningFanOutPairs,
+        throttledFanOutPairs = throttledFanOutPairs,
         fanOutEngine = reportViewModel.fanOutEngine,
         iconFanOutByReport = iconFanOutByReport,
         onStartIconFanOut = { rid, prompt, models ->
@@ -546,6 +548,7 @@ fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
     runningFanOutPairs: Set<String> = emptySet(),
+    throttledFanOutPairs: Set<String> = emptySet(),
     /** Authoritative Fan Out runtime owner. Passed through from
      *  [ReportsScreenNav] so the redesigned [FanOutScreen] under
      *  [SecondaryResultsScreen] subscribes directly to its
@@ -2137,6 +2140,7 @@ fun ReportsScreen(
             nameFilter = listFilterByName,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
+            throttledFanOutPairs = throttledFanOutPairs,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,
             fanInModelPrompts = fanInModelList,

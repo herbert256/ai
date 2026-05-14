@@ -63,6 +63,7 @@ internal fun FanOutL1Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
     runningSet: Set<String>,
+    throttledSet: Set<String>,
     actions: FanOutActions,
     onOpenModel: (String) -> Unit,
     onOpenIcons: () -> Unit,
@@ -278,6 +279,10 @@ internal fun FanOutL1Screen(
                 Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(run.doneCount.toString(), color = AppColors.Green) }
                 Row { Text("Errored", fontSize = 13.sp, color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.errorCount.toString(), color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
                 Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(run.effectiveRunningCount(runningSet).toString(), color = AppColors.Orange) }
+                val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
+                if (throttledHere > 0) {
+                    Row { Text("Throttled", fontSize = 13.sp, color = AppColors.Purple, modifier = Modifier.weight(1f)); Text(throttledHere.toString(), color = AppColors.Purple) }
+                }
                 Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.effectiveQueuedCount(runningSet).toString(), color = AppColors.TextTertiary) }
             }
 

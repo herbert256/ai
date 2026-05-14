@@ -122,6 +122,10 @@ fun FanOutScreen(
      *  set is a valid degenerate case (no in-flight info — every
      *  pair reads as the disk says). */
     runningSet: Set<String> = emptySet(),
+    /** Pair ids currently blocked inside
+     *  [com.ai.data.ProviderThrottle.acquire] (per-minute rate
+     *  limit). Surfaces as the L1 Throttled counter. */
+    throttledSet: Set<String> = emptySet(),
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -165,6 +169,7 @@ fun FanOutScreen(
             engine = engine,
             run = runState,
             runningSet = runningSet,
+            throttledSet = throttledSet,
             actions = actions,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
             onOpenIcons = { nav = FanOutNav.L1Icons },

@@ -46,6 +46,7 @@ internal fun SecondaryResultsScreen(
     nameFilter: String? = null,
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
+    throttledFanOutPairs: Set<String> = emptySet(),
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
      *  takes over; legacy FanOutDrillInView remains only for the
@@ -465,6 +466,7 @@ internal fun SecondaryResultsScreen(
                 runKey = runKey,
                 actions = actions,
                 runningSet = effectiveRunningFanOutPairs,
+                throttledSet = throttledFanOutPairs,
                 onBack = onBack
             )
             return@Column
