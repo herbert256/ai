@@ -1012,10 +1012,14 @@ internal fun ColumnScope.GenerationPhase(
                         }
                     }
                     RowTypeCell("translate")
-                    val info = listOfNotNull(run.targetLanguage, run.model).joinToString(" · ")
+                    // Language name + item count — no model name (the
+                    // run spreads items across many models now; the
+                    // detail screen shows the per-model breakdown).
+                    val lang = run.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translate"
+                    val info = "$lang - ${run.callCount} item${if (run.callCount == 1) "" else "s"}"
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            info.ifBlank { "Translate" },
+                            info,
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
