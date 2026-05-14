@@ -136,9 +136,12 @@ internal fun FanOutL3Screen(
     val prev = if (curIdx > 0) l2Rows[curIdx - 1] else null
     val next = if (curIdx in 0 until l2Rows.size - 1) l2Rows[curIdx + 1] else null
 
+    // "The other model" in the pair — show only the model name, no
+    // provider. The green subject already names the model this screen
+    // is about; the source pane just needs the counterpart's model.
     val sourceLabel = remember(report, pair.sourceAgentId) {
         report?.agents?.firstOrNull { it.agentId == pair.sourceAgentId }
-            ?.let { resolveModelLabel("${it.provider}|${it.model}") }
+            ?.model
             ?: pair.sourceAgentId
     }
     val sourceAgent = remember(report, pair.sourceAgentId) {
