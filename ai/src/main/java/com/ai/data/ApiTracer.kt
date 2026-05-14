@@ -1097,12 +1097,17 @@ private fun googleRetryAfterMs(response: Response): Long? {
     }.getOrNull()
 }
 
-/** True when a Google 429 body reports the per-day request quota
- *  (`generate_requests_per_model_per_day`) as exhausted — a
- *  `QuotaFailure` detail with a matching violation. Google's
- *  `retryDelay` hint for this case is unreliable (often short
- *  even though the quota only refills at the day boundary), so
- *  the caller benches until the Pacific-midnight reset instead. */
+/** True when a Google 429 body reports a **per-day** quota as
+ *  exhausted — a `QuotaFailure` detail whose violation matches
+ *  either the per-day request cap
+ *  (`generate_requests_per_model_per_day`) or the per-day token
+ *  cap (`*_tokens_per_model_per_day`). Both reset at the same
+ *  Pacific-midnight boundary. Google's `retryDelay` hint for
+ *  these is unreliable (often short even though the quota only
+ *  refills at the day boundary), so the caller benches until the
+ *  reset instead. Per-minute quotas (`*_per_minute`) are
+ *  deliberately not matched — the in-line retry loop clears
+ *  those within a minute. */
 private fun googleDailyQuotaExhausted(response: Response): Boolean = runCatching {
     val body = response.peekBody(64L * 1024L).string()
     val details = com.google.gson.JsonParser.parseString(body).asJsonObject
@@ -1115,8 +1120,9 @@ private fun googleDailyQuotaExhausted(response: Response): Boolean = runCatching
             val vo = v.asJsonObject
             val metric = vo.get("quotaMetric")?.asString ?: ""
             val id = vo.get("quotaId")?.asString ?: ""
-            if (metric.contains("generate_requests_per_model_per_day") ||
-                id.contains("PerDay")) return true
+            val perDayMetric = metric.endsWith("_per_model_per_day") ||
+                metric.endsWith("_tokens_per_model_per_day")
+            if (perDayMetric || id.contains("PerDay")) return true
         }
     }
     false
