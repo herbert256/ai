@@ -107,6 +107,7 @@
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "Google",
+      "maxCallsPerProviderPerMinute": 60,
       "litellmPrefix": "gemini",
       "modelListFormat": "array",
       "modelsPath": "v1beta/models",
