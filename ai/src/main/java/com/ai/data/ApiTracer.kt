@@ -734,6 +734,19 @@ object ProviderThrottle {
         fun release() { if (released.compareAndSet(false, true)) sem.release() }
     }
 
+    /** Result of [tryAcquire]. */
+    sealed class Outcome {
+        class Acquired(val releaser: Releaser) : Outcome()
+        /** Gate is full; [availableAtMs] is the wall-clock time the
+         *  caller should re-check (exact for the per-minute window,
+         *  a short poll interval for the concurrency cap). */
+        class Blocked(val availableAtMs: Long) : Outcome()
+    }
+
+    /** Poll interval when only the concurrency cap is full — there's
+     *  no exact ETA for a permit, so re-check soon. */
+    private const val CONCURRENCY_POLL_MS = 500L
+
     /** Resolve a per-provider override (if any) and return the effective
      *  caps the interceptor would apply. Exposed so the fan-out
      *  pre-acquire path uses the exact same lookup as the in-line
@@ -836,6 +849,48 @@ object ProviderThrottle {
             AppLog.d("Throttle", "concurrent-cap wait ${System.currentTimeMillis() - concurrentWaitStart}ms on $host (cap=$concurrentLimit)")
         }
         return Releaser(sem)
+    }
+
+    /** Non-blocking sibling of [acquire]. Used by the list
+     *  dispatchers (Fan Out / translation / model reports) so a
+     *  capped entry can yield + requeue instead of `Thread.sleep`-ing
+     *  a worker. Checks the concurrency permit first (non-destructive
+     *  on a miss), then the per-minute window under the same
+     *  `synchronized(window)` admission [acquire] uses; on a window
+     *  miss the concurrency permit is released so nothing leaks. */
+    fun tryAcquire(host: String): Outcome {
+        if (host.isBlank()) {
+            return Outcome.Acquired(Releaser(java.util.concurrent.Semaphore(Int.MAX_VALUE)))
+        }
+        val override = ProviderRegistry.findByHost(host)
+        val perMinuteLimit = (override?.maxCallsPerProviderPerMinute
+            ?: NetworkSettings.maxCallsPerProviderPerMinute).coerceAtLeast(1)
+        val concurrentLimit = (override?.maxConcurrentCallsPerProvider
+            ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
+        val sem = sems.computeIfAbsent(host) { java.util.concurrent.Semaphore(concurrentLimit) }
+        if (!sem.tryAcquire()) {
+            return Outcome.Blocked(System.currentTimeMillis() + CONCURRENCY_POLL_MS)
+        }
+        val window = windows.computeIfAbsent(host) { java.util.concurrent.ConcurrentLinkedDeque() }
+        val blockedUntil: Long? = synchronized(window) {
+            val now = System.currentTimeMillis()
+            while (true) {
+                val head = window.peekFirst() ?: break
+                if (head < now - 60_000L) window.pollFirst() else break
+            }
+            if (window.size < perMinuteLimit) {
+                window.addLast(now)
+                null
+            } else {
+                (window.peekFirst() ?: now) + 60_001L
+            }
+        }
+        return if (blockedUntil == null) {
+            Outcome.Acquired(Releaser(sem))
+        } else {
+            sem.release()
+            Outcome.Blocked(blockedUntil)
+        }
     }
 
     /** Drop the per-host semaphore + window maps so the next call to

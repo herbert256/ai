@@ -406,7 +406,9 @@ class FanOutEngine internal constructor(
         ioCap.withPermit {
             val host = providerHost(provider)
             AppLog.d("FanOut", "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel")
-            val releaser = ProviderThrottle.acquire(host)
+            // Non-blocking gate — a capped host yields the coroutine
+            // (delay, not Thread.sleep) so other pairs proceed.
+            val releaser = acquireOrRequeue(host)
             try {
                 if (!SecondaryResultStorage.exists(context, runKey.substringBefore('|'), placeholderId)) {
                     AppLog.d("FanOut", "skip pair $placeholderId — deleted before launch")

@@ -105,6 +105,43 @@ internal fun <T> interleaveByHost(items: List<T>, hostKey: (T) -> String?): List
     return result
 }
 
+/** Non-blocking replacement for [com.ai.data.ProviderThrottle.acquire]
+ *  in the list dispatchers (Fan Out / translation / model reports).
+ *  Polls [com.ai.data.ProviderThrottle.tryAcquire]; when the host's
+ *  rate / concurrency cap is full it `delay`s (a coroutine
+ *  suspension — NOT a `Thread.sleep`) until roughly the
+ *  `availableAtMs` the throttle reported, then re-checks. The
+ *  suspension frees the worker thread so every other ready entry
+ *  proceeds — the capped entry effectively waits its turn at the
+ *  back of the line. The loop sits exactly at the queued → running
+ *  transition: it only returns (letting the entry flip to RUNNING)
+ *  once the host has a slot.
+ *
+ *  [onThrottled] / [onCleared] let a dispatcher mirror the wait into
+ *  its existing throttled-tracking StateFlow; both default to no-ops
+ *  for dispatchers that don't surface it. `delay` is
+ *  cancellation-aware, so Stop / navigate-away unwinds cleanly. */
+internal suspend fun acquireOrRequeue(
+    host: String,
+    onThrottled: (availableAtMs: Long) -> Unit = {},
+    onCleared: () -> Unit = {}
+): com.ai.data.ProviderThrottle.Releaser {
+    while (true) {
+        when (val o = com.ai.data.ProviderThrottle.tryAcquire(host)) {
+            is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
+                onCleared()
+                return o.releaser
+            }
+            is com.ai.data.ProviderThrottle.Outcome.Blocked -> {
+                onThrottled(o.availableAtMs)
+                kotlinx.coroutines.delay(
+                    (o.availableAtMs - System.currentTimeMillis()).coerceIn(100L, 10_000L)
+                )
+            }
+        }
+    }
+}
+
 /** Translate-mode caller for prompt + results: when [language] is
  *  null, returns the report's untranslated prompt + result block.
  *  Otherwise looks up the per-target translation rows and substitutes

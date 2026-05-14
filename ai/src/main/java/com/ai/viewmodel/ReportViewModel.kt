@@ -319,10 +319,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         // immediately and varies the run-to-run order.
                         interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
                             async {
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.report.withPermit {
-                                        executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
+                                // Non-blocking per-host gate, outside the outer
+                                // caps — a task on a capped host yields the
+                                // coroutine (delay, not Thread.sleep) instead of
+                                // blocking an OkHttp thread, so other hosts'
+                                // tasks proceed. The interceptor skips its own
+                                // acquire via permitPreAcquired.
+                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                try {
+                                    ApiCallCaps.global.withPermit {
+                                        ApiCallCaps.report.withPermit {
+                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
+                                            }
+                                        }
                                     }
+                                } finally {
+                                    releaser.release()
                                 }
                                 // Per-task auto-fire: kick off this
                                 // agent's 3-tier icon chain the moment
@@ -1712,16 +1725,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
 
                                 // Acquire order mirrors runFanOutPrompt: hostCap
-                                // first (so the per-host cap is the only thing
-                                // held during the blocking ProviderThrottle
-                                // wait), then global, then fan-icons cap.
+                                // first, then the non-blocking ProviderThrottle
+                                // gate (yields on a capped host instead of
+                                // Thread.sleep), then global, then fan-icons cap.
                                 hostCap.withPermit {
-                                    appViewModel.updateThrottledFanIconsPairs { it + pair.id }
-                                    val releaser = try {
-                                        ProviderThrottle.acquire(host)
-                                    } finally {
-                                        appViewModel.updateThrottledFanIconsPairs { it - pair.id }
-                                    }
+                                    val releaser = acquireOrRequeue(
+                                        host,
+                                        onThrottled = { appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
+                                        onCleared = { appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
+                                    )
                                     try {
                                         ApiCallCaps.global.withPermit {
                                             ApiCallCaps.fanIcons.withPermit {
@@ -2358,11 +2370,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         // outer cap permits idle.
                         interleaveByHost(tasksToRun) { providerHost(it.runtimeAgent.provider) }.map { task ->
                             async {
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.report.withPermit {
-                                        executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
-                                            finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
+                                // Non-blocking per-host gate — see
+                                // generateGenericReports for the rationale.
+                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                try {
+                                    ApiCallCaps.global.withPermit {
+                                        ApiCallCaps.report.withPermit {
+                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
+                                                    finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
+                                            }
+                                        }
                                     }
+                                } finally {
+                                    releaser.release()
                                 }
                                 // Per-task auto-fire — same shape as
                                 // generateGenericReports. Each agent's
@@ -2935,21 +2956,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 if (hostCap.availablePermits == 0)
                                     AppLog.v("Caps", "pair=${item.placeholder.id} WAIT hostCap (host=$host)")
                                 hostCap.withPermit {
-                                // ProviderThrottle.acquire (blocking — per-host
-                                // concurrent + per-minute sliding window) now
-                                // runs BEFORE the outer global / fan-out caps.
-                                // Otherwise a pair blocked on the per-minute
-                                // rate limit would hold those outer permits
-                                // idle, starving pairs on other hosts. The
-                                // Throttled mark gives the UI a chance to
-                                // distinguish "waiting on rate limit" from
-                                // "queued behind a cap".
-                                appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id }
-                                val releaser = try {
-                                    ProviderThrottle.acquire(host)
-                                } finally {
-                                    appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id }
-                                }
+                                // Non-blocking per-host gate (concurrent +
+                                // per-minute window), BEFORE the outer global /
+                                // fan-out caps. A capped pair yields the
+                                // coroutine (delay, not Thread.sleep) so other
+                                // hosts' pairs proceed; the Throttled mark drives
+                                // the L1 "Throttled N" counter while it waits.
+                                val releaser = acquireOrRequeue(
+                                    host,
+                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
+                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } }
+                                )
                                 try {
                                 if (ApiCallCaps.global.availablePermits == 0)
                                     AppLog.v("Caps", "pair=${item.placeholder.id} WAIT global ${ApiCallCaps.snapshot().let { "${it.globalInFlight}/${it.globalMax}" }}")
@@ -3092,17 +3109,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: per-host cap → ProviderThrottle
-                                // (blocking, per-minute window) → outer global +
+                                // Acquire order: per-host cap → non-blocking
+                                // ProviderThrottle gate (yields on a capped host
+                                // instead of Thread.sleep) → outer global +
                                 // fan-out. See runFanOutPrompt for the full
                                 // rationale; same Throttled-mark for the UI.
                                 hostCap.withPermit {
-                                appViewModel.updateThrottledFanOutPairs { it + ph.id }
-                                val releaser = try {
-                                    ProviderThrottle.acquire(host)
-                                } finally {
-                                    appViewModel.updateThrottledFanOutPairs { it - ph.id }
-                                }
+                                val releaser = acquireOrRequeue(
+                                    host,
+                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + ph.id } },
+                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - ph.id } }
+                                )
                                 try {
                                 ApiCallCaps.global.withPermit {
                                 ApiCallCaps.fanOut.withPermit {
@@ -4718,14 +4735,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // saturated per-host cap suspends without
                             // holding the outer caps idle.
                             cap.withPermit {
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.translation.withPermit {
-                                        runOneTranslation(
-                                            runId, context, ctx.provider, ctx.apiKey,
-                                            ctx.model, ctx.baseUrl, template,
-                                            targetLanguageName, item, ctx.pricing
-                                        )
+                                // Non-blocking ProviderThrottle gate — a capped
+                                // host yields the coroutine (delay, not
+                                // Thread.sleep) so other items proceed; the
+                                // OkHttp interceptor skips its own acquire via
+                                // permitPreAcquired.
+                                val releaser = acquireOrRequeue(host)
+                                try {
+                                    ApiCallCaps.global.withPermit {
+                                        ApiCallCaps.translation.withPermit {
+                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                runOneTranslation(
+                                                    runId, context, ctx.provider, ctx.apiKey,
+                                                    ctx.model, ctx.baseUrl, template,
+                                                    targetLanguageName, item, ctx.pricing
+                                                )
+                                            }
+                                        }
                                     }
+                                } finally {
+                                    releaser.release()
                                 }
                             }
                         }
@@ -5307,14 +5336,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // Acquire order: per-host first (see
                             // startTranslation for the rationale).
                             cap.withPermit {
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.translation.withPermit {
-                                        runOneTranslation(
-                                            runId, context, ctx.provider, ctx.apiKey,
-                                            ctx.model, ctx.baseUrl, template,
-                                            targetLanguageName, item, ctx.pricing
-                                        )
+                                // Non-blocking ProviderThrottle gate — a capped
+                                // host yields the coroutine (delay, not
+                                // Thread.sleep) so other items proceed; the
+                                // OkHttp interceptor skips its own acquire via
+                                // permitPreAcquired.
+                                val releaser = acquireOrRequeue(host)
+                                try {
+                                    ApiCallCaps.global.withPermit {
+                                        ApiCallCaps.translation.withPermit {
+                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                runOneTranslation(
+                                                    runId, context, ctx.provider, ctx.apiKey,
+                                                    ctx.model, ctx.baseUrl, template,
+                                                    targetLanguageName, item, ctx.pricing
+                                                )
+                                            }
+                                        }
                                     }
+                                } finally {
+                                    releaser.release()
                                 }
                             }
                         }
