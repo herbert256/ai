@@ -124,6 +124,10 @@ internal fun FanOutL1Screen(
             run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING }
             else run.effectiveQueuedCount(runningSet)
         val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
+        // Whole run finished cleanly — every row would otherwise show
+        // ✅ on a full green fill. Drop both per row so a completed
+        // run reads calmly instead of as a wall of check marks.
+        val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.fillMaxWidth()) {
             // One row of labels, one row of values below. Total is
@@ -338,7 +342,7 @@ internal fun FanOutL1Screen(
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .drawBehind {
-                            if (progressFraction > 0f) {
+                            if (!allDone && progressFraction > 0f) {
                                 drawRect(
                                     color = progressColor,
                                     size = Size(size.width * progressFraction, size.height)
@@ -349,31 +353,34 @@ internal fun FanOutL1Screen(
                         .clickable { onOpenModel(ak) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val icon = when {
-                        running > 0 -> "⏳"
-                        total == 0 -> "🆕"
-                        err > 0 && err == total -> "❌"
-                        ok == total -> "✅"
-                        err > 0 -> "❌"
-                        else -> "🕓"
-                    }
-                    // No explicit background on the status glyph — the
+                    // Status glyph — skipped entirely once the whole
+                    // run is done (every row would be ✅; see allDone).
+                    // No explicit background on the glyph either — the
                     // row's drawBehind progress fill already paints it
-                    // (the icon sits at x=0). A second .background here
-                    // doubled the green so the icon read darker than
-                    // the progress bar.
-                    if (icon == "⏳") {
-                        Box(
-                            Modifier.width(20.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AnimatedHourglass(fontSize = 16.sp)
+                    // (the icon sits at x=0); a second .background
+                    // doubled the green.
+                    if (!allDone) {
+                        val icon = when {
+                            running > 0 -> "⏳"
+                            total == 0 -> "🆕"
+                            err > 0 && err == total -> "❌"
+                            ok == total -> "✅"
+                            err > 0 -> "❌"
+                            else -> "🕓"
                         }
-                    } else {
-                        Text(
-                            icon, fontSize = 16.sp,
-                            modifier = Modifier.width(20.dp)
-                        )
+                        if (icon == "⏳") {
+                            Box(
+                                Modifier.width(20.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AnimatedHourglass(fontSize = 16.sp)
+                            }
+                        } else {
+                            Text(
+                                icon, fontSize = 16.sp,
+                                modifier = Modifier.width(20.dp)
+                            )
+                        }
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(
