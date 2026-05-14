@@ -46,7 +46,13 @@ internal fun SecondaryResultsScreen(
     nameFilter: String? = null,
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
-    throttledFanOutPairs: Set<String> = emptySet(),
+    /** Bundle of fan-out throttled state + fan-icons batch state
+     *  + the launcher callback. See [FanRuntimeBundle]. */
+    fanRuntime: FanRuntimeBundle = FanRuntimeBundle(),
+    /** When true, the fan-out drill-in mounts in ICONS mode —
+     *  L1 / L2 / L3 classify pairs by their icon-chain status.
+     *  Wired by the main report's "Fan-icons" View button. */
+    isFanIconsDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
      *  takes over; legacy FanOutDrillInView remains only for the
@@ -466,7 +472,13 @@ internal fun SecondaryResultsScreen(
                 runKey = runKey,
                 actions = actions,
                 runningSet = effectiveRunningFanOutPairs,
-                throttledSet = throttledFanOutPairs,
+                throttledSet = fanRuntime.throttledFanOutPairs,
+                mode = if (isFanIconsDrillIn) FanOutMode.ICONS else FanOutMode.MAIN,
+                runningIconsSet = fanRuntime.runningFanIconsPairs,
+                throttledIconsSet = fanRuntime.throttledFanIconsPairs,
+                onLaunchFanIcons = { _ ->
+                    fanRuntime.onLaunchFanIconsBatch(reportId, fanOutPrompt.id)
+                },
                 onBack = onBack
             )
             return@Column

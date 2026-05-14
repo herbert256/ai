@@ -82,6 +82,10 @@ internal data class GenerationPhaseHandlers(
     val onRequestExport: () -> Unit = {},
     val onCancelTranslation: (String) -> Unit = { _ -> },
     val onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
+    /** Open the fan-icons drill-in for a fan-out's metaPrompt
+     *  name. Routes to SecondaryResultsScreen with the icon-mode
+     *  flag, which mounts FanOutScreen in ICONS mode. */
+    val onViewFanIcons: (String) -> Unit = { _ -> },
     val onOpenSecondaryRun: (String) -> Unit = { _ -> },
     val onOpenTranslationRun: (String) -> Unit = { _ -> },
     val onOpenMeta: () -> Unit = {},
@@ -168,6 +172,7 @@ internal fun ColumnScope.GenerationPhase(
     val onRequestExport = handlers.onRequestExport
     val onCancelTranslation = handlers.onCancelTranslation
     val onViewSecondaryName = handlers.onViewSecondaryName
+    val onViewFanIcons = handlers.onViewFanIcons
     val onOpenSecondaryRun = handlers.onOpenSecondaryRun
     val onOpenTranslationRun = handlers.onOpenTranslationRun
     val onOpenMeta = handlers.onOpenMeta
@@ -267,6 +272,19 @@ internal fun ColumnScope.GenerationPhase(
             .mapNotNull { it.metaPromptName }
             .distinct()
             .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
+        // Fan-icons: one item per fan-out prompt name whose pairs
+        // have at least one emoji or icon-chain error attached.
+        // Routes via onViewFanIcons which opens the SAME pair
+        // drill-in but flagged for ICONS-mode rendering.
+        val fanIcons = secondaryRuns
+            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
+            .groupBy { it.metaPromptName ?: "" }
+            .filter { (name, rows) ->
+                name.isNotEmpty() && rows.any {
+                    !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank()
+                }
+            }
+            .map { (name, _) -> EveryItem(name) { onViewFanIcons(name) } }
         // Translate: one item per translationRunId.
         val translate = secondaryRuns
             .filter { it.kind == SecondaryKind.TRANSLATE }
@@ -280,6 +298,7 @@ internal fun ColumnScope.GenerationPhase(
             "meta" to meta,
             "rerank" to rerank,
             "fan_out" to fanOut,
+            "fan-icons" to fanIcons,
             "fan_in" to fanIn,
             "fan-in-model" to fanInModel,
             "translate" to translate
@@ -383,6 +402,9 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 if (everyItems["fan_out"].orEmpty().isNotEmpty()) {
                     CompactButton(onClick = { onEveryClick("fan_out") }, color = viewColor, text = "Fan-out")
+                }
+                if (everyItems["fan-icons"].orEmpty().isNotEmpty()) {
+                    CompactButton(onClick = { onEveryClick("fan-icons") }, color = viewColor, text = "Fan-icons")
                 }
                 if (everyItems["fan_in"].orEmpty().isNotEmpty()) {
                     CompactButton(onClick = { onEveryClick("fan_in") }, color = viewColor, text = "Fan-in")

@@ -89,18 +89,6 @@ data class GeneralSettings(
      *  chain finishes for that row. When false the chain never
      *  runs automatically; per-agent rows keep their plain ✅. */
     val perModelIconGenEnabled: Boolean = true,
-    /** Master switch for the per-fan-out-pair 3-tier icon chain
-     *  ([com.ai.viewmodel.ReportViewModel.runFanOutIconChain]). When
-     *  true (default) every fan-out pair API call's successful
-     *  response auto-fires the chain (chat continuation →
-     *  one-shot template → fixed-agent fallback). The L3 "Fan out
-     *  - pair" screen then shows both this icon and the source
-     *  model's report icon. Costs accumulate on the pair's
-     *  iconInputCost / iconOutputCost (rolled into PairState
-     *  totalCost) and post to UsageStats with kind="icon". When
-     *  false the chain never fires; the L3 screen shows no
-     *  answerer-side icon. */
-    val fanOutIconGenEnabled: Boolean = true,
     /** Master switch for the per-internal-prompt icon cache. When true
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a
@@ -166,6 +154,11 @@ data class GeneralSettings(
      *  top of the per-host throttle, so a fan-out against a
      *  single 3-per-host provider still bottlenecks at 3. */
     val maxConcurrentFanOutCalls: Int = 15,
+    /** Cap on concurrent fan-icons batch calls. The fan-icons batch
+     *  generates emojis for completed fan-out pair responses; gated
+     *  separately so it doesn't compete with the parent fan-out's
+     *  budget. Mirrors the per-host cap structure used by fan-out. */
+    val maxConcurrentFanIconsCalls: Int = 15,
     /** Maximum number of in-line retries the OkHttp client performs on
      *  a 429 response from a single provider host. Defaults to 3 —
      *  three retries × the backoff below = ~3 s of in-line waiting.
@@ -443,6 +436,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanOutPairs.update(block)
     }
 
+    /** Pair ids currently mid-icon-chain. Parallel to
+     *  [runningFanOutPairs] but for the fan-icons batch — the
+     *  L1 ICONS-mode stats panel reads from this. */
+    private val _runningFanIconsPairs = MutableStateFlow<Set<String>>(emptySet())
+    val runningFanIconsPairs: StateFlow<Set<String>> = _runningFanIconsPairs.asStateFlow()
+    internal fun updateRunningFanIconsPairs(block: (Set<String>) -> Set<String>) {
+        _runningFanIconsPairs.update(block)
+    }
+
+    /** Pair ids whose fan-icons attempt is blocked inside
+     *  [com.ai.data.ProviderThrottle.acquire]. Same role as
+     *  [throttledFanOutPairs] for the icons batch. */
+    private val _throttledFanIconsPairs = MutableStateFlow<Set<String>>(emptySet())
+    val throttledFanIconsPairs: StateFlow<Set<String>> = _throttledFanIconsPairs.asStateFlow()
+    internal fun updateThrottledFanIconsPairs(block: (Set<String>) -> Set<String>) {
+        _throttledFanIconsPairs.update(block)
+    }
+
     /** Live state of any "Find alternative icons" fan-out, keyed by
      *  reportId. Lives outside [UiState] for the same reason as
      *  [runningFanOutPairs] — per-call status flips fire faster than
@@ -586,7 +597,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 globalMax = bs.first.maxConcurrentApiCalls,
                 reportMax = bs.first.maxConcurrentReportCalls,
                 translationMax = bs.first.maxConcurrentTranslationCalls,
-                fanOutMax = bs.first.maxConcurrentFanOutCalls
+                fanOutMax = bs.first.maxConcurrentFanOutCalls,
+                fanIconsMax = bs.first.maxConcurrentFanIconsCalls
             )
             AppLog.v(
                 startTag,
@@ -1050,19 +1062,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ProviderThrottle.resetForNewLimits()
         }
         // Rebuild the cross-host concurrency semaphores when any of
-        // the four caps changed. Already-held permits release against
+        // the caps changed. Already-held permits release against
         // their original semaphore (held alive by the holder), so
         // swap-on-change is safe.
         if (settings.maxConcurrentApiCalls != previous.maxConcurrentApiCalls
             || settings.maxConcurrentReportCalls != previous.maxConcurrentReportCalls
             || settings.maxConcurrentTranslationCalls != previous.maxConcurrentTranslationCalls
             || settings.maxConcurrentFanOutCalls != previous.maxConcurrentFanOutCalls
+            || settings.maxConcurrentFanIconsCalls != previous.maxConcurrentFanIconsCalls
         ) {
             ApiCallCaps.resetForNewLimits(
                 globalMax = settings.maxConcurrentApiCalls,
                 reportMax = settings.maxConcurrentReportCalls,
                 translationMax = settings.maxConcurrentTranslationCalls,
-                fanOutMax = settings.maxConcurrentFanOutCalls
+                fanOutMax = settings.maxConcurrentFanOutCalls,
+                fanIconsMax = settings.maxConcurrentFanIconsCalls
             )
         }
         if (settings.logLevel != previous.logLevel) {

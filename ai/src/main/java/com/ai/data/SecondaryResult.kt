@@ -375,7 +375,60 @@ object SecondaryResultStorage {
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
                 catch (_: Exception) { return }
-            val updated = current.copy(icon = icon, iconWinningTier = winningTier)
+            val updated = current.copy(
+                icon = icon,
+                iconWinningTier = winningTier,
+                iconErrorMessage = null
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Stamp an icon-chain failure on the pair row. Called when
+     *  every tier of the fan-icons chain has failed. Mirrors
+     *  [setFanOutIconAndTier] but writes [iconErrorMessage] only.
+     *  Restart / retry paths clear it by writing a successful
+     *  icon back. */
+    fun setFanOutIconError(
+        context: Context, reportId: String, resultId: String,
+        errorMessage: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(iconErrorMessage = errorMessage)
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Drop any prior icon / error state from the pair row so a
+     *  re-launched fan-icons batch starts clean for these pairs.
+     *  Leaves the row's main response untouched. */
+    fun clearFanOutIconState(
+        context: Context, reportId: String, resultId: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                icon = null,
+                iconWinningTier = null,
+                iconErrorMessage = null,
+                iconInputTokens = 0,
+                iconOutputTokens = 0,
+                iconInputCost = 0.0,
+                iconOutputCost = 0.0
+            )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
         }

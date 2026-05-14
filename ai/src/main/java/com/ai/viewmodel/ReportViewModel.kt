@@ -49,6 +49,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { fanOutJobs.remove(key, job) }
     }
 
+    /** Tracks in-flight fan-icons batches keyed by
+     *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
+     *  a launched fan-icons batch on the same fan-out doesn't get
+     *  cancelled by deleteFanOutModel etc. */
+    internal val fanIconsJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun fanIconsJobKey(reportId: String, metaPromptId: String) = "$reportId|icons|$metaPromptId"
+    private fun registerFanIconsJob(reportId: String, metaPromptId: String, job: Job) {
+        val key = fanIconsJobKey(reportId, metaPromptId)
+        fanIconsJobs[key] = job
+        job.invokeOnCompletion { fanIconsJobs.remove(key, job) }
+    }
+
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
     // launch inside startIconFanOut so a deleteReport can stop the
@@ -1558,9 +1570,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  response, then is asked for an emoji). Tier 2 = one-shot
      *  fan_out_icon template substitution against the pair's own
      *  (provider, model). Tier 3 = fixed-agent fan_out_icon_3th
-     *  fallback. Fire-and-forget on viewModelScope so the per-pair
-     *  coroutine can return its throttle permit immediately. */
-    fun runFanOutIconChain(
+     *  fallback. */
+    /** Per-pair 3-tier icon chain. Returns when the chain has
+     *  committed a result (emoji + winning tier, or 📝 fallback)
+     *  to disk for [pair]. Suspending — the caller is responsible
+     *  for outer cap acquisition. */
+    private suspend fun runIconChainForPair(
         context: Context, reportId: String,
         pair: SecondaryResult,
         metaPromptText: String,
@@ -1585,39 +1600,202 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val pairContent = pair.content
         if (pairContent.isNullOrBlank()) return
 
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val tier1 = chatPrompt?.let { p ->
-                runFanOutTier1(
-                    context, reportId, pairProvider, pair, p,
-                    reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
-                )
-            }
-            if (tier1 != null) {
-                commitFanOutIconResult(context, reportId, pair.id, tier1, winningTier = 1)
-                return@launch
-            }
-
-            val tier2 = tier2Prompt?.let { p ->
-                runFanOutTier2(
-                    context, reportId, pairProvider, pair, p,
-                    reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
-                )
-            }
-            if (tier2 != null) {
-                commitFanOutIconResult(context, reportId, pair.id, tier2, winningTier = 2)
-                return@launch
-            }
-
-            val tier3 = tier3Prompt?.let { p ->
-                runFanOutTier3(context, reportId, pair, p, pairContent, aiSettings)
-            }
-            if (tier3 != null) {
-                commitFanOutIconResult(context, reportId, pair.id, tier3, winningTier = 3)
-                return@launch
-            }
-
-            commitFanOutIconResult(context, reportId, pair.id, "📝", winningTier = null)
+        val tier1 = chatPrompt?.let { p ->
+            runFanOutTier1(
+                context, reportId, pairProvider, pair, p,
+                reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
+            )
         }
+        if (tier1 != null) {
+            commitFanOutIconResult(context, reportId, pair.id, tier1, winningTier = 1)
+            return
+        }
+
+        val tier2 = tier2Prompt?.let { p ->
+            runFanOutTier2(
+                context, reportId, pairProvider, pair, p,
+                reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
+            )
+        }
+        if (tier2 != null) {
+            commitFanOutIconResult(context, reportId, pair.id, tier2, winningTier = 2)
+            return
+        }
+
+        val tier3 = tier3Prompt?.let { p ->
+            runFanOutTier3(context, reportId, pair, p, pairContent, aiSettings)
+        }
+        if (tier3 != null) {
+            commitFanOutIconResult(context, reportId, pair.id, tier3, winningTier = 3)
+            return
+        }
+
+        commitFanOutIconResult(context, reportId, pair.id, "📝", winningTier = null)
+    }
+
+    /** Launch a fan-icons batch — generate emojis for every
+     *  successful pair of the fan-out identified by
+     *  ([reportId], [metaPromptId]) that doesn't have one yet.
+     *  Dispatched with the same suspending-semaphore + per-host
+     *  throttle plumbing as a primary fan-out, gated by the
+     *  dedicated [ApiCallCaps.fanIcons] cap. Pairs that already
+     *  have an icon are skipped (use [relaunchFanIconsBatch] to
+     *  re-fire everything). De-duped on a second launch attempt:
+     *  the existing job is returned if one is already in flight
+     *  for the same (reportId, metaPromptId). */
+    fun runFanIconsBatch(
+        context: Context,
+        reportId: String,
+        metaPromptId: String
+    ): Job? {
+        fanIconsJobs[fanIconsJobKey(reportId, metaPromptId)]?.let { existing ->
+            if (existing.isActive) return existing
+        }
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val state = appViewModel.uiState.value
+                val aiSettings = state.aiSettings
+                val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == metaPromptId }
+                    ?: return@launch
+                val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                val sourceBodies = report.agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .associate { it.agentId to it.responseBody!! }
+                val resolvedBase = resolveSecondaryPrompt(
+                    metaPrompt.text,
+                    question = report.prompt,
+                    results = "",
+                    count = sourceBodies.size,
+                    title = report.title
+                )
+
+                // Pairs to process: same metaPromptId, has fan-out source,
+                // has content (chain needs something to look at), AND no
+                // emoji yet (skip already-done pairs).
+                val pending = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            !it.content.isNullOrBlank() &&
+                            it.icon.isNullOrBlank()
+                    }
+                if (pending.isEmpty()) {
+                    AppLog.i("FanIcons", "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do")
+                    return@launch
+                }
+                AppLog.i("FanIcons", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
+
+                // Per-host caps mirror the fan-out path.
+                val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
+                    .mapNotNull { AppService.findById(it.providerId) }
+                    .map { providerHost(it) }
+                    .distinct()
+                    .associateWith { host ->
+                        val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                        kotlinx.coroutines.sync.Semaphore(concurrent)
+                    }
+
+                withTracerTags(reportId = reportId, category = "Fan-icons: ${metaPrompt.name}") {
+                    coroutineScope {
+                        interleaveByHost(pending) { p ->
+                            AppService.findById(p.providerId)?.let { providerHost(it) }
+                        }.map { pair ->
+                            async(start = CoroutineStart.LAZY) {
+                                val provider = AppService.findById(pair.providerId) ?: return@async
+                                val host = providerHost(provider)
+                                val hostCap = perHostCaps[host]
+                                    ?: kotlinx.coroutines.sync.Semaphore(1)
+                                val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
+                                val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
+
+                                // Acquire order mirrors runFanOutPrompt: hostCap
+                                // first (so the per-host cap is the only thing
+                                // held during the blocking ProviderThrottle
+                                // wait), then global, then fan-icons cap.
+                                hostCap.withPermit {
+                                    appViewModel.updateThrottledFanIconsPairs { it + pair.id }
+                                    val releaser = try {
+                                        ProviderThrottle.acquire(host)
+                                    } finally {
+                                        appViewModel.updateThrottledFanIconsPairs { it - pair.id }
+                                    }
+                                    try {
+                                        ApiCallCaps.global.withPermit {
+                                            ApiCallCaps.fanIcons.withPermit {
+                                                if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
+                                                    AppLog.d("FanIcons", "skip pair ${pair.id} — deleted before launch")
+                                                    return@async
+                                                }
+                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                    appViewModel.updateRunningFanIconsPairs { it + pair.id }
+                                                    val pairStart = System.currentTimeMillis()
+                                                    try {
+                                                        runIconChainForPair(
+                                                            context, reportId, pair,
+                                                            metaPromptText = resolvedMeta,
+                                                            reportPrompt = report.prompt,
+                                                            sourceResponse = sourceBody,
+                                                            aiSettings = aiSettings
+                                                        )
+                                                    } finally {
+                                                        appViewModel.updateRunningFanIconsPairs { it - pair.id }
+                                                        AppLog.d("FanIcons", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } finally {
+                                        releaser.release()
+                                    }
+                                }
+                            }.also { it.start() }
+                        }.awaitAll()
+                    }
+                }
+                AppLog.i("FanIcons", "← end ${metaPrompt.name} (report=$reportId)")
+            } finally {
+                appViewModel.updateUiState {
+                    it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
+                }
+            }
+        }
+        registerFanIconsJob(reportId, metaPromptId, job)
+        return job
+    }
+
+    /** Re-fire the fan-icons chain on every pair of this fan-out,
+     *  including ones that already have an emoji. Clears each
+     *  pair's prior icon / iconError fields first via
+     *  [SecondaryResultStorage.clearFanOutIconState] so the new
+     *  run starts from a clean slate. */
+    fun relaunchFanIconsBatch(
+        context: Context,
+        reportId: String,
+        metaPromptId: String
+    ): Job? {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val existing = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.META)
+                .filter {
+                    it.metaPromptId == metaPromptId &&
+                        it.fanOutSourceAgentId != null &&
+                        it.fanInOf == null
+                }
+            for (e in existing) SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+        }.let { /* fire-and-forget */ }
+        // Kick off the regular batch — it now sees every pair as
+        // "icon-less" and dispatches them.
+        return runFanIconsBatch(context, reportId, metaPromptId)
+    }
+
+    /** Cancel the in-flight fan-icons batch for this fan-out, if
+     *  any. The currently-running per-pair chains finish their
+     *  HTTP call; queued pairs are dropped. */
+    fun cancelFanIconsBatch(reportId: String, metaPromptId: String) {
+        fanIconsJobs[fanIconsJobKey(reportId, metaPromptId)]?.cancel()
     }
 
     private suspend fun runFanOutTier1(
@@ -2763,26 +2941,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 fanOutSourceAgentId = item.source.agentId,
                                                 existingPlaceholder = item.placeholder
                                             )
-                                            // Fire the per-pair icon chain (fan_out_icon_chat
-                                            // → fan_out_icon → fan_out_icon_3th) on the
-                                            // successful save. Gated by fanOutIconGenEnabled
-                                            // so users can opt out. Read the row back from
-                                            // disk to pick up the content stamped by
-                                            // executeSecondaryTask.
-                                            val fanOutIconOn = appViewModel.uiState.value
-                                                .generalSettings.fanOutIconGenEnabled
-                                            if (fanOutIconOn) {
-                                                val saved = SecondaryResultStorage.get(context, reportId, item.placeholder.id)
-                                                if (saved?.content != null && saved.errorMessage == null) {
-                                                    runFanOutIconChain(
-                                                        context, reportId, saved,
-                                                        metaPromptText = resolved,
-                                                        reportPrompt = report.prompt,
-                                                        sourceResponse = item.source.responseBody.orEmpty(),
-                                                        aiSettings = aiSettings
-                                                    )
-                                                }
-                                            }
+                                            // Note: the per-pair icon chain is NOT fired
+                                            // inline anymore — it lives in a separate
+                                            // user-launched batch (runFanIconsBatch).
+                                            // The "Find Icons" button on the fan-out L1
+                                            // launches it after the parent fan-out
+                                            // completes.
                                         } finally {
                                             appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
                                             AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
@@ -2918,27 +3082,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 fanOutSourceAgentId = source.agentId,
                                                 existingPlaceholder = ph
                                             )
-                                            // Re-fire the per-pair icon chain after a
-                                            // successful rerun — mirrors the runFanOutPrompt
-                                            // hook. The reset cleared any previous icon /
-                                            // iconWinningTier (they are not reset by
-                                            // resetAndRelaunch, but the new content will
-                                            // produce a fresh emoji that overwrites the
-                                            // stale one once tier-1+ commits).
-                                            val fanOutIconOn = appViewModel.uiState.value
-                                                .generalSettings.fanOutIconGenEnabled
-                                            if (fanOutIconOn) {
-                                                val saved = SecondaryResultStorage.get(context, reportId, ph.id)
-                                                if (saved?.content != null && saved.errorMessage == null) {
-                                                    runFanOutIconChain(
-                                                        context, reportId, saved,
-                                                        metaPromptText = resolved,
-                                                        reportPrompt = report.prompt,
-                                                        sourceResponse = source.responseBody.orEmpty(),
-                                                        aiSettings = aiSettings
-                                                    )
-                                                }
-                                            }
+                                            // Icon chain no longer auto-fires here —
+                                            // the user explicitly launches the
+                                            // fan-icons batch via the L1 button.
                                         } finally {
                                             appViewModel.updateRunningFanOutPairs { it - ph.id }
                                             AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")

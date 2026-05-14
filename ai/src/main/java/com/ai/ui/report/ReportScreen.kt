@@ -186,6 +186,8 @@ fun ReportsScreenNav(
     val agentResults by reportViewModel.agentResults.collectAsState()
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
     val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
+    val runningFanIconsPairs by viewModel.runningFanIconsPairs.collectAsState()
+    val throttledFanIconsPairs by viewModel.throttledFanIconsPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
@@ -250,7 +252,14 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         runningFanOutPairs = runningFanOutPairs,
-        throttledFanOutPairs = throttledFanOutPairs,
+        fanRuntime = FanRuntimeBundle(
+            throttledFanOutPairs = throttledFanOutPairs,
+            runningFanIconsPairs = runningFanIconsPairs,
+            throttledFanIconsPairs = throttledFanIconsPairs,
+            onLaunchFanIconsBatch = { rid, metaPromptId ->
+                reportViewModel.runFanIconsBatch(context, rid, metaPromptId)
+            }
+        ),
         fanOutEngine = reportViewModel.fanOutEngine,
         iconFanOutByReport = iconFanOutByReport,
         onStartIconFanOut = { rid, prompt, models ->
@@ -541,6 +550,17 @@ data class InternalPromptIconCallbacks(
     val onRestartFanOut: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
 )
 
+/** Bundle of fan-out + fan-icons runtime state for [ReportsScreen].
+ *  Packs the throttled + running pair sets + the fan-icons batch
+ *  launch callback so [ReportsScreen]'s parameter count stays
+ *  under the JVM 64 KB per-method bytecode limit. */
+data class FanRuntimeBundle(
+    val throttledFanOutPairs: Set<String> = emptySet(),
+    val runningFanIconsPairs: Set<String> = emptySet(),
+    val throttledFanIconsPairs: Set<String> = emptySet(),
+    val onLaunchFanIconsBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
+)
+
 // ===== Main Reports Screen =====
 
 @Composable
@@ -548,7 +568,10 @@ fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
     runningFanOutPairs: Set<String> = emptySet(),
-    throttledFanOutPairs: Set<String> = emptySet(),
+    /** See [FanRuntimeBundle] — three pair sets + the fan-icons
+     *  batch launcher bundled to keep this composable under the
+     *  JVM 64 KB per-method bytecode limit. */
+    fanRuntime: FanRuntimeBundle = FanRuntimeBundle(),
     /** Authoritative Fan Out runtime owner. Passed through from
      *  [ReportsScreenNav] so the redesigned [FanOutScreen] under
      *  [SecondaryResultsScreen] subscribes directly to its
@@ -1106,6 +1129,10 @@ fun ReportsScreen(
     // not the top of the report screen.
     var listKind by rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     var listFilterByName by rememberSaveable { mutableStateOf<String?>(null) }
+    /** When true, the SecondaryResultsScreen for the active
+     *  (kind, name) renders the fan-icons drill-in (FanOutScreen
+     *  in ICONS mode) instead of the regular fan-out detail. */
+    var listIsFanIcons by rememberSaveable { mutableStateOf(false) }
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
@@ -1698,161 +1725,22 @@ fun ReportsScreen(
     // has room to breathe.
     val fanOutMp = fanOutConfirmMetaPrompt
     if (fanOutMp != null && currentReportId != null) {
-        val rid = currentReportId
-        // Load the successful agent list off-thread so the confirmation
-        // body can render two per-side selection cards over it. The
-        // pre-feature counts object is gone — pair count is derived
-        // live from the user's checkbox state instead.
-        val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, rid) {
-            value = withContext(Dispatchers.IO) {
-                com.ai.data.ReportStorage.getReport(context, rid)?.agents?.filter {
-                    it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                }
-            }
-        }
-        val successful = successfulState.value
-        // Two checkbox sets — initiator (= source, whose response feeds
-        // @RESPONSE@) and responder (= answerer, receives the assembled
-        // prompt). Re-key on the agent-id list so a fresh report reseeds
-        // the defaults instead of carrying a stale subset.
-        val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
-        var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
-        var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
-        // Self-pairs are skipped at the runner — match the dispatch
-        // logic exactly so the displayed count never disagrees with
-        // what actually lands as placeholders.
-        val pairCount = selectedInitiators.sumOf { init ->
-            selectedResponders.count { resp -> resp != init }
-        }
-        fun agentLabel(a: com.ai.data.ReportAgent): String =
-            a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
-        BackHandler { fanOutConfirmMetaPrompt = null }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(
-                helpTopic = "report_fan_out_confirm",
-                title = "Run ${fanOutMp.name}",
-                onBackClick = { fanOutConfirmMetaPrompt = null }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(
-                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. Self-pairs are skipped.",
-                    fontSize = 13.sp, color = AppColors.TextSecondary
+        FanOutConfirmScreen(
+            fanOutMp = fanOutMp,
+            reportId = currentReportId,
+            context = context,
+            onCancel = { fanOutConfirmMetaPrompt = null },
+            onRun = { mp, initiators, responders ->
+                fanOutConfirmMetaPrompt = null
+                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                onRunFanOut(
+                    currentReportId, mp,
+                    com.ai.data.SecondaryScope.Manual(initiators),
+                    responders
                 )
-                if (fanOutMp.text.isNotBlank()) {
-                    Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
-                            modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (successful == null) {
-                            Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
-                        } else {
-                            val gridText = "${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} × ${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
-                            Text(
-                                gridText, fontSize = 15.sp, color = Color.White,
-                                fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                }
-                if (successful != null && successful.isNotEmpty()) {
-                    // Two collapsible cards — both default collapsed
-                    // and all-ticked. Each row is the whole agent line
-                    // with a leading Checkbox; tap-target is the row,
-                    // not just the checkbox, so it's friendly on
-                    // touch. Header counts track the live ticked
-                    // subset, not the total — that's the number the
-                    // pair-count math actually uses.
-                    com.ai.ui.shared.CollapsibleCard(
-                        title = "Initiator models for this Fan-Out (${selectedInitiators.size})"
-                    ) {
-                        successful.forEach { agent ->
-                            val checked = agent.agentId in selectedInitiators
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    selectedInitiators = if (checked) selectedInitiators - agent.agentId
-                                        else selectedInitiators + agent.agentId
-                                }.padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(checked = checked, onCheckedChange = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    agentLabel(agent), fontSize = 12.sp, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                    com.ai.ui.shared.CollapsibleCard(
-                        title = "Responder models for this Fan-out (${selectedResponders.size})"
-                    ) {
-                        successful.forEach { agent ->
-                            val checked = agent.agentId in selectedResponders
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    selectedResponders = if (checked) selectedResponders - agent.agentId
-                                        else selectedResponders + agent.agentId
-                                }.padding(vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(checked = checked, onCheckedChange = null)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    agentLabel(agent), fontSize = 12.sp, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { fanOutConfirmMetaPrompt = null }, modifier = Modifier.weight(1f),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Cancel", maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = {
-                        val mp = fanOutConfirmMetaPrompt ?: return@Button
-                        val initiators = selectedInitiators
-                        val responders = selectedResponders
-                        fanOutConfirmMetaPrompt = null
-                        pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                        pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                        // Scope-screen output is now overridden by the
-                        // explicit checkbox state — Manual(initiators)
-                        // is the source of truth for the initiator side.
-                        onRunFanOut(
-                            rid, mp,
-                            com.ai.data.SecondaryScope.Manual(initiators),
-                            responders
-                        )
-                    },
-                    enabled = pairCount > 0,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-                ) { Text("Run", maxLines = 1, softWrap = false) }
-            }
-        }
+        )
         return
     }
 
@@ -2100,115 +1988,49 @@ fun ReportsScreen(
 
     val openListKind = listKind
     if (openListKind != null && currentReportId != null) {
-        val rid = currentReportId
-        val fanInList = aiSettings.internalPrompts.filter { it.category == "fan_in" }
-        // Per-model fan-in list driving the L2 "New Fan In" button.
-        // Same internalPrompts source, filtered to the single
-        // fan-in-model category.
-        val fanInModelList = aiSettings.internalPrompts.filter { it.category == "fan-in-model" }
-        val fanOutPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
-            aiSettings.internalPrompts.firstOrNull {
-                it.category == "fan_out" && it.name == listFilterByName
-            }
-        } else null
-        // Fan-in picker — full-screen replacement of the
-        // previous AlertDialog. Rendered as an overlay on top of the
-        // secondary list via the early-return pattern.
-        if (showFanInPromptPicker && fanInList.isNotEmpty()) {
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanInPromptPicker = false; listKind = null; listFilterByName = null }) {
-                ReportSelectInternalPromptScreen(
-                    titleText = "Run an fan-in prompt",
-                    category = "fan_in",
-                    prompts = fanInList,
-                    onSelectPrompt = {
-                        showFanInPromptPicker = false
-                        fanInPickerPrompt = it
-                    },
-                    onBack = { showFanInPromptPicker = false },
-                    onEditPrompts = {
-                        showFanInPromptPicker = false
-                        onNavigateToInternalPromptsByCategory("fan_in")
-                    }
-                )
-            }
-            return
-        }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { listKind = null; listFilterByName = null }) {
-        SecondaryResultsScreen(
-            reportId = rid,
-            kind = openListKind,
-            nameFilter = listFilterByName,
+        SecondaryResultsListMount(
+            reportId = currentReportId,
+            openListKind = openListKind,
+            internalPrompts = aiSettings.internalPrompts,
+            listFilterByName = listFilterByName,
+            listIsFanIcons = listIsFanIcons,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
-            throttledFanOutPairs = throttledFanOutPairs,
+            fanRuntime = fanRuntime,
             fanOutEngine = fanOutEngine,
-            fanInPrompts = fanInList,
-            fanInModelPrompts = fanInModelList,
-            fanOutPrompt = fanOutPrompt,
-            onRunFanIn = if (fanInList.isNotEmpty()) {
-                {
-                    if (fanInList.size == 1) fanInPickerPrompt = fanInList.first()
-                    else showFanInPromptPicker = true
-                }
-            } else null,
-            onRunModelFanIn = { activePid, activeMdl ->
-                modelFanInActivePid = activePid
-                modelFanInActiveMdl = activeMdl
-                // Auto-pick when exactly one prompt exists (skips the
-                // picker step, mirroring the legacy fan_in
-                // single-prompt behaviour).
-                if (fanInModelList.size == 1) modelFanInPickerPrompt = fanInModelList.first()
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            showFanInPromptPicker = showFanInPromptPicker,
+            onShowFanInPromptPickerChange = { showFanInPromptPicker = it },
+            onFanInPickerPromptChange = { fanInPickerPrompt = it },
+            onModelFanInActiveChange = { pid, mdl ->
+                modelFanInActivePid = pid
+                modelFanInActiveMdl = mdl
             },
-            onCreateReportFromFanOut = { activePid, activeMdl ->
-                // Drop the L1/L2 overlay state before the parent flips
-                // currentReportId — otherwise the new report would
-                // briefly render its (empty) META L2 view instead of
-                // the result page.
-                listKind = null; listFilterByName = null
-                onCreateReportFromFanOut(rid, activePid, activeMdl)
+            onModelFanInPickerPromptChange = { modelFanInPickerPrompt = it },
+            onCloseList = {
+                listKind = null
+                listFilterByName = null
+                listIsFanIcons = false
             },
-            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
-            onBulkDelete = { ids ->
-                // Off-thread sweep — N can be hundreds (≈ N(N-1) for
-                // a Fan out with N agents). Routes through the parent
-                // callback so the actual launch lives on the report
-                // VM's viewModelScope; the previous screen-scoped
-                // forEach abandoned partial deletes when the user
-                // navigated away mid-sweep.
-                onBulkDeleteSecondaries(rid, ids) { secondaryRefreshTick++ }
-            },
-            onBack = { listKind = null; listFilterByName = null },
+            onSecondaryRefresh = { secondaryRefreshTick++ },
+            onCreateReportFromFanOut = onCreateReportFromFanOut,
+            onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
+            onBulkDeleteSecondaries = onBulkDeleteSecondaries,
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
-            onResumeStaleFanOut = { mp -> onResumeStaleFanOut(rid, mp) },
-            onRestartFailedFanOut = { mp -> onRestartFailedFanOut(rid, mp) },
-            onRemoveFailedFanOut = { mp ->
-                onRemoveFailedFanOut(rid, mp)
-                secondaryRefreshTick++
-            },
-            onRestartFailedFanOutForModel = { mp, prov, mdl ->
-                onRestartFailedFanOutForModel(rid, mp, prov, mdl)
-            },
-            onRemoveFailedFanOutForModel = { mp, prov, mdl ->
-                onRemoveFailedFanOutForModel(rid, mp, prov, mdl)
-                secondaryRefreshTick++
-            },
-            onRerunCompleteFanOut = { mp ->
-                onRerunCompleteFanOut(rid, mp)
-                secondaryRefreshTick++
-            },
-            onRerunFanOutPair = { mp, pair ->
-                onRerunFanOutPair(rid, mp, pair)
-                secondaryRefreshTick++
-            },
-            onDeleteFanOutModel = { mpid, prov, model ->
-                onDeleteFanOutModel(rid, mpid, prov, model)
-                secondaryRefreshTick++
-            }
+            onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
+            onResumeStaleFanOut = onResumeStaleFanOut,
+            onRestartFailedFanOut = onRestartFailedFanOut,
+            onRemoveFailedFanOut = onRemoveFailedFanOut,
+            onRestartFailedFanOutForModel = onRestartFailedFanOutForModel,
+            onRemoveFailedFanOutForModel = onRemoveFailedFanOutForModel,
+            onRerunCompleteFanOut = onRerunCompleteFanOut,
+            onRerunFanOutPair = onRerunFanOutPair,
+            onDeleteFanOutModel = onDeleteFanOutModel
         )
-        }
         return
     }
 
@@ -2589,7 +2411,14 @@ fun ReportsScreen(
                 onRequestDelete = { showDeleteConfirm = true },
                 onRequestExport = { showExport = true },
                 onCancelTranslation = translationLifecycle.onCancelRun,
-                onViewSecondaryName = { name, kind -> listKind = kind; listFilterByName = name },
+                onViewSecondaryName = { name, kind ->
+                    listKind = kind; listFilterByName = name; listIsFanIcons = false
+                },
+                onViewFanIcons = { name ->
+                    listKind = SecondaryKind.META
+                    listFilterByName = name
+                    listIsFanIcons = true
+                },
                 onOpenSecondaryRun = { id -> openMetaResultId = id },
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId },
                 onOpenMeta = { showMetaScreen = true },
@@ -3340,6 +3169,286 @@ private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Uni
                     flowContent()
                 }
             }
+        }
+    }
+}
+
+/** Extracted from [ReportsScreen] to dodge the JVM 64 KB
+ *  per-method bytecode limit. Mounts either the fan-in
+ *  prompt picker overlay or the full [SecondaryResultsScreen]
+ *  depending on flags. */
+@Composable
+private fun SecondaryResultsListMount(
+    reportId: String,
+    openListKind: SecondaryKind,
+    internalPrompts: List<InternalPrompt>,
+    listFilterByName: String?,
+    listIsFanIcons: Boolean,
+    isBatching: Boolean,
+    runningFanOutPairs: Set<String>,
+    fanRuntime: FanRuntimeBundle,
+    fanOutEngine: com.ai.viewmodel.FanOutEngine?,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    showFanInPromptPicker: Boolean,
+    onShowFanInPromptPickerChange: (Boolean) -> Unit,
+    onFanInPickerPromptChange: (InternalPrompt?) -> Unit,
+    onModelFanInActiveChange: (String?, String?) -> Unit,
+    onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
+    onCloseList: () -> Unit,
+    onSecondaryRefresh: () -> Unit,
+    onCreateReportFromFanOut: (String, String, String) -> Unit,
+    onDeleteSecondaryWithRefresh: (String, String) -> Unit,
+    onBulkDeleteSecondaries: (String, List<String>, () -> Unit) -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    onNavigateToInternalPromptEdit: (String) -> Unit,
+    onNavigateToInternalPromptsByCategory: (String) -> Unit,
+    onResumeStaleFanOut: (String, InternalPrompt) -> Unit,
+    onRestartFailedFanOut: (String, InternalPrompt) -> Unit,
+    onRemoveFailedFanOut: (String, InternalPrompt) -> Unit,
+    onRestartFailedFanOutForModel: (String, InternalPrompt, String, String) -> Unit,
+    onRemoveFailedFanOutForModel: (String, InternalPrompt, String, String) -> Unit,
+    onRerunCompleteFanOut: (String, InternalPrompt) -> Unit,
+    onRerunFanOutPair: (String, InternalPrompt, SecondaryResult) -> Unit,
+    onDeleteFanOutModel: (String, String, String, String) -> Unit
+) {
+    val rid = reportId
+    val fanInList = internalPrompts.filter { it.category == "fan_in" }
+    val fanInModelList = internalPrompts.filter { it.category == "fan-in-model" }
+    val fanOutPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
+        internalPrompts.firstOrNull {
+            it.category == "fan_out" && it.name == listFilterByName
+        }
+    } else null
+    if (showFanInPromptPicker && fanInList.isNotEmpty()) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
+                onShowFanInPromptPickerChange(false)
+                onCloseList()
+            }
+        ) {
+            ReportSelectInternalPromptScreen(
+                titleText = "Run an fan-in prompt",
+                category = "fan_in",
+                prompts = fanInList,
+                onSelectPrompt = {
+                    onShowFanInPromptPickerChange(false)
+                    onFanInPickerPromptChange(it)
+                },
+                onBack = { onShowFanInPromptPickerChange(false) },
+                onEditPrompts = {
+                    onShowFanInPromptPickerChange(false)
+                    onNavigateToInternalPromptsByCategory("fan_in")
+                }
+            )
+        }
+        return
+    }
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides { onCloseList() }
+    ) {
+        SecondaryResultsScreen(
+            reportId = rid,
+            kind = openListKind,
+            nameFilter = listFilterByName,
+            isBatching = isBatching,
+            runningFanOutPairs = runningFanOutPairs,
+            fanRuntime = fanRuntime,
+            isFanIconsDrillIn = listIsFanIcons,
+            fanOutEngine = fanOutEngine,
+            fanInPrompts = fanInList,
+            fanInModelPrompts = fanInModelList,
+            fanOutPrompt = fanOutPrompt,
+            onRunFanIn = if (fanInList.isNotEmpty()) {
+                {
+                    if (fanInList.size == 1) onFanInPickerPromptChange(fanInList.first())
+                    else onShowFanInPromptPickerChange(true)
+                }
+            } else null,
+            onRunModelFanIn = { activePid, activeMdl ->
+                onModelFanInActiveChange(activePid, activeMdl)
+                if (fanInModelList.size == 1) onModelFanInPickerPromptChange(fanInModelList.first())
+            },
+            onCreateReportFromFanOut = { activePid, activeMdl ->
+                onCloseList()
+                onCreateReportFromFanOut(rid, activePid, activeMdl)
+            },
+            onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
+            onBulkDelete = { ids ->
+                onBulkDeleteSecondaries(rid, ids) { onSecondaryRefresh() }
+            },
+            onBack = { onCloseList() },
+            onNavigateHome = onNavigateHome,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
+            onResumeStaleFanOut = { mp -> onResumeStaleFanOut(rid, mp) },
+            onRestartFailedFanOut = { mp -> onRestartFailedFanOut(rid, mp) },
+            onRemoveFailedFanOut = { mp ->
+                onRemoveFailedFanOut(rid, mp)
+                onSecondaryRefresh()
+            },
+            onRestartFailedFanOutForModel = { mp, prov, mdl ->
+                onRestartFailedFanOutForModel(rid, mp, prov, mdl)
+            },
+            onRemoveFailedFanOutForModel = { mp, prov, mdl ->
+                onRemoveFailedFanOutForModel(rid, mp, prov, mdl)
+                onSecondaryRefresh()
+            },
+            onRerunCompleteFanOut = { mp ->
+                onRerunCompleteFanOut(rid, mp)
+                onSecondaryRefresh()
+            },
+            onRerunFanOutPair = { mp, pair ->
+                onRerunFanOutPair(rid, mp, pair)
+                onSecondaryRefresh()
+            },
+            onDeleteFanOutModel = { mpid, prov, model ->
+                onDeleteFanOutModel(rid, mpid, prov, model)
+                onSecondaryRefresh()
+            }
+        )
+    }
+}
+
+/** Extracted from [ReportsScreen] to dodge the JVM 64 KB
+ *  per-method bytecode limit. Renders the fan-out confirm
+ *  screen with initiator/responder checkbox cards. */
+@Composable
+private fun FanOutConfirmScreen(
+    fanOutMp: InternalPrompt,
+    reportId: String,
+    context: android.content.Context,
+    onCancel: () -> Unit,
+    onRun: (InternalPrompt, Set<String>, Set<String>) -> Unit
+) {
+    val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, reportId)?.agents?.filter {
+                it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+        }
+    }
+    val successful = successfulState.value
+    val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
+    var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
+    var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
+    val pairCount = selectedInitiators.sumOf { init ->
+        selectedResponders.count { resp -> resp != init }
+    }
+    fun agentLabel(a: com.ai.data.ReportAgent): String =
+        a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
+    BackHandler { onCancel() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "report_fan_out_confirm",
+            title = "Run ${fanOutMp.name}",
+            onBackClick = onCancel
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. Self-pairs are skipped.",
+                fontSize = 13.sp, color = AppColors.TextSecondary
+            )
+            if (fanOutMp.text.isNotBlank()) {
+                Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
+                        modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (successful == null) {
+                        Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
+                    } else {
+                        val gridText = "${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} × ${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
+                        Text(
+                            gridText, fontSize = 15.sp, color = Color.White,
+                            fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+            if (successful != null && successful.isNotEmpty()) {
+                com.ai.ui.shared.CollapsibleCard(
+                    title = "Initiator models for this Fan-Out (${selectedInitiators.size})"
+                ) {
+                    successful.forEach { agent ->
+                        val checked = agent.agentId in selectedInitiators
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedInitiators = if (checked) selectedInitiators - agent.agentId
+                                    else selectedInitiators + agent.agentId
+                            }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                com.ai.ui.shared.CollapsibleCard(
+                    title = "Responder models for this Fan-out (${selectedResponders.size})"
+                ) {
+                    successful.forEach { agent ->
+                        val checked = agent.agentId in selectedResponders
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedResponders = if (checked) selectedResponders - agent.agentId
+                                    else selectedResponders + agent.agentId
+                            }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(checked = checked, onCheckedChange = null)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancel, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Cancel", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    onRun(fanOutMp, selectedInitiators, selectedResponders)
+                },
+                enabled = pairCount > 0,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Run", maxLines = 1, softWrap = false) }
         }
     }
 }

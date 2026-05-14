@@ -46,6 +46,7 @@ import com.ai.data.PairStatus
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.effectiveStatus
+import com.ai.data.iconStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -73,6 +74,7 @@ internal fun FanOutL2Screen(
     answererKey: String,
     role: String,
     actions: FanOutActions,
+    mode: FanOutMode = FanOutMode.MAIN,
     onSwitchRole: (String) -> Unit,
     onOpenPair: (String) -> Unit,
     onOpenOnePage: () -> Unit,
@@ -129,10 +131,11 @@ internal fun FanOutL2Screen(
             ?: emptyMap()
     }
 
+    val isIconsMode = mode == FanOutMode.ICONS
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
-            title = "Fan out - model",
+            title = if (isIconsMode) "Fan icons - model" else "Fan out - model",
             subject = subject,
             onBackClick = onBack,
             onDelete = { confirmModelDelete = true },
@@ -283,7 +286,9 @@ internal fun FanOutL2Screen(
                             .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val icon = when (p.effectiveStatus(runningSet)) {
+                        val effStatus = if (isIconsMode) p.iconStatus(runningSet)
+                            else p.effectiveStatus(runningSet)
+                        val icon = when (effStatus) {
                             PairStatus.ERROR -> "❌"
                             PairStatus.DONE -> "✅"
                             PairStatus.RUNNING -> "⏳"

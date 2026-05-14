@@ -39,9 +39,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.FanOutRunKey
 import com.ai.data.FanOutRunState
 import com.ai.data.PairStatus
 import com.ai.data.effectiveStatus
+import com.ai.data.iconStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -65,6 +67,8 @@ internal fun FanOutL1Screen(
     runningSet: Set<String>,
     throttledSet: Set<String>,
     actions: FanOutActions,
+    mode: FanOutMode = FanOutMode.MAIN,
+    onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
     onOpenModel: (String) -> Unit,
     onOpenIcons: () -> Unit,
     onBack: () -> Unit
@@ -76,11 +80,12 @@ internal fun FanOutL1Screen(
 
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
+    val isIconsMode = mode == FanOutMode.ICONS
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
-            title = "Fan out",
+            title = if (isIconsMode) "Fan icons" else "Fan out",
             subject = subject,
             onBackClick = onBack,
             onReload = { confirmRerunComplete = true },
@@ -115,6 +120,25 @@ internal fun FanOutL1Screen(
                 onClick = onOpenIcons,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
+
+        // "Find Icons" — only visible on MAIN mode and only when at
+        // least one pair has a DONE response without an icon yet.
+        // Launches the separate fan-icons batch.
+        if (!isIconsMode) {
+            val needsFindIcons = remember(run) {
+                run.pairs.values.any {
+                    it.status == PairStatus.DONE && it.icon.isNullOrBlank()
+                }
+            }
+            if (needsFindIcons) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { onLaunchFanIcons(run.key) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Find icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -195,10 +219,18 @@ internal fun FanOutL1Screen(
                 val pairs = run.pairs.values.filter {
                     "${it.providerId}|${it.model}" == ak
                 }
-                val ok = pairs.count { it.status == PairStatus.DONE }
-                val err = pairs.count { it.status == PairStatus.ERROR }
-                // Live in-flight overlay — see PairState.effectiveStatus.
-                val running = pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
+                // ICONS mode: classify by iconStatus (DONE iff
+                // emoji landed, ERROR iff iconErrorMessage). MAIN
+                // mode: classify by the main response status.
+                val ok = if (isIconsMode)
+                    pairs.count { !it.icon.isNullOrBlank() }
+                    else pairs.count { it.status == PairStatus.DONE }
+                val err = if (isIconsMode)
+                    pairs.count { !it.iconErrorMessage.isNullOrBlank() }
+                    else pairs.count { it.status == PairStatus.ERROR }
+                val running = if (isIconsMode)
+                    pairs.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
+                    else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
                 val total = pairs.size
                 val cost = pairs.sumOf { it.totalCost }
                 Row(
@@ -271,26 +303,40 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Stats panel — only meaningful while pairs are still missing.
-        if (run.totalPairs != run.doneCount) {
+        // Stats panel — derives counts from the active mode's
+        // status lens (iconStatus in ICONS, effectiveStatus in
+        // MAIN). Visible whenever there are still pairs without
+        // a final state (DONE / ERROR) in that lens.
+        val doneCount = if (isIconsMode)
+            run.pairs.values.count { !it.icon.isNullOrBlank() }
+            else run.doneCount
+        val errorCount = if (isIconsMode)
+            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() }
+            else run.errorCount
+        val runningCount = if (isIconsMode)
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
+            else run.effectiveRunningCount(runningSet)
+        val queuedCount = if (isIconsMode)
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING }
+            else run.effectiveQueuedCount(runningSet)
+        if (run.totalPairs != doneCount) {
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row { Text("Total API calls", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.weight(1f)); Text(run.totalPairs.toString(), color = AppColors.Blue) }
-                Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(run.doneCount.toString(), color = AppColors.Green) }
-                Row { Text("Errored", fontSize = 13.sp, color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.errorCount.toString(), color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
-                Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(run.effectiveRunningCount(runningSet).toString(), color = AppColors.Orange) }
+                Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(doneCount.toString(), color = AppColors.Green) }
+                Row { Text("Errored", fontSize = 13.sp, color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(errorCount.toString(), color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
+                Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(runningCount.toString(), color = AppColors.Orange) }
                 val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
                 if (throttledHere > 0) {
                     Row { Text("Throttled", fontSize = 13.sp, color = AppColors.Purple, modifier = Modifier.weight(1f)); Text(throttledHere.toString(), color = AppColors.Purple) }
                 }
-                Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.effectiveQueuedCount(runningSet).toString(), color = AppColors.TextTertiary) }
+                Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(queuedCount.toString(), color = AppColors.TextTertiary) }
             }
 
             // Live caps panel — polls ApiCallCaps.snapshot() every
-            // 500 ms and renders global / fan-out in-flight counts.
-            // Tells the user at a glance whether the run is gated
-            // on a cap (shows e.g. "global 30/30 fan-out 15/15"
-            // when saturated) or has headroom.
+            // 500 ms and renders global / fan-out (or fan-icons in
+            // ICONS mode) in-flight counts. Tells the user at a
+            // glance whether the run is gated on a cap.
             val capsSnapshot by produceState(initialValue = ApiCallCaps.snapshot()) {
                 while (true) {
                     value = ApiCallCaps.snapshot()
@@ -304,8 +350,12 @@ internal fun FanOutL1Screen(
                     "Caps", fontSize = 11.sp, color = AppColors.TextTertiary,
                     modifier = Modifier.weight(1f)
                 )
+                val capsLine = if (isIconsMode)
+                    "global ${g.globalInFlight}/${g.globalMax} · fan-icons ${g.fanIconsInFlight}/${g.fanIconsMax}"
+                else
+                    "global ${g.globalInFlight}/${g.globalMax} · fan-out ${g.fanOutInFlight}/${g.fanOutMax}"
                 Text(
-                    "global ${g.globalInFlight}/${g.globalMax} · fan-out ${g.fanOutInFlight}/${g.fanOutMax}",
+                    capsLine,
                     fontSize = 11.sp, color = AppColors.TextTertiary,
                     fontFamily = FontFamily.Monospace
                 )
@@ -313,13 +363,16 @@ internal fun FanOutL1Screen(
         }
 
         // "Run a Fan in prompt" button at the bottom — keeps the
-        // L1 page leading with the model list.
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = { actions.onRunFanIn(run.key) },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-        ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        // L1 page leading with the model list. Hidden in ICONS
+        // mode (fan-in doesn't apply to the icon batch).
+        if (!isIconsMode) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { actions.onRunFanIn(run.key) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        }
     }
 
     // -----------------------------------------------------------------

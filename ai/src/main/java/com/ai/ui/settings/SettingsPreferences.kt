@@ -67,7 +67,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             } ?: SubjectToTitleBarMode.HARDCODED,
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
-            fanOutIconGenEnabled = prefs.getBoolean(KEY_FAN_OUT_ICON_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -85,6 +84,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             maxConcurrentReportCalls = prefs.getInt(KEY_MAX_CONCURRENT_REPORT_CALLS, 15),
             maxConcurrentTranslationCalls = prefs.getInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, 15),
             maxConcurrentFanOutCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, 15),
+            maxConcurrentFanIconsCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, 15),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
             maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),
@@ -116,7 +116,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_SUBJECT_TO_TITLE_BAR_MODE, settings.subjectToTitleBarMode.name)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
-            putBoolean(KEY_FAN_OUT_ICON_GEN_ENABLED, settings.fanOutIconGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             // Newline-joined: entries are "providerId|model" so newline
@@ -130,6 +129,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CONCURRENT_REPORT_CALLS, settings.maxConcurrentReportCalls)
             putInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, settings.maxConcurrentTranslationCalls)
             putInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, settings.maxConcurrentFanOutCalls)
+            putInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, settings.maxConcurrentFanIconsCalls)
             putInt(KEY_MAX_RETRIES_ON_429, settings.maxRetriesOn429)
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
             putInt(KEY_MAX_RETRIES_ON_529, settings.maxRetriesOn529)
@@ -488,7 +488,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_SUBJECT_TO_TITLE_BAR_MODE = "subject_to_title_bar_mode"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
-        private const val KEY_FAN_OUT_ICON_GEN_ENABLED = "fan_out_icon_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
@@ -500,6 +499,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MAX_CONCURRENT_REPORT_CALLS = "max_concurrent_report_calls"
         private const val KEY_MAX_CONCURRENT_TRANSLATION_CALLS = "max_concurrent_translation_calls"
         private const val KEY_MAX_CONCURRENT_FAN_OUT_CALLS = "max_concurrent_fan_out_calls"
+        private const val KEY_MAX_CONCURRENT_FAN_ICONS_CALLS = "max_concurrent_fan_icons_calls"
         private const val KEY_MAX_RETRIES_ON_429 = "max_retries_on_429"
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"
         private const val KEY_MAX_RETRIES_ON_529 = "max_retries_on_529"

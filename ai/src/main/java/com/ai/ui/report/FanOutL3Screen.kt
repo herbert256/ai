@@ -64,6 +64,7 @@ internal fun FanOutL3Screen(
     sourceAgentId: String,
     role: String,
     actions: FanOutActions,
+    mode: FanOutMode = FanOutMode.MAIN,
     onStepSource: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -170,7 +171,7 @@ internal fun FanOutL3Screen(
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
-                title = "Fan out - pair",
+                title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
                 subject = answererLabel,
                 onBackClick = onBack,
                 onInfo = answererProviderService?.let { svc ->

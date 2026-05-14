@@ -75,7 +75,10 @@ data class PairState(
     val icon: String? = null,
     val iconWinningTier: Int? = null,
     val iconInputCost: Double = 0.0,
-    val iconOutputCost: Double = 0.0
+    val iconOutputCost: Double = 0.0,
+    /** Error message from the last fan-icons attempt for this pair.
+     *  Non-null only when every tier of the chain failed. */
+    val iconErrorMessage: String? = null
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     val totalCost: Double get() =
@@ -95,6 +98,21 @@ data class PairState(
 fun PairState.effectiveStatus(runningSet: Set<String>): PairStatus = when (status) {
     PairStatus.DONE, PairStatus.ERROR -> status
     else -> if (id in runningSet) PairStatus.RUNNING else PairStatus.PENDING
+}
+
+/** Icon-chain lifecycle for this pair. Mirrors [effectiveStatus]
+ *  but for the fan-icons batch:
+ *    - DONE when an emoji has landed on [icon].
+ *    - ERROR when every tier of the chain failed
+ *      ([iconErrorMessage] non-null).
+ *    - RUNNING when the runtime set says so.
+ *    - PENDING otherwise (never launched, or batch hasn't
+ *      reached this pair yet). */
+fun PairState.iconStatus(runningIconsSet: Set<String>): PairStatus = when {
+    !icon.isNullOrBlank() -> PairStatus.DONE
+    !iconErrorMessage.isNullOrBlank() -> PairStatus.ERROR
+    id in runningIconsSet -> PairStatus.RUNNING
+    else -> PairStatus.PENDING
 }
 
 /** A combined-reports / fan-in row attached to a Fan Out run.
@@ -213,7 +231,8 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         icon = icon,
         iconWinningTier = iconWinningTier,
         iconInputCost = iconInputCost,
-        iconOutputCost = iconOutputCost
+        iconOutputCost = iconOutputCost,
+        iconErrorMessage = iconErrorMessage
     )
 }
 

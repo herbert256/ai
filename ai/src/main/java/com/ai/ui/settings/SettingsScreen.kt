@@ -945,6 +945,7 @@ private fun MaximalApiCallsSubScreen(
     var reportText by remember { mutableStateOf(generalSettings.maxConcurrentReportCalls.toString()) }
     var translationText by remember { mutableStateOf(generalSettings.maxConcurrentTranslationCalls.toString()) }
     var fanOutText by remember { mutableStateOf(generalSettings.maxConcurrentFanOutCalls.toString()) }
+    var fanIconsText by remember { mutableStateOf(generalSettings.maxConcurrentFanIconsCalls.toString()) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         maxConcurrentApiCalls = apiText.toIntOrNull()?.coerceAtLeast(1)
@@ -954,10 +955,12 @@ private fun MaximalApiCallsSubScreen(
         maxConcurrentTranslationCalls = translationText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.maxConcurrentTranslationCalls,
         maxConcurrentFanOutCalls = fanOutText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentFanOutCalls
+            ?: generalSettings.maxConcurrentFanOutCalls,
+        maxConcurrentFanIconsCalls = fanIconsText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentFanIconsCalls
     )
 
-    LaunchedEffect(apiText, reportText, translationText, fanOutText) {
+    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanIconsText) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1028,6 +1031,18 @@ private fun MaximalApiCallsSubScreen(
                     value = fanOutText,
                     onValueChange = { fanOutText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Concurrent Fan Out calls") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Concurrent Fan Icons API calls",
+                "Cap on the fan-icons batch — the emoji-generation chain the user launches from a fan-out's Find Icons button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 15."
+            ) {
+                OutlinedTextField(
+                    value = fanIconsText,
+                    onValueChange = { fanIconsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Fan Icons calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
@@ -1137,7 +1152,6 @@ private fun OtherSettingsSubScreen(
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
-    var fanOutIconGenEnabled by remember { mutableStateOf(generalSettings.fanOutIconGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
 
     fun build(): GeneralSettings = generalSettings.copy(
@@ -1145,11 +1159,10 @@ private fun OtherSettingsSubScreen(
         defaultEmail = defaultEmail,
         iconGenEnabled = iconGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
-        fanOutIconGenEnabled = fanOutIconGenEnabled,
         useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, fanOutIconGenEnabled, useInternalPromptsIcons) {
+    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1194,12 +1207,6 @@ private fun OtherSettingsSubScreen(
                 description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
                 checked = perModelIconGenEnabled,
                 onCheckedChange = { perModelIconGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Generate Fan Out response icons",
-                description = "Auto-run the 3-tier icon chain (chat continuation → one-shot template → fixed-agent fallback) on every fan-out pair response. The L3 'Fan out - pair' screen shows both this icon and the source model's report icon. Costs accumulate on the pair's cost cell and post to Usage statistics with kind=\"icon\".",
-                checked = fanOutIconGenEnabled,
-                onCheckedChange = { fanOutIconGenEnabled = it }
             )
             ToggleSettingCard(
                 title = "Use internal prompts icons",

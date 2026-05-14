@@ -618,28 +618,34 @@ object ApiCallCaps {
     @Volatile private var reportSem: kotlinx.coroutines.sync.Semaphore = sem(15)
     @Volatile private var translationSem: kotlinx.coroutines.sync.Semaphore = sem(15)
     @Volatile private var fanOutSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+    @Volatile private var fanIconsSem: kotlinx.coroutines.sync.Semaphore = sem(15)
     @Volatile private var globalCap: Int = 30
     @Volatile private var reportCap: Int = 15
     @Volatile private var translationCap: Int = 15
     @Volatile private var fanOutCap: Int = 15
+    @Volatile private var fanIconsCap: Int = 15
 
     val global: kotlinx.coroutines.sync.Semaphore get() = globalSem
     val report: kotlinx.coroutines.sync.Semaphore get() = reportSem
     val translation: kotlinx.coroutines.sync.Semaphore get() = translationSem
     val fanOut: kotlinx.coroutines.sync.Semaphore get() = fanOutSem
+    val fanIcons: kotlinx.coroutines.sync.Semaphore get() = fanIconsSem
 
     fun resetForNewLimits(
         globalMax: Int, reportMax: Int,
-        translationMax: Int, fanOutMax: Int
+        translationMax: Int, fanOutMax: Int,
+        fanIconsMax: Int
     ) {
         globalCap = globalMax.coerceAtLeast(1)
         reportCap = reportMax.coerceAtLeast(1)
         translationCap = translationMax.coerceAtLeast(1)
         fanOutCap = fanOutMax.coerceAtLeast(1)
+        fanIconsCap = fanIconsMax.coerceAtLeast(1)
         globalSem = sem(globalCap)
         reportSem = sem(reportCap)
         translationSem = sem(translationCap)
         fanOutSem = sem(fanOutCap)
+        fanIconsSem = sem(fanIconsCap)
     }
 
     private fun sem(n: Int) = kotlinx.coroutines.sync.Semaphore(n.coerceAtLeast(1))
@@ -652,7 +658,8 @@ object ApiCallCaps {
         val globalInFlight: Int, val globalMax: Int,
         val reportInFlight: Int, val reportMax: Int,
         val translationInFlight: Int, val translationMax: Int,
-        val fanOutInFlight: Int, val fanOutMax: Int
+        val fanOutInFlight: Int, val fanOutMax: Int,
+        val fanIconsInFlight: Int, val fanIconsMax: Int
     )
 
     fun snapshot(): Snapshot = Snapshot(
@@ -663,7 +670,9 @@ object ApiCallCaps {
         translationInFlight = translationCap - translationSem.availablePermits,
         translationMax = translationCap,
         fanOutInFlight = fanOutCap - fanOutSem.availablePermits,
-        fanOutMax = fanOutCap
+        fanOutMax = fanOutCap,
+        fanIconsInFlight = fanIconsCap - fanIconsSem.availablePermits,
+        fanIconsMax = fanIconsCap
     )
 }
 

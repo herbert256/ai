@@ -37,6 +37,17 @@ import kotlinx.coroutines.withContext
  * Role is stringly-typed for save-bundle compatibility (the saver
  * stores it as String). Valid values: "Responder", "Initiator".
  */
+/** Top-level mode the FanOutScreen runs in.
+ *  - [MAIN]: the existing fan-out drill-in (per-pair response,
+ *    fan-in, etc.). Status / counters derive from `pair.status`
+ *    + the running/throttled sets for the main response.
+ *  - [ICONS]: the fan-icons batch drill-in. Status / counters
+ *    derive from `pair.iconStatus(...)` over the
+ *    runningFanIcons / throttledFanIcons sets. Tier-1/2/3
+ *    buttons drive [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]
+ *    instead of the fan-out runner. */
+enum class FanOutMode { MAIN, ICONS }
+
 sealed class FanOutNav {
     object L1 : FanOutNav()
     data class L2(val answererKey: String, val role: String) : FanOutNav()
@@ -126,6 +137,20 @@ fun FanOutScreen(
      *  [com.ai.data.ProviderThrottle.acquire] (per-minute rate
      *  limit). Surfaces as the L1 Throttled counter. */
     throttledSet: Set<String> = emptySet(),
+    /** When non-MAIN, the L1 / L2 / L3 screens read pair status
+     *  from a different lens (e.g. icon-chain lifecycle for
+     *  ICONS). Title bars and action buttons swap accordingly. */
+    mode: FanOutMode = FanOutMode.MAIN,
+    /** Live in-flight pair ids for the fan-icons batch. Empty
+     *  unless [mode] is [FanOutMode.ICONS]. */
+    runningIconsSet: Set<String> = emptySet(),
+    /** Throttled pair ids for the fan-icons batch. Empty unless
+     *  [mode] is [FanOutMode.ICONS]. */
+    throttledIconsSet: Set<String> = emptySet(),
+    /** Called when the user taps "Find Icons" on the L1 main
+     *  screen. Wires to
+     *  [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]. */
+    onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -164,13 +189,20 @@ fun FanOutScreen(
         return
     }
 
+    // In ICONS mode, the L1 / L2 / L3 classifiers read the icon-
+    // chain status off pair.iconStatus(...) — fed by these sets.
+    val effectiveRunningSet = if (mode == FanOutMode.ICONS) runningIconsSet else runningSet
+    val effectiveThrottledSet = if (mode == FanOutMode.ICONS) throttledIconsSet else throttledSet
+
     when (val n = nav) {
         is FanOutNav.L1 -> FanOutL1Screen(
             engine = engine,
             run = runState,
-            runningSet = runningSet,
-            throttledSet = throttledSet,
+            runningSet = effectiveRunningSet,
+            throttledSet = effectiveThrottledSet,
             actions = actions,
+            mode = mode,
+            onLaunchFanIcons = onLaunchFanIcons,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
             onOpenIcons = { nav = FanOutNav.L1Icons },
             onBack = onBack
@@ -178,10 +210,11 @@ fun FanOutScreen(
         is FanOutNav.L2 -> FanOutL2Screen(
             engine = engine,
             run = runState,
-            runningSet = runningSet,
+            runningSet = effectiveRunningSet,
             answererKey = n.answererKey,
             role = n.role,
             actions = actions,
+            mode = mode,
             onSwitchRole = { newRole -> nav = FanOutNav.L2(n.answererKey, newRole) },
             onOpenPair = { sourceAgentId ->
                 nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role)
@@ -193,11 +226,12 @@ fun FanOutScreen(
         is FanOutNav.L3 -> FanOutL3Screen(
             engine = engine,
             run = runState,
-            runningSet = runningSet,
+            runningSet = effectiveRunningSet,
             answererKey = n.answererKey,
             sourceAgentId = n.sourceAgentId,
             role = n.role,
             actions = actions,
+            mode = mode,
             onStepSource = { newSourceAgentId ->
                 nav = FanOutNav.L3(n.answererKey, newSourceAgentId, n.role)
             },
