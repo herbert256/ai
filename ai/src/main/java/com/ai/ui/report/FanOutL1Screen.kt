@@ -100,6 +100,15 @@ internal fun FanOutL1Screen(
             onReload = { confirmRerunComplete = true },
             onDelete = { confirmDelete = true }
         )
+        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
+            Text(
+                text = subject,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
         // Per-failure controls — visible only when at least one pair
         // errored. Both buttons follow the engine's throttle.
