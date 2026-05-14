@@ -1064,11 +1064,14 @@ class ReadTimeoutInterceptor : Interceptor {
  *  OkHttp chain so every attempt — including retries — gets a separate
  *  trace entry, which makes throttling visible on the Trace screen.
  *
- *  Worst-case slot occupancy is roughly maxRetries × backoffMs plus the
- *  upstream request time per attempt; defaults give ~3 s of in-line
- *  retry. Caller-driven retry policies (queueing more attempts via the
- *  suspend layer) can layer on top with kotlinx.coroutines.delay, which
- *  doesn't block any thread. */
+ *  When the server sends no Retry-After header the per-attempt wait is
+ *  an exponential-with-equal-jitter backoff (backoffMs doubled per
+ *  attempt, capped at 30 s, randomized ±50%) so a synchronized burst
+ *  de-syncs instead of re-colliding. Worst-case slot occupancy at the
+ *  defaults (3 retries × 1 s base) is ~7 s plus the upstream request
+ *  time per attempt. Caller-driven retry policies (queueing more
+ *  attempts via the suspend layer) can layer on top with
+ *  kotlinx.coroutines.delay, which doesn't block any thread. */
 class RateLimitRetryInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -1140,9 +1143,17 @@ class RateLimitRetryInterceptor : Interceptor {
             if (chain.call().isCanceled()) return current
             // Honour the server's Retry-After header when present —
             // matches the RFC and avoids retrying into the same rate
-            // window. Falls back to the configured backoff when the
-            // header is missing / unparseable.
-            val sleepMs = resolveRetryAfter(current, defaultMs = backoffMs, hostForLog = request.url.host)
+            // window. Falls back to an exponential-with-equal-jitter
+            // backoff when the header is missing / unparseable.
+            //
+            // A flat backoff synchronizes concurrent retries against the
+            // same per-minute window (Fireworks ships no Retry-After),
+            // so a burst all re-collides. Doubling per attempt spreads a
+            // sustained burst; the random half de-syncs sibling calls.
+            val expBackoff = (backoffMs shl attempt.coerceAtMost(16)).coerceAtMost(30_000L)
+            val jittered = expBackoff / 2 +
+                java.util.concurrent.ThreadLocalRandom.current().nextLong(expBackoff / 2 + 1)
+            val sleepMs = resolveRetryAfter(current, defaultMs = jittered, hostForLog = request.url.host)
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
             current.close()

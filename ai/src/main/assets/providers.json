@@ -470,6 +470,8 @@
       ],
       "id": "Fireworks",
       "defaultInactive": true,
+      "maxCallsPerProviderPerMinute": 12,
+      "maxConcurrentCallsPerProvider": 2,
       "modelListFormat": "object",
       "seedFieldName": "seed",
       "supportsCitations": false,
