@@ -10,6 +10,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -451,6 +453,9 @@ fun AppNavHost(
                         )
                     }
                     navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                },
+                onNavigateToAppLog = { filename, search ->
+                    navController.navigate(NavRoutes.aiAppLogDetail(filename, search))
                 })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
@@ -867,12 +872,19 @@ fun AppNavHost(
                 onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) }
             )
         }
-        composable(NavRoutes.AI_APPLOG_DETAIL) { entry ->
+        composable(
+            NavRoutes.AI_APPLOG_DETAIL,
+            arguments = listOf(
+                navArgument("search") { type = NavType.StringType; defaultValue = "" }
+            )
+        ) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""
+            val search = entry.arguments?.getString("search") ?: ""
             com.ai.ui.admin.AppLogDetailScreen(
                 filename = filename,
                 onBack = safePopBack,
-                onNavigateToTrace = { tf -> navController.navigate(NavRoutes.traceDetail(tf)) }
+                onNavigateToTrace = { tf -> navController.navigate(NavRoutes.traceDetail(tf)) },
+                initialSearch = search
             )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {

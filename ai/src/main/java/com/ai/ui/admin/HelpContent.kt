@@ -502,6 +502,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reports", "Opens the per-agent reports viewer. Detail line shows N of M agents succeeded so you can spot a partially-failed run before drilling in."),
             HelpCard("Prompt", "Opens the report's full prompt as scrollable text. Detail line previews the first non-blank line (≤80 chars)."),
             HelpCard("Costs", "Tokens + cost breakdown across all agents and secondaries. Detail line shows the secondary spend so far in USD when there is any."),
+            HelpCard("Log", "Opens the App Log Viewer for this report's creation-day log file, pre-filtered to the report's log-id. Every app-log line written while working on a report is tagged ` [#<reportId>]` at the end, so this shows only that report's activity. A run that spilled into the next day is reachable via the viewer's prev/next file buttons — the filter persists across files."),
             HelpCard("Per-Meta-prompt rows", "One row per Meta-prompt name with at least one persisted secondary on this report. Detail = run count; secondary line = the kind label (Rerank / Summarize / Compare / Moderate)."),
         )
     ),

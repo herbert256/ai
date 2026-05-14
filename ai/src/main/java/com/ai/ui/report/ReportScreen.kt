@@ -167,6 +167,9 @@ fun ReportsScreenNav(
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
+    /** Open the App Log Viewer for `filename`, pre-filtered to
+     *  `search`. Wired by the report screen's View → Log button. */
+    onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
@@ -375,6 +378,7 @@ fun ReportsScreenNav(
         onSystemPromptChange = { viewModel.setReportSystemPromptId(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,
+        onNavigateToAppLog = onNavigateToAppLog,
         onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
@@ -638,6 +642,7 @@ fun ReportsScreen(
     onSystemPromptChange: (String?) -> Unit = {},
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
@@ -801,6 +806,9 @@ fun ReportsScreen(
     // LocalReportTitle so deep TitleBars in BOTH-mode without a
     // per-screen subject can fall back to it.
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
+    // Report creation timestamp — drives the View → Log button's
+    // applog filename ("applog_<yyyyMMdd>.log" for the report's day).
+    var loadedReportTimestamp by remember { mutableStateOf(0L) }
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
@@ -812,6 +820,7 @@ fun ReportsScreen(
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
             loadedReportTitle = null
+            loadedReportTimestamp = 0L
         } else {
             val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
             reportIcon = r?.icon
@@ -824,6 +833,7 @@ fun ReportsScreen(
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.title
+            loadedReportTimestamp = r?.timestamp ?: 0L
         }
     }
     // Provided to every inline overlay below via LocalReportIcon so
@@ -2432,6 +2442,16 @@ fun ReportsScreen(
                     selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
                 },
                 onViewIcons = { showIconsView = true },
+                onViewLog = {
+                    val rid = currentReportId
+                    if (rid != null) {
+                        val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
+                            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                        val filename = "applog_" +
+                            day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
+                        onNavigateToAppLog(filename, "#$rid")
+                    }
+                },
                 onEditTitle = { showEditTitle = true },
                 onEditPromptInline = { showEditPrompt = true },
                 onEditModelsInline = { currentReportId?.let { onEditModels(it) } },

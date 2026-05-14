@@ -61,6 +61,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { fanIconsJobs.remove(key, job) }
     }
 
+    /** Coroutine context for a report-section launch: `Dispatchers.IO`
+     *  plus an [AppLog.currentLogId] context element so every [AppLog]
+     *  line written by the coroutine (and its children) is tagged
+     *  ` [#<logId>]` — letting the App Log Viewer isolate one report's
+     *  activity. Drop-in for `Dispatchers.IO` at report-section
+     *  `viewModelScope.launch` sites; `return@launch` stays valid
+     *  because the `launch` call itself is unchanged. */
+    private fun reportLogContext(logId: String?) =
+        Dispatchers.IO + AppLog.currentLogId.asContextElement(logId)
+
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child
     // launch inside startIconFanOut so a deleteReport can stop the
@@ -308,6 +318,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val reportStartMs = System.currentTimeMillis()
             AppLog.i("Report", "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
 
+            // reportId is minted inside the launch, so the log-id
+            // context element is applied here rather than at the
+            // launch site (cf. reportLogContext used elsewhere).
+            withContext(AppLog.currentLogId.asContextElement(reportId)) {
             withTracerTags(reportId = reportId, category = "Report") {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
@@ -383,6 +397,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     reportRunningInBackground = false
                 }
             }
+            }
         }
     }
 
@@ -425,7 +440,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Report icon") {
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
@@ -1010,7 +1025,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val outer = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             unique.forEach { item ->
                 // One async per model. Throttle pre-acquire matches
                 // runFanOutPrompt's pattern so the OkHttp interceptor
@@ -1131,7 +1146,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateAgentIconFanOut(agentId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
-        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val outer = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val reportPrompt = report.prompt
@@ -1228,7 +1243,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         agentId: String,
         emoji: String
     ) {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             ReportStorage.setReportAgentIconChoice(context, reportId, agentId, emoji)
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -1254,7 +1269,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         emoji: String,
         iconModel: String
     ) {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel)
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -1312,7 +1327,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             AppLog.w("ReportIcons", "no icon prompts configured — skipping (agent=${ra.agentId})")
             return
         }
-        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val outer = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val agentProvider = AppService.findById(ra.provider) ?: return@launch
             val agentResponse = ra.responseBody.orEmpty()
             if (agentResponse.isBlank()) return@launch
@@ -1670,7 +1685,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (existing.isActive) return existing
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 val state = appViewModel.uiState.value
                 val aiSettings = state.aiSettings
@@ -1793,7 +1808,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String,
         metaPromptId: String
     ): Job? {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val existing = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.META)
                 .filter {
@@ -2289,7 +2304,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // viewModelScope so navigating away mid-regenerate doesn't
         // cancel in-flight calls and persist them as ERROR. Same
         // bug class fixed in generateGenericReports.
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
@@ -2701,7 +2716,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         modelName: String
     ): Job {
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = "Report rerank (local)") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -2776,7 +2791,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val rerankPrompt = aiSettings.getInternalPromptByName("rerank")
             ?: return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = "Report rerank") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -2836,7 +2851,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val fanOutStartMs = System.currentTimeMillis()
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -3076,7 +3091,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         if (placeholders.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -3258,7 +3273,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun resumeStaleRunsForReport(
         context: Context,
         reportId: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
         val running = appViewModel.runningFanOutPairs.value
         val activeTranslationRunIds = _translationRuns.value.keys
         val rows = SecondaryResultStorage.listForReport(context, reportId)
@@ -3409,7 +3424,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         AppLog.i("Resume", "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 withTracerTags(reportId = reportId, category = cat) {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -3478,7 +3493,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // [resumeStaleRunsForReport] (report-open orchestrator) and
         // any direct caller share the same guard.
         if (!staleResumeScans.add(key)) return null
-        val scanJob = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val scanJob = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val running = appViewModel.runningFanOutPairs.value
             val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                 .filter {
@@ -3545,7 +3560,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
         val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter {
                 it.metaPromptId == metaPrompt.id &&
@@ -3597,7 +3612,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPrompt: com.ai.model.InternalPrompt,
         providerId: String,
         model: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
         val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .filter {
                 it.metaPromptId == metaPrompt.id &&
@@ -3628,7 +3643,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // surviving coroutines would call SecondaryResultStorage.save
         // on the just-deleted ids, resurrecting zombie rows beside
         // the freshly-created placeholders and double-billing.
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             fanOutJobs[fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
                 existing.cancelAndJoin()
             }
@@ -3672,7 +3687,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPromptId: String,
         providerId: String,
         model: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
         val report = ReportStorage.getReport(context, reportId) ?: return@launch
         // Provider ids are looked up via AppService.findById (case-
         // insensitive); the on-disk values can be either case
@@ -3737,7 +3752,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -3866,7 +3881,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ): Job? {
         AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
@@ -4083,7 +4098,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         AppLog.i("Meta", "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
 
-        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             // Tag every API call this batch makes with the parent
             // report's id and a Meta-prompt-name category. Without the
             // reportId tag the resulting trace files would land with
@@ -4410,7 +4425,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  abandoned hundreds of rows when the user navigated away
      *  during a Fan-out delete. Returns once the sweep finishes. */
     fun bulkDeleteSecondaryResults(context: Context, reportId: String, resultIds: List<String>, onComplete: () -> Unit = {}) {
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             // Snapshot the per-id costs before deleting so we can
             // bump costsFromDeletedItems with the total.
             var costDelta = 0.0
@@ -4446,7 +4461,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // generateGenericReports — a screen-scoped scope here would
         // turn the in-flight call into ERROR on disk if the user
         // navigates away before the new response lands.
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
             val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
@@ -4626,7 +4641,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             return appViewModel.viewModelScope.launch {}
         }
         val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+        val job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
             val generalSettings = state.generalSettings
@@ -5009,7 +5024,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
         val rows = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
@@ -5025,7 +5040,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
         val failed = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
@@ -5066,7 +5081,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
         // Cancel any in-flight run for this runId so its already-
         // dispatched coroutines don't keep writing fresh rows under
         // the about-to-be-restarted runId. Cancellation is co-operative;
@@ -5107,7 +5122,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         sourceReportId: String,
         runId: String
-    ): Job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }

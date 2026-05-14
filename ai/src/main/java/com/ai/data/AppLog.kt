@@ -72,6 +72,15 @@ object AppLog {
 
     @Volatile var threshold: LogLevel = LogLevel.INFO
 
+    /** Per-coroutine "log-id" — when set, [appendLine] appends
+     *  ` [#<id>]` to the end of every line it writes. Report-section
+     *  coroutines set this to the report id (via
+     *  `asContextElement`, mirroring `ApiTracer.permitPreAcquired`)
+     *  so the App Log Viewer can isolate one report's activity.
+     *  Null on every thread that hasn't opted in — those lines are
+     *  written untagged. */
+    val currentLogId = ThreadLocal<String?>()
+
     private var logDir: File? = null
     private val lock = ReentrantLock()
     private var writer: BufferedWriter? = null
@@ -261,7 +270,9 @@ object AppLog {
                 val w = writer ?: return
                 val ts = LINE_TIMESTAMP_FORMAT.format(Instant.now())
                 val safeMsg = redactSecret(msg)
-                w.write("$ts ${level.name} $tag: $safeMsg")
+                val logId = currentLogId.get()
+                val taggedMsg = if (!logId.isNullOrBlank()) "$safeMsg [#$logId]" else safeMsg
+                w.write("$ts ${level.name} $tag: $taggedMsg")
                 w.newLine()
                 if (t != null) {
                     val sw = StringWriter()

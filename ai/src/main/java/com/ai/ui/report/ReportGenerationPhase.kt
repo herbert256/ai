@@ -73,6 +73,8 @@ internal data class GenerationPhaseHandlers(
     val onViewPrompt: () -> Unit = {},
     val onViewCosts: () -> Unit = {},
     val onViewIcons: () -> Unit = {},
+    /** Open the App Log Viewer filtered to this report's log-id. */
+    val onViewLog: () -> Unit = {},
     val onEditTitle: () -> Unit = {},
     val onEditPromptInline: () -> Unit = {},
     val onEditModelsInline: () -> Unit = {},
@@ -163,6 +165,7 @@ internal fun ColumnScope.GenerationPhase(
     val onViewPrompt = handlers.onViewPrompt
     val onViewCosts = handlers.onViewCosts
     val onViewIcons = handlers.onViewIcons
+    val onViewLog = handlers.onViewLog
     val onEditTitle = handlers.onEditTitle
     val onEditPromptInline = handlers.onEditPromptInline
     val onEditModelsInline = handlers.onEditModelsInline
@@ -374,6 +377,7 @@ internal fun ColumnScope.GenerationPhase(
                 CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
                 CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
                 CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
+                CompactButton(onClick = { close(); onViewLog() }, color = viewColor, text = "Log")
                 // Icons grid — only surfaced when the user enabled the
                 // per-agent icon chain in Settings. The chain populates
                 // each agent.icon; the overlay just renders them in a

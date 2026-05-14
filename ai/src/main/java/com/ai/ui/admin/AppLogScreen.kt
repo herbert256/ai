@@ -353,7 +353,11 @@ private fun normaliseTimeFilter(raw: String): String? {
 fun AppLogDetailScreen(
     filename: String,
     onBack: () -> Unit,
-    onNavigateToTrace: (String) -> Unit = {}
+    onNavigateToTrace: (String) -> Unit = {},
+    /** Pre-seeds the free-text search filter. Wired by the report
+     *  screen's View → Log button with `#<reportId>` so the viewer
+     *  opens showing only that report's log lines. */
+    initialSearch: String = ""
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -381,8 +385,12 @@ fun AppLogDetailScreen(
 
     // ===== Filter state =====
     // Search: free-text substring match across the entire entry
-    // (header + continuation lines). Case-insensitive.
-    var searchQuery by remember(currentFilename) { mutableStateOf("") }
+    // (header + continuation lines). Case-insensitive. Seeded from
+    // [initialSearch] and intentionally NOT keyed on currentFilename
+    // so the filter persists across the prev/next file navigation —
+    // a report whose run spilled into the next day's log file can be
+    // followed by flipping files with the filter held.
+    var searchQuery by remember { mutableStateOf(initialSearch) }
     // Levels: all five enabled by default so the initial view shows
     // everything that landed in the log file; the user toggles
     // individual levels off to narrow the surface. Headers without a
