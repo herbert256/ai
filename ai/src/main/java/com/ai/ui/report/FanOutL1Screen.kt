@@ -383,15 +383,15 @@ internal fun FanOutL1Screen(
             Column(modifier = Modifier.fillMaxWidth()) {
                 // Status counts as a compact grid — one row of labels,
                 // one row of numbers below. Total is the first column;
-                // Throttled only appears when something is actually
-                // waiting on a rate cap.
+                // Throttled is always shown (dimmed at zero) so the
+                // column doesn't shift in/out as pairs wait on a cap.
                 val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
                 val stats = buildList {
                     add(Triple("Total", run.totalPairs, AppColors.Blue))
                     add(Triple("Done", doneCount, AppColors.Green))
                     add(Triple("Errored", errorCount, if (errorCount > 0) AppColors.Red else AppColors.TextTertiary))
                     add(Triple("Running", runningCount, AppColors.Orange))
-                    if (throttledHere > 0) add(Triple("Throttled", throttledHere, AppColors.Purple))
+                    add(Triple("Throttled", throttledHere, if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
                     add(Triple("Queued", queuedCount, AppColors.TextTertiary))
                 }
                 Row(modifier = Modifier.fillMaxWidth()) {
