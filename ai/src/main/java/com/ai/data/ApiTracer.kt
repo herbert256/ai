@@ -1039,15 +1039,19 @@ class RateLimitRetryInterceptor : Interceptor {
         // Google's exhausted-quota 429 — bench the model in
         // ModelCooldownStore and skip the retry loop. Two triggers:
         //  • per-day quota (generate_requests_per_model_per_day) —
-        //    bench until the quota resets at midnight US Pacific,
-        //    regardless of any retry hint.
+        //    bench for the response's own retry hint (it carries a
+        //    real "retry in <hours>" for the daily case); fall back
+        //    to the Pacific-midnight reset only if the hint is
+        //    missing / unparseable.
         //  • any other 429 with a retry hint longer than the
         //    threshold — bench for that hint.
         // Either way the dispatch layer deletes the in-flight item
         // once it sees the model is benched.
         if (request.url.host == "generativelanguage.googleapis.com") {
             val benchUntil: Long? = when {
-                googleDailyQuotaExhausted(response) -> nextPacificMidnightMs()
+                googleDailyQuotaExhausted(response) ->
+                    googleRetryAfterMs(response)?.let { System.currentTimeMillis() + it }
+                        ?: nextPacificMidnightMs()
                 else -> googleRetryAfterMs(response)
                     ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
                     ?.let { System.currentTimeMillis() + it }
