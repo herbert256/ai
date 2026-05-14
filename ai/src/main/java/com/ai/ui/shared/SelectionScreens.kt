@@ -3,6 +3,7 @@ package com.ai.ui.shared
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +59,7 @@ fun SelectModelScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
 
     // For an API-mode provider, hold the model list behind a refresh: kick off the fetch,
@@ -208,19 +210,31 @@ fun SelectModelScreen(
                     ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
                 val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
+                // Benched by a >1h 429 (ModelCooldownStore) — dim + block taps.
+                val benchedUntil = cooldowns["${provider.id}:$modelName"]
+                    ?.takeIf { it > System.currentTimeMillis() }
 
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
-                        .clickable { onSelectModel(modelName) }.padding(vertical = 10.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .clickable(enabled = benchedUntil == null) { onSelectModel(modelName) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp)
+                        .alpha(if (benchedUntil != null) 0.4f else 1f)
                 ) {
-                    Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    VisionBadge(aiSettings.isVisionCapable(provider, modelName))
-                    WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
-                    ReasoningBadge(aiSettings.isReasoningCapable(provider, modelName))
-                    Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
-                    Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        VisionBadge(aiSettings.isVisionCapable(provider, modelName))
+                        WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
+                        ReasoningBadge(aiSettings.isReasoningCapable(provider, modelName))
+                        Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                        Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
+                    }
+                    if (benchedUntil != null) {
+                        Text(
+                            com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
+                            style = MaterialTheme.typography.bodySmall, color = AppColors.Orange, maxLines = 1
+                        )
+                    }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }

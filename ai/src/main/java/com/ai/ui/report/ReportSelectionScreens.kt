@@ -166,6 +166,7 @@ internal fun ReportSelectModelsScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     var search by remember { mutableStateOf("") }
     val activeServices = aiSettings.getActiveServices()
     var providerFilter by remember { mutableStateOf<AppService?>(null) }
@@ -267,13 +268,18 @@ internal fun ReportSelectModelsScreen(
         fun ModelRow(entry: Pair<AppService, String>) {
             val (provider, model) = entry
             val isAlreadyAdded = entry in alreadyAdded
+            // Benched by a >1h 429 (ModelCooldownStore) — dim + block
+            // taps just like an already-added row.
+            val benchedUntil = cooldowns["${provider.id}:$model"]
+                ?.takeIf { it > System.currentTimeMillis() }
+            val disabled = isAlreadyAdded || benchedUntil != null
             val pricing = aiSettings.getModelPricing(provider, model)
                 ?: PricingCache.getPricing(context, provider, model)
             val real = pricing.source != "DEFAULT"
-            val rowAlpha = if (isAlreadyAdded) 0.4f else 1f
+            val rowAlpha = if (disabled) 0.4f else 1f
             Row(
                 modifier = Modifier.fillMaxWidth()
-                    .clickable(enabled = !isAlreadyAdded) {
+                    .clickable(enabled = !disabled) {
                         onRecordRecent?.invoke(entry)
                         onConfirm(entry)
                     }
@@ -291,6 +297,12 @@ internal fun ReportSelectModelsScreen(
                         // ignore taps so the user can see them in the
                         // catalog without re-adding; the trailing
                         // caption was noisy on a long list.
+                    }
+                    if (benchedUntil != null) {
+                        Text(
+                            com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
+                            fontSize = 10.sp, color = AppColors.Orange, maxLines = 1
+                        )
                     }
                 }
                 Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,

@@ -2,6 +2,7 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -69,6 +70,7 @@ internal fun ReportSelectModelDialog(
     onRecordRecent: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     var search by remember { mutableStateOf("") }
     val all = aiSettings.getModels(provider)
     // Match against the model id and any aliases the provider's
@@ -106,18 +108,34 @@ internal fun ReportSelectModelDialog(
                     // plans to pull it" before they pin it to a
                     // saved Agent / Swarm.
                     val deprecation = capsByModel[model]?.deprecationDate
-                    Row(modifier = Modifier.fillMaxWidth().clickable {
-                        onRecordRecent?.invoke(model)
-                        onSelectModel(model)
-                    }.padding(vertical = 8.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        if (deprecation != null) {
-                            Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
+                    // Benched by a >1h 429 (ModelCooldownStore) — dim + block taps.
+                    val benchedUntil = cooldowns["${provider.id}:$model"]
+                        ?.takeIf { it > System.currentTimeMillis() }
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable(enabled = benchedUntil == null) {
+                                onRecordRecent?.invoke(model)
+                                onSelectModel(model)
+                            }
+                            .padding(vertical = 8.dp, horizontal = 4.dp)
+                            .alpha(if (benchedUntil != null) 0.4f else 1f)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (deprecation != null) {
+                                Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
+                            }
+                            com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
+                            com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
+                            com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
+                            Text("${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
-                        com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
-                        com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
-                        com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                        Text("${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                        if (benchedUntil != null) {
+                            Text(
+                                com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
+                                fontSize = 10.sp, color = AppColors.Orange, maxLines = 1
+                            )
+                        }
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }

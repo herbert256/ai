@@ -627,6 +627,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ProviderThrottle.resetForNewLimits()
             AppLog.d(startTag, "← ProviderThrottle reset done")
 
+            // Reload persisted model cooldowns (e.g. Google models
+            // benched by a >1h 429) so pickers gray them out and the
+            // dispatch layer skips them across restarts.
+            com.ai.data.ModelCooldownStore.init(application)
+
             AppLog.d(startTag, "→ Publish initial UiState")
             _uiState.update { it.copy(generalSettings = bs.first, aiSettings = bs.second) }
             AppLog.d(startTag, "← Publish initial UiState done")

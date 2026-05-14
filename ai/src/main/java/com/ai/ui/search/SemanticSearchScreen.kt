@@ -55,6 +55,7 @@ fun SemanticSearchScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
 
     // Embedding-capable (provider, model) pairs across active providers — read
     // from Settings.modelTypes which is populated by ModelType.infer at fetch
@@ -94,8 +95,17 @@ fun SemanticSearchScreen(
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                 embeddingChoices.forEach { (s, m) ->
+                    // Benched by a >1h 429 (ModelCooldownStore) — disabled.
+                    val benchedUntil = cooldowns["${s.id}:$m"]
+                        ?.takeIf { it > System.currentTimeMillis() }
                     DropdownMenuItem(
-                        text = { Text(com.ai.ui.shared.modelLabel(s.id, m, separator = " / ")) },
+                        text = {
+                            Text(
+                                com.ai.ui.shared.modelLabel(s.id, m, separator = " / ") +
+                                    (benchedUntil?.let { " — ${com.ai.data.ModelCooldownStore.cooldownCaption(it)}" } ?: "")
+                            )
+                        },
+                        enabled = benchedUntil == null,
                         onClick = { picked = s to m; pickerOpen = false }
                     )
                 }

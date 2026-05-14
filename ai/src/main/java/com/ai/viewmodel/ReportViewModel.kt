@@ -2059,6 +2059,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** True when a Google model is benched in [ModelCooldownStore]
+     *  because the provider answered a >1h 429. The dispatch
+     *  runners delete the in-flight item instead of erroring it. */
+    private fun isBenched(provider: AppService, model: String): Boolean =
+        provider.apiFormat == com.ai.data.ApiFormat.GOOGLE &&
+            com.ai.data.ModelCooldownStore.isUnavailable(provider.id, model)
+
     private suspend fun executeReportTask(
         context: Context, reportId: String, aiPrompt: String, overrideParams: AgentParameters?, task: ReportTask,
         imageBase64: String? = null, imageMime: String? = null,
@@ -2070,6 +2077,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         isRegeneration: Boolean = false
     ) {
         AppLog.d("Report", "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}")
+        // Model already benched by an earlier run — skip the doomed
+        // call, delete the agent row, shrink the total.
+        if (isBenched(task.runtimeAgent.provider, task.runtimeAgent.model)) {
+            AppLog.w("Report", "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — removing agent ${task.resultId}")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                ReportStorage.removeAgent(context, reportId, task.resultId)
+            }
+            if (!isRegeneration) {
+                appViewModel.updateUiState { state ->
+                    state.copy(genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0))
+                }
+            }
+            return
+        }
         ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
 
         // Pull the report's attached KB ids so analyzeWithAgent can
@@ -2108,6 +2129,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
 
+        // The interceptor benches a Google model on a >1h 429 before
+        // the response bubbles up here — delete the agent row rather
+        // than leaving a red error the user can't act on.
+        val benched = !response.isSuccess &&
+            isBenched(task.runtimeAgent.provider, task.runtimeAgent.model)
+
         // Persist the terminal state under NonCancellable so a Stop /
         // navigate-away that arrives between the API return and this
         // disk write doesn't strand the agent row in RUNNING on disk.
@@ -2118,10 +2145,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
                     response.tokenUsage, cost, response.citations, response.searchResults,
                     response.relatedQuestions, response.rawUsageJson, durationMs)
+            } else if (benched) {
+                ReportStorage.removeAgent(context, reportId, task.resultId)
             } else {
                 ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
                     response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)
             }
+        }
+
+        if (benched) {
+            if (!isRegeneration) {
+                appViewModel.updateUiState { state ->
+                    state.copy(genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0))
+                }
+            }
+            AppLog.w("Report", "← benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} removed from run")
+            return
         }
 
         if (response.error == null && response.tokenUsage != null) {
@@ -4147,6 +4186,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         existingPlaceholder: SecondaryResult? = null,
         scopeEncoded: String? = null
     ) {
+        // Google model benched on a >1h 429 by an earlier call —
+        // don't run; delete the pre-staged row (fan-out pre-creates
+        // placeholders) so the run drops the pair instead of leaving
+        // a red error. runOnePair re-reads the row, sees it gone, and
+        // calls dropPair for us.
+        if (isBenched(provider, model)) {
+            AppLog.w("Secondary", "skip benched ${provider.id}/$model — dropping staged row")
+            existingPlaceholder?.let {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    SecondaryResultStorage.delete(context, reportId, it.id)
+                }
+            }
+            return
+        }
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.id} / $model$langSuffix"
@@ -4273,6 +4326,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 && !response.analysis.isNullOrBlank() && !referenceLegend.isNullOrBlank()) {
             "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$referenceLegend\n"
         } else response.analysis
+        // The interceptor just benched this Google model on a >1h
+        // 429 — delete the row instead of saving a red error.
+        if (!response.isSuccess && isBenched(provider, model)) {
+            AppLog.w("Secondary", "← benched ${provider.id}/$model — removing row ${placeholder.id}")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                SecondaryResultStorage.delete(context, reportId, placeholder.id)
+            }
+            return
+        }
         val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
             content = finalContent,
             errorMessage = response.error,
@@ -4709,6 +4771,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         item: TranslationItem,
         pricing: PricingCache.ModelPricing
     ) {
+        // Google model benched on a >1h 429 by an earlier call —
+        // drop the item from the run instead of running it.
+        if (isBenched(provider, model)) {
+            AppLog.w("Translation", "skip benched ${provider.id}/$model — removing item ${item.id}")
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(items = cur.items.filterNot { it.id == item.id }))
+            }
+            return
+        }
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(items = cur.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it }))
@@ -4735,6 +4807,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val callDurationMs = System.currentTimeMillis() - callStart
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
+        // The interceptor just benched this Google model on a >1h
+        // 429 — drop the item from the run instead of an ERROR row.
+        if (!response.isSuccess && isBenched(provider, model)) {
+            AppLog.w("Translation", "← benched ${provider.id}/$model — removing item ${item.id}")
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(items = cur.items.filterNot { it.id == item.id }))
+            }
+            return
+        }
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             val updated = cur.items.map {

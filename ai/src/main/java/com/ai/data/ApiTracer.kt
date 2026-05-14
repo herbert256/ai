@@ -964,6 +964,26 @@ class RateLimitRetryInterceptor : Interceptor {
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
+        // Google's exhausted-quota 429 carries a retry hint that can
+        // be hours long. When it exceeds the threshold, bench the
+        // model in ModelCooldownStore and skip the retry loop — 5-min
+        // retries into an hours-long quota wall are pointless, and the
+        // dispatch layer will delete the in-flight item once it sees
+        // the model is benched.
+        if (request.url.host == "generativelanguage.googleapis.com") {
+            val hintMs = googleRetryAfterMs(response)
+            if (hintMs != null && hintMs > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS) {
+                val model = request.url.pathSegments.lastOrNull()?.substringBefore(":")
+                if (!model.isNullOrBlank()) {
+                    ModelCooldownStore.markUnavailable(
+                        "Google", model, System.currentTimeMillis() + hintMs
+                    )
+                } else {
+                    AppLog.w("RateLimit", "Google >1h 429 but model unparseable from ${request.url}")
+                }
+                return response
+            }
+        }
         // Resolve caps lazily per 429 — the user can change the
         // global / per-provider settings while a call is in flight
         // and the next iteration of the retry loop picks up the new
@@ -1033,6 +1053,42 @@ private fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: S
             AppLog.d("RateLimit", "Retry-After=\"$trimmed\" on $hostForLog → sleeping ${it}ms")
         }
     }.getOrDefault(defaultMs)
+}
+
+/** Resolve a Google 429's retry-after hint, **unclamped**, in
+ *  milliseconds. Reads the `Retry-After` header first (seconds or
+ *  HTTP-date), then falls back to the Gemini error body's
+ *  `RetryInfo.retryDelay` (e.g. `"3600s"`). Returns null when
+ *  neither is present or parseable. `peekBody` leaves the real
+ *  response body untouched for the downstream parser. */
+private fun googleRetryAfterMs(response: Response): Long? {
+    val raw = response.header("Retry-After") ?: response.header("retry-after")
+    if (!raw.isNullOrBlank()) {
+        val trimmed = raw.trim()
+        trimmed.toLongOrNull()?.let { secs -> if (secs > 0) return secs * 1000 }
+        runCatching {
+            val date = java.time.ZonedDateTime.parse(
+                trimmed, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+            )
+            val delta = java.time.Duration.between(
+                java.time.ZonedDateTime.now(date.zone), date
+            ).toMillis()
+            if (delta > 0) return delta
+        }
+    }
+    return runCatching {
+        val body = response.peekBody(64L * 1024L).string()
+        val details = com.google.gson.JsonParser.parseString(body).asJsonObject
+            .getAsJsonObject("error")?.getAsJsonArray("details") ?: return null
+        for (d in details) {
+            val obj = d.asJsonObject
+            if (obj.get("@type")?.asString?.contains("RetryInfo") != true) continue
+            val secs = obj.get("retryDelay")?.asString?.removeSuffix("s")?.toDoubleOrNull()
+                ?: continue
+            return (secs * 1000).toLong()
+        }
+        null
+    }.getOrNull()
 }
 
 /** Retry on HTTP 529 (server overloaded) responses. Mirror of
