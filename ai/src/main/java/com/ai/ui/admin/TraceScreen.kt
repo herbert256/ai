@@ -506,7 +506,12 @@ private fun TraceListItem(trace: TraceFileInfo, onClick: () -> Unit) {
 
 // ===== Trace Detail =====
 
-private enum class TraceContentView { ALL, GET, REQ_HEADERS, RSP_HEADERS, REQ_DATA, RSP_DATA }
+private enum class TraceContentView { META, GET, REQ_HEADERS, RSP_HEADERS, REQ_DATA, RSP_DATA }
+/** How the selected view's content is rendered:
+ *  PARSED — JSON tree / key-value rows (the structured view);
+ *  PRETTY — pretty-printed JSON text;
+ *  RAW    — the bytes exactly as captured, no processing. */
+private enum class TraceContentMode { PARSED, PRETTY, RAW }
 
 @Composable
 fun TraceDetailScreen(
@@ -529,8 +534,10 @@ fun TraceDetailScreen(
     val context = LocalContext.current
     var currentFilename by remember { mutableStateOf(filename) }
     var trace by remember { mutableStateOf<ApiTrace?>(null) }
-    var rawJson by remember { mutableStateOf("") }
-    var currentView by remember { mutableStateOf(TraceContentView.ALL) }
+    // Trace detail opens on the response body — the thing you most
+    // often want to inspect.
+    var currentView by remember { mutableStateOf(TraceContentView.RSP_DATA) }
+    var currentMode by remember { mutableStateOf(TraceContentMode.PARSED) }
 
     var traceFiles by remember { mutableStateOf(emptyList<String>()) }
     // Re-fetch on every ON_RESUME so prev/next survives traces being
@@ -549,7 +556,6 @@ fun TraceDetailScreen(
     // Load trace data
     LaunchedEffect(currentFilename) {
         trace = ApiTracer.readTraceFile(currentFilename)
-        rawJson = ApiTracer.readTraceFileRaw(currentFilename) ?: ""
     }
 
     // Resolve the AI Report this trace belongs to (if any), so the
@@ -592,10 +598,9 @@ fun TraceDetailScreen(
         return
     }
 
-    // Parse JSON trees
+    // Parse JSON trees for the request / response bodies.
     val requestTreeNodes = remember(t?.request?.body) { t?.request?.body?.let { parseJsonTree(it) } }
     val responseTreeNodes = remember(t?.response?.body) { t?.response?.body?.let { parseJsonTree(it) } }
-    val allTreeNodes = remember(rawJson) { if (rawJson.isNotBlank()) parseJsonTree(rawJson) else null }
 
     // Split the request URL into (path-without-query, list of (k, v))
     // so the title-line URL never leaks query params (some carry API
@@ -620,26 +625,51 @@ fun TraceDetailScreen(
     val baseUrl = urlParts.first
     val queryParams = urlParts.second
 
-    // Build content for current view. The on-screen display always
-    // shows the raw bytes (including secrets) — the Copy / Share
-    // buttons run their own redaction pass before exporting.
-    val displayContent = remember(t, currentView, queryParams) {
-        if (t == null) return@remember ""
-        when (currentView) {
-            TraceContentView.ALL -> ApiTracer.prettyPrintJson(rawJson)
-            TraceContentView.GET -> queryParams.joinToString("\n") { "${it.first}: ${it.second}" }
-            TraceContentView.REQ_HEADERS -> t.request.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-            TraceContentView.RSP_HEADERS -> t.response.headers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
-            TraceContentView.REQ_DATA -> ApiTracer.prettyPrintJson(t.request.body)
-            TraceContentView.RSP_DATA -> ApiTracer.prettyPrintJson(t.response.body)
+    // "Meta" view — trace envelope fields only, excluding anything
+    // already on the other buttons (URL/query → Get, headers → *Hdr,
+    // bodies → Req/Rsp). Rendered as key/value rows in PARSED mode.
+    val metaEntries: List<Pair<String, String>> = remember(t) {
+        val tr = t ?: return@remember emptyList()
+        buildList {
+            add("Status" to tr.response.statusCode.toString())
+            add("Method" to tr.request.method)
+            add("Host" to tr.hostname)
+            add("Timestamp" to java.text.SimpleDateFormat(
+                "yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.getDefault()
+            ).format(java.util.Date(tr.timestamp)))
+            tr.model?.takeIf { it.isNotBlank() }?.let { add("Model" to it) }
+            tr.category?.takeIf { it.isNotBlank() }?.let { add("Category" to it) }
+            tr.reportId?.takeIf { it.isNotBlank() }?.let { add("Report ID" to it) }
+            if (tr.partial) add("Partial" to "true")
         }
     }
 
-    // Parallel content used only by the Copy and Share buttons. Same
-    // shape as displayContent but with sensitive headers / JSON keys /
-    // URL query params replaced by "[REDACTED]".
+    // Raw bytes / key-value text per view, BEFORE pretty / parse.
+    fun rawForView(view: TraceContentView): String = when (view) {
+        TraceContentView.META -> metaEntries.joinToString("\n") { "${it.first}: ${it.second}" }
+        TraceContentView.GET -> queryParams.joinToString("\n") { "${it.first}: ${it.second}" }
+        TraceContentView.REQ_HEADERS -> t?.request?.headers?.entries
+            ?.joinToString("\n") { "${it.key}: ${it.value}" } ?: ""
+        TraceContentView.RSP_HEADERS -> t?.response?.headers?.entries
+            ?.joinToString("\n") { "${it.key}: ${it.value}" } ?: ""
+        TraceContentView.REQ_DATA -> t?.request?.body ?: ""
+        TraceContentView.RSP_DATA -> t?.response?.body ?: ""
+    }
+
+    // Text shown in PRETTY / RAW modes (PARSED renders the tree / kv
+    // rows instead). The on-screen display shows the raw bytes
+    // (including secrets) — Copy / Share redact separately below.
+    val displayContent = remember(t, currentView, currentMode, queryParams, metaEntries) {
+        if (t == null) return@remember ""
+        val raw = rawForView(currentView)
+        if (currentMode == TraceContentMode.RAW) raw else ApiTracer.prettyPrintJson(raw)
+    }
+
+    // Parallel content used only by the Copy and Share buttons —
+    // displayContent with sensitive headers / JSON keys / query
+    // params replaced by "[REDACTED]". Meta carries no secrets.
     fun redactedContentFor(view: TraceContentView, trace: ApiTrace): String = when (view) {
-        TraceContentView.ALL -> redactedTraceJson(trace)
+        TraceContentView.META -> metaEntries.joinToString("\n") { "${it.first}: ${it.second}" }
         TraceContentView.GET -> queryParams.joinToString("\n") { (k, _) -> "$k: [REDACTED]" }
         TraceContentView.REQ_HEADERS -> com.ai.ui.report.redactHeaders(trace.request.headers)
         TraceContentView.RSP_HEADERS -> com.ai.ui.report.redactHeaders(trace.response.headers)
@@ -795,10 +825,11 @@ fun TraceDetailScreen(
 
         // View selector buttons. The "Get" button only appears when
         // the request URL carried query parameters — sandwiched
-        // between All and Req Hdr so the order tracks request lifecycle.
+        // between Meta and Req Hdr so the order tracks request
+        // lifecycle.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             val views = buildList {
-                add(TraceContentView.ALL to "All")
+                add(TraceContentView.META to "Meta")
                 if (queryParams.isNotEmpty()) add(TraceContentView.GET to "Get")
                 add(TraceContentView.REQ_HEADERS to "Req Hdr")
                 add(TraceContentView.RSP_HEADERS to "Rsp Hdr")
@@ -814,31 +845,46 @@ fun TraceDetailScreen(
             }
         }
 
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Render-mode selector — applies to whichever view is active.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf(
+                TraceContentMode.PARSED to "Parsed",
+                TraceContentMode.PRETTY to "Pretty print",
+                TraceContentMode.RAW to "Raw"
+            ).forEach { (mode, label) ->
+                val isActive = currentMode == mode
+                OutlinedButton(onClick = { currentMode = mode }, modifier = Modifier.weight(1f),
+                    colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3366BB).copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
+                    contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
+                ) { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
+            }
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Content area — render the colored JSON tree whenever the current view's payload is
-        // valid JSON (the whole trace file always is, so ALL gets the tree too).
-        val useTree = (currentView == TraceContentView.ALL && allTreeNodes != null) ||
-            (currentView == TraceContentView.REQ_DATA && requestTreeNodes != null) ||
-            (currentView == TraceContentView.RSP_DATA && responseTreeNodes != null)
-        val treeNodes = when (currentView) {
-            TraceContentView.ALL -> allTreeNodes
+        // Content area. PARSED mode renders the colored JSON tree for
+        // the body views and key/value rows for Meta / Get / headers;
+        // PRETTY / RAW fall through to plain monospace text.
+        val parsed = currentMode == TraceContentMode.PARSED
+        val treeNodes = if (parsed) when (currentView) {
             TraceContentView.REQ_DATA -> requestTreeNodes
             TraceContentView.RSP_DATA -> responseTreeNodes
             else -> null
-        }
+        } else null
 
-        // GET reuses the header-style key/value renderer — same shape,
-        // just a different source list.
-        val headerEntries: List<Pair<String, String>>? = when (currentView) {
+        // Meta / Get / headers reuse the key/value row renderer.
+        val headerEntries: List<Pair<String, String>>? = if (parsed) when (currentView) {
+            TraceContentView.META -> metaEntries
             TraceContentView.GET -> queryParams
             TraceContentView.REQ_HEADERS -> t?.request?.headers?.entries?.map { it.key to it.value }
             TraceContentView.RSP_HEADERS -> t?.response?.headers?.entries?.map { it.key to it.value }
             else -> null
-        }
+        } else null
 
         Box(modifier = Modifier.weight(1f)) {
-            if (useTree && treeNodes != null) {
+            if (treeNodes != null) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     items(treeNodes.size) { index ->
                         JsonTreeNodeView(node = treeNodes[index], depth = 0)
@@ -850,8 +896,7 @@ fun TraceDetailScreen(
                         val (name, value) = headerEntries[index]
                         Row(modifier = Modifier.padding(vertical = 1.dp)) {
                             Text("$name: ", fontSize = 11.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
-                            Text(value, fontSize = 11.sp, color = Color(0xFF6A8759), fontFamily = FontFamily.Monospace,
-                                maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            Text(value, fontSize = 11.sp, color = Color(0xFF6A8759), fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -871,7 +916,7 @@ fun TraceDetailScreen(
         // Bottom buttons: navigation + actions
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(onClick = {
-                if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.ALL }
+                if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
             }, enabled = hasPrev, contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
@@ -913,7 +958,7 @@ fun TraceDetailScreen(
                 onEditRequest()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
             OutlinedButton(onClick = {
-                if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.ALL }
+                if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
             }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.width(36.dp).semantics { contentDescription = "Next trace" }, colors = AppColors.outlinedButtonColors()
             ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
@@ -921,26 +966,6 @@ fun TraceDetailScreen(
     }
 }
 
-/** Build a copy of the trace's raw JSON with API keys / tokens /
- *  cookies replaced by "[REDACTED]" — used by Copy and Share so the
- *  bytes that leave the device are scrubbed, while the on-disk file
- *  and the in-app display stay raw. Reuses the redaction helpers in
- *  com.ai.ui.report.PdfExport (URL query params, sensitive headers,
- *  sensitive JSON keys). */
-private fun redactedTraceJson(trace: ApiTrace): String {
-    val redactedTrace = trace.copy(
-        request = trace.request.copy(
-            url = com.ai.ui.report.redactUrl(trace.request.url),
-            headers = com.ai.ui.report.redactHeaderMap(trace.request.headers),
-            body = trace.request.body?.let { com.ai.ui.report.redactJsonString(it) }
-        ),
-        response = trace.response.copy(
-            headers = com.ai.ui.report.redactHeaderMap(trace.response.headers),
-            body = trace.response.body?.let { com.ai.ui.report.redactJsonString(it) }
-        )
-    )
-    return com.ai.data.createAppGson(prettyPrint = true).toJson(redactedTrace)
-}
 
 // ===== JSON Tree View =====
 
@@ -1008,7 +1033,7 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
                     JsonNodeType.NULL -> AppColors.TextDim
                     else -> Color.White
                 }
-                Text(node.value ?: "", fontSize = 11.sp, color = valueColor, fontFamily = FontFamily.Monospace, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(node.value ?: "", fontSize = 11.sp, color = valueColor, fontFamily = FontFamily.Monospace)
             }
         }
     }
