@@ -4862,25 +4862,43 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // Hesitation before pulling the next item,
                             // proportional to how much pricier this
                             // model's observed per-item cost is than the
-                            // cheapest model's. Cheapest → 0; capped at
-                            // 5s. Zero until this model has done at
-                            // least one call (cold start probes freely).
+                            // cheapest model's: (ratio - 1) × 100ms, up
+                            // to 60s. The cheapest model never waits, so
+                            // the queue always drains; a pathological
+                            // outlier (e.g. Perplexity sonar, ~550× the
+                            // cheapest here) pulls roughly once a minute
+                            // and ends up doing a handful of items
+                            // instead of dozens. Needs ≥2 samples so one
+                            // freak-sized item can't lock a model out.
                             fun costPenaltyMs(): Long {
                                 val mine = modelCost[modelKey] ?: return 0L
-                                if (mine.first == 0) return 0L
+                                if (mine.first < 2) return 0L
                                 val myAvg = mine.second / mine.first
                                 if (myAvg <= 0.0) return 0L
                                 val cheapest = modelCost.values
-                                    .filter { it.first > 0 }
+                                    .filter { it.first >= 2 }
                                     .minOfOrNull { it.second / it.first } ?: return 0L
                                 if (cheapest <= 0.0) return 0L
-                                return ((myAvg / cheapest - 1.0) * 600.0)
-                                    .coerceIn(0.0, 5000.0).toLong()
+                                return ((myAvg / cheapest - 1.0) * 100.0)
+                                    .coerceIn(0.0, 60_000.0).toLong()
+                            }
+                            // Wait out the penalty in 1s chunks so the
+                            // worker still notices the run finishing
+                            // (channel closed) promptly instead of
+                            // sitting out a long hesitation.
+                            suspend fun costHesitate() {
+                                val penalty = costPenaltyMs()
+                                var waited = 0L
+                                while (waited < penalty && remaining.get() > 0) {
+                                    val chunk = minOf(1_000L, penalty - waited)
+                                    delay(chunk)
+                                    waited += chunk
+                                }
                             }
                             // A benched model stops pulling — its share
                             // flows to the healthy workers instead.
                             while (!isBenched(ctx.provider, ctx.model)) {
-                                delay(costPenaltyMs())
+                                costHesitate()
                                 val item = itemQueue.receiveCatching().getOrNull() ?: break
                                 val tried = triedBy.computeIfAbsent(item.id) {
                                     java.util.concurrent.ConcurrentHashMap.newKeySet()
