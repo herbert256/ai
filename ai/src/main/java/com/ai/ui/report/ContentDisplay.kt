@@ -771,7 +771,29 @@ fun ReportCostTable(report: Report) {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    // Fan-out icon-chain cost — each fan-out pair (SecondaryResult)
+    // carries the aggregated 3-tier icon-chain spend in
+    // iconInput/OutputCost/Tokens. There's no per-call breakdown
+    // (unlike the per-agent report icons in report.iconCalls), so it
+    // surfaces as one consolidated "fan-icons" row. Provider / model
+    // are left blank — the chain spans tiers 1/2/3 across many models
+    // and the per-pair record doesn't attribute the spend.
+    val fanIconsRow: CostRow? = run {
+        val iconPairs = secondary.filter { it.iconInputCost > 0.0 || it.iconOutputCost > 0.0 }
+        if (iconPairs.isEmpty()) null
+        else CostRow(
+            type = "fan-icons",
+            providerDisplay = "",
+            model = "",
+            tier = "",
+            durationMs = null,
+            inputTokens = iconPairs.sumOf { it.iconInputTokens },
+            outputTokens = iconPairs.sumOf { it.iconOutputTokens },
+            inputCents = iconPairs.sumOf { it.iconInputCost } * 100,
+            outputCents = iconPairs.sumOf { it.iconOutputCost } * 100
+        )
+    }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, fanIconsRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
