@@ -100,13 +100,15 @@ class AppService(
      *  [GeneralSettings.retryBackoffMs529]. */
     val retryBackoffMs529: Long? = null,
     /** When true, the bootstrap seeds `providerStates[id]="inactive"`
-     *  on the FIRST time this provider is seen and the user hasn't
-     *  set an API key for it. Lets the bundle ship a provider that's
-     *  visible in pickers but disabled by default; the user explicitly
-     *  flips it on via the Provider Setup screen. Existing installs
-     *  where the user has already set up the provider are unaffected
-     *  — the bootstrap only seeds the state when both
-     *  `providerStates[id]` is missing AND the API key is blank. */
+     *  the FIRST time this provider is seen — i.e. when no entry yet
+     *  exists in `providerStates`. Lets the bundle ship a provider
+     *  that's visible in pickers but disabled by default; the user
+     *  explicitly flips it on via the Provider Setup screen. An
+     *  existing install that has already touched the provider's
+     *  state (set it to "ok", "error", or "inactive" explicitly)
+     *  keeps that entry untouched. An existing install that has an
+     *  API key configured but no state row gets flipped on the next
+     *  bootstrap — the API key is preserved either way. */
     val defaultInactive: Boolean = false
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }

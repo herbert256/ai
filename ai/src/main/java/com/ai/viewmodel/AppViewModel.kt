@@ -714,16 +714,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // First-time seed of providerStates for providers shipped
-        // with defaultInactive=true (Z.AI, Fireworks, …). Only flips
-        // when both the state slot is empty AND the user has no API
-        // key for that provider — i.e. they've never touched it.
-        // Existing installs where the user has already configured
-        // and used the provider keep their state untouched.
+        // with defaultInactive=true (Z.AI, Fireworks, StepFun, …).
+        // Flips whenever the state slot is empty — including the
+        // case where the user already has an API key set but has
+        // never explicitly toggled state. Existing installs that
+        // have actually flipped state (to "ok", "error", or
+        // "inactive") keep their entry untouched — only the
+        // missing-slot case gets seeded.
         run {
             val needsSeed = ProviderRegistry.getAll().filter { svc ->
-                svc.defaultInactive &&
-                    svc.id !in ai.providerStates &&
-                    ai.getApiKey(svc).isBlank()
+                svc.defaultInactive && svc.id !in ai.providerStates
             }
             if (needsSeed.isNotEmpty()) {
                 AppLog.i(tag, "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}")
