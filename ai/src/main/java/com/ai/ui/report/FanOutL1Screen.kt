@@ -155,7 +155,7 @@ internal fun FanOutL1Screen(
                 add(Triple("Done", doneCount.toString(), AppColors.Green))
                 add(Triple("Errors", errorCount.toString(), AppColors.Red))
                 add(Triple("Running", runningCount.toString(), AppColors.Orange))
-                add(Triple("Throttled", throttledHere.toString(), if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
+                add(Triple("Throttled", throttledHere.toString(), if (throttledHere > 0) AppColors.Yellow else AppColors.TextTertiary))
                 add(Triple("Queued", queuedCount.toString(), AppColors.TextTertiary))
                 add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.Blue))
             }
@@ -211,20 +211,6 @@ internal fun FanOutL1Screen(
                     onClick = { confirmRestartFailed = true },
                     modifier = Modifier.weight(1f)
                 ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
-        }
-
-        // "Show icons" — opens the L1 Icons grid. ICONS mode only,
-        // gated on at least one pair having a fan-out icon.
-        val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
-        if (isIconsMode && hasIcons) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = onOpenIcons,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
@@ -418,9 +404,10 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // "Run a Fan in prompt" button at the bottom — keeps the
-        // L1 page leading with the model list. Hidden in ICONS
-        // mode (fan-in doesn't apply to the icon batch).
+        // Bottom button — keeps the L1 page leading with the model
+        // list. MAIN mode: "Run a Fan in prompt". ICONS mode:
+        // "Show icons" (opens the L1 Icons grid), gated on at least
+        // one pair having a fan-out icon.
         if (!isIconsMode) {
             Spacer(modifier = Modifier.height(8.dp))
             Button(
@@ -428,6 +415,16 @@ internal fun FanOutL1Screen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+        } else {
+            val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
+            if (hasIcons) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = onOpenIcons,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
         }
     }
 
