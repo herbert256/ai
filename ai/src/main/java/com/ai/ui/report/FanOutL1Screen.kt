@@ -26,8 +26,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import com.ai.data.ApiCallCaps
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -276,6 +279,31 @@ internal fun FanOutL1Screen(
                 Row { Text("Errored", fontSize = 13.sp, color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.errorCount.toString(), color = if (run.errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
                 Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(run.effectiveRunningCount(runningSet).toString(), color = AppColors.Orange) }
                 Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(run.effectiveQueuedCount(runningSet).toString(), color = AppColors.TextTertiary) }
+            }
+
+            // Live caps panel — polls ApiCallCaps.snapshot() every
+            // 500 ms and renders global / fan-out in-flight counts.
+            // Tells the user at a glance whether the run is gated
+            // on a cap (shows e.g. "global 30/30 fan-out 15/15"
+            // when saturated) or has headroom.
+            val capsSnapshot by produceState(initialValue = ApiCallCaps.snapshot()) {
+                while (true) {
+                    value = ApiCallCaps.snapshot()
+                    delay(500)
+                }
+            }
+            val g = capsSnapshot
+            Spacer(modifier = Modifier.height(4.dp))
+            Row {
+                Text(
+                    "Caps", fontSize = 11.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "global ${g.globalInFlight}/${g.globalMax} · fan-out ${g.fanOutInFlight}/${g.fanOutMax}",
+                    fontSize = 11.sp, color = AppColors.TextTertiary,
+                    fontFamily = FontFamily.Monospace
+                )
             }
         }
 

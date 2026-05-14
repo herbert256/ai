@@ -2698,9 +2698,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
-                                ApiCallCaps.global.withPermit {
-                                ApiCallCaps.fanOut.withPermit {
+                                // Acquire order: per-host cap FIRST, then
+                                // outer global + fan-out. A pair waiting on
+                                // a saturated per-host cap (e.g. 12 of 15
+                                // pairs targeting one host) suspends here
+                                // without holding the outer caps — those
+                                // stay free for other batches and for
+                                // other hosts' pairs (which interleave
+                                // ahead via interleaveByHost).
+                                if (hostCap.availablePermits == 0)
+                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT hostCap (host=$host)")
                                 hostCap.withPermit {
+                                if (ApiCallCaps.global.availablePermits == 0)
+                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT global ${ApiCallCaps.snapshot().let { "${it.globalInFlight}/${it.globalMax}" }}")
+                                ApiCallCaps.global.withPermit {
+                                if (ApiCallCaps.fanOut.availablePermits == 0)
+                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT fanOut ${ApiCallCaps.snapshot().let { "${it.fanOutInFlight}/${it.fanOutMax}" }}")
+                                ApiCallCaps.fanOut.withPermit {
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
@@ -2763,9 +2777,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 } finally {
                                     releaser.release()
                                 }
-                                } // hostCap.withPermit
                                 } // ApiCallCaps.fanOut.withPermit
                                 } // ApiCallCaps.global.withPermit
+                                } // hostCap.withPermit
                             }
                             // Register the per-pair Job so deleteFanOutModel /
                             // rerunCompleteFanOut can target it for cancelAndJoin
@@ -2852,9 +2866,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
+                                // Acquire order: per-host cap first (see
+                                // runFanOutPrompt for the full rationale).
+                                hostCap.withPermit {
                                 ApiCallCaps.global.withPermit {
                                 ApiCallCaps.fanOut.withPermit {
-                                hostCap.withPermit {
                                 AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                 val releaser = ProviderThrottle.acquire(host)
                                 try {
@@ -2910,9 +2926,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 } finally {
                                     releaser.release()
                                 }
-                                } // hostCap.withPermit
                                 } // ApiCallCaps.fanOut.withPermit
                                 } // ApiCallCaps.global.withPermit
+                                } // hostCap.withPermit
                             }
                             // Per-pair Job registration mirrors runFanOutPrompt
                             // — see the comment there for the cancel-on-delete
@@ -4459,9 +4475,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val host = providerHost(ctx.provider)
                             val cap = perHostCaps[host]
                                 ?: kotlinx.coroutines.sync.Semaphore(1)
-                            ApiCallCaps.global.withPermit {
-                                ApiCallCaps.translation.withPermit {
-                                    cap.withPermit {
+                            // Acquire order: per-host first, then outer
+                            // global + translation. An item waiting on a
+                            // saturated per-host cap suspends without
+                            // holding the outer caps idle.
+                            cap.withPermit {
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.translation.withPermit {
                                         runOneTranslation(
                                             runId, context, ctx.provider, ctx.apiKey,
                                             ctx.model, ctx.baseUrl, template,
@@ -5026,9 +5046,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val host = providerHost(ctx.provider)
                             val cap = perHostCaps[host]
                                 ?: kotlinx.coroutines.sync.Semaphore(1)
-                            ApiCallCaps.global.withPermit {
-                                ApiCallCaps.translation.withPermit {
-                                    cap.withPermit {
+                            // Acquire order: per-host first (see
+                            // startTranslation for the rationale).
+                            cap.withPermit {
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.translation.withPermit {
                                         runOneTranslation(
                                             runId, context, ctx.provider, ctx.apiKey,
                                             ctx.model, ctx.baseUrl, template,

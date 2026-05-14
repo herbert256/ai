@@ -618,6 +618,10 @@ object ApiCallCaps {
     @Volatile private var reportSem: kotlinx.coroutines.sync.Semaphore = sem(15)
     @Volatile private var translationSem: kotlinx.coroutines.sync.Semaphore = sem(15)
     @Volatile private var fanOutSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+    @Volatile private var globalCap: Int = 30
+    @Volatile private var reportCap: Int = 15
+    @Volatile private var translationCap: Int = 15
+    @Volatile private var fanOutCap: Int = 15
 
     val global: kotlinx.coroutines.sync.Semaphore get() = globalSem
     val report: kotlinx.coroutines.sync.Semaphore get() = reportSem
@@ -628,13 +632,39 @@ object ApiCallCaps {
         globalMax: Int, reportMax: Int,
         translationMax: Int, fanOutMax: Int
     ) {
-        globalSem = sem(globalMax)
-        reportSem = sem(reportMax)
-        translationSem = sem(translationMax)
-        fanOutSem = sem(fanOutMax)
+        globalCap = globalMax.coerceAtLeast(1)
+        reportCap = reportMax.coerceAtLeast(1)
+        translationCap = translationMax.coerceAtLeast(1)
+        fanOutCap = fanOutMax.coerceAtLeast(1)
+        globalSem = sem(globalCap)
+        reportSem = sem(reportCap)
+        translationSem = sem(translationCap)
+        fanOutSem = sem(fanOutCap)
     }
 
     private fun sem(n: Int) = kotlinx.coroutines.sync.Semaphore(n.coerceAtLeast(1))
+
+    /** Snapshot of current in-flight vs. max for each cap. UI / log
+     *  diagnostics read this to surface why a coroutine might be
+     *  suspended ("global 30/30 = saturated"). Cheap — just reads
+     *  the volatile fields and the sem's availablePermits. */
+    data class Snapshot(
+        val globalInFlight: Int, val globalMax: Int,
+        val reportInFlight: Int, val reportMax: Int,
+        val translationInFlight: Int, val translationMax: Int,
+        val fanOutInFlight: Int, val fanOutMax: Int
+    )
+
+    fun snapshot(): Snapshot = Snapshot(
+        globalInFlight = globalCap - globalSem.availablePermits,
+        globalMax = globalCap,
+        reportInFlight = reportCap - reportSem.availablePermits,
+        reportMax = reportCap,
+        translationInFlight = translationCap - translationSem.availablePermits,
+        translationMax = translationCap,
+        fanOutInFlight = fanOutCap - fanOutSem.availablePermits,
+        fanOutMax = fanOutCap
+    )
 }
 
 object NetworkSettings {
