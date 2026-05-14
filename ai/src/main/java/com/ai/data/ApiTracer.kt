@@ -1088,7 +1088,7 @@ class RateLimitRetryInterceptor : Interceptor {
         if (response.code != 429) return response
         // Bench a model when the provider hands back a 429 that
         // won't clear on a quick retry, and skip the retry loop.
-        // Three triggers:
+        // Four triggers:
         //  • Gemini's per-day quota (generate_requests_per_model_per_day)
         //    — bench for the response's own retry hint (it carries a
         //    real "retry in <hours>"); fall back to the Pacific-
@@ -1097,6 +1097,9 @@ class RateLimitRetryInterceptor : Interceptor {
         //    structured reset time, so bench until the next calendar
         //    month (best-effort; the real window is whenever the
         //    trial month rolls).
+        //  • ANY provider out of credits / over its spending limit —
+        //    a billing 429, not a rate-limit one; retrying can't clear
+        //    it, so bench for 6h instead of burning the retry budget.
         //  • ANY provider with a Retry-After hint longer than the
         //    threshold — bench for that hint.
         // Either way the dispatch layer deletes the in-flight item
@@ -1111,6 +1114,8 @@ class RateLimitRetryInterceptor : Interceptor {
                         ?: nextPacificMidnightMs()
                 providerId == "Cohere" && cohereTrialQuotaExhausted(response) ->
                     nextMonthStartMs()
+                creditOrSpendingLimitExhausted(response) ->
+                    System.currentTimeMillis() + 6L * 60L * 60L * 1000L
                 else -> retryAfterHintMs(response)
                     ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
                     ?.let { System.currentTimeMillis() + it }
@@ -1313,6 +1318,34 @@ private fun cohereTrialQuotaExhausted(response: Response): Boolean = runCatching
     val msg = com.google.gson.JsonParser.parseString(body).asJsonObject
         .get("message")?.asString ?: return false
     msg.contains("Trial key", ignoreCase = true) && msg.contains("month", ignoreCase = true)
+}.getOrDefault(false)
+
+/** True when a 429 body reports the provider account being out of
+ *  money — credits exhausted, balance too low, or a spending /
+ *  monthly limit hit. Distinct from a rate-limit 429: retrying
+ *  won't clear it, so the caller benches the model instead of
+ *  burning the in-line retry budget. Checks the structured error
+ *  type/code first (e.g. OpenAI's `insufficient_quota`), then a
+ *  phrase fallback — all billing-specific wording that never
+ *  appears in a plain "slow down" 429. */
+private fun creditOrSpendingLimitExhausted(response: Response): Boolean = runCatching {
+    val body = response.peekBody(64L * 1024L).string()
+    val typeOrCode = runCatching {
+        val obj = com.google.gson.JsonParser.parseString(body).asJsonObject
+        val err = obj.getAsJsonObject("error")
+        listOfNotNull(
+            err?.get("type")?.asString,
+            err?.get("code")?.asString,
+            obj.get("code")?.asString
+        ).joinToString(" ")
+    }.getOrDefault("")
+    if (typeOrCode.contains("insufficient_quota", ignoreCase = true)) return@runCatching true
+    val needles = listOf(
+        "spending limit", "all available credits", "purchase more credits",
+        "insufficient credits", "insufficient balance", "credit balance is too low",
+        "out of credits", "billing details", "exceeded your current quota"
+    )
+    needles.any { body.contains(it, ignoreCase = true) }
 }.getOrDefault(false)
 
 /** Epoch-ms of the start of the next calendar month (device local
