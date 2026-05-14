@@ -149,18 +149,6 @@ internal fun FanOutL1Screen(
                     Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
                 }
             }
-            // Icon-chain tier tally — one compact row (the three
-            // counts sum to Done).
-            if (isIconsMode) {
-                val tier1 = run.pairs.values.count { it.iconWinningTier == 1 }
-                val tier2 = run.pairs.values.count { it.iconWinningTier == 2 }
-                val tier3 = run.pairs.values.count { it.iconWinningTier == 3 }
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    "Tiers — chat $tier1 · one-shot $tier2 · fixed $tier3",
-                    fontSize = 11.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
-                )
-            }
         }
 
         // Per-failure controls — visible only when at least one pair

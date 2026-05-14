@@ -83,6 +83,17 @@ object ApiTracer {
      *  synchronously on one thread per call. */
     val lastTraceFilename: ThreadLocal<String?> = ThreadLocal.withInitial { null }
 
+    /** Optional per-flow sink for the just-written trace filename.
+     *  When a coroutine installs one (via [withTraceFilenameSink]),
+     *  [TracingInterceptor]'s save path writes the resolved filename
+     *  into it — letting the coroutine grab the trace of the call it
+     *  just made even though the save runs on an OkHttp worker
+     *  thread. [TagPropagatingExecutor] carries the reference across
+     *  the thread boundary; the AtomicReference is shared by ref so
+     *  the worker's write is visible back on the coroutine. */
+    val traceFilenameSink: ThreadLocal<java.util.concurrent.atomic.AtomicReference<String?>?> =
+        ThreadLocal.withInitial { null }
+
     /** In-memory mirror of the trace dir's [TraceFileInfo] list, sorted
      *  newest-first. `null` means "not yet built" — the next
      *  [getTraceFiles] populates it via a streaming parse over every
@@ -279,6 +290,22 @@ object ApiTracer {
         try { file.readText() } catch (_: Exception) { null }
     }
 
+    /** Append [suffix] to an already-written trace's category. Lets
+     *  a caller tag a trace after the fact once it knows the call's
+     *  outcome — e.g. a fan-out tier-1 emoji miss tags its trace
+     *  "<category>-miss" so misses can be filtered later. No-op when
+     *  tracing is off, the file is gone, the trace has no category,
+     *  or the suffix is already present. */
+    fun appendCategorySuffix(filename: String, suffix: String) {
+        if (!isTracingEnabled) return
+        lock.withLock {
+            val trace = readTraceFile(filename) ?: return
+            val cat = trace.category ?: return
+            if (cat.endsWith(suffix)) return
+            saveTrace(trace.copy(category = cat + suffix), filename = filename)
+        }
+    }
+
     fun clearTraces() = lock.withLock {
         traceDir?.listFiles()?.forEach { if (it.extension == "json") it.delete() }
         cachedTraceFiles = emptyList()
@@ -430,6 +457,9 @@ class TracingInterceptor : Interceptor {
             // RateLimitRetryInterceptor (same thread) so a benched-
             // model cooldown can reference this call's trace.
             ApiTracer.lastTraceFilename.set(fn)
+            // And to a coroutine-installed sink (if any) so the
+            // originating flow can grab this call's trace filename.
+            ApiTracer.traceFilenameSink.get()?.set(fn)
             return fn
         }
 
@@ -1366,6 +1396,20 @@ suspend fun <R> withTraceCategory(category: String, block: suspend () -> R): R {
     }
 }
 
+/** Run [block] with a per-flow sink that [TracingInterceptor]
+ *  populates with the filename of the trace it writes. Lets the
+ *  originating coroutine grab the trace of the call it just made —
+ *  e.g. to tag a fan-out tier-1 emoji miss. Backed by a ThreadLocal
+ *  + [asContextElement], carried onto OkHttp workers by
+ *  [TagPropagatingExecutor]; the AtomicReference is shared by
+ *  reference so the worker's write lands back here. */
+suspend fun <R> withTraceFilenameSink(
+    sink: java.util.concurrent.atomic.AtomicReference<String?>,
+    block: suspend () -> R
+): R = kotlinx.coroutines.withContext(ApiTracer.traceFilenameSink.asContextElement(sink)) {
+    block()
+}
+
 /** Push (reportId, category) onto the per-thread tag pair for the
  *  duration of [block], restoring both on exit. A null argument leaves
  *  that side untouched (useful for flows that only set one of the two).
@@ -1431,19 +1475,26 @@ class TagPropagatingExecutor(
         // (the worker's ThreadLocal default) and double-acquire on
         // Fan-out pairs.
         val capturedPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
+        // Carry the trace-filename sink (if any) onto the worker so
+        // TracingInterceptor's save can hand the filename back to the
+        // originating coroutine.
+        val capturedSink = ApiTracer.traceFilenameSink.get()
         if (captured?.reportId != null || captured?.category != null) {
             AppLog.v("TagPropagation", "submit reportId=${captured.reportId} cat=${captured.category}")
         }
         delegate.execute {
             val previousTags = ApiTracer.currentTags.get()
             val previousPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
+            val previousSink = ApiTracer.traceFilenameSink.get()
             ApiTracer.currentTags.set(captured)
             if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(true)
+            ApiTracer.traceFilenameSink.set(capturedSink)
             try {
                 command.run()
             } finally {
                 ApiTracer.currentTags.set(previousTags)
                 if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
+                ApiTracer.traceFilenameSink.set(previousSink)
             }
         }
     }

@@ -1855,14 +1855,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         )
                         val apiKey = aiSettings.getApiKey(provider)
                         val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-                        val responseText = appViewModel.repository.sendChat(
-                            service = provider, apiKey = apiKey, model = pair.model,
-                            messages = messages, params = ChatParameters(), baseUrl = baseUrl
-                        )
+                        // Sink captures the filename of this call's trace
+                        // so a tier-1 miss can tag it "-miss" afterwards.
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val responseText = withTraceFilenameSink(traceSink) {
+                            appViewModel.repository.sendChat(
+                                service = provider, apiKey = apiKey, model = pair.model,
+                                messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                            )
+                        }
                         val durationMs = System.currentTimeMillis() - started
                         val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
                         val outT = AppViewModel.estimateTokens(responseText)
                         val emoji = extractFirstEmoji(responseText)
+                        // Tier-1 miss → tag this call's trace "-miss" so
+                        // tier-1 misses can be filtered / analysed later.
+                        if (emoji == null) {
+                            traceSink.get()?.let { ApiTracer.appendCategorySuffix(it, "-miss") }
+                        }
                         recordFanOutTierCall(
                             context, reportId, pair, tier = 1,
                             provider = provider, model = pair.model,
