@@ -511,6 +511,7 @@ internal fun SecondaryResultsScreen(
                     fanRuntime.onLaunchFanIconsBatch(reportId, fanOutPrompt.id)
                     onShowFanIcons()
                 },
+                onShowFanIcons = onShowFanIcons,
                 onBack = onBack
             )
             return@Column

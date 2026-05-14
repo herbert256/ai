@@ -70,6 +70,10 @@ internal fun FanOutL1Screen(
     actions: FanOutActions,
     mode: FanOutMode = FanOutMode.MAIN,
     onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
+    /** Switch the screen to ICONS mode without launching anything —
+     *  used by the MAIN-mode "Icons" button when a fan-icons run
+     *  already exists for this fan-out. */
+    onShowFanIcons: () -> Unit = {},
     onOpenModel: (String) -> Unit,
     onOpenIcons: () -> Unit,
     onBack: () -> Unit
@@ -78,6 +82,7 @@ internal fun FanOutL1Screen(
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
+    var confirmStartIcons by remember { mutableStateOf(false) }
     // True while a delete-run is in flight — drives the blocking
     // "Deleting Fan Out" popup so the screen stays put until the
     // run is really gone, then navigates back.
@@ -175,37 +180,37 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Icons row — "Icons" (opens the L1 Icons grid, gated on at
-        // least one pair having a non-blank fan-out icon) and "Find
-        // icons" (MAIN mode only, launches the fan-icons batch when
-        // at least one DONE pair still lacks an icon). Both share a
-        // single row; whichever is shown alone spans full width.
+        // Icons row.
+        //  - ICONS mode: "Show icons" opens the L1 Icons grid, gated
+        //    on at least one pair having a fan-out icon.
+        //  - MAIN mode: "Icons" switches to ICONS mode (gated on at
+        //    least one DONE pair). If no fan-icons run exists yet it
+        //    confirms "Start Icons job" first; otherwise it just
+        //    switches.
         val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
-        val needsFindIcons = remember(run) {
-            !isIconsMode && run.pairs.values.any {
-                it.status == PairStatus.DONE && it.icon.isNullOrBlank()
-            }
+        val hasFanIcons = remember(run) {
+            run.pairs.values.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
         }
-        if (hasIcons || needsFindIcons) {
+        val hasDonePairs = remember(run) { run.pairs.values.any { it.status == PairStatus.DONE } }
+        if (isIconsMode && hasIcons) {
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (hasIcons) {
-                    Button(
-                        onClick = onOpenIcons,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                }
-                if (needsFindIcons) {
-                    Button(
-                        onClick = { onLaunchFanIcons(run.key) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                    ) { Text("Find icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onOpenIcons,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+        } else if (!isIconsMode && hasDonePairs) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = {
+                        if (hasFanIcons) onShowFanIcons() else confirmStartIcons = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
@@ -431,6 +436,26 @@ internal fun FanOutL1Screen(
                 actions.onRerunComplete(run.key)
             },
             onDismiss = { confirmRerunComplete = false }
+        )
+    }
+
+    // "Icons" tapped in MAIN mode with no fan-icons run yet — confirm
+    // before starting the job. "Yes" launches it and switches to
+    // ICONS mode; "No" stays put in MAIN mode.
+    if (confirmStartIcons) {
+        AlertDialog(
+            onDismissRequest = { confirmStartIcons = false },
+            title = { Text("Start Icons job") },
+            text = { Text("No fan-icons have been generated for this fan-out yet. Start the icons job now?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmStartIcons = false
+                    onLaunchFanIcons(run.key)
+                }) { Text("Yes", maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmStartIcons = false }) { Text("No", maxLines = 1, softWrap = false) }
+            }
         )
     }
 

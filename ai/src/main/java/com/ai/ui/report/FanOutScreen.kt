@@ -154,10 +154,15 @@ fun FanOutScreen(
     /** Throttled pair ids for the fan-icons batch. Empty unless
      *  [mode] is [FanOutMode.ICONS]. */
     throttledIconsSet: Set<String> = emptySet(),
-    /** Called when the user taps "Find Icons" on the L1 main
-     *  screen. Wires to
-     *  [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]. */
+    /** Called when the user taps "Icons" on the L1 main screen with
+     *  no fan-icons run yet (after the "Start Icons job" confirm).
+     *  Wires to [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]
+     *  plus a switch to ICONS mode. */
     onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
+    /** Switch the drill-in to ICONS mode without launching a batch
+     *  — the L1 "Icons" button uses this when a fan-icons run
+     *  already exists. */
+    onShowFanIcons: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -214,6 +219,7 @@ fun FanOutScreen(
             actions = actions,
             mode = mode,
             onLaunchFanIcons = onLaunchFanIcons,
+            onShowFanIcons = onShowFanIcons,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
             onOpenIcons = { nav = FanOutNav.L1Icons },
             onBack = onBack
