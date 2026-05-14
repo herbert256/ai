@@ -22,6 +22,11 @@ import java.text.BreakIterator
  * Mahjong / Domino / Playing Card blocks. It is intentionally not
  * a full Unicode emoji-property implementation — Android's
  * [Character] doesn't expose the property pre-API-31 anyway.
+ *
+ * Keycap emoji (0️⃣–9️⃣, #️⃣, *️⃣) are a special case: their grapheme
+ * cluster leads with a plain ASCII char, so the lead-codepoint
+ * check misses them. They are recognised separately by the
+ * COMBINING ENCLOSING KEYCAP mark (U+20E3) in the cluster.
  */
 fun extractFirstEmoji(text: String?): String? {
     if (text.isNullOrBlank()) return null
@@ -32,8 +37,9 @@ fun extractFirstEmoji(text: String?): String? {
     while (end != BreakIterator.DONE) {
         if (start in 0 until text.length) {
             val firstCp = text.codePointAt(start)
-            if (isLikelyEmojiCodePoint(firstCp)) {
-                return text.substring(start, end)
+            val cluster = text.substring(start, end)
+            if (isLikelyEmojiCodePoint(firstCp) || cluster.contains('⃣')) {
+                return cluster
             }
         }
         start = end

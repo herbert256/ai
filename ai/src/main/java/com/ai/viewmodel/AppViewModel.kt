@@ -787,6 +787,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot text upgrade: the tier-1 chat-continuation icon
+        // prompts ("fan_out_icon_chat", "report_icon_chat") used to say
+        // "give your previous response back as an emoji" — models read
+        // that literally and echoed the prior content instead of
+        // producing a fitting emoji. The delta-merge below only appends
+        // missing rows, never overwrites, so rewrite any persisted row
+        // that still carries the verbatim old default. A user's manual
+        // edit (text != old default) is left untouched. Idempotent.
+        run {
+            val oldText = "Please give your previous response back as an emoji, just one emoji, nothing more."
+            val newText = "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
+            val targets = setOf("fan_out_icon_chat", "report_icon_chat")
+            val upgraded = ai.internalPrompts.map { p ->
+                if (p.name.lowercase() in targets && p.text == oldText) p.copy(text = newText) else p
+            }
+            if (upgraded != ai.internalPrompts) {
+                AppLog.i(tag, "Upgraded ${upgraded.zip(ai.internalPrompts).count { (a, b) -> a !== b }} tier-1 icon prompt(s) to the new wording")
+                ai = ai.copy(internalPrompts = upgraded)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get
