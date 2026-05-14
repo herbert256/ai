@@ -754,8 +754,19 @@ fun expandSwarmToModels(swarm: Swarm, s: Settings) = swarm.members.filter { s.is
 fun toReportModel(provider: AppService, model: String) = ReportModel(provider, model, "model", "model", "")
 
 fun deduplicateModels(models: List<ReportModel>): List<ReportModel> {
-    val seen = mutableSetOf<String>()
-    return models.filter { seen.add(it.deduplicationKey) }
+    // One ReportModel per provider+model. When duplicates collide,
+    // an agent-sourced entry (non-null agentId — direct agent or
+    // flock member) wins over a bare manual / swarm pick: it
+    // carries the agent id, api key and parameter ids. Order
+    // follows the first appearance of each key.
+    val byKey = LinkedHashMap<String, ReportModel>()
+    for (m in models) {
+        val existing = byKey[m.deduplicationKey]
+        if (existing == null || (existing.agentId == null && m.agentId != null)) {
+            byKey[m.deduplicationKey] = m
+        }
+    }
+    return byKey.values.toList()
 }
 
 data class UsageStats(
