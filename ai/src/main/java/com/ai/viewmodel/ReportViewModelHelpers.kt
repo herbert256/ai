@@ -79,6 +79,32 @@ internal fun reportToModels(report: Report, aiSettings: Settings): List<ReportMo
 internal fun providerHost(service: AppService): String =
     runCatching { java.net.URI(service.baseUrl).host ?: "" }.getOrDefault("")
 
+/** Reorder [items] so consecutive entries target different hosts:
+ *  group by [hostKey], shuffle each group for run-to-run jitter,
+ *  then round-robin pick one entry from each group until empty.
+ *
+ *  Why: when 15 fan-out pairs all target the same provider host
+ *  (per-host cap = 3), the first 12 to launch hold the outer
+ *  global + fan-out cap permits idly while waiting on the per-host
+ *  semaphore — pairs for other hosts queue behind them on the
+ *  outer caps for no reason. Interleaving by host means launch
+ *  position N + 1 is usually a different host than position N, so
+ *  the outer caps stay productive even when one host's per-host
+ *  cap is saturated. The shuffle-within-group keeps run-to-run
+ *  order non-deterministic. */
+internal fun <T> interleaveByHost(items: List<T>, hostKey: (T) -> String?): List<T> {
+    if (items.size <= 1) return items
+    val groups = items
+        .groupBy { hostKey(it) ?: "" }
+        .values
+        .map { it.shuffled().toMutableList() }
+    val result = ArrayList<T>(items.size)
+    while (groups.any { it.isNotEmpty() }) {
+        for (g in groups) if (g.isNotEmpty()) result.add(g.removeAt(0))
+    }
+    return result
+}
+
 /** Translate-mode caller for prompt + results: when [language] is
  *  null, returns the report's untranslated prompt + result block.
  *  Otherwise looks up the per-target translation rows and substitutes

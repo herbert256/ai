@@ -298,11 +298,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 try {
                     coroutineScope {
-                        // Shuffle so a picks list clustered by provider
-                        // (e.g. four OpenAI rows followed by four
-                        // Anthropic) interleaves on dispatch instead of
-                        // hammering one host first.
-                        reportTasks.shuffled().map { task ->
+                        // Interleave by host so a picks list clustered by
+                        // provider (e.g. four OpenAI rows followed by
+                        // four Anthropic) doesn't have the first four
+                        // launches all hammer one host while holding
+                        // outer cap permits idle. Round-robin + jitter
+                        // within each host bucket spreads load
+                        // immediately and varies the run-to-run order.
+                        interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
                             async {
                                 ApiCallCaps.global.withPermit {
                                     ApiCallCaps.report.withPermit {
@@ -2122,10 +2125,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val withWeb = if (finalReport.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
                     val overrideParams = if (finalReport.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = finalReport.reasoningEffort) else withWeb
                     coroutineScope {
-                        // Shuffle — same rationale as the fresh-run path:
-                        // a per-provider-clustered task list otherwise
-                        // hammers one host before reaching the others.
-                        tasksToRun.shuffled().map { task ->
+                        // Interleave by host — same rationale as the
+                        // fresh-run path: a per-provider-clustered task
+                        // list otherwise has its first N launches sit
+                        // on a single host's per-host cap while holding
+                        // outer cap permits idle.
+                        interleaveByHost(tasksToRun) { providerHost(it.runtimeAgent.provider) }.map { task ->
                             async {
                                 ApiCallCaps.global.withPermit {
                                     ApiCallCaps.report.withPermit {
@@ -2666,12 +2671,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             kotlinx.coroutines.sync.Semaphore(concurrent)
                         }
                     coroutineScope {
-                        // Shuffle so the pair list doesn't fire in
-                        // (a1,s1)(a1,s2)…(a1,sN)(a2,s1)… order — that
-                        // hammers a1's host before reaching a2's. A
-                        // shuffled launch order interleaves answerers
-                        // from the start, spreading load across hosts.
-                        pending.shuffled().map { item ->
+                        // Interleave by host so the pair list doesn't
+                        // fire in (a1,s1)(a1,s2)…(a1,sN)(a2,s1)… order —
+                        // that has the first N launches all queue on
+                        // a1's per-host cap while holding the outer
+                        // (global + fan-out) caps idle. Round-robin
+                        // across host buckets + jitter within each
+                        // bucket spreads the very first slot across
+                        // every host the run touches.
+                        interleaveByHost(pending) { p ->
+                            AppService.findById(p.answerer.provider)?.let { providerHost(it) }
+                        }.map { item ->
                             // CoroutineStart.LAZY so the async body
                             // doesn't run until we've registered the
                             // Deferred in fanOutPairJobs below. Without
@@ -2824,10 +2834,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             kotlinx.coroutines.sync.Semaphore(concurrent)
                         }
                     coroutineScope {
-                        // Shuffle — same rationale as runFanOutPrompt:
-                        // avoid all-of-one-answerer launching before
-                        // reaching the next answerer's pairs.
-                        placeholders.shuffled().map { ph ->
+                        // Interleave by host — same rationale as
+                        // runFanOutPrompt: avoid having the first N
+                        // launches all queue on one host's per-host
+                        // cap while the outer caps sit idle.
+                        interleaveByHost(placeholders) { ph ->
+                            AppService.findById(ph.providerId)?.let { providerHost(it) }
+                        }.map { ph ->
                             // CoroutineStart.LAZY mirrors runFanOutPrompt
                             // — see the comment there for why the start
                             // is gated on the post-registration .start()
