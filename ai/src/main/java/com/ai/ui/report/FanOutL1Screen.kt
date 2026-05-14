@@ -381,17 +381,13 @@ internal fun FanOutL1Screen(
         if (run.totalPairs != doneCount) {
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Compact total line.
-                Row {
-                    Text("Total API calls", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
-                    Text(run.totalPairs.toString(), fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
                 // Status counts as a compact grid — one row of labels,
-                // one row of numbers below. Throttled only appears when
-                // something is actually waiting on a rate cap.
+                // one row of numbers below. Total is the first column;
+                // Throttled only appears when something is actually
+                // waiting on a rate cap.
                 val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
                 val stats = buildList {
+                    add(Triple("Total", run.totalPairs, AppColors.Blue))
                     add(Triple("Done", doneCount, AppColors.Green))
                     add(Triple("Errored", errorCount, if (errorCount > 0) AppColors.Red else AppColors.TextTertiary))
                     add(Triple("Running", runningCount, AppColors.Orange))
