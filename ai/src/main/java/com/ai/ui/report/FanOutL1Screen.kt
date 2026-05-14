@@ -275,7 +275,7 @@ internal fun FanOutL1Screen(
                 val total = pairs.size
                 val cost = pairs.sumOf { it.totalCost }
                 val progressFraction = if (total > 0) ok / total.toFloat() else 0f
-                val progressColor = AppColors.Green.copy(alpha = 0.18f)
+                val progressColor = AppColors.Green.copy(alpha = 0.30f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .drawBehind {
@@ -300,8 +300,7 @@ internal fun FanOutL1Screen(
                     }
                     if (icon == "⏳") {
                         Box(
-                            Modifier.width(20.dp)
-                                .background(MaterialTheme.colorScheme.background),
+                            Modifier.width(20.dp).background(progressColor),
                             contentAlignment = Alignment.Center
                         ) {
                             AnimatedHourglass(fontSize = 16.sp)
@@ -309,8 +308,7 @@ internal fun FanOutL1Screen(
                     } else {
                         Text(
                             icon, fontSize = 16.sp,
-                            modifier = Modifier.width(20.dp)
-                                .background(MaterialTheme.colorScheme.background)
+                            modifier = Modifier.width(20.dp).background(progressColor)
                         )
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {

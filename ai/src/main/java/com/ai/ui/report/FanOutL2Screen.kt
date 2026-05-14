@@ -323,7 +323,7 @@ internal fun FanOutL2Screen(
                     // pair is DONE, empty otherwise. Mirrors the L1
                     // row-background progress bar.
                     val progressFraction = if (effStatus == PairStatus.DONE) 1f else 0f
-                    val progressColor = AppColors.Green.copy(alpha = 0.18f)
+                    val progressColor = AppColors.Green.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
@@ -346,8 +346,7 @@ internal fun FanOutL2Screen(
                         }
                         if (icon == "⏳") {
                             Box(
-                                Modifier.width(20.dp)
-                                    .background(MaterialTheme.colorScheme.background),
+                                Modifier.width(20.dp).background(progressColor),
                                 contentAlignment = Alignment.Center
                             ) {
                                 AnimatedHourglass(fontSize = 16.sp)
@@ -355,8 +354,7 @@ internal fun FanOutL2Screen(
                         } else {
                             Text(
                                 icon, fontSize = 16.sp,
-                                modifier = Modifier.width(20.dp)
-                                    .background(MaterialTheme.colorScheme.background)
+                                modifier = Modifier.width(20.dp).background(progressColor)
                             )
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
