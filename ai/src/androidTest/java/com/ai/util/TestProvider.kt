@@ -15,14 +15,13 @@ import com.ai.data.ProviderRegistry
  */
 object TestProvider {
     const val ID = "UNIT_TEST_PROV"
-    const val DISPLAY = "UnitProv"
     const val HOST = "test.example"
     const val BASE_URL = "https://$HOST/"
     const val MODEL = "test-model"
 
+    // id doubles as the display label since the id-unification refactor.
     val service = AppService(
         id = ID,
-        displayName = DISPLAY,
         baseUrl = BASE_URL,
         adminUrl = "",
         defaultModel = MODEL

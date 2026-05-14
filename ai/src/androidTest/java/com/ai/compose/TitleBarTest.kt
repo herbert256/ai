@@ -15,9 +15,9 @@ import org.junit.runner.RunWith
 
 /**
  * Smoke tests for the shared [TitleBar] composable. Validates the
- * title text is rendered and the back/AI buttons actually invoke
- * their callbacks. Most other screens build on this — a regression
- * here would silently break navigation.
+ * title text is rendered and the back button actually invokes its
+ * callback. Most other screens build on this — a regression here
+ * would silently break navigation.
  */
 @RunWith(AndroidJUnit4::class)
 class TitleBarTest {
@@ -26,7 +26,7 @@ class TitleBarTest {
     @Test fun renders_the_provided_title() {
         rule.setContent {
             MaterialTheme {
-                TitleBar(title = "Hello Title", onBackClick = {}, onAiClick = {})
+                TitleBar(title = "Hello Title", onBackClick = {})
             }
         }
         rule.onNodeWithText("Hello Title").assertIsDisplayed()
@@ -38,8 +38,7 @@ class TitleBarTest {
             MaterialTheme {
                 TitleBar(
                     title = "Title",
-                    onBackClick = { backClicks.intValue++ },
-                    onAiClick = {}
+                    onBackClick = { backClicks.intValue++ }
                 )
             }
         }

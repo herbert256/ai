@@ -20,7 +20,7 @@ import org.junit.runner.RunWith
 class PricingCacheInstrumentedTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val provider = AppService(
-        id = "UNIT_PRICE", displayName = "Unit Price", baseUrl = "https://p.example.com/",
+        id = "UNIT_PRICE", baseUrl = "https://p.example.com/",
         adminUrl = "", defaultModel = "m"
     )
 

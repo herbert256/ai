@@ -24,17 +24,16 @@ import org.junit.runner.RunWith
 class ApiTracerInstrumentedTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
+    // Trace tags now live in a per-thread ApiTracer.currentTags scoped
+    // by withTracerTags — there's no ambient global to reset, and these
+    // tests build each ApiTrace explicitly via trace() anyway.
     @Before fun reset() {
         ApiTracer.init(context)
         ApiTracer.clearTraces()
         ApiTracer.isTracingEnabled = true
-        ApiTracer.currentReportId = null
-        ApiTracer.currentCategory = null
     }
     @After fun cleanup() {
         ApiTracer.clearTraces()
-        ApiTracer.currentReportId = null
-        ApiTracer.currentCategory = null
         // Leave isTracingEnabled in whatever state the rest of the app expects.
     }
 
