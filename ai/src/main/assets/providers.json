@@ -389,6 +389,7 @@
       "apiFormat": "OPENAI_COMPATIBLE",
       "auxHosts": ["api.cohere.com"],
       "baseUrl": "https://api.cohere.ai/compatibility/",
+      "defaultInactive": true,
       "defaultModel": "command-a-03-2025",
       "extractApiCost": false,
       "hardcodedModels": [
