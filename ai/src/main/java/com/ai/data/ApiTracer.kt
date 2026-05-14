@@ -1036,30 +1036,36 @@ class RateLimitRetryInterceptor : Interceptor {
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
-        // Bench a model when the provider hands back a 429 with a
-        // retry hint longer than the threshold, and skip the retry
-        // loop. Two triggers:
+        // Bench a model when the provider hands back a 429 that
+        // won't clear on a quick retry, and skip the retry loop.
+        // Three triggers:
         //  • Gemini's per-day quota (generate_requests_per_model_per_day)
         //    — bench for the response's own retry hint (it carries a
         //    real "retry in <hours>"); fall back to the Pacific-
         //    midnight reset only if the hint is missing / unparseable.
+        //  • Cohere's monthly trial-key cap — no Retry-After / no
+        //    structured reset time, so bench until the next calendar
+        //    month (best-effort; the real window is whenever the
+        //    trial month rolls).
         //  • ANY provider with a Retry-After hint longer than the
         //    threshold — bench for that hint.
         // Either way the dispatch layer deletes the in-flight item
         // once it sees the model is benched.
         run {
             val host = request.url.host
+            val providerId = ProviderRegistry.findByHost(host)?.id
             val isGemini = host == "generativelanguage.googleapis.com"
             val benchUntil: Long? = when {
                 isGemini && googleDailyQuotaExhausted(response) ->
                     retryAfterHintMs(response)?.let { System.currentTimeMillis() + it }
                         ?: nextPacificMidnightMs()
+                providerId == "Cohere" && cohereTrialQuotaExhausted(response) ->
+                    nextMonthStartMs()
                 else -> retryAfterHintMs(response)
                     ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
                     ?.let { System.currentTimeMillis() + it }
             }
             if (benchUntil != null) {
-                val providerId = ProviderRegistry.findByHost(host)?.id
                 val model = modelForRequest(request)
                 if (providerId != null && !model.isNullOrBlank()) {
                     ModelCooldownStore.markUnavailable(
@@ -1238,6 +1244,31 @@ private fun nextPacificMidnightMs(): Long {
     val nextMidnight = java.time.ZonedDateTime.now(pacific)
         .toLocalDate().plusDays(1).atStartOfDay(pacific)
     return nextMidnight.toInstant().toEpochMilli()
+}
+
+/** True when a Cohere 429 body reports the Trial-key monthly cap
+ *  ("…using a Trial key, which is limited to N API calls /
+ *  month…"). Cohere ships no Retry-After header and no structured
+ *  reset time, so this text match is the only signal. */
+private fun cohereTrialQuotaExhausted(response: Response): Boolean = runCatching {
+    val body = response.peekBody(64L * 1024L).string()
+    val msg = com.google.gson.JsonParser.parseString(body).asJsonObject
+        .get("message")?.asString ?: return false
+    msg.contains("Trial key", ignoreCase = true) && msg.contains("month", ignoreCase = true)
+}.getOrDefault(false)
+
+/** Epoch-ms of the start of the next calendar month (device local
+ *  time). Best-effort reset point for a monthly trial-quota 429 —
+ *  the real window is whenever the provider's trial month rolls. */
+private fun nextMonthStartMs(): Long {
+    val cal = java.util.Calendar.getInstance()
+    cal.add(java.util.Calendar.MONTH, 1)
+    cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    return cal.timeInMillis
 }
 
 /** Retry on HTTP 529 (server overloaded) responses. Mirror of
