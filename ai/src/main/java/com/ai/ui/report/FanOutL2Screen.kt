@@ -32,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -281,13 +283,27 @@ internal fun FanOutL2Screen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     val otherAgentId = if (role == "Responder") p.sourceAgentId else p.answererAgentId
+                    val effStatus = if (isIconsMode) p.iconStatus(runningSet)
+                        else p.effectiveStatus(runningSet)
+                    // Per-pair rows are binary — full green when the
+                    // pair is DONE, empty otherwise. Mirrors the L1
+                    // row-background progress bar.
+                    val progressFraction = if (effStatus == PairStatus.DONE) 1f else 0f
+                    val progressColor = AppColors.Green.copy(alpha = 0.18f)
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                        modifier = Modifier.fillMaxWidth()
+                            .drawBehind {
+                                if (progressFraction > 0f) {
+                                    drawRect(
+                                        color = progressColor,
+                                        size = Size(size.width * progressFraction, size.height)
+                                    )
+                                }
+                            }
+                            .padding(vertical = 6.dp)
                             .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val effStatus = if (isIconsMode) p.iconStatus(runningSet)
-                            else p.effectiveStatus(runningSet)
                         val icon = when (effStatus) {
                             PairStatus.ERROR -> "❌"
                             PairStatus.DONE -> "✅"
