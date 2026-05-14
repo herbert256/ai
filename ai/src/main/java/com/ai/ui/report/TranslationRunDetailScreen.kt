@@ -29,6 +29,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Helper id-derivation shared between the result-page summary and
@@ -76,22 +77,20 @@ internal fun TranslationRunDetailScreen(
      *  as a persisted SecondaryResult. Null after the run finishes —
      *  the screen falls back to showing only persisted rows. */
     liveRun: com.ai.viewmodel.ReportViewModel.TranslationRunState? = null,
-    /** Cancel the in-flight Job for this runId — used by the Delete
-     *  flow so PENDING / RUNNING items abort instead of continuing
-     *  in the background after the user wipes the persisted results. */
-    onCancelRun: (String) -> Unit = {},
     /** Cancel a single pending/running item in [liveRun]. Removes
      *  the item from the in-memory items list — the row disappears
      *  and the runner's saveOneTranslationItem guard short-circuits
      *  the disk write for any call that lands afterwards. */
     onCancelItem: (String, String) -> Unit = { _, _ -> },
-    /** Drop the runId from the live translationRuns map so the
-     *  result page's live row disappears alongside the now-deleted
-     *  persisted rows. */
-    onConsumeRun: (String) -> Unit = {}
+    /** Delete the whole run — cancels + joins the in-flight job,
+     *  then deletes every persisted row (and drops the live map
+     *  entry). Returns the Job so this screen can await it behind
+     *  a blocking "Deleting…" popup before navigating back. */
+    onDeleteRun: (reportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var refreshTick by remember { mutableStateOf(0) }
     // Saveable so that back-popping from a Compose Navigation
     // destination (e.g. trace file detail) lands the user back on
@@ -208,6 +207,10 @@ internal fun TranslationRunDetailScreen(
     var confirmReload by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
+    // True while the run is being deleted — drives a blocking
+    // "Deleting…" popup so the screen stays put until the cancel +
+    // join + row-delete has fully finished, then navigates back.
+    var deleting by remember { mutableStateOf(false) }
 
     val erroredCount = results.count { it.errorMessage != null }
 
@@ -512,22 +515,41 @@ internal fun TranslationRunDetailScreen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    // 1. Cancel the in-flight Job so RUNNING items
-                    //    abort and PENDING items don't fire. Safe to
-                    //    call when the run has already finished.
-                    onCancelRun(runId)
-                    // 2. Delete every persisted TRANSLATE row.
-                    val ids = results.map { it.id }
-                    ids.forEach { onDelete(it) }
-                    // 3. Drop the run from the live map so the
-                    //    result page's live row disappears alongside
-                    //    the now-deleted persisted rows.
-                    onConsumeRun(runId)
-                    refreshTick++
-                    onBack()
+                    deleting = true
+                    // Single sequenced delete: cancel + JOIN the
+                    // runner, then delete every persisted row + drop
+                    // the live map entry. Awaited behind the
+                    // "Deleting…" popup so no in-flight per-item
+                    // coroutine can resurrect a row, and we only
+                    // navigate back once the run is really gone.
+                    scope.launch {
+                        onDeleteRun(reportId, runId)?.join()
+                        deleting = false
+                        refreshTick++
+                        onBack()
+                    }
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    // Blocking progress popup while the run is being deleted — not
+    // dismissable and no buttons, so the user can't navigate away
+    // mid-delete (which is what left zombie rows + a lingering
+    // summary row behind before).
+    if (deleting) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Deleting translation") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    com.ai.ui.shared.AnimatedHourglass(fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cancelling the run and removing every row — this can take a moment.", fontSize = 13.sp)
+                }
+            },
+            confirmButton = { }
         )
     }
 }

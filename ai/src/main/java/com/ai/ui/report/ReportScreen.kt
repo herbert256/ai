@@ -420,7 +420,8 @@ fun ReportsScreenNav(
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
             onCancelItem = { runId, itemId -> reportViewModel.cancelTranslationItem(runId, itemId) },
-            onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) }
+            onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) },
+            onDeleteRun = { sourceId, runId -> reportViewModel.deleteTranslationRun(context, sourceId, runId) }
         ),
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
@@ -527,7 +528,11 @@ private fun decodeSavedReportModelSelection(selection: String, aiSettings: Setti
 data class TranslationLifecycleCallbacks(
     val onCancelRun: (String) -> Unit = { _ -> },
     val onCancelItem: (String, String) -> Unit = { _, _ -> },
-    val onConsumeRun: (String) -> Unit = { _ -> }
+    val onConsumeRun: (String) -> Unit = { _ -> },
+    /** Delete a whole translation run — cancels + joins the runner,
+     *  then deletes every persisted row. Returns the Job so the
+     *  detail screen can await it behind a "Deleting…" popup. */
+    val onDeleteRun: (sourceReportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null }
 )
 
 /** Four translation-icon callbacks plumbed through [ReportsScreen]
@@ -2054,11 +2059,10 @@ fun ReportsScreen(
                 // Null after the run finishes; the screen falls back
                 // to its persisted-only path.
                 liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished },
-                // Delete = cancel the Job + drop persisted rows + consume
-                // the live map entry so nothing about this run lingers.
-                onCancelRun = { id -> translationLifecycle.onCancelRun(id) },
                 onCancelItem = { runId, itemId -> translationLifecycle.onCancelItem(runId, itemId) },
-                onConsumeRun = { id -> translationLifecycle.onConsumeRun(id) }
+                // Delete = cancel + join the runner, then drop every
+                // persisted row — sequenced so nothing resurrects.
+                onDeleteRun = { srcRid, id -> translationLifecycle.onDeleteRun(srcRid, id) }
             )
         }
         return

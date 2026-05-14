@@ -5077,6 +5077,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         _translationRuns.update { it - runId }
     }
 
+    /** Delete a whole translation run. Cancels the in-flight job and
+     *  **joins** it before touching disk — `cancel()` alone is
+     *  fire-and-forget, so the old per-row delete raced the runner:
+     *  in-flight per-item coroutines wrote fresh rows *after* the
+     *  delete pass, leaving zombie rows behind and the run's summary
+     *  row still on the report page. Joining first guarantees the
+     *  runner is fully dead; then we list the run's TRANSLATE rows
+     *  from disk (catching any that landed during the cancel) and
+     *  delete every one. Returns the Job so the caller can await it
+     *  behind a "Deleting…" popup before navigating back. */
+    fun deleteTranslationRun(context: Context, sourceReportId: String, runId: String): Job {
+        cancelTranslation(runId)   // request cancel + flag the live run
+        return appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
+            translationJobs[runId]?.cancelAndJoin()
+            val rows = SecondaryResultStorage
+                .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+                .filter { translationRunGroupingId(it) == runId }
+            var costDelta = 0.0
+            rows.forEach {
+                costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
+                SecondaryResultStorage.delete(context, sourceReportId, it.id)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, sourceReportId)
+            _translationRuns.update { it - runId }
+        }
+    }
+
     /** Drop one pending/running item from an in-flight translation
      *  run. Removes the item from [_translationRuns] so its row
      *  disappears on the detail screen; the [saveOneTranslationItem]
