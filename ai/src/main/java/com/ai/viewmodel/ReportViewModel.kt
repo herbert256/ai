@@ -2195,20 +2195,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         AppLog.d("Report", "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}")
         // Model already benched by an earlier run — skip the doomed
-        // call, delete the agent row, shrink the total.
+        // call, but keep the agent as a visible red error row (don't
+        // remove it / shrink the total). Still counts as progress so
+        // the run can reach completion.
         if (isBenched(task.runtimeAgent.provider, task.runtimeAgent.model)) {
-            AppLog.w("Report", "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — removing agent ${task.resultId}")
+            AppLog.w("Report", "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — marking agent ${task.resultId} errored")
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                ReportStorage.removeAgent(context, reportId, task.resultId)
+                ReportStorage.markAgentErrorAsync(
+                    context, reportId, task.resultId, null,
+                    "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
+                )
             }
             if (!isRegeneration) {
                 appViewModel.updateUiState { state ->
-                    state.copy(
-                        genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
-                        // Drop it from the result-row list too — otherwise
-                        // the removed agent lingers as a permanently-PENDING row.
-                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - task.resultId
-                    )
+                    state.copy(genericReportsProgress = state.genericReportsProgress + 1)
                 }
             }
             return
@@ -2251,41 +2251,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
 
-        // The interceptor benches a Google model on a >1h 429 before
-        // the response bubbles up here — delete the agent row rather
-        // than leaving a red error the user can't act on.
-        val benched = !response.isSuccess &&
-            isBenched(task.runtimeAgent.provider, task.runtimeAgent.model)
-
         // Persist the terminal state under NonCancellable so a Stop /
         // navigate-away that arrives between the API return and this
         // disk write doesn't strand the agent row in RUNNING on disk.
         // The async helpers themselves marshal the I/O off-thread.
+        // A benched-on-this-call >1h 429 flows through the normal
+        // error path — it stays as a visible red row, same as any
+        // other failure, instead of being removed from the run.
         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
             if (response.isSuccess) {
                 ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
                     response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
                     response.tokenUsage, cost, response.citations, response.searchResults,
                     response.relatedQuestions, response.rawUsageJson, durationMs)
-            } else if (benched) {
-                ReportStorage.removeAgent(context, reportId, task.resultId)
             } else {
                 ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
                     response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)
             }
-        }
-
-        if (benched) {
-            if (!isRegeneration) {
-                appViewModel.updateUiState { state ->
-                    state.copy(
-                        genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
-                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - task.resultId
-                    )
-                }
-            }
-            AppLog.w("Report", "← benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} removed from run")
-            return
         }
 
         if (response.error == null && response.tokenUsage != null) {
@@ -4316,20 +4298,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         existingPlaceholder: SecondaryResult? = null,
         scopeEncoded: String? = null
     ) {
-        // Google model benched on a >1h 429 by an earlier call —
-        // don't run; delete the pre-staged row (fan-out pre-creates
-        // placeholders) so the run drops the pair instead of leaving
-        // a red error. runOnePair re-reads the row, sees it gone, and
-        // calls dropPair for us.
-        if (isBenched(provider, model)) {
-            AppLog.w("Secondary", "skip benched ${provider.id}/$model — dropping staged row")
-            existingPlaceholder?.let {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                    SecondaryResultStorage.delete(context, reportId, it.id)
-                }
-            }
-            return
-        }
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
         val agentName = "${provider.id} / $model$langSuffix"
@@ -4345,6 +4313,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 fanInOf = fanInOf,
                 secondaryScope = scopeEncoded
             )
+        }
+
+        // Model benched on a >1h 429 by an earlier call — skip the
+        // doomed call but keep the row as a visible red error (don't
+        // delete it). runOnePair re-reads the row, sees the
+        // errorMessage, and marks the pair ERROR rather than dropping
+        // it; a single secondary run shows the same red error row.
+        if (isBenched(provider, model)) {
+            AppLog.w("Secondary", "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored")
+            SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
+                errorMessage = "${provider.id}/$model is rate-limited (benched) — skipped"
+            ))
+            return
         }
 
         // Moderation runs through the dedicated /v1/moderations
@@ -4456,15 +4437,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 && !response.analysis.isNullOrBlank() && !referenceLegend.isNullOrBlank()) {
             "${response.analysis.trimEnd()}\n\n---\n\n## References\n\n$referenceLegend\n"
         } else response.analysis
-        // The interceptor just benched this Google model on a >1h
-        // 429 — delete the row instead of saving a red error.
-        if (!response.isSuccess && isBenched(provider, model)) {
-            AppLog.w("Secondary", "← benched ${provider.id}/$model — removing row ${placeholder.id}")
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                SecondaryResultStorage.delete(context, reportId, placeholder.id)
-            }
-            return
-        }
+        // A benched-on-this-call >1h 429 is no longer special-cased —
+        // it flows through the normal save path below so the row
+        // stays as a visible red error carrying the real API error,
+        // instead of silently disappearing.
         val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
             content = finalContent,
             errorMessage = response.error,
