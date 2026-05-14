@@ -45,12 +45,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * L1-scoped "Fan out - icons" overview. Every pair whose icon
- * chain has produced a non-blank emoji renders as a card with
- * the source model's report icon, an arrow, and the pair's own
- * fan-out icon — so the user sees the whole fan-out structure
- * as a wall of "source → answer" glyphs. Tap any card to drill
- * into that pair's L3 detail (Responder role).
+ * L1-scoped "Fan out - icons" overview. One row per source model:
+ * the source's report icon, an arrow, then every responder's
+ * fan-out icon for that source — so the whole fan-out structure
+ * reads as "source → all its answers" rather than a flat wall of
+ * repeated source glyphs. Tap any responder glyph to drill into
+ * that pair's L3 detail (Responder role).
  */
 @Composable
 internal fun FanOutL1IconsScreen(
@@ -71,10 +71,16 @@ internal fun FanOutL1IconsScreen(
         } ?: emptyMap()
     }
 
-    val cells = remember(run) {
+    // Pairs with a fan-out icon, grouped by their source model —
+    // the screen renders one row per source. Groups ordered by the
+    // source's earliest pair; pairs within a group by timestamp.
+    val groups = remember(run) {
         run.pairs.values
             .filter { !it.icon.isNullOrBlank() }
-            .sortedBy { it.timestamp }
+            .groupBy { it.sourceAgentId }
+            .entries
+            .sortedBy { e -> e.value.minOf { it.timestamp } }
+            .map { it.key to it.value.sortedBy { p -> p.timestamp } }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
@@ -95,20 +101,29 @@ internal fun FanOutL1IconsScreen(
         }
         Spacer(modifier = Modifier.height(12.dp))
 
-        IconsFlow(
-            cellCount = cells.size,
-            cellW = 120.dp,
-            cellH = 56.dp
+        if (groups.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No icons yet", color = AppColors.TextTertiary, fontSize = 13.sp)
+            }
+            return@Column
+        }
+
+        // One row per source model: the source's report icon, an
+        // arrow, then every responder's fan-out icon for that
+        // source. Each responder glyph drills into its pair (L3,
+        // Responder role).
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            cells.forEach { p ->
-                val srcGlyph = sourceIconBySource[p.sourceAgentId] ?: "📝"
-                val answererKey = "${p.providerId}|${p.model}"
+            groups.forEach { (sourceAgentId, pairs) ->
+                val srcGlyph = sourceIconBySource[sourceAgentId] ?: "📝"
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
+                        .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(AppColors.CardBackground)
-                        .clickable { onOpenPair(answererKey, p.sourceAgentId, "Responder") }
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(srcGlyph, fontSize = 28.sp, color = Color.White)
@@ -116,7 +131,20 @@ internal fun FanOutL1IconsScreen(
                         "→", fontSize = 18.sp, color = AppColors.TextTertiary,
                         modifier = Modifier.padding(horizontal = 8.dp)
                     )
-                    Text(p.icon!!, fontSize = 28.sp, color = Color.White)
+                    FlowRow(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        pairs.forEach { p ->
+                            Text(
+                                p.icon!!, fontSize = 28.sp, color = Color.White,
+                                modifier = Modifier.clickable {
+                                    onOpenPair("${p.providerId}|${p.model}", p.sourceAgentId, "Responder")
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
