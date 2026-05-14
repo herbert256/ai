@@ -964,22 +964,28 @@ class RateLimitRetryInterceptor : Interceptor {
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
-        // Google's exhausted-quota 429 carries a retry hint that can
-        // be hours long. When it exceeds the threshold, bench the
-        // model in ModelCooldownStore and skip the retry loop — 5-min
-        // retries into an hours-long quota wall are pointless, and the
-        // dispatch layer will delete the in-flight item once it sees
-        // the model is benched.
+        // Google's exhausted-quota 429 — bench the model in
+        // ModelCooldownStore and skip the retry loop. Two triggers:
+        //  • per-day quota (generate_requests_per_model_per_day) —
+        //    bench until the quota resets at midnight US Pacific,
+        //    regardless of any retry hint.
+        //  • any other 429 with a retry hint longer than the
+        //    threshold — bench for that hint.
+        // Either way the dispatch layer deletes the in-flight item
+        // once it sees the model is benched.
         if (request.url.host == "generativelanguage.googleapis.com") {
-            val hintMs = googleRetryAfterMs(response)
-            if (hintMs != null && hintMs > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS) {
+            val benchUntil: Long? = when {
+                googleDailyQuotaExhausted(response) -> nextPacificMidnightMs()
+                else -> googleRetryAfterMs(response)
+                    ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
+                    ?.let { System.currentTimeMillis() + it }
+            }
+            if (benchUntil != null) {
                 val model = request.url.pathSegments.lastOrNull()?.substringBefore(":")
                 if (!model.isNullOrBlank()) {
-                    ModelCooldownStore.markUnavailable(
-                        "Google", model, System.currentTimeMillis() + hintMs
-                    )
+                    ModelCooldownStore.markUnavailable("Google", model, benchUntil)
                 } else {
-                    AppLog.w("RateLimit", "Google >1h 429 but model unparseable from ${request.url}")
+                    AppLog.w("RateLimit", "Google quota 429 but model unparseable from ${request.url}")
                 }
                 return response
             }
@@ -1089,6 +1095,41 @@ private fun googleRetryAfterMs(response: Response): Long? {
         }
         null
     }.getOrNull()
+}
+
+/** True when a Google 429 body reports the per-day request quota
+ *  (`generate_requests_per_model_per_day`) as exhausted — a
+ *  `QuotaFailure` detail with a matching violation. Google's
+ *  `retryDelay` hint for this case is unreliable (often short
+ *  even though the quota only refills at the day boundary), so
+ *  the caller benches until the Pacific-midnight reset instead. */
+private fun googleDailyQuotaExhausted(response: Response): Boolean = runCatching {
+    val body = response.peekBody(64L * 1024L).string()
+    val details = com.google.gson.JsonParser.parseString(body).asJsonObject
+        .getAsJsonObject("error")?.getAsJsonArray("details") ?: return false
+    for (d in details) {
+        val obj = d.asJsonObject
+        if (obj.get("@type")?.asString?.contains("QuotaFailure") != true) continue
+        val violations = obj.getAsJsonArray("violations") ?: continue
+        for (v in violations) {
+            val vo = v.asJsonObject
+            val metric = vo.get("quotaMetric")?.asString ?: ""
+            val id = vo.get("quotaId")?.asString ?: ""
+            if (metric.contains("generate_requests_per_model_per_day") ||
+                id.contains("PerDay")) return true
+        }
+    }
+    false
+}.getOrDefault(false)
+
+/** Epoch-ms of the next midnight in America/Los_Angeles — when
+ *  Gemini's per-day request quotas reset (free and paid tiers
+ *  alike). */
+private fun nextPacificMidnightMs(): Long {
+    val pacific = java.time.ZoneId.of("America/Los_Angeles")
+    val nextMidnight = java.time.ZonedDateTime.now(pacific)
+        .toLocalDate().plusDays(1).atStartOfDay(pacific)
+    return nextMidnight.toInstant().toEpochMilli()
 }
 
 /** Retry on HTTP 529 (server overloaded) responses. Mirror of
