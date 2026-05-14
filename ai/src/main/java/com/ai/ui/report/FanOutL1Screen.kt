@@ -134,7 +134,7 @@ internal fun FanOutL1Screen(
                     OutlinedButton(
                         onClick = onOpenIcons,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
                 if (needsFindIcons) {
                     Button(
