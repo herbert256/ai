@@ -2047,7 +2047,16 @@ fun ReportsScreen(
                 actions = TranslationActions(
                     // Delete = cancel + join the runner, then drop every
                     // persisted row — sequenced so nothing resurrects.
-                    onDeleteRun = { srcRid, id -> translationLifecycle.onDeleteRun(srcRid, id) },
+                    // Wrapped so the returned Job only completes once the
+                    // refresh tick has been bumped: the L1 screen joins
+                    // it before navigating back, so the report page's
+                    // translation-run list is re-read with the row gone.
+                    onDeleteRun = { srcRid, id ->
+                        scope.launch {
+                            translationLifecycle.onDeleteRun(srcRid, id)?.join()
+                            secondaryRefreshTick++
+                        }
+                    },
                     onRestartFailed = { srcRid, runId ->
                         onRestartFailedTranslations(srcRid, runId)
                         secondaryRefreshTick++
