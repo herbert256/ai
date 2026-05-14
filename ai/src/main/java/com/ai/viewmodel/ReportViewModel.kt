@@ -4838,7 +4838,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // sonar, with its per-request search fee) only picks up
             // work the cheap models can't keep up with. The cheapest
             // model always has 0 penalty, so the run never stalls.
+            //
+            // Seeded from the static price table (a synthetic 2-sample
+            // prior on a nominal 200-in / 200-out token profile) so the
+            // bias is right from the very first item — otherwise, with
+            // many models, the expensive ones grab a cold-start chunk
+            // before real per-item costs are learned. Real completions
+            // accumulate on top and drift the average to reality (which
+            // also corrects per-request-fee models the static table
+            // under-prices).
             val modelCost = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Int, Double>>()
+            distinctModels.forEach { (p, m) ->
+                val pr = ctxByKey[p.id to m]?.pricing ?: return@forEach
+                val estPerItem = 200.0 * pr.promptPrice + 200.0 * pr.completionPrice + pr.perQueryPrice
+                if (estPerItem > 0.0) modelCost[p.id to m] = 2 to (2.0 * estPerItem)
+            }
             // Per-attempt wall-clock budget. The work queue rebalances
             // *queued* items but can't steal one already in-flight in a
             // slow worker — so a pathologically slow model (or one
@@ -4863,13 +4877,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // proportional to how much pricier this
                             // model's observed per-item cost is than the
                             // cheapest model's: (ratio - 1) × 100ms, up
-                            // to 60s. The cheapest model never waits, so
+                            // to 120s. The cheapest model never waits, so
                             // the queue always drains; a pathological
-                            // outlier (e.g. Perplexity sonar, ~550× the
-                            // cheapest here) pulls roughly once a minute
-                            // and ends up doing a handful of items
-                            // instead of dozens. Needs ≥2 samples so one
-                            // freak-sized item can't lock a model out.
+                            // outlier (a frontier model or Perplexity
+                            // sonar, hundreds× the cheapest here) pulls
+                            // only every minute or two and ends up doing
+                            // a handful of items instead of dozens.
+                            // Needs ≥2 samples so one freak-sized item
+                            // can't lock a model out — the modelCost
+                            // seed above already supplies a 2-sample
+                            // prior, so the bias is live from item 1.
                             fun costPenaltyMs(): Long {
                                 val mine = modelCost[modelKey] ?: return 0L
                                 if (mine.first < 2) return 0L
@@ -4880,7 +4897,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     .minOfOrNull { it.second / it.first } ?: return 0L
                                 if (cheapest <= 0.0) return 0L
                                 return ((myAvg / cheapest - 1.0) * 100.0)
-                                    .coerceIn(0.0, 60_000.0).toLong()
+                                    .coerceIn(0.0, 120_000.0).toLong()
                             }
                             // Wait out the penalty in 1s chunks so the
                             // worker still notices the run finishing
