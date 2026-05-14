@@ -453,6 +453,9 @@ fun ReportsScreenNav(
         onStartMissingTranslations = { rid, runId ->
             reportViewModel.startMissingTranslations(context, rid, runId)
         },
+        onBuildPersistedTranslationRun = { rid, runId ->
+            reportViewModel.buildPersistedTranslationRunState(context, rid, runId)
+        },
         onRestartFailedFanOut = { rid, mp ->
             reportViewModel.rerunFailedFanOutPairs(context, rid, mp)
         },
@@ -730,6 +733,11 @@ fun ReportsScreen(
      *  named run's persisted rows. Wired to
      *  ReportViewModel.startMissingTranslations. */
     onStartMissingTranslations: (String, String) -> Unit = { _, _ -> },
+    /** Reconstruct a finished translation run from its persisted
+     *  TRANSLATE rows so the run screen can render it after the live
+     *  state is gone. Wired to
+     *  ReportViewModel.buildPersistedTranslationRunState. */
+    onBuildPersistedTranslationRun: suspend (String, String) -> com.ai.viewmodel.ReportViewModel.TranslationRunState? = { _, _ -> null },
     /** Deep-link callbacks fired by the full-screen +Agent / +Flock /
      *  +Swarm / Meta / Fan out pickers' "Edit X" buttons. AppNavHost
      *  wires each to the matching Settings sub-screen route. */
@@ -2028,41 +2036,42 @@ fun ReportsScreen(
     if (openRunId != null && currentReportId != null) {
         val rid = currentReportId
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
-            TranslationRunDetailScreen(
+            TranslationRunScreen(
                 reportId = rid,
                 runId = openRunId,
-                onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
-                onBack = { openTranslationRunId = null },
-                onNavigateHome = onNavigateHome,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
-                onNavigateToModelInfo = onNavigateToModelInfo,
-                onRestartFailed = { srcRid, runId ->
-                    onRestartFailedTranslations(srcRid, runId)
-                    secondaryRefreshTick++
-                },
-                onRemoveFailed = { srcRid, runId ->
-                    onRemoveFailedTranslations(srcRid, runId)
-                    secondaryRefreshTick++
-                },
-                onRestartAll = { srcRid, runId ->
-                    onRestartAllTranslations(srcRid, runId)
-                    secondaryRefreshTick++
-                },
-                onStartMissing = { srcRid, runId ->
-                    onStartMissingTranslations(srcRid, runId)
-                    secondaryRefreshTick++
-                },
-                // Live state for the in-flight run — lets the detail
-                // screen show queued / running items in addition to
-                // whatever's already persisted as a SecondaryResult.
-                // Null after the run finishes; the screen falls back
-                // to its persisted-only path.
+                // Live state for the in-flight run. Null after the run
+                // finishes — the screen then reconstructs it from disk
+                // via onBuildPersistedTranslationRun.
                 liveRun = translationRuns.firstOrNull { it.runId == openRunId && !it.isFinished },
-                onCancelItem = { runId, itemId -> translationLifecycle.onCancelItem(runId, itemId) },
-                // Delete = cancel + join the runner, then drop every
-                // persisted row — sequenced so nothing resurrects.
-                onDeleteRun = { srcRid, id -> translationLifecycle.onDeleteRun(srcRid, id) }
+                loadPersisted = { onBuildPersistedTranslationRun(rid, openRunId) },
+                actions = TranslationActions(
+                    // Delete = cancel + join the runner, then drop every
+                    // persisted row — sequenced so nothing resurrects.
+                    onDeleteRun = { srcRid, id -> translationLifecycle.onDeleteRun(srcRid, id) },
+                    onRestartFailed = { srcRid, runId ->
+                        onRestartFailedTranslations(srcRid, runId)
+                        secondaryRefreshTick++
+                    },
+                    onRemoveFailed = { srcRid, runId ->
+                        onRemoveFailedTranslations(srcRid, runId)
+                        secondaryRefreshTick++
+                    },
+                    onRestartAll = { srcRid, runId ->
+                        onRestartAllTranslations(srcRid, runId)
+                        secondaryRefreshTick++
+                    },
+                    onStartMissing = { srcRid, runId ->
+                        onStartMissingTranslations(srcRid, runId)
+                        secondaryRefreshTick++
+                    },
+                    onCancelItem = { runId, itemId -> translationLifecycle.onCancelItem(runId, itemId) },
+                    onDeleteSecondaryRow = { srcRid, resultId -> onDeleteSecondaryWithRefresh(srcRid, resultId) },
+                    onNavigateToTraceFile = onNavigateToTraceFile,
+                    onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
+                    onNavigateToModelInfo = onNavigateToModelInfo,
+                    onNavigateHome = onNavigateHome
+                ),
+                onBack = { openTranslationRunId = null }
             )
         }
         return

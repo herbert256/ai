@@ -641,32 +641,35 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Agents whose provider is inactive still appear here — the agent / flock list is the source of truth, but expandFlockToModels skips inactive members when feeding the report. The agent count shown on Pick a flock already reflects that filtering."),
         )
     ),
-    "translation_run" to HelpContent(
-        title = "Translation run",
+    "translation_run_l1" to HelpContent(
+        title = "Translation run — models",
         cards = listOf(
-            HelpCard("Overview", "Lists every TRANSLATE call inside one run, grouped by translationRunId (or, for legacy rows, by 'lang:<targetLanguage>'). Sorted by timestamp ascending."),
-            HelpCard("Header", "Provider / model line up top — every call in the run shares one model, so it's shown once. Tap the line to open Model Info. Below: '<count> calls' and the summed cost in cents (when > 0)."),
-            HelpCard("Per-row content", "Status emoji (✅ done, ⏳ blank-content, ❌ errored), source-type label (report / prompt / fan-out / fan-in / meta-prompt-name), then the actual source rebuilt from the original (so the user's Model name layout setting wins over the frozen agentName)."),
-            HelpCard("Per-row tap", "Opens TranslationCallDetailScreen with original on top, translation underneath."),
-            HelpCard("Restart failed translations", "Bottom-card button — disabled when erroredCount == 0. Re-runs every ❌ row in this run; ✅ rows are left alone."),
-            HelpCard("Start missing translations", "Adds rows for every expected source × language pair that isn't already covered by this run. Useful after a partial cancel."),
-            HelpCard("Title bar — 🐞", "Wired when tracing is on and ApiTracer.getTraceFiles() finds at least one entry tagged category=Translation for this report. Opens the trace list filtered to those calls."),
-            HelpCard("Title bar — ℹ️", "Wired when the providerId resolves. Jumps to Model Info for the run's translator model."),
-            HelpCard("Title bar — 🗑", "Wired. Confirm dialog shows the count and language; confirming deletes every TRANSLATE row in this run and pops back.")
+            HelpCard("Overview", "Level 1 of the translation run drill-in: every model that picked up work in this run. The run uses a shared work queue — items aren't pre-assigned, so a model's row appears (and its bar grows) as that model pulls items. Tap a model to see the items it translated."),
+            HelpCard("Stats panel", "Pinned at the top, kept visible even once the run is done: Total, Done, Errors, Run (in-flight), Queue (items not yet picked up by any model), Costs (run total in cents, 2 decimals)."),
+            HelpCard("Per-model bar", "Each row's background bar is that model's share of the WHOLE run — green for done, red for errored. A per-model progress bar isn't possible: with the work queue you can't know how many items a model will end up taking. A model that did half the run shows a half-filled row."),
+            HelpCard("Per-model row", "Status glyph (⏳ running / ❌ errored / ✅ all done / 🕓 mixed), model name, a '<done>/<total> done' summary, and that model's cost. Sorted running first, then errored, then fully-done. Once the whole run is done the glyph + fill drop so it reads calmly."),
+            HelpCard("Restart / Remove failed items", "Shown when at least one item errored. Restart re-fires every failed call (the runner's concurrency cap still applies); Remove drops the failed rows without spending tokens. Both are whole-run scope."),
+            HelpCard("Top progress bar", "Run-level (done + error) / total while there's still pending or running work. Hidden on a cancelled run."),
+            HelpCard("Title bar", "🔄 redoes every entry; 🐞 opens the trace list filtered to category=Translation; 🗑 deletes the whole run behind a blocking 'Deleting…' popup.")
         )
     ),
-    "translation_call" to HelpContent(
-        title = "Translation call",
+    "translation_run_l2" to HelpContent(
+        title = "Translation run — model",
         cards = listOf(
-            HelpCard("Overview", "Per-call detail. Title reads 'Translate · <language>'. Source pane on top (capped at half the screen), translation pane fills the rest. Both panes scroll independently."),
-            HelpCard("Source label", "Provider / model when the source is an AGENT row or META row; 'Prompt' for PROMPT-source translations; the Meta prompt name as fallback for older META rows."),
-            HelpCard("Source resolution", "Driven by translateSourceKind + translateSourceTargetId. PROMPT pulls report.prompt; AGENT pulls the matching agent's responseBody; META pulls the SecondaryResult's content via SecondaryResultStorage.get."),
-            HelpCard("Cost line", "Below the title bar when totalCost > 0 — formatted as cents with monospace font."),
-            HelpCard("Error rendering", "When the row has errorMessage, a red Error block + the message replaces both panes."),
-            HelpCard("Title bar — 🐞", "Wired when tracing is on and a trace exists for (this report id, this row's translation model, closest timestamp)."),
-            HelpCard("Title bar — ℹ️", "Wired when the translation provider resolves and result.model is non-blank — jumps to Model Info."),
-            HelpCard("Title bar — 🔄 / 🗑", "Not wired here — re-fire / delete from the parent Translation run screen."),
-            HelpCard("Tips", "The source label and the translation label are both clickable — they each invoke modelInfoClickable, opening Model Info for whichever model the panel represents.")
+            HelpCard("Overview", "Level 2: the items one model translated. The header carries the model name; ℹ️ jumps to its Model Info. A summary line shows item / done / error counts plus this model's cost."),
+            HelpCard("Per-row content", "Status glyph, a broad kind label (prompt / report / meta), the item's source label, and the per-item cost. Each row's fill is green when done, red when errored."),
+            HelpCard("Sorting", "Running and queued items first, then errored, then done — each group alphabetical by label."),
+            HelpCard("Per-row tap", "Opens Level 3 — the single translation, original ↔ translated."),
+        )
+    ),
+    "translation_run_l3" to HelpContent(
+        title = "Translation",
+        cards = listOf(
+            HelpCard("Overview", "Level 3: a single translation. Original (source) text on top, capped at half the screen; the translated text fills the rest. Both panes scroll independently."),
+            HelpCard("Source resolution", "PROMPT pulls report.prompt; report (AGENT) pulls the matching agent's response; meta (META) pulls the source SecondaryResult's content. Live in-flight items also carry the source inline, so no disk read is needed mid-run."),
+            HelpCard("Status rendering", "A DONE item shows the translated text; ERROR shows a red error block; RUNNING shows an animated hourglass; PENDING shows '🕓 Queued'. The original pane stays visible in every state."),
+            HelpCard("Prev / Next", "Steps through the same model's items in the Level 2 order, without popping back up."),
+            HelpCard("Title bar", "🐞 opens the call's API trace when tracing is on; ℹ️ jumps to the translation model's info; 📋 / share copy or share the translated text; 🗑 deletes this single row (a persisted row off disk, or an in-flight item from the run)."),
         )
     ),
     "translation_compare" to HelpContent(

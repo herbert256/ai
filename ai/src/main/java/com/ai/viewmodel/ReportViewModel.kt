@@ -4654,7 +4654,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         /** Wall-clock duration of the translation API call. Surfaced
          *  in the Costs table so translate rows aren't blank in the
          *  Seconds column. Null until the call returns. */
-        val durationMs: Long? = null
+        val durationMs: Long? = null,
+        /** The model that is handling / handled this item. Null while
+         *  the item is unassigned (PENDING, not yet pulled by any
+         *  worker — the shared work queue doesn't pre-assign). Stamped
+         *  when a worker takes it (RUNNING) and on DONE / terminal
+         *  ERROR; cleared again when an item is requeued after a
+         *  failed attempt. The 3-level run screen groups by this. */
+        val providerId: String? = null,
+        val model: String? = null,
+        /** SecondaryResult.id — set only when this item was
+         *  reconstructed from disk for a finished run, so the leaf
+         *  screen can delete / trace that exact persisted row. */
+        val persistedRowId: String? = null
     )
 
     data class TranslationRunState(
@@ -4910,11 +4922,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             if (remaining.decrementAndGet() == 0) itemQueue.close()
                                         } else {
                                             // Back to PENDING + requeue for
-                                            // another model.
+                                            // another model. Clear the model
+                                            // attribution — a requeued item is
+                                            // unassigned again, so the run
+                                            // screen counts it under "Queue",
+                                            // not the model that just failed it.
                                             _translationRuns.update { runs ->
                                                 val cur = runs[runId] ?: return@update runs
                                                 runs + (runId to cur.copy(items = cur.items.map {
-                                                    if (it.id == item.id) it.copy(status = TranslationStatus.PENDING) else it
+                                                    if (it.id == item.id) it.copy(
+                                                        status = TranslationStatus.PENDING,
+                                                        providerId = null,
+                                                        model = null
+                                                    ) else it
                                                 }))
                                             }
                                             itemQueue.trySend(item)
@@ -4997,7 +5017,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             runs + (runId to cur.copy(items = cur.items.map {
                 if (it.id == item.id) it.copy(
                     status = TranslationStatus.ERROR,
-                    errorMessage = message
+                    errorMessage = message,
+                    providerId = provider.id,
+                    model = model
                 ) else it
             }))
         }
@@ -5030,7 +5052,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
-            runs + (runId to cur.copy(items = cur.items.map { if (it.id == item.id) it.copy(status = TranslationStatus.RUNNING) else it }))
+            runs + (runId to cur.copy(items = cur.items.map {
+                if (it.id == item.id) it.copy(
+                    status = TranslationStatus.RUNNING,
+                    providerId = provider.id,
+                    model = model
+                ) else it
+            }))
         }
         AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
         val resolved = template
@@ -5075,7 +5103,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     translatedText = response.analysis,
                     costDollars = costDollars,
                     tokenUsage = tu,
-                    durationMs = callDurationMs
+                    durationMs = callDurationMs,
+                    providerId = provider.id,
+                    model = model
                 )
             }
             runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
@@ -5358,6 +5388,93 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
     }
 
+    /** Rebuild [TranslationItem]s from the persisted TRANSLATE rows of
+     *  a run. Used by [runTranslationSubset] to seed live state on a
+     *  post-kill resume, and by [buildPersistedTranslationRunState] to
+     *  render a finished run in the 3-level run screen. Each item is
+     *  stamped with the provider/model that produced the row and the
+     *  on-disk row id. Rows in [deleteSet] and stale placeholders (no
+     *  content, no error) are skipped. */
+    private fun reconstructTranslationItemsFromDisk(
+        translateRows: List<SecondaryResult>,
+        report: Report,
+        secondaries: List<SecondaryResult>,
+        deleteSet: Set<String>
+    ): List<TranslationItem> = translateRows
+        .filter { it.id !in deleteSet }
+        .mapNotNull { row ->
+            val kind = when (row.translateSourceKind) {
+                "PROMPT" -> TranslationKind.PROMPT
+                "AGENT" -> TranslationKind.AGENT_RESPONSE
+                "META" -> TranslationKind.META
+                else -> return@mapNotNull null
+            }
+            val targetId = row.translateSourceTargetId.orEmpty()
+            val (itemId, label) = when (kind) {
+                TranslationKind.PROMPT -> "prompt" to "Report prompt"
+                TranslationKind.AGENT_RESPONSE -> {
+                    val ag = report.agents.firstOrNull { it.agentId == targetId }
+                    val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
+                    "agent:$targetId" to "$prov / ${ag?.model.orEmpty()}"
+                }
+                TranslationKind.META -> {
+                    val s = secondaries.firstOrNull { it.id == targetId }
+                    val prov = AppService.findById(s?.providerId.orEmpty())?.id ?: s?.providerId.orEmpty()
+                    val name = s?.metaPromptName?.takeIf { it.isNotBlank() }
+                        ?: s?.let { com.ai.data.legacyKindDisplayName(it.kind) } ?: ""
+                    "meta:$targetId" to "$name: $prov / ${s?.model.orEmpty()}"
+                }
+            }
+            val status = when {
+                row.errorMessage != null -> TranslationStatus.ERROR
+                !row.content.isNullOrBlank() -> TranslationStatus.DONE
+                else -> return@mapNotNull null  // stale placeholder; a resume dispatch covers it
+            }
+            TranslationItem(
+                id = itemId, label = label, kind = kind,
+                sourceText = "",
+                target = targetId.takeIf { kind != TranslationKind.PROMPT },
+                status = status,
+                translatedText = row.content,
+                errorMessage = row.errorMessage,
+                costDollars = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0),
+                tokenUsage = row.tokenUsage,
+                durationMs = row.durationMs,
+                providerId = row.providerId,
+                model = row.model,
+                persistedRowId = row.id
+            )
+        }
+
+    /** Reconstruct a finished / persisted translation run as a
+     *  [TranslationRunState] so the 3-level run screen can render it
+     *  exactly like a live run. Returns null when the run has no
+     *  persisted TRANSLATE rows on disk. */
+    suspend fun buildPersistedTranslationRunState(
+        context: Context,
+        reportId: String,
+        runId: String
+    ): TranslationRunState? = withContext(Dispatchers.IO) {
+        val rows = SecondaryResultStorage
+            .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+            .filter { translationRunGroupingId(it) == runId }
+        if (rows.isEmpty()) return@withContext null
+        val anchor = rows.first()
+        val report = ReportStorage.getReport(context, reportId) ?: return@withContext null
+        val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+        val items = reconstructTranslationItemsFromDisk(rows, report, secondaries, emptySet())
+        TranslationRunState(
+            runId = runId,
+            sourceReportId = reportId,
+            targetLanguageName = anchor.targetLanguage ?: "",
+            targetLanguageNative = anchor.targetLanguageNative ?: anchor.targetLanguage ?: "",
+            items = items,
+            totalCostDollars = items.sumOf { it.costDollars },
+            finished = true,
+            cancelled = false
+        )
+    }
+
     /** Shared core for [restartFailedTranslations] /
      *  [startMissingTranslations]. Reads the existing run rows to
      *  pick up provider / model / language, deletes any rows in
@@ -5477,52 +5594,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // manual reload on a finished run), seed the fresh state with
         // already-settled rows from disk so the detail screen shows
         // every entry — the 10 done + the 30 about to retry — not just
-        // the ones currently being re-dispatched. Skips rows that
-        // [deleteRowIds] is about to wipe (those will land afresh as
-        // ⏳ via [items] below) and the stale placeholders the resume
-        // is replacing (no content + no error + no durationMs).
+        // the ones currently being re-dispatched.
         val deleteSet = deleteRowIds.toSet()
         val persistedItems: List<TranslationItem> = if (_translationRuns.value[runId] == null) {
-            translateRows.filter { it.id !in deleteSet }.mapNotNull { row ->
-                val kind = when (row.translateSourceKind) {
-                    "PROMPT" -> TranslationKind.PROMPT
-                    "AGENT" -> TranslationKind.AGENT_RESPONSE
-                    "META" -> TranslationKind.META
-                    else -> return@mapNotNull null
-                }
-                val targetId = row.translateSourceTargetId.orEmpty()
-                val (itemId, label) = when (kind) {
-                    TranslationKind.PROMPT -> "prompt" to "Report prompt"
-                    TranslationKind.AGENT_RESPONSE -> {
-                        val ag = report.agents.firstOrNull { it.agentId == targetId }
-                        val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
-                        "agent:$targetId" to "$prov / ${ag?.model.orEmpty()}"
-                    }
-                    TranslationKind.META -> {
-                        val s = secondaries.firstOrNull { it.id == targetId }
-                        val prov = AppService.findById(s?.providerId.orEmpty())?.id ?: s?.providerId.orEmpty()
-                        val name = s?.metaPromptName?.takeIf { it.isNotBlank() }
-                            ?: s?.let { com.ai.data.legacyKindDisplayName(it.kind) } ?: ""
-                        "meta:$targetId" to "$name: $prov / ${s?.model.orEmpty()}"
-                    }
-                }
-                val status = when {
-                    row.errorMessage != null -> TranslationStatus.ERROR
-                    !row.content.isNullOrBlank() -> TranslationStatus.DONE
-                    else -> return@mapNotNull null  // stale placeholder; the resume dispatch covers it
-                }
-                TranslationItem(
-                    id = itemId, label = label, kind = kind,
-                    sourceText = "",
-                    target = targetId.takeIf { kind != TranslationKind.PROMPT },
-                    status = status,
-                    translatedText = row.content,
-                    errorMessage = row.errorMessage,
-                    costDollars = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0),
-                    tokenUsage = row.tokenUsage,
-                    durationMs = row.durationMs
-                )
-            }
+            reconstructTranslationItemsFromDisk(translateRows, report, secondaries, deleteSet)
         } else emptyList()
 
         // Merge our items into _translationRuns under this runId so
