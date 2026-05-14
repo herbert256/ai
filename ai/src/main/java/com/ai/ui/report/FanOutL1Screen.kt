@@ -182,9 +182,17 @@ internal fun FanOutL1Screen(
                         else -> null
                     }
                     if (icon != null) {
-                        Text(icon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        Text(
+                            icon, fontSize = 16.sp,
+                            modifier = Modifier.width(24.dp)
+                                .background(MaterialTheme.colorScheme.background)
+                        )
                     } else {
-                        Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.width(24.dp)
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
                             AnimatedHourglass(fontSize = 16.sp)
                         }
                     }
@@ -291,11 +299,19 @@ internal fun FanOutL1Screen(
                         else -> "🕓"
                     }
                     if (icon == "⏳") {
-                        Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.width(20.dp)
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
                             AnimatedHourglass(fontSize = 16.sp)
                         }
                     } else {
-                        Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
+                        Text(
+                            icon, fontSize = 16.sp,
+                            modifier = Modifier.width(20.dp)
+                                .background(MaterialTheme.colorScheme.background)
+                        )
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(

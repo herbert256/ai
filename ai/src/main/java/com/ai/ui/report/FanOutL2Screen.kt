@@ -247,9 +247,17 @@ internal fun FanOutL2Screen(
                         else -> null
                     }
                     if (icon != null) {
-                        Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
+                        Text(
+                            icon, fontSize = 16.sp,
+                            modifier = Modifier.width(20.dp)
+                                .background(MaterialTheme.colorScheme.background)
+                        )
                     } else {
-                        Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            Modifier.width(20.dp)
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
                             AnimatedHourglass(fontSize = 16.sp)
                         }
                     }
@@ -337,11 +345,19 @@ internal fun FanOutL2Screen(
                             PairStatus.PENDING -> "🕓"
                         }
                         if (icon == "⏳") {
-                            Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                            Box(
+                                Modifier.width(20.dp)
+                                    .background(MaterialTheme.colorScheme.background),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 AnimatedHourglass(fontSize = 16.sp)
                             }
                         } else {
-                            Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
+                            Text(
+                                icon, fontSize = 16.sp,
+                                modifier = Modifier.width(20.dp)
+                                    .background(MaterialTheme.colorScheme.background)
+                            )
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                             // Responder mode: row is a SOURCE — resolve

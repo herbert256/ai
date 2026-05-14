@@ -198,7 +198,8 @@ internal fun FanOutL3Screen(
                     if (!sourceIcon.isNullOrBlank()) {
                         Text(
                             sourceIcon, fontSize = 16.sp,
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                                .padding(end = 6.dp)
                         )
                     }
                     Text(
@@ -240,7 +241,8 @@ internal fun FanOutL3Screen(
                     if (!pair.icon.isNullOrBlank()) {
                         Text(
                             pair.icon, fontSize = 16.sp,
-                            modifier = Modifier.padding(end = 6.dp)
+                            modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                                .padding(end = 6.dp)
                         )
                     }
                     Text(
