@@ -713,6 +713,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms", it)
         }
 
+        // First-time seed of providerStates for providers shipped
+        // with defaultInactive=true (Z.AI, Fireworks, …). Only flips
+        // when both the state slot is empty AND the user has no API
+        // key for that provider — i.e. they've never touched it.
+        // Existing installs where the user has already configured
+        // and used the provider keep their state untouched.
+        run {
+            val needsSeed = ProviderRegistry.getAll().filter { svc ->
+                svc.defaultInactive &&
+                    svc.id !in ai.providerStates &&
+                    ai.getApiKey(svc).isBlank()
+            }
+            if (needsSeed.isNotEmpty()) {
+                AppLog.i(tag, "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}")
+                val newStates = ai.providerStates + needsSeed.associate { it.id to "inactive" }
+                ai = ai.copy(providerStates = newStates)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // One-shot migration: nine bundled icon prompts moved from
         // category "internal" to a new "icons" category. Rewrite any
         // persisted row that still carries the old category so the

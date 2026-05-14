@@ -606,6 +606,10 @@ data class ProviderDefinition(
      *  (milliseconds). Null → inherit
      *  [com.ai.viewmodel.GeneralSettings.retryBackoffMs529]. */
     val retryBackoffMs529: Long? = null,
+    /** When true the bundle seeds `providerStates[id]="inactive"` on
+     *  first install so the provider shows 💤 by default. Existing
+     *  installs with an API key already set are left alone. */
+    val defaultInactive: Boolean? = null,
     /** Deprecated — kept on the deserialization shape so old prefs / setup.json
      *  files with the field still parse, but ignored at dispatch time
      *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
@@ -652,7 +656,8 @@ data class ProviderDefinition(
             maxRetriesOn429 = maxRetriesOn429?.takeIf { it >= 0 },
             retryBackoffMs429 = retryBackoffMs429?.takeIf { it > 0 },
             maxRetriesOn529 = maxRetriesOn529?.takeIf { it >= 0 },
-            retryBackoffMs529 = retryBackoffMs529?.takeIf { it > 0 }
+            retryBackoffMs529 = retryBackoffMs529?.takeIf { it > 0 },
+            defaultInactive = defaultInactive ?: false
         )
     }
 
@@ -691,7 +696,8 @@ data class ProviderDefinition(
             maxRetriesOn429 = s.maxRetriesOn429,
             retryBackoffMs429 = s.retryBackoffMs429,
             maxRetriesOn529 = s.maxRetriesOn529,
-            retryBackoffMs529 = s.retryBackoffMs529
+            retryBackoffMs529 = s.retryBackoffMs529,
+            defaultInactive = s.defaultInactive.takeIf { it }
         )
     }
 }

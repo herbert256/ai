@@ -98,7 +98,16 @@ class AppService(
     /** Per-provider override for the wait between 529 retries (in
      *  milliseconds). Null → inherit
      *  [GeneralSettings.retryBackoffMs529]. */
-    val retryBackoffMs529: Long? = null
+    val retryBackoffMs529: Long? = null,
+    /** When true, the bootstrap seeds `providerStates[id]="inactive"`
+     *  on the FIRST time this provider is seen and the user hasn't
+     *  set an API key for it. Lets the bundle ship a provider that's
+     *  visible in pickers but disabled by default; the user explicitly
+     *  flips it on via the Provider Setup screen. Existing installs
+     *  where the user has already set up the provider are unaffected
+     *  — the bootstrap only seeds the state when both
+     *  `providerStates[id]` is missing AND the API key is blank. */
+    val defaultInactive: Boolean = false
 ) {
     val modelFilterRegex: Regex? by lazy { modelFilter?.toRegex(RegexOption.IGNORE_CASE) }
 
@@ -165,7 +174,8 @@ class AppService(
         maxRetriesOn429: Int? = this.maxRetriesOn429,
         retryBackoffMs429: Long? = this.retryBackoffMs429,
         maxRetriesOn529: Int? = this.maxRetriesOn529,
-        retryBackoffMs529: Long? = this.retryBackoffMs529
+        retryBackoffMs529: Long? = this.retryBackoffMs529,
+        defaultInactive: Boolean = this.defaultInactive
     ): AppService = AppService(
         id = id, baseUrl = baseUrl, adminUrl = adminUrl,
         defaultModel = defaultModel,
@@ -199,7 +209,8 @@ class AppService(
         maxRetriesOn429 = maxRetriesOn429,
         retryBackoffMs429 = retryBackoffMs429,
         maxRetriesOn529 = maxRetriesOn529,
-        retryBackoffMs529 = retryBackoffMs529
+        retryBackoffMs529 = retryBackoffMs529,
+        defaultInactive = defaultInactive
     )
 
     companion object {

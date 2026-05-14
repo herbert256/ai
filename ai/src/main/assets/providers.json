@@ -343,6 +343,7 @@
         { "id": "zai-coding", "name": "Coding", "url": "https://api.z.ai/api/coding/paas/v4/chat/completions" }
       ],
       "id": "Z.AI",
+      "defaultInactive": true,
       "modelFilter": "glm|codegeex|charglm",
       "modelListFormat": "object",
       "modelsPath": "models",
@@ -465,6 +466,7 @@
         "accounts/fireworks/models/llama-v3p1-8b-instruct"
       ],
       "id": "Fireworks",
+      "defaultInactive": true,
       "modelListFormat": "object",
       "seedFieldName": "seed",
       "supportsCitations": false,
