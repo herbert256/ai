@@ -1036,34 +1036,37 @@ class RateLimitRetryInterceptor : Interceptor {
         // here for up to maxRetries × backoffMs would ANR the UI.
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 429) return response
-        // Google's exhausted-quota 429 — bench the model in
-        // ModelCooldownStore and skip the retry loop. Two triggers:
-        //  • per-day quota (generate_requests_per_model_per_day) —
-        //    bench for the response's own retry hint (it carries a
-        //    real "retry in <hours>" for the daily case); fall back
-        //    to the Pacific-midnight reset only if the hint is
-        //    missing / unparseable.
-        //  • any other 429 with a retry hint longer than the
+        // Bench a model when the provider hands back a 429 with a
+        // retry hint longer than the threshold, and skip the retry
+        // loop. Two triggers:
+        //  • Gemini's per-day quota (generate_requests_per_model_per_day)
+        //    — bench for the response's own retry hint (it carries a
+        //    real "retry in <hours>"); fall back to the Pacific-
+        //    midnight reset only if the hint is missing / unparseable.
+        //  • ANY provider with a Retry-After hint longer than the
         //    threshold — bench for that hint.
         // Either way the dispatch layer deletes the in-flight item
         // once it sees the model is benched.
-        if (request.url.host == "generativelanguage.googleapis.com") {
+        run {
+            val host = request.url.host
+            val isGemini = host == "generativelanguage.googleapis.com"
             val benchUntil: Long? = when {
-                googleDailyQuotaExhausted(response) ->
-                    googleRetryAfterMs(response)?.let { System.currentTimeMillis() + it }
+                isGemini && googleDailyQuotaExhausted(response) ->
+                    retryAfterHintMs(response)?.let { System.currentTimeMillis() + it }
                         ?: nextPacificMidnightMs()
-                else -> googleRetryAfterMs(response)
+                else -> retryAfterHintMs(response)
                     ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
                     ?.let { System.currentTimeMillis() + it }
             }
             if (benchUntil != null) {
-                val model = request.url.pathSegments.lastOrNull()?.substringBefore(":")
-                if (!model.isNullOrBlank()) {
+                val providerId = ProviderRegistry.findByHost(host)?.id
+                val model = modelForRequest(request)
+                if (providerId != null && !model.isNullOrBlank()) {
                     ModelCooldownStore.markUnavailable(
-                        "Google", model, benchUntil, ApiTracer.lastTraceFilename.get()
+                        providerId, model, benchUntil, ApiTracer.lastTraceFilename.get()
                     )
                 } else {
-                    AppLog.w("RateLimit", "Google quota 429 but model unparseable from ${request.url}")
+                    AppLog.w("RateLimit", "long 429 on $host but provider/model unresolved (provider=$providerId model=$model)")
                 }
                 return response
             }
@@ -1139,13 +1142,15 @@ private fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: S
     }.getOrDefault(defaultMs)
 }
 
-/** Resolve a Google 429's retry-after hint, **unclamped**, in
- *  milliseconds. Reads the `Retry-After` header first (seconds or
- *  HTTP-date), then falls back to the Gemini error body's
- *  `RetryInfo.retryDelay` (e.g. `"3600s"`). Returns null when
- *  neither is present or parseable. `peekBody` leaves the real
- *  response body untouched for the downstream parser. */
-private fun googleRetryAfterMs(response: Response): Long? {
+/** Resolve a 429's retry-after hint, **unclamped**, in
+ *  milliseconds. Reads the generic `Retry-After` header first
+ *  (seconds or HTTP-date — works for any provider), then falls
+ *  back to the Gemini error body's `RetryInfo.retryDelay` (e.g.
+ *  `"3600s"`; absent for non-Gemini providers, so the peek is a
+ *  harmless no-op there). Returns null when neither is present
+ *  or parseable. `peekBody` leaves the real response body
+ *  untouched for the downstream parser. */
+private fun retryAfterHintMs(response: Response): Long? {
     val raw = response.header("Retry-After") ?: response.header("retry-after")
     if (!raw.isNullOrBlank()) {
         val trimmed = raw.trim()
@@ -1173,6 +1178,25 @@ private fun googleRetryAfterMs(response: Response): Long? {
         }
         null
     }.getOrNull()
+}
+
+/** Best-effort model id for a request being benched. Gemini
+ *  path-encodes it (`/v1beta/models/<model>:generateContent`);
+ *  every other provider carries it in the JSON request body's
+ *  `model` field. The request has already been sent by the time
+ *  this runs, so re-reading the body is inspection-only. */
+private fun modelForRequest(request: okhttp3.Request): String? {
+    if (request.url.host == "generativelanguage.googleapis.com") {
+        return request.url.pathSegments.lastOrNull()
+            ?.substringBefore(":")?.takeIf { it.isNotBlank() }
+    }
+    val body = request.body ?: return null
+    return runCatching {
+        val buf = Buffer()
+        body.writeTo(buf)
+        com.google.gson.JsonParser.parseString(buf.readUtf8())
+            .asJsonObject.get("model")?.asString
+    }.getOrNull()?.takeIf { it.isNotBlank() }
 }
 
 /** True when a Google 429 body reports a **per-day** quota as
