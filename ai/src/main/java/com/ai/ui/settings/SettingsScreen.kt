@@ -827,12 +827,30 @@ private fun NetworkSettingsSubScreen(
         TitleBar(helpTopic = "settings_network", title = "Network settings", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingsNavCard(
-                icon = "🚦",
-                title = "Maximal API calls",
-                description = "Global + per-kind caps on concurrent API calls. Defaults: 30 global, 15 each for reports / translations / fan-out.",
-                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK_API_CALLS) }
-            )
+            // Nav row to the Maximal API calls sub-screen. Styled like
+            // SettingCard (same surface, title weight, chevron) so it
+            // sits in visually with the other cards on this page —
+            // tapping opens the deeper screen instead of expanding.
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK_API_CALLS)
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Maximal API calls",
+                            fontWeight = FontWeight.Bold, color = Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text("▸", color = AppColors.TextTertiary)
+                    }
+                }
+            }
             SettingCard(
                 "Network read timeouts",
                 "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."
