@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -166,7 +167,25 @@ internal fun FanOutL1Screen(
         // run reads calmly instead of as a wall of check marks.
         val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
         Spacer(modifier = Modifier.height(8.dp))
-        Column(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            // Bleed the stats block ~14dp into the screen's 16dp side
+            // padding on each side — with 8 columns the cells are tight,
+            // so the stats get the extra width while the rest of the
+            // page keeps its margins. Reports the un-widened width to
+            // the parent Column so siblings still stack normally.
+            modifier = Modifier.layout { measurable, constraints ->
+                val extra = 28.dp.roundToPx()
+                val placeable = measurable.measure(
+                    constraints.copy(
+                        minWidth = constraints.maxWidth + extra,
+                        maxWidth = constraints.maxWidth + extra
+                    )
+                )
+                layout(constraints.maxWidth, placeable.height) {
+                    placeable.place(-extra / 2, 0)
+                }
+            }
+        ) {
             // One row of labels, one row of values below. Total is
             // the first column; Throttled is always shown (dimmed at
             // zero) so columns don't shift as pairs wait on a cap;
