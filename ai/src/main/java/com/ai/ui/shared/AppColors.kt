@@ -17,6 +17,7 @@ object AppColors {
     val RedDark = Color(0xFFF44336)
     val Orange = Color(0xFFFF9800)
     val Yellow = Color(0xFFFFEB3B)
+    val Pink = Color(0xFFEC407A)
 
     // Card and surface colors
     val SurfaceDark = Color(0xFF2A2A2A)
