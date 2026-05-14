@@ -168,6 +168,20 @@ internal fun SecondaryResultsScreen(
             recentlySettled = recentlySettled - finished
         }
     }
+    // Same disk-refresh trigger for the fan-icons batch. During a
+    // fan-icons run `runningFanOutPairs` never changes, and the
+    // `isBatching` poll burst above only covers the first ~2.5 s — so
+    // without this the icon progress page froze on "queued" mid-batch
+    // and only re-read disk once the batch ended (jumping straight to
+    // the final state). `commitFanOutIconResult` writes the emoji to
+    // disk *before* the pair leaves `runningFanIconsPairs`, so a bump
+    // on every removal lands a fresh read with the icon already there.
+    var prevRunningIcons by remember { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(fanRuntime.runningFanIconsPairs) {
+        val finished = prevRunningIcons - fanRuntime.runningFanIconsPairs
+        prevRunningIcons = fanRuntime.runningFanIconsPairs
+        if (finished.isNotEmpty()) refreshTick++
+    }
     // Effective in-flight set passed downstream — the classifier
     // treats anything here as "still running". `done` (content set
     // or durationMs stamped) takes precedence either way, so a row
