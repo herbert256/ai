@@ -38,6 +38,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -373,36 +374,45 @@ internal fun FanOutL1Screen(
         if (run.totalPairs != doneCount) {
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.fillMaxWidth()) {
-                Row { Text("Total API calls", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.weight(1f)); Text(run.totalPairs.toString(), color = AppColors.Blue) }
-                Row { Text("Done", fontSize = 13.sp, color = AppColors.Green, modifier = Modifier.weight(1f)); Text(doneCount.toString(), color = AppColors.Green) }
+                // Compact total line.
+                Row {
+                    Text("Total API calls", fontSize = 12.sp, color = AppColors.Blue, modifier = Modifier.weight(1f))
+                    Text(run.totalPairs.toString(), fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Status counts as a compact grid — one row of labels,
+                // one row of numbers below. Throttled only appears when
+                // something is actually waiting on a rate cap.
+                val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
+                val stats = buildList {
+                    add(Triple("Done", doneCount, AppColors.Green))
+                    add(Triple("Errored", errorCount, if (errorCount > 0) AppColors.Red else AppColors.TextTertiary))
+                    add(Triple("Running", runningCount, AppColors.Orange))
+                    if (throttledHere > 0) add(Triple("Throttled", throttledHere, AppColors.Purple))
+                    add(Triple("Queued", queuedCount, AppColors.TextTertiary))
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    stats.forEach { (label, _, color) ->
+                        Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    stats.forEach { (_, value, color) ->
+                        Text(value.toString(), fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                    }
+                }
+                // Icon-chain tier tally — one compact row (the three
+                // counts sum to Done).
                 if (isIconsMode) {
-                    // Per-tier tally of which chain-tier produced the
-                    // landed emoji. Only the DONE pairs carry a
-                    // non-null iconWinningTier, so the three counts
-                    // sum to doneCount.
                     val tier1 = run.pairs.values.count { it.iconWinningTier == 1 }
                     val tier2 = run.pairs.values.count { it.iconWinningTier == 2 }
                     val tier3 = run.pairs.values.count { it.iconWinningTier == 3 }
-                    Row {
-                        Text("  Tier 1 (chat)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                        Text(tier1.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
-                    }
-                    Row {
-                        Text("  Tier 2 (one-shot)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                        Text(tier2.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
-                    }
-                    Row {
-                        Text("  Tier 3 (fixed agent)", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                        Text(tier3.toString(), fontSize = 12.sp, color = AppColors.TextSecondary)
-                    }
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        "Tiers — chat $tier1 · one-shot $tier2 · fixed $tier3",
+                        fontSize = 11.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
+                    )
                 }
-                Row { Text("Errored", fontSize = 13.sp, color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(errorCount.toString(), color = if (errorCount > 0) AppColors.Red else AppColors.TextTertiary) }
-                Row { Text("Running", fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f)); Text(runningCount.toString(), color = AppColors.Orange) }
-                val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
-                if (throttledHere > 0) {
-                    Row { Text("Throttled", fontSize = 13.sp, color = AppColors.Purple, modifier = Modifier.weight(1f)); Text(throttledHere.toString(), color = AppColors.Purple) }
-                }
-                Row { Text("Queued", fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)); Text(queuedCount.toString(), color = AppColors.TextTertiary) }
             }
 
             // Live caps panel — polls ApiCallCaps.snapshot() every
