@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,14 +84,29 @@ internal fun TranslationL1Screen(
     var confirmReload by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
+    var confirmRemoveBenched by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     val subject = run.targetLanguageName
     val items = run.items
     val total = items.size
+    // Benched = an ERROR item whose model is on a >1h-429 cooldown.
+    // Observed reactively so the Bench count updates as cooldowns
+    // lift; expiry checked from the snapshot rather than the
+    // lazily-mutating ModelCooldownStore.isUnavailable.
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    fun benched(p: String?, m: String?): Boolean =
+        p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
     val doneCount = items.count { it.status == ReportViewModel.TranslationStatus.DONE }
-    val errorCount = items.count { it.status == ReportViewModel.TranslationStatus.ERROR }
+    // Errors and Bench split the errored set — a benched item will
+    // recover once its cooldown lifts, so it's counted separately.
+    val errorCount = items.count {
+        it.status == ReportViewModel.TranslationStatus.ERROR && !benched(it.providerId, it.model)
+    }
+    val benchCount = items.count {
+        it.status == ReportViewModel.TranslationStatus.ERROR && benched(it.providerId, it.model)
+    }
     val runningCount = items.count { it.status == ReportViewModel.TranslationStatus.RUNNING }
     val queuedCount = items.count { it.status == ReportViewModel.TranslationStatus.PENDING }
 
@@ -151,6 +167,7 @@ internal fun TranslationL1Screen(
                 add(Triple("Total", total.toString(), AppColors.Blue))
                 add(Triple("Done", doneCount.toString(), AppColors.Green))
                 add(Triple("Errors", errorCount.toString(), AppColors.Red))
+                add(Triple("Bench", benchCount.toString(), AppColors.Purple))
                 add(Triple("Run", runningCount.toString(), AppColors.Orange))
                 add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
                 add(Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.Blue))
@@ -167,23 +184,33 @@ internal fun TranslationL1Screen(
             }
         }
 
-        // Per-failure controls — visible only when at least one item
-        // errored. Whole-run scope.
-        if (errorCount > 0) {
+        // Per-failure controls — whole-run scope. "Remove failed" and
+        // "Remove benched" are complementary (each touches only its
+        // own subset of the errored items).
+        if (errorCount > 0 || benchCount > 0) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = { confirmRemoveFailed = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { confirmRestartFailed = true },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                if (errorCount > 0) {
+                    Button(
+                        onClick = { confirmRemoveFailed = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = { confirmRestartFailed = true },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+                if (benchCount > 0) {
+                    Button(
+                        onClick = { confirmRemoveBenched = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
             }
         }
 
@@ -278,10 +305,13 @@ internal fun TranslationL1Screen(
     }
 
     if (confirmRestartFailed) {
+        // Restart re-fires every errored item including benched ones
+        // (a benched item just re-confirms its cooldown — cheap).
+        val restartN = errorCount + benchCount
         ReloadConfirmationDialog(
             target = "",
             title = "Restart failed items?",
-            message = "Re-fires $errorCount failed call${if (errorCount == 1) "" else "s"}. The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
+            message = "Re-fires $restartN failed call${if (restartN == 1) "" else "s"}. The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
             confirmLabel = "Restart",
             onConfirm = {
                 confirmRestartFailed = false
@@ -297,7 +327,7 @@ internal fun TranslationL1Screen(
             onDismissRequest = { confirmRemoveFailed = false },
             title = { Text("Remove failed items?") },
             text = {
-                Text("Drops $errorCount failed row${if (errorCount == 1) "" else "s"} from this translation. No API calls are made. Successful translations are kept.")
+                Text("Drops $errorCount failed row${if (errorCount == 1) "" else "s"} from this translation. Benched (rate-limited) rows are kept — use Remove benched for those. No API calls are made. Successful translations are kept.")
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -307,6 +337,24 @@ internal fun TranslationL1Screen(
                 }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    if (confirmRemoveBenched) {
+        AlertDialog(
+            onDismissRequest = { confirmRemoveBenched = false },
+            title = { Text("Remove benched items?") },
+            text = {
+                Text("Drops $benchCount benched row${if (benchCount == 1) "" else "s"} — items whose model is on a rate-limit cooldown. No API calls are made. Genuine errors and successful translations are kept.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveBenched = false
+                    actions.onRemoveBenched(reportId, runId)
+                    onBumpRefresh()
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveBenched = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
     }
 

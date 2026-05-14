@@ -102,6 +102,8 @@ data class FanOutActions(
     val onClearFanIcons: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
     val onRerunComplete: (FanOutRunKey) -> Unit = {},
     val onRemoveFailedPairs: (FanOutRunKey) -> Unit = {},
+    /** Drop only the errored pairs whose model is currently benched. */
+    val onRemoveBenchedPairs: (FanOutRunKey) -> Unit = {},
     val onRestartFailedPairs: (FanOutRunKey) -> Unit = {},
     val onRemoveFailedPairsForModel: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },
     val onRestartFailedPairsForModel: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },

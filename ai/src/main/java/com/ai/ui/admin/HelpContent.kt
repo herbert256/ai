@@ -390,6 +390,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Top of the fan-out drilldown. Lists every answerer model on this fan-out run with its current status. Tap an answerer to step into its sources at L2."),
             HelpCard("Status icons", "Per-row: ✅ all pairs done, ❌ at least one errored, ⏳ at least one running, queued = no row on disk yet. Derived from latestByPair across all results."),
+            HelpCard("Bench column", "The stats row splits Errors from Bench. A benched pair errored because its model is on a >1h rate-limit cooldown — it'll recover once the cooldown lifts, so it's counted apart from genuine errors. When benched pairs exist, a 'Remove benched' button appears next to 'Remove failed items' to clear just those (the two removes are complementary)."),
             HelpCard("Resume stale", "On open, any fan-out pair with no content / no error / not in runningFanOutPairs is re-enqueued via onResumeStaleFanOut — survives app kill mid-batch."),
             HelpCard("Restart failed", "Re-runs only ❌ cells, leaving ✅ alone. Skips the placeholder grid rebuild — quick recovery without re-spending tokens on succeeded cells."),
             HelpCard("Combine reports", "When at least one fan-in prompt exists, the screen exposes 'Run combine reports' — fires a meta call against the fan-out matrix's results."),
@@ -645,10 +646,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Translation run — models",
         cards = listOf(
             HelpCard("Overview", "Level 1 of the translation run drill-in: every model that picked up work in this run. The run uses a shared work queue — items aren't pre-assigned, so a model's row appears (and its bar grows) as that model pulls items. Tap a model to see the items it translated."),
-            HelpCard("Stats panel", "Pinned at the top, kept visible even once the run is done: Total, Done, Errors, Run (in-flight), Queue (items not yet picked up by any model), Costs (run total in cents, 2 decimals)."),
+            HelpCard("Stats panel", "Pinned at the top, kept visible even once the run is done: Total, Done, Errors, Bench (errored because the model is on a >1h rate-limit cooldown — will recover when it lifts, counted apart from genuine errors), Run (in-flight), Queue (items not yet picked up by any model), Costs (run total in cents, 2 decimals)."),
             HelpCard("Per-model bar", "Each row's background bar is that model's share of the WHOLE run — green for done, red for errored. A per-model progress bar isn't possible: with the work queue you can't know how many items a model will end up taking. A model that did half the run shows a half-filled row."),
             HelpCard("Per-model row", "Status glyph (⏳ running / ❌ errored / ✅ all done / 🕓 mixed), model name, a '<done>/<total> done' summary, and that model's cost. Sorted running first, then errored, then fully-done. Once the whole run is done the glyph + fill drop so it reads calmly."),
             HelpCard("Restart / Remove failed items", "Shown when at least one item errored. Restart re-fires every failed call (the runner's concurrency cap still applies); Remove drops the failed rows without spending tokens. Both are whole-run scope."),
+            HelpCard("Remove benched", "Appears next to Remove failed when the run has benched items (errored because the model is on a rate-limit cooldown). It drops only those — Remove failed leaves them alone — so you can clear the will-recover failures separately from the genuine ones."),
             HelpCard("Top progress bar", "Run-level (done + error) / total while there's still pending or running work. Hidden on a cancelled run."),
             HelpCard("Title bar", "🔄 redoes every entry; 🐞 opens the trace list filtered to category=Translation; 🗑 deletes the whole run behind a blocking 'Deleting…' popup.")
         )

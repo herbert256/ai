@@ -464,6 +464,10 @@ internal fun SecondaryResultsScreen(
                     fanOutEngine.removeFailedPairs(context, rk)
                     refreshTick++
                 },
+                onRemoveBenchedPairs = { rk ->
+                    fanOutEngine.removeBenchedPairs(context, rk)
+                    refreshTick++
+                },
                 onRestartFailedPairs = { _ ->
                     // Route through the legacy path (rerunFailedFanOutPairs
                     // → resetAndRelaunch → rerunFanOutPlaceholders) which

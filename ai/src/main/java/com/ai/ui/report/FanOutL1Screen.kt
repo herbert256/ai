@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,7 @@ internal fun FanOutL1Screen(
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
+    var confirmRemoveBenched by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
     var confirmStartIcons by remember { mutableStateOf(false) }
     // True while a delete-run is in flight — drives the blocking
@@ -103,6 +105,15 @@ internal fun FanOutL1Screen(
     fun pairCost(p: PairState): Double = if (isIconsMode)
         p.iconInputCost + p.iconOutputCost
     else (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0)
+
+    // Benched = errored AND the pair's model is on a >1h-429
+    // cooldown. Observed reactively so the Bench count updates as
+    // cooldowns lift; expiry is checked from the snapshot rather than
+    // the lazily-mutating ModelCooldownStore.isUnavailable. Hoisted
+    // to composable scope so the confirm dialogs can use it too.
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    fun benched(p: String?, m: String?): Boolean =
+        p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -130,9 +141,15 @@ internal fun FanOutL1Screen(
         val doneCount = if (isIconsMode)
             run.pairs.values.count { !it.icon.isNullOrBlank() }
             else run.doneCount
+        // Errors and Bench split the errored set — a benched entry
+        // will recover once its cooldown lifts, so it's counted
+        // separately instead of under Errors.
         val errorCount = if (isIconsMode)
-            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() }
-            else run.errorCount
+            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() && !benched(it.providerId, it.model) }
+            else run.pairs.values.count { it.status == PairStatus.ERROR && !benched(it.providerId, it.model) }
+        val benchCount = if (isIconsMode)
+            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() && benched(it.providerId, it.model) }
+            else run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
         val runningCount = if (isIconsMode)
             run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
             else run.effectiveRunningCount(runningSet)
@@ -158,6 +175,7 @@ internal fun FanOutL1Screen(
                 add(Triple("Total", run.totalPairs.toString(), AppColors.Blue))
                 add(Triple("Done", doneCount.toString(), AppColors.Green))
                 add(Triple("Errors", errorCount.toString(), AppColors.Red))
+                add(Triple("Bench", benchCount.toString(), AppColors.Purple))
                 add(Triple("Run", runningCount.toString(), AppColors.Orange))
                 add(Triple("Throttled", throttledHere.toString(), AppColors.Yellow))
                 add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
@@ -198,23 +216,41 @@ internal fun FanOutL1Screen(
             )
         }
 
-        // Per-failure controls — visible only when at least one pair
-        // errored. Both buttons follow the engine's throttle.
-        if (run.errorCount > 0) {
+        // Per-failure controls. The remove/restart buttons act on the
+        // MAIN-mode errored pairs (status == ERROR) regardless of view
+        // mode — same as removeFailedPairs / removeBenchedPairs — so
+        // they're gated on MAIN-scoped counts, split into genuine
+        // errors vs. benched (will-recover) pairs.
+        val mainBenched = run.pairs.values.count {
+            it.status == PairStatus.ERROR && benched(it.providerId, it.model)
+        }
+        val mainErrored = run.pairs.values.count {
+            it.status == PairStatus.ERROR && !benched(it.providerId, it.model)
+        }
+        if (mainErrored > 0 || mainBenched > 0) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(
-                    onClick = { confirmRemoveFailed = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { confirmRestartFailed = true },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                if (mainErrored > 0) {
+                    Button(
+                        onClick = { confirmRemoveFailed = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = { confirmRestartFailed = true },
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+                if (mainBenched > 0) {
+                    Button(
+                        onClick = { confirmRemoveBenched = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
             }
         }
 
@@ -544,10 +580,11 @@ internal fun FanOutL1Screen(
         )
     }
     if (confirmRemoveFailed) {
+        val n = run.pairs.values.count { it.status == PairStatus.ERROR && !benched(it.providerId, it.model) }
         AlertDialog(
             onDismissRequest = { confirmRemoveFailed = false },
             title = { Text("Remove failed items?") },
-            text = { Text("Drops ${run.errorCount} failed fan-out row${if (run.errorCount == 1) "" else "s"} for this prompt. No API calls are made. Successful pairs are kept.") },
+            text = { Text("Drops $n failed fan-out row${if (n == 1) "" else "s"} for this prompt. Benched (rate-limited) rows are kept — use Remove benched for those. No API calls are made. Successful pairs are kept.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemoveFailed = false
@@ -556,6 +593,23 @@ internal fun FanOutL1Screen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+    if (confirmRemoveBenched) {
+        val n = run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
+        AlertDialog(
+            onDismissRequest = { confirmRemoveBenched = false },
+            title = { Text("Remove benched items?") },
+            text = { Text("Drops $n benched fan-out row${if (n == 1) "" else "s"} — pairs whose model is on a rate-limit cooldown. No API calls are made. Genuine errors and successful pairs are kept.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveBenched = false
+                    actions.onRemoveBenchedPairs(run.key)
+                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveBenched = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
         )
     }

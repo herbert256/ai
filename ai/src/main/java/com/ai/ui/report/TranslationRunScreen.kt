@@ -80,6 +80,8 @@ data class TranslationActions(
     val onDeleteRun: (reportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null },
     val onRestartFailed: (reportId: String, runId: String) -> Unit = { _, _ -> },
     val onRemoveFailed: (reportId: String, runId: String) -> Unit = { _, _ -> },
+    /** Drop only the errored items whose model is currently benched. */
+    val onRemoveBenched: (reportId: String, runId: String) -> Unit = { _, _ -> },
     val onRestartAll: (reportId: String, runId: String) -> Unit = { _, _ -> },
     val onStartMissing: (reportId: String, runId: String) -> Unit = { _, _ -> },
     /** Drop one pending/running item from a live run. */

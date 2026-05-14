@@ -11,6 +11,7 @@ import com.ai.data.PairKey
 import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.ProviderThrottle
+import com.ai.data.ModelCooldownStore
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -478,7 +479,12 @@ class FanOutEngine internal constructor(
     fun removeFailedPairs(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            val failed = run.pairs.values.filter { it.status == PairStatus.ERROR }
+            // Benched pairs are kept — they're cleared by
+            // removeBenchedPairs instead, so the two are complementary.
+            val failed = run.pairs.values.filter {
+                it.status == PairStatus.ERROR &&
+                    !ModelCooldownStore.isUnavailable(it.providerId, it.model)
+            }
             if (failed.isEmpty()) return@launch
             val costDelta = failed.sumOf { it.totalCost }
             failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
@@ -486,6 +492,30 @@ class FanOutEngine internal constructor(
                 val cur = runs[runKey] ?: return@update runs
                 val keepKeys = failed.map { it.key }.toSet()
                 runs + (runKey to cur.copy(pairs = cur.pairs - keepKeys))
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+        }
+
+    /** Drop only the errored pairs whose model is currently benched
+     *  (>1h-429 cooldown). Mirror of [removeFailedPairs] — same
+     *  delete + state-update + cost/timestamp bump — narrowed to the
+     *  benched subset so the user can clear the will-recover failures
+     *  without touching the genuine ones. */
+    fun removeBenchedPairs(context: Context, runKey: FanOutRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            val benched = run.pairs.values.filter {
+                it.status == PairStatus.ERROR &&
+                    ModelCooldownStore.isUnavailable(it.providerId, it.model)
+            }
+            if (benched.isEmpty()) return@launch
+            val costDelta = benched.sumOf { it.totalCost }
+            benched.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+            _runs.update { runs ->
+                val cur = runs[runKey] ?: return@update runs
+                val dropKeys = benched.map { it.key }.toSet()
+                runs + (runKey to cur.copy(pairs = cur.pairs - dropKeys))
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
