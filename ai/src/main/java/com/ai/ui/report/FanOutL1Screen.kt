@@ -216,10 +216,13 @@ internal fun FanOutL1Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — while any pair is pending or running.
-        val pending = run.effectiveQueuedCount(runningSet) + run.effectiveRunningCount(runningSet)
+        // Top progress bar — for the active mode (fan-out responses
+        // in MAIN, the icon chain in ICONS). Uses the mode-aware
+        // counts so it isn't stuck at 100% in ICONS mode just
+        // because every fan-out response already landed.
+        val pending = queuedCount + runningCount
         if (pending > 0 && run.totalPairs > 0) {
-            val finished = (run.doneCount + run.errorCount).toFloat() / run.totalPairs
+            val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },
                 modifier = Modifier.fillMaxWidth().height(6.dp),
