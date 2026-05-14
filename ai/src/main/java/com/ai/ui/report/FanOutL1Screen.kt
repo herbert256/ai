@@ -346,26 +346,28 @@ internal fun FanOutL1Screen(
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
-            if (run.totalCost > 0.0) {
-                item(key = "l1-total-footer") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.width(20.dp))
-                        Text(
-                            "Total", fontSize = 14.sp, color = AppColors.Blue,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        )
-                        Text(
-                            formatCents(run.totalCost), fontSize = 11.sp,
-                            color = AppColors.Blue, fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                        Box(modifier = Modifier.width(16.dp))
-                    }
-                }
+        }
+
+        // Total cost — fixed below the scrolling model list (not a
+        // list footer row) so it stays visible as the list scrolls.
+        if (run.totalCost > 0.0) {
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.width(20.dp))
+                Text(
+                    "Total", fontSize = 14.sp, color = AppColors.Blue,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp)
+                )
+                Text(
+                    formatCents(run.totalCost), fontSize = 11.sp,
+                    color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                Box(modifier = Modifier.width(16.dp))
             }
         }
 
