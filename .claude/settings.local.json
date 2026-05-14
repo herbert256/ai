@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug)"
+    ]
+  }
+}
