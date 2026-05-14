@@ -500,6 +500,19 @@ internal fun FanOutL2OnePageScreen(
         report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
             ?: emptyMap()
     }
+    // agentId -> the agent's original report response. Drives the
+    // initiator's text shown above (Initiator mode) or inline per
+    // pair (Responder mode).
+    val agentBodies: Map<String, String?> = remember(report) {
+        report?.agents?.associate { it.agentId to it.responseBody } ?: emptyMap()
+    }
+    val isInitiator = role == "Initiator"
+    // Initiator mode: the active model IS the source — its single
+    // original response is shared by every pair, so show it once at
+    // the top instead of repeating it on every row.
+    val initiatorBody: String? = remember(report, answererKey) {
+        report?.agents?.firstOrNull { "${it.provider}|${it.model}" == answererKey }?.responseBody
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -510,22 +523,73 @@ internal fun FanOutL2OnePageScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(rows, key = { it.key }) { p ->
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text(
-                        agentLabels[p.sourceAgentId] ?: p.sourceAgentId,
-                        fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    val body = p.content
-                        ?: p.errorMessage?.let { "❌ $it" }
-                        ?: "⏳ pending"
-                    Text(body, fontSize = 13.sp, color = Color.White)
-                    HorizontalDivider(
-                        color = AppColors.DividerDark,
-                        thickness = 2.dp,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
+            if (isInitiator) {
+                // The active model's original response, once at the top.
+                item(key = "initiator-response") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            "$canonPid / $activeMdl — original response",
+                            fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            initiatorBody ?: "(original response not found)",
+                            fontSize = 13.sp, color = Color.White
+                        )
+                        HorizontalDivider(
+                            color = AppColors.DividerDark, thickness = 2.dp,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+                // Then each answerer's reply to it.
+                items(rows, key = { it.key }) { p ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            resolveModelLabel("${p.providerId}|${p.model}"),
+                            fontSize = 12.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            p.content ?: p.errorMessage?.let { "❌ $it" } ?: "⏳ pending",
+                            fontSize = 13.sp, color = Color.White
+                        )
+                        HorizontalDivider(
+                            color = AppColors.DividerDark, thickness = 2.dp,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            } else {
+                // Responder mode: each row is a full pair — the
+                // initiator's original response, then the active
+                // model's reply to it.
+                items(rows, key = { it.key }) { p ->
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Text(
+                            agentLabels[p.sourceAgentId] ?: p.sourceAgentId,
+                            fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            agentBodies[p.sourceAgentId] ?: "(original response not found)",
+                            fontSize = 13.sp, color = AppColors.TextSecondary
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "↳ $canonPid / $activeMdl",
+                            fontSize = 12.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            p.content ?: p.errorMessage?.let { "❌ $it" } ?: "⏳ pending",
+                            fontSize = 13.sp, color = Color.White
+                        )
+                        HorizontalDivider(
+                            color = AppColors.DividerDark, thickness = 2.dp,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
                 }
             }
         }
