@@ -283,9 +283,6 @@ internal fun FanOutL2Screen(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                     }
-                    Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                    }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
@@ -325,6 +322,11 @@ internal fun FanOutL2Screen(
             }
         } else {
             val rowsTotalCost = rows.sumOf { it.totalCost }
+            // Whole L2 list finished — every row would show ✅ on a
+            // full green fill. Drop both per row (mirrors L1's allDone).
+            val allDone = rows.isNotEmpty() && rows.all {
+                (if (isIconsMode) it.iconStatus(runningSet) else it.effectiveStatus(runningSet)) == PairStatus.DONE
+            }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     val otherAgentId = if (role == "Responder") p.sourceAgentId else p.answererAgentId
@@ -338,7 +340,7 @@ internal fun FanOutL2Screen(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
-                                if (progressFraction > 0f) {
+                                if (!allDone && progressFraction > 0f) {
                                     drawRect(
                                         color = progressColor,
                                         size = Size(size.width * progressFraction, size.height)
@@ -349,24 +351,28 @@ internal fun FanOutL2Screen(
                             .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val icon = when (effStatus) {
-                            PairStatus.ERROR -> "❌"
-                            PairStatus.DONE -> "✅"
-                            PairStatus.RUNNING -> "⏳"
-                            PairStatus.PENDING -> "🕓"
-                        }
-                        if (icon == "⏳") {
-                            Box(
-                                Modifier.width(20.dp).background(progressColor),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                AnimatedHourglass(fontSize = 16.sp)
+                        // Status glyph — skipped entirely once every
+                        // row is done (see allDone above).
+                        if (!allDone) {
+                            val icon = when (effStatus) {
+                                PairStatus.ERROR -> "❌"
+                                PairStatus.DONE -> "✅"
+                                PairStatus.RUNNING -> "⏳"
+                                PairStatus.PENDING -> "🕓"
                             }
-                        } else {
-                            Text(
-                                icon, fontSize = 16.sp,
-                                modifier = Modifier.width(20.dp).background(progressColor)
-                            )
+                            if (icon == "⏳") {
+                                Box(
+                                    Modifier.width(20.dp).background(progressColor),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AnimatedHourglass(fontSize = 16.sp)
+                                }
+                            } else {
+                                Text(
+                                    icon, fontSize = 16.sp,
+                                    modifier = Modifier.width(20.dp).background(progressColor)
+                                )
+                            }
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                             // Responder mode: row is a SOURCE — resolve
@@ -391,9 +397,6 @@ internal fun FanOutL2Screen(
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
-                        }
-                        Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                            Text(">", fontSize = 16.sp, color = AppColors.Blue)
                         }
                     }
                     HorizontalDivider(color = AppColors.DividerDark)

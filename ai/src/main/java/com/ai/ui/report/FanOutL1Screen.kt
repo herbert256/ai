@@ -277,9 +277,6 @@ internal fun FanOutL1Screen(
                             modifier = Modifier.padding(end = 8.dp)
                         )
                     }
-                    Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                    }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
@@ -319,7 +316,7 @@ internal fun FanOutL1Screen(
                             else -> 0
                         }
                     },
-                    { ak -> resolveModelLabel(ak).lowercase() }
+                    { ak -> ak.substringAfter('|').lowercase() }
                 )
             )
         }
@@ -389,7 +386,8 @@ internal fun FanOutL1Screen(
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(
-                            resolveModelLabel(ak),
+                            // Model name only — no provider prefix.
+                            ak.substringAfter('|'),
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -400,9 +398,6 @@ internal fun FanOutL1Screen(
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(end = 8.dp)
                         )
-                    }
-                    Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
                     }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
