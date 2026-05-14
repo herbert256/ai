@@ -107,6 +107,62 @@ internal fun FanOutL1Screen(
             )
         }
 
+        // Status counts + cost — pinned at the top of the page so
+        // they stay put as the model list scrolls; kept visible even
+        // once every pair is done. Counts use the active mode's
+        // status lens (iconStatus in ICONS, effectiveStatus in MAIN).
+        val doneCount = if (isIconsMode)
+            run.pairs.values.count { !it.icon.isNullOrBlank() }
+            else run.doneCount
+        val errorCount = if (isIconsMode)
+            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() }
+            else run.errorCount
+        val runningCount = if (isIconsMode)
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
+            else run.effectiveRunningCount(runningSet)
+        val queuedCount = if (isIconsMode)
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING }
+            else run.effectiveQueuedCount(runningSet)
+        val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // One row of labels, one row of values below. Total is
+            // the first column; Throttled is always shown (dimmed at
+            // zero) so columns don't shift as pairs wait on a cap;
+            // Costs is the run's total spend in cents, 2 decimals.
+            val stats = buildList {
+                add(Triple("Total", run.totalPairs.toString(), AppColors.Blue))
+                add(Triple("Done", doneCount.toString(), AppColors.Green))
+                add(Triple("Errors", errorCount.toString(), AppColors.Red))
+                add(Triple("Running", runningCount.toString(), AppColors.Orange))
+                add(Triple("Throttled", throttledHere.toString(), if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
+                add(Triple("Queued", queuedCount.toString(), AppColors.TextTertiary))
+                add(Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.Blue))
+            }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                stats.forEach { (label, _, color) ->
+                    Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                }
+            }
+            Row(modifier = Modifier.fillMaxWidth()) {
+                stats.forEach { (_, value, color) ->
+                    Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                }
+            }
+            // Icon-chain tier tally — one compact row (the three
+            // counts sum to Done).
+            if (isIconsMode) {
+                val tier1 = run.pairs.values.count { it.iconWinningTier == 1 }
+                val tier2 = run.pairs.values.count { it.iconWinningTier == 2 }
+                val tier3 = run.pairs.values.count { it.iconWinningTier == 3 }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    "Tiers — chat $tier1 · one-shot $tier2 · fixed $tier3",
+                    fontSize = 11.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+
         // Per-failure controls — visible only when at least one pair
         // errored. Both buttons follow the engine's throttle.
         if (run.errorCount > 0) {
@@ -350,86 +406,6 @@ internal fun FanOutL1Screen(
                     }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
-            }
-        }
-
-        // Total cost — fixed below the scrolling model list (not a
-        // list footer row) so it stays visible as the list scrolls.
-        if (run.totalCost > 0.0) {
-            HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(modifier = Modifier.width(20.dp))
-                Text(
-                    "Total", fontSize = 14.sp, color = AppColors.Blue,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp)
-                )
-                Text(
-                    formatCents(run.totalCost), fontSize = 11.sp,
-                    color = AppColors.Blue, fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Box(modifier = Modifier.width(16.dp))
-            }
-        }
-
-        // Stats panel — derives counts from the active mode's
-        // status lens (iconStatus in ICONS, effectiveStatus in
-        // MAIN). Visible whenever there are still pairs without
-        // a final state (DONE / ERROR) in that lens.
-        val doneCount = if (isIconsMode)
-            run.pairs.values.count { !it.icon.isNullOrBlank() }
-            else run.doneCount
-        val errorCount = if (isIconsMode)
-            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() }
-            else run.errorCount
-        val runningCount = if (isIconsMode)
-            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
-            else run.effectiveRunningCount(runningSet)
-        val queuedCount = if (isIconsMode)
-            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING }
-            else run.effectiveQueuedCount(runningSet)
-        if (run.totalPairs != doneCount) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // Status counts as a compact grid — one row of labels,
-                // one row of numbers below. Total is the first column;
-                // Throttled is always shown (dimmed at zero) so the
-                // column doesn't shift in/out as pairs wait on a cap.
-                val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
-                val stats = buildList {
-                    add(Triple("Total", run.totalPairs, AppColors.Blue))
-                    add(Triple("Done", doneCount, AppColors.Green))
-                    add(Triple("Errors", errorCount, AppColors.Red))
-                    add(Triple("Running", runningCount, AppColors.Orange))
-                    add(Triple("Throttled", throttledHere, if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
-                    add(Triple("Queued", queuedCount, AppColors.TextTertiary))
-                }
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    stats.forEach { (label, _, color) ->
-                        Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                    }
-                }
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    stats.forEach { (_, value, color) ->
-                        Text(value.toString(), fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-                    }
-                }
-                // Icon-chain tier tally — one compact row (the three
-                // counts sum to Done).
-                if (isIconsMode) {
-                    val tier1 = run.pairs.values.count { it.iconWinningTier == 1 }
-                    val tier2 = run.pairs.values.count { it.iconWinningTier == 2 }
-                    val tier3 = run.pairs.values.count { it.iconWinningTier == 3 }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        "Tiers — chat $tier1 · one-shot $tier2 · fixed $tier3",
-                        fontSize = 11.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
-                    )
-                }
             }
         }
 
