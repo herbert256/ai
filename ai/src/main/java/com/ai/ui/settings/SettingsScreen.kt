@@ -388,7 +388,8 @@ fun SettingsScreen(
         SettingsSubScreen.AI_MODEL_COOLDOWNS -> {
             ModelCooldownsScreen(
                 aiSettings = aiSettings,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onNavigateToTrace = onNavigateToTrace
             )
         }
         SettingsSubScreen.AI_AGENTS -> {

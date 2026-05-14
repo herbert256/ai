@@ -18,6 +18,11 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Key shape is `"${providerId}:${model}"` — the same form as
  * [ReportModel.deduplicationKey].
+ *
+ * A second [traceMap] holds the filename of the API trace whose
+ * 429 produced each cooldown. It's device-local (trace files
+ * don't travel), so it's persisted alongside but **not** part of
+ * the export bundle / the public [cooldowns] StateFlow.
  */
 object ModelCooldownStore {
     /** Retry hints longer than this (1 hour) bench the model. */
@@ -25,12 +30,16 @@ object ModelCooldownStore {
 
     private const val PREFS = "model_cooldowns"
     private const val KEY_MAP = "map"
+    private const val KEY_TRACES = "traces"
 
     private val gson = createAppGson()
     private val mapType = object : TypeToken<Map<String, Long>>() {}.type
+    private val traceType = object : TypeToken<Map<String, String>>() {}.type
 
     /** Key → epoch-ms when the model becomes available again. */
     private val cooldownMap = ConcurrentHashMap<String, Long>()
+    /** Key → filename of the API trace whose 429 caused the bench. */
+    private val traceMap = ConcurrentHashMap<String, String>()
 
     private val _cooldowns = MutableStateFlow<Map<String, Long>>(emptyMap())
     /** Snapshot for Compose pickers. Entries may be expired —
@@ -42,10 +51,16 @@ object ModelCooldownStore {
     fun init(context: Context) {
         appContext = context.applicationContext
         cooldownMap.clear()
+        traceMap.clear()
         runCatching {
             val raw = prefs()?.getString(KEY_MAP, null) ?: return@runCatching
             val loaded: Map<String, Long> = gson.fromJson(raw, mapType) ?: emptyMap()
             cooldownMap.putAll(loaded)
+        }
+        runCatching {
+            val raw = prefs()?.getString(KEY_TRACES, null) ?: return@runCatching
+            val loaded: Map<String, String> = gson.fromJson(raw, traceType) ?: emptyMap()
+            traceMap.putAll(loaded)
         }
         pruneExpired()
         publish()
@@ -55,11 +70,14 @@ object ModelCooldownStore {
 
     private fun prefs() = appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun markUnavailable(providerId: String, model: String, availableAtMs: Long) {
-        cooldownMap[key(providerId, model)] = availableAtMs
+    fun markUnavailable(providerId: String, model: String, availableAtMs: Long, traceFile: String? = null) {
+        val k = key(providerId, model)
+        cooldownMap[k] = availableAtMs
+        if (traceFile != null) traceMap[k] = traceFile else traceMap.remove(k)
         AppLog.w(
             "ModelCooldown",
-            "$providerId/$model benched until ${java.util.Date(availableAtMs)}"
+            "$providerId/$model benched until ${java.util.Date(availableAtMs)}" +
+                (traceFile?.let { " (trace $it)" } ?: "")
         )
         persist()
         publish()
@@ -72,6 +90,7 @@ object ModelCooldownStore {
         val until = cooldownMap[k] ?: return false
         if (until <= System.currentTimeMillis()) {
             cooldownMap.remove(k)
+            traceMap.remove(k)
             persist()
             publish()
             return false
@@ -82,18 +101,26 @@ object ModelCooldownStore {
     fun availableAt(providerId: String, model: String): Long? =
         cooldownMap[key(providerId, model)]?.takeIf { it > System.currentTimeMillis() }
 
-    /** One benched (provider, model) pair. */
-    data class CooldownEntry(val providerId: String, val model: String, val availableAtMs: Long)
+    /** One benched (provider, model) pair. [traceFile] points at the
+     *  API trace whose 429 produced the cooldown, when known. */
+    data class CooldownEntry(
+        val providerId: String,
+        val model: String,
+        val availableAtMs: Long,
+        val traceFile: String? = null
+    )
 
     /** Every stored cooldown — raw, **not** expiry-pruned, so the
      *  CRUD screen can show and clear stale rows. */
     fun entries(): List<CooldownEntry> = cooldownMap.entries.map { (k, v) ->
-        CooldownEntry(k.substringBefore(":"), k.substringAfter(":"), v)
+        CooldownEntry(k.substringBefore(":"), k.substringAfter(":"), v, traceMap[k])
     }
 
     /** Drop a single cooldown (manual un-bench). */
     fun remove(providerId: String, model: String) {
-        if (cooldownMap.remove(key(providerId, model)) != null) {
+        val k = key(providerId, model)
+        if (cooldownMap.remove(k) != null) {
+            traceMap.remove(k)
             persist()
             publish()
         }
@@ -103,11 +130,13 @@ object ModelCooldownStore {
     fun clearAll() {
         if (cooldownMap.isEmpty()) return
         cooldownMap.clear()
+        traceMap.clear()
         persist()
         publish()
     }
 
-    /** Merge imported cooldowns into the store (import path). */
+    /** Merge imported cooldowns into the store (import path). Trace
+     *  filenames are device-local and aren't carried in the bundle. */
     fun importMerge(incoming: Map<String, Long>) {
         if (incoming.isEmpty()) return
         cooldownMap.putAll(incoming)
@@ -131,14 +160,17 @@ object ModelCooldownStore {
         val now = System.currentTimeMillis()
         val expired = cooldownMap.filterValues { it <= now }.keys
         if (expired.isNotEmpty()) {
-            expired.forEach { cooldownMap.remove(it) }
+            expired.forEach { cooldownMap.remove(it); traceMap.remove(it) }
             persist()
         }
     }
 
     private fun persist() {
         runCatching {
-            prefs()?.edit()?.putString(KEY_MAP, gson.toJson(cooldownMap.toMap()))?.apply()
+            prefs()?.edit()
+                ?.putString(KEY_MAP, gson.toJson(cooldownMap.toMap()))
+                ?.putString(KEY_TRACES, gson.toJson(traceMap.toMap()))
+                ?.apply()
         }
     }
 

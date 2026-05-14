@@ -2,6 +2,7 @@ package com.ai.ui.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.ModelCooldownStore
 import com.ai.model.Settings
@@ -33,21 +36,19 @@ import com.ai.ui.shared.TitleBar
 fun ModelCooldownsScreen(
     aiSettings: Settings,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onNavigateToTrace: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     var editing by remember { mutableStateOf<ModelCooldownStore.CooldownEntry?>(null) }
     var addingNew by remember { mutableStateOf(false) }
     var confirmClearAll by remember { mutableStateOf(false) }
 
+    // Recompute off the cooldowns StateFlow, but read full entries
+    // (with traceFile) from the store — every traceMap mutation is
+    // paired with a cooldownMap publish, so this key stays in sync.
     val cooldownMap by ModelCooldownStore.cooldowns.collectAsState()
-    val items = remember(cooldownMap) {
-        cooldownMap.entries.map {
-            ModelCooldownStore.CooldownEntry(
-                it.key.substringBefore(":"), it.key.substringAfter(":"), it.value
-            )
-        }
-    }
+    val items = remember(cooldownMap) { ModelCooldownStore.entries() }
 
     if (addingNew || editing != null) {
         ModelCooldownEditScreen(
@@ -84,6 +85,20 @@ fun ModelCooldownsScreen(
         deleteEntityType = "Cooldown",
         deleteEntityName = { "${it.providerId}/${it.model}" },
         itemKey = { "${it.providerId}:${it.model}" },
+        // 🐞 → the API trace of the 429 call that produced this
+        // cooldown. Shown only when tracing is on and a trace was
+        // captured (manually-added cooldowns have none).
+        itemTrailing = { entry ->
+            val tf = entry.traceFile
+            if (ApiTracer.isTracingEnabled && tf != null) {
+                Text(
+                    "🐞", fontSize = 18.sp,
+                    modifier = Modifier
+                        .clickable { onNavigateToTrace(tf) }
+                        .padding(horizontal = 6.dp)
+                )
+            }
+        },
         headerContent = {
             if (items.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))

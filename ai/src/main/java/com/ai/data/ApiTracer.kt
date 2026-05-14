@@ -75,6 +75,14 @@ object ApiTracer {
     val currentReportId: String? get() = currentTags.get()?.reportId
     val currentCategory: String? get() = currentTags.get()?.category
 
+    /** Filename of the most recent trace written on this thread.
+     *  [TracingInterceptor] sets it right after persisting a trace;
+     *  the outer [RateLimitRetryInterceptor] reads it so a benched-
+     *  model cooldown can point back at the 429's trace. Safe
+     *  same-thread hand-off — OkHttp app interceptors run
+     *  synchronously on one thread per call. */
+    val lastTraceFilename: ThreadLocal<String?> = ThreadLocal.withInitial { null }
+
     /** In-memory mirror of the trace dir's [TraceFileInfo] list, sorted
      *  newest-first. `null` means "not yet built" — the next
      *  [getTraceFiles] populates it via a streaming parse over every
@@ -413,11 +421,16 @@ class TracingInterceptor : Interceptor {
         val responseHeaders = headersToMap(response.headers)
 
         fun saveWith(body: String?, partial: Boolean = false, filename: String? = null): String? {
-            return ApiTracer.saveTrace(ApiTrace(
+            val fn = ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
                 traceRequest, TraceResponse(response.code, responseHeaders, body),
                 partial = partial
             ), filename = filename)
+            // Expose the just-written trace to the outer
+            // RateLimitRetryInterceptor (same thread) so a benched-
+            // model cooldown can reference this call's trace.
+            ApiTracer.lastTraceFilename.set(fn)
+            return fn
         }
 
         if (!isStreaming) {
@@ -1012,6 +1025,10 @@ class ReadTimeoutInterceptor : Interceptor {
 class RateLimitRetryInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
+        // Clear any stale value from a previous call on this pooled
+        // thread — TracingInterceptor refills it during chain.proceed
+        // when tracing is on, leaving it null when tracing is off.
+        ApiTracer.lastTraceFilename.set(null)
         val response = chain.proceed(request)
         // Defensive: never block the main thread. Retrofit suspend funcs
         // and the existing withContext(Dispatchers.IO) wrappers should
@@ -1038,7 +1055,9 @@ class RateLimitRetryInterceptor : Interceptor {
             if (benchUntil != null) {
                 val model = request.url.pathSegments.lastOrNull()?.substringBefore(":")
                 if (!model.isNullOrBlank()) {
-                    ModelCooldownStore.markUnavailable("Google", model, benchUntil)
+                    ModelCooldownStore.markUnavailable(
+                        "Google", model, benchUntil, ApiTracer.lastTraceFilename.get()
+                    )
                 } else {
                     AppLog.w("RateLimit", "Google quota 429 but model unparseable from ${request.url}")
                 }

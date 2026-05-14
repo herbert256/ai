@@ -842,7 +842,10 @@ fun SettingsListItemCard(
     onClick: () -> Unit,
     /** Null hides the trailing X — used by fixed-list screens (e.g.
      *  Other Internal prompts) where rows are editable but not deletable. */
-    onDelete: (() -> Unit)?
+    onDelete: (() -> Unit)?,
+    /** Optional widget rendered just before the trailing delete X —
+     *  e.g. a 🐞 trace link on a model-cooldown row. */
+    trailing: (@Composable () -> Unit)? = null
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
@@ -862,6 +865,7 @@ fun SettingsListItemCard(
                     Text(text = extraLine, fontSize = 12.sp, color = AppColors.TextDim)
                 }
             }
+            trailing?.invoke()
             if (onDelete != null) {
                 IconButton(onClick = onDelete) {
                     Text("X", color = AppColors.Red, fontWeight = FontWeight.Bold)

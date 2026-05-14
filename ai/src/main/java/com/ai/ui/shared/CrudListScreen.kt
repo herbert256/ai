@@ -51,6 +51,9 @@ fun <T> CrudListScreen(
     deleteEntityType: String,
     deleteEntityName: (T) -> String,
     itemKey: (T) -> Any = { it as Any },
+    /** Optional per-row widget rendered just before the delete X —
+     *  e.g. a 🐞 trace link. */
+    itemTrailing: (@Composable (T) -> Unit)? = null,
     /** When true, suppresses the Add button and the per-row delete X.
      *  Used for fixed-list screens (e.g. Other Internal prompts) where
      *  rows are still tappable to edit but cannot be added or removed. */
@@ -111,7 +114,8 @@ fun <T> CrudListScreen(
                         subtitle = itemSubtitle(item),
                         extraLine = itemExtraLine?.invoke(item),
                         onClick = { onEdit(item) },
-                        onDelete = if (fixedList) null else ({ showDeleteDialog = item })
+                        onDelete = if (fixedList) null else ({ showDeleteDialog = item }),
+                        trailing = itemTrailing?.let { t -> { t(item) } }
                     )
                 }
             }
