@@ -716,17 +716,23 @@ fun ReportCostTable(report: Report) {
             outputCents = report.iconOutputCost * 100
         )
     } else null
-    // Per-tier rows from the 3-tier per-agent icons chain — one row
-    // per recorded attempt (including failed earlier tiers) so the
-    // All-calls list audits every API hit and the By-type "icon"
-    // bucket sums the main report icon AND every agent icon. The
-    // recorded provider on each IconCallRecord is the AppService id
-    // of the model that actually billed the call (tier 3 = DeepSeek
-    // even when the agent itself uses a different model).
+    // report.iconCalls holds two distinct tier-by-tier chains — one
+    // IconCallRecord per recorded attempt (including failed earlier
+    // tiers). They're told apart by agentId:
+    //   - per-agent report icons → agentId is a real ReportAgent id
+    //     → "report-icons" bucket
+    //   - fan-out pair icons     → agentId is the pair's UUID (not a
+    //     report agent) → "fan-icons" bucket
+    // The report-level internal/icon prompt is NOT in iconCalls — it
+    // surfaces separately as `iconRow` (the "icon" bucket, 1 row).
+    // The recorded provider on each record is the model that actually
+    // billed the call (tier 3 = DeepSeek even when the agent / pair
+    // uses a different model).
+    val reportAgentIds = report.agents.map { it.agentId }.toSet()
     val iconCallRows = report.iconCalls.map { c ->
         val providerEnum = AppService.findById(c.provider)
         CostRow(
-            type = "icon",
+            type = if (c.agentId in reportAgentIds) "report-icons" else "fan-icons",
             providerDisplay = providerEnum?.id ?: c.provider,
             model = c.model,
             tier = c.pricingTier,
@@ -771,31 +777,11 @@ fun ReportCostTable(report: Report) {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
-    // Fan-out icon-chain cost — each fan-out pair (SecondaryResult)
-    // carries its aggregated 3-tier icon-chain spend in
-    // iconInput/OutputCost/Tokens. One CostRow per pair (not a single
-    // lumped row) so the By-type / By-model "Calls" column counts the
-    // pairs, the same way fan-out itself counts — a single aggregate
-    // row read as "1 call" and looked switched against the icon row.
-    // Provider / model are the pair's own answerer model: tier 1 (the
-    // usual winner) is that model continuing the chat; later tiers may
-    // bill other models, but the per-pair record doesn't split it.
-    val fanIconsRows: List<CostRow> = secondary
-        .filter { it.iconInputCost > 0.0 || it.iconOutputCost > 0.0 }
-        .map { s ->
-            CostRow(
-                type = "fan-icons",
-                providerDisplay = AppService.findById(s.providerId)?.id ?: s.providerId,
-                model = s.model,
-                tier = "",
-                durationMs = null,
-                inputTokens = s.iconInputTokens,
-                outputTokens = s.iconOutputTokens,
-                inputCents = s.iconInputCost * 100,
-                outputCents = s.iconOutputCost * 100
-            )
-        }
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows + fanIconsRows).sortedByDescending { it.inputCents + it.outputCents }
+    // Fan-out icon-chain cost is already captured per-call in
+    // report.iconCalls (split into the "fan-icons" bucket by
+    // iconCallRows above) — no separate pass over SecondaryResult
+    // .iconInputCost, which would double-count.
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
