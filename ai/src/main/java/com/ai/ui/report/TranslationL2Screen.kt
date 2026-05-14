@@ -76,7 +76,6 @@ internal fun TranslationL2Screen(
     }
     val total = rows.size
     val done = rows.count { it.status == ReportViewModel.TranslationStatus.DONE }
-    val err = rows.count { it.status == ReportViewModel.TranslationStatus.ERROR }
     val cost = rows.sumOf { it.costDollars }
     val allDone = total > 0 && done == total
 
@@ -104,8 +103,7 @@ internal fun TranslationL2Screen(
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Text(
-                "$total item${if (total == 1) "" else "s"} · $done done" +
-                    (if (err > 0) " · $err error${if (err == 1) "" else "s"}" else ""),
+                "$total item${if (total == 1) "" else "s"}",
                 fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f)
             )
             if (cost > 0.0) {
