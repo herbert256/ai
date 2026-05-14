@@ -304,6 +304,16 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Models with no API key set won't run — the call lands as ❌ on the Alternative icons screen. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
         )
     ),
+    "translation_models" to HelpContent(
+        title = "Pick translation models",
+        cards = listOf(
+            HelpCard("Overview", "Model picker for a Translate run, reached after choosing a target language. Translation work spreads round-robin across every (provider, model) pair you pick."),
+            HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
+            HelpCard("Selected list", "Rows are sorted alphabetically by model id and show capability badges + provider id + pricing per million tokens. The ✕ on the right drops a single row; the Clear button wipes the whole list."),
+            HelpCard("Start translation", "Enabled once at least one model is picked. Kicks off the translation run and drops you on the live progress screen; the button label shows the model count when more than one is picked."),
+            HelpCard("Pitfalls", "Models with no API key set land as errored rows in the run. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
+        )
+    ),
     "alternative_icons" to HelpContent(
         title = "Alternative icons",
         cards = listOf(

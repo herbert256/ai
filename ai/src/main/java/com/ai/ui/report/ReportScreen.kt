@@ -47,10 +47,11 @@ import kotlinx.coroutines.withContext
 /** Which list a +Add overlay confirm should write to. The same
  *  overlays (showSelectAgent / showSelectFlock / showSelectSwarm /
  *  showSelectAllModels / showSelectFromReport) are reused by the
- *  "Find icons" picker flow; this enum tells their `onConfirm`
- *  whether to push the picked row into the New-Report `models`
- *  list or the Find-icons `findIconsModels` list. */
-private enum class PickerTarget { NEW_REPORT, FIND_ICONS }
+ *  "Find icons" picker flow and the Translate picker; this enum
+ *  tells their `onConfirm` whether to push the picked row into the
+ *  New-Report `models` list, the Find-icons `findIconsModels` list,
+ *  or the Translate `translationModels` list. */
+private enum class PickerTarget { NEW_REPORT, FIND_ICONS, TRANSLATION }
 
 // ===== rememberSaveable savers =====
 //
@@ -1059,6 +1060,10 @@ fun ReportsScreen(
     // iconFanOutByReport. Cleared on pick or on agent detail back.
     var fanOutTargetAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     var findIconsModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
+    // Accumulator for the Translate model picker — same +Agent /
+    // +Flock / +Swarm / +Report / +Model affordances as Find icons,
+    // routed via PickerTarget.TRANSLATION.
+    var translationModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     // Which model-picker target the next +Add overlay confirm should
     // deposit into. NEW_REPORT = the SelectionPhase's `models` list
     // (existing behavior); FIND_ICONS = the [findIconsModels] list
@@ -1358,6 +1363,7 @@ fun ReportsScreen(
         when (pickerTarget) {
             PickerTarget.NEW_REPORT -> models = deduplicateModels(models + added)
             PickerTarget.FIND_ICONS -> findIconsModels = deduplicateModels(findIconsModels + added)
+            PickerTarget.TRANSLATION -> translationModels = deduplicateModels(translationModels + added)
         }
     }
 
@@ -1421,8 +1427,12 @@ fun ReportsScreen(
     if (showSelectAllModels) {
         // The "already added" hint dims rows that are already in the
         // active picker's list — for FIND_ICONS that's findIconsModels,
-        // not the New-Report models list.
-        val activeList = if (pickerTarget == PickerTarget.FIND_ICONS) findIconsModels else models
+        // for TRANSLATION translationModels, else the New-Report list.
+        val activeList = when (pickerTarget) {
+            PickerTarget.FIND_ICONS -> findIconsModels
+            PickerTarget.TRANSLATION -> translationModels
+            PickerTarget.NEW_REPORT -> models
+        }
         val already = remember(activeList) { activeList.map { it.provider to it.model }.toSet() }
         ReportSelectModelsScreen(
             aiSettings = aiSettings,
@@ -1905,6 +1915,7 @@ fun ReportsScreen(
             LanguageSelectionScreen(
                 onConfirm = { lang ->
                     showTranslateLanguagePicker = false
+                    translationModels = emptyList()
                     showTranslateModelPicker = lang
                 },
                 onBack = { showTranslateLanguagePicker = false },
@@ -1916,22 +1927,37 @@ fun ReportsScreen(
     val pickingTranslateModelFor = showTranslateModelPicker
     if (pickingTranslateModelFor != null && currentReportId != null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
-            TranslateSelectModelsScreen(
-                targetLanguage = pickingTranslateModelFor,
+            ModelSelectionScreen(
+                models = translationModels,
                 aiSettings = aiSettings,
-                recentEntries = recentReportPairs,
-                onRecordRecent = { pid, mdl -> onRecordRecentReportModel(pid, mdl) },
-                onStart = { picks ->
+                title = "Pick translation models",
+                subject = "${pickingTranslateModelFor.name} (${pickingTranslateModelFor.native})",
+                actionLabel = if (translationModels.size <= 1) "Start translation"
+                              else "Start translation — ${translationModels.size} models",
+                actionColor = AppColors.Indigo,
+                helpTopic = "translation_models",
+                onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
+                onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },
+                onAddSwarm = { pickerTarget = PickerTarget.TRANSLATION; showSelectSwarm = true },
+                onAddFromReport = { pickerTarget = PickerTarget.TRANSLATION; showSelectFromReport = true },
+                onAddAllModels = { pickerTarget = PickerTarget.TRANSLATION; showSelectAllModels = true },
+                onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
+                onClearAll = { translationModels = emptyList() },
+                onAction = {
                     onStartTranslation(
                         currentReportId,
                         pickingTranslateModelFor.name,
                         pickingTranslateModelFor.native,
-                        picks
+                        translationModels.map { it.provider to it.model }
                     )
+                    translationModels = emptyList()
+                    pickerTarget = PickerTarget.NEW_REPORT
                     showTranslateModelPicker = null
                 },
-                onBack = { showTranslateModelPicker = null },
-                onNavigateHome = onNavigateHome
+                onBack = {
+                    pickerTarget = PickerTarget.NEW_REPORT
+                    showTranslateModelPicker = null
+                }
             )
         }
         return
@@ -2858,7 +2884,7 @@ private fun FindIconsPickerRouter(
     val targetPrompt = targetPromptId?.let { id ->
         internalPrompts.firstOrNull { it.id == id }
     }
-    FindIconsSelectionScreen(
+    ModelSelectionScreen(
         models = models,
         aiSettings = aiSettings,
         onAddAgent = onAddAgent,
@@ -2868,7 +2894,7 @@ private fun FindIconsPickerRouter(
         onAddAllModels = onAddAllModels,
         onRemoveModel = onRemoveModel,
         onClearAll = onClearAll,
-        onFindIcons = {
+        onAction = {
             when {
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models)

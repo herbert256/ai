@@ -21,15 +21,16 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.IconCandidate
 
-/** Picker screen reached from `ReportIconDetailScreen` → "Find
- *  alternative icons". Mirrors the +Agent / +Flock / +Swarm /
- *  +Report / +Model chip row used by the New-Report SelectionPhase
- *  so the user gets the same affordances, but strips the Params /
- *  Sys-prompt / Knowledge rows — none of those apply to a one-shot
- *  icon prompt. Tapping the green action button kicks off
- *  [com.ai.viewmodel.ReportViewModel.startIconFanOut]. */
+/** Multi-model accumulator with the +Agent / +Flock / +Swarm /
+ *  +Report / +Model chip row used by the New-Report SelectionPhase,
+ *  but stripped of the Params / Sys-prompt / Knowledge rows. Shared
+ *  by the "Find alternative icons" flow (reached from
+ *  `ReportIconDetailScreen`) and the Translate flow — the title,
+ *  action-button label / colour and help topic are parameterised so
+ *  each caller reads correctly. The +chip callbacks and the action
+ *  button are wired by the caller. */
 @Composable
-fun FindIconsSelectionScreen(
+fun ModelSelectionScreen(
     models: List<ReportModel>,
     aiSettings: Settings,
     onAddAgent: () -> Unit,
@@ -39,14 +40,19 @@ fun FindIconsSelectionScreen(
     onAddAllModels: () -> Unit,
     onRemoveModel: (Int) -> Unit,
     onClearAll: () -> Unit,
-    onFindIcons: () -> Unit,
-    onBack: () -> Unit
+    onAction: () -> Unit,
+    onBack: () -> Unit,
+    title: String = "Find icons",
+    subject: String? = null,
+    actionLabel: String = "Find Icons",
+    actionColor: Color = AppColors.Purple,
+    helpTopic: String = "find_icons_selection"
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-        TitleBar(helpTopic = "find_icons_selection", title = "Find icons", onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
 
         // +Add chip row — same layout as SelectionPhase but fewer
@@ -138,11 +144,11 @@ fun FindIconsSelectionScreen(
                 ) { androidx.compose.material3.Text("Clear", maxLines = 1, softWrap = false) }
             }
             Button(
-                onClick = onFindIcons,
+                onClick = onAction,
                 enabled = models.isNotEmpty(),
                 modifier = Modifier.weight(2f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { androidx.compose.material3.Text("Find Icons", maxLines = 1, softWrap = false) }
+                colors = ButtonDefaults.buttonColors(containerColor = actionColor)
+            ) { androidx.compose.material3.Text(actionLabel, maxLines = 1, softWrap = false) }
         }
     }
 }
