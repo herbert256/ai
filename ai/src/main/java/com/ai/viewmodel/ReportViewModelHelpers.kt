@@ -105,6 +105,15 @@ internal fun <T> interleaveByHost(items: List<T>, hostKey: (T) -> String?): List
     return result
 }
 
+/** Per-host FIFO gate guarding the [acquireOrRequeue] poll loop.
+ *  `kotlinx.coroutines.sync.Mutex` hands the lock to waiters in
+ *  arrival order, so when two big runs (e.g. a translation run and a
+ *  fan-icon run) hammer the same provider hosts, their workers
+ *  acquire the host in turn instead of one run's flood perpetually
+ *  jumping the other's poll-race. */
+private val hostAcquireFairness =
+    java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
+
 /** Non-blocking replacement for [com.ai.data.ProviderThrottle.acquire]
  *  in the list dispatchers (Fan Out / translation / model reports).
  *  Polls [com.ai.data.ProviderThrottle.tryAcquire]; when the host's
@@ -113,9 +122,15 @@ internal fun <T> interleaveByHost(items: List<T>, hostKey: (T) -> String?): List
  *  `availableAtMs` the throttle reported, then re-checks. The
  *  suspension frees the worker thread so every other ready entry
  *  proceeds — the capped entry effectively waits its turn at the
- *  back of the line. The loop sits exactly at the queued → running
- *  transition: it only returns (letting the entry flip to RUNNING)
- *  once the host has a slot.
+ *  back of the line.
+ *
+ *  The whole poll loop runs under a per-host FIFO [Mutex] so callers
+ *  acquire the host in arrival order — without it, a big run
+ *  flooding a host (its workers re-polling continuously) can starve
+ *  another run's workers for minutes, since every [tryAcquire] is a
+ *  fresh race with no queue. The mutex only serialises the *attempt*;
+ *  a worker that gets a slot releases the lock immediately, so the
+ *  host's concurrency cap is still fully used.
  *
  *  [onThrottled] / [onCleared] let a dispatcher mirror the wait into
  *  its existing throttled-tracking StateFlow; both default to no-ops
@@ -126,19 +141,29 @@ internal suspend fun acquireOrRequeue(
     onThrottled: (availableAtMs: Long) -> Unit = {},
     onCleared: () -> Unit = {}
 ): com.ai.data.ProviderThrottle.Releaser {
-    while (true) {
-        when (val o = com.ai.data.ProviderThrottle.tryAcquire(host)) {
-            is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
-                onCleared()
-                return o.releaser
-            }
-            is com.ai.data.ProviderThrottle.Outcome.Blocked -> {
-                onThrottled(o.availableAtMs)
-                kotlinx.coroutines.delay(
-                    (o.availableAtMs - System.currentTimeMillis()).coerceIn(100L, 10_000L)
-                )
+    val gate = hostAcquireFairness.computeIfAbsent(host) { kotlinx.coroutines.sync.Mutex() }
+    var throttledNotified = false
+    gate.lock()
+    try {
+        while (true) {
+            when (val o = com.ai.data.ProviderThrottle.tryAcquire(host)) {
+                is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
+                    if (throttledNotified) onCleared()
+                    return o.releaser
+                }
+                is com.ai.data.ProviderThrottle.Outcome.Blocked -> {
+                    if (!throttledNotified) {
+                        onThrottled(o.availableAtMs)
+                        throttledNotified = true
+                    }
+                    kotlinx.coroutines.delay(
+                        (o.availableAtMs - System.currentTimeMillis()).coerceIn(100L, 10_000L)
+                    )
+                }
             }
         }
+    } finally {
+        gate.unlock()
     }
 }
 
