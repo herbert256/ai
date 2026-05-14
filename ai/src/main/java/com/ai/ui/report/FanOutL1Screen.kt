@@ -154,9 +154,9 @@ internal fun FanOutL1Screen(
                 add(Triple("Total", run.totalPairs.toString(), AppColors.Blue))
                 add(Triple("Done", doneCount.toString(), AppColors.Green))
                 add(Triple("Errors", errorCount.toString(), AppColors.Red))
-                add(Triple("Running", runningCount.toString(), AppColors.Orange))
+                add(Triple("Run", runningCount.toString(), AppColors.Orange))
                 add(Triple("Throttled", throttledHere.toString(), AppColors.Yellow))
-                add(Triple("Queued", queuedCount.toString(), AppColors.Brown))
+                add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
                 add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.Blue))
             }
             Row(modifier = Modifier.fillMaxWidth()) {
