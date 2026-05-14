@@ -731,6 +731,23 @@ object ReportStorage {
         }
     }
 
+    /** Drop every fan-out icon-chain [IconCallRecord] from the
+     *  report's iconCalls audit log — the records whose agentId is a
+     *  fan-out pair id (in [pairIds], since fan-out tier calls record
+     *  the pair's UUID as agentId). Used when the user deletes a
+     *  fan-out's icons without deleting the fan-out itself. */
+    fun removeFanOutIconCalls(context: Context, reportId: String, pairIds: Set<String>): Boolean {
+        init(context)
+        if (pairIds.isEmpty()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newCalls = report.iconCalls.filterNot { it.agentId in pairIds }.toMutableList()
+            if (newCalls.size == report.iconCalls.size) return@withLock false
+            saveReport(report.copy(iconCalls = newCalls, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     /** Per-agent counterpart of [clearAllReportAgentIcons]: wipes
      *  ONE agent's icon fields and removes its entries from the
      *  report's iconCalls audit log. Called at the top of the

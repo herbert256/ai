@@ -696,6 +696,30 @@ class FanOutEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
 
+    /** Clear the fan-icons for this run — wipes each pair's icon /
+     *  tier / error / token / cost fields and drops the fan-out
+     *  entries from the report's iconCalls audit log, leaving the
+     *  fan-out pairs (and their main responses) intact. Backs the
+     *  ICONS-mode 🗑 button, where the user wants only the icons
+     *  gone, not the fan-out. */
+    fun clearFanIcons(context: Context, runKey: FanOutRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            // Stop any in-flight fan-icons batch first so a tier call
+            // mid-flight doesn't write an icon back onto a row we're
+            // about to clear.
+            reportViewModel.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)
+            val pairIds = run.pairs.values.map { it.id }.toSet()
+            run.pairs.values.forEach { pair ->
+                SecondaryResultStorage.clearFanOutIconState(context, run.reportId, pair.id)
+            }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+            // Re-hydrate so the engine's in-memory pairs lose their
+            // icons too — unlike deleteRun, the run itself stays.
+            hydrate(context, run.reportId)
+        }
+
     /** Drop every pair where the given (provider, model) is the
      *  answerer OR the source. Cancels per-pair coroutines first
      *  so no zombie writes land after the delete. */

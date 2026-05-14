@@ -438,6 +438,11 @@ internal fun SecondaryResultsScreen(
                     // linger half-deleted on the report screen.
                     fanOutEngine.deleteRun(context, rk)
                 },
+                onClearFanIcons = { rk ->
+                    // ICONS-mode 🗑 — clears the fan-icons only, keeps
+                    // the fan-out. Job awaited behind the same popup.
+                    fanOutEngine.clearFanIcons(context, rk)
+                },
                 onRerunComplete = { rk ->
                     fanOutEngine.rerunComplete(context, rk)
                     refreshTick++

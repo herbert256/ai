@@ -25,12 +25,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import com.ai.data.ApiCallCaps
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -399,7 +396,7 @@ internal fun FanOutL1Screen(
                 val stats = buildList {
                     add(Triple("Total", run.totalPairs, AppColors.Blue))
                     add(Triple("Done", doneCount, AppColors.Green))
-                    add(Triple("Errored", errorCount, if (errorCount > 0) AppColors.Red else AppColors.TextTertiary))
+                    add(Triple("Errors", errorCount, AppColors.Red))
                     add(Triple("Running", runningCount, AppColors.Orange))
                     add(Triple("Throttled", throttledHere, if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
                     add(Triple("Queued", queuedCount, AppColors.TextTertiary))
@@ -426,34 +423,6 @@ internal fun FanOutL1Screen(
                         fontSize = 11.sp, color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace
                     )
                 }
-            }
-
-            // Live caps panel — polls ApiCallCaps.snapshot() every
-            // 500 ms and renders global / fan-out (or fan-icons in
-            // ICONS mode) in-flight counts. Tells the user at a
-            // glance whether the run is gated on a cap.
-            val capsSnapshot by produceState(initialValue = ApiCallCaps.snapshot()) {
-                while (true) {
-                    value = ApiCallCaps.snapshot()
-                    delay(500)
-                }
-            }
-            val g = capsSnapshot
-            Spacer(modifier = Modifier.height(4.dp))
-            Row {
-                Text(
-                    "Caps", fontSize = 11.sp, color = AppColors.TextTertiary,
-                    modifier = Modifier.weight(1f)
-                )
-                val capsLine = if (isIconsMode)
-                    "global ${g.globalInFlight}/${g.globalMax} · fan-icons ${g.fanIconsInFlight}/${g.fanIconsMax}"
-                else
-                    "global ${g.globalInFlight}/${g.globalMax} · fan-out ${g.fanOutInFlight}/${g.fanOutMax}"
-                Text(
-                    capsLine,
-                    fontSize = 11.sp, color = AppColors.TextTertiary,
-                    fontFamily = FontFamily.Monospace
-                )
             }
         }
 
@@ -491,21 +460,27 @@ internal fun FanOutL1Screen(
         val totalRows = run.totalPairs + run.combinedReports.size
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete fan-out run?") },
+            // ICONS mode wipes only the fan-icons; MAIN mode deletes
+            // the whole fan-out run (which takes its icons with it).
+            title = { Text(if (isIconsMode) "Delete fan-icons?" else "Delete fan-out run?") },
             text = {
-                val suffix = if (run.combinedReports.isNotEmpty()) " plus the combined-report follow-up" else ""
-                Text("Drop every per-pair response for this fan-out run$suffix — $totalRows rows. Can't be undone.")
+                if (isIconsMode) {
+                    Text("Drop every emoji and icon-chain cost for this run's ${run.totalPairs} pair${if (run.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
+                } else {
+                    val suffix = if (run.combinedReports.isNotEmpty()) " plus the combined-report follow-up" else ""
+                    Text("Drop every per-pair response for this fan-out run$suffix — $totalRows rows. Can't be undone.")
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     deleting = true
-                    // Await the delete Job before navigating — a big
-                    // run's disk deletes take a moment, and leaving
-                    // early would show a half-deleted row on the
-                    // report screen.
+                    // Await the Job before navigating — a big run's
+                    // disk work takes a moment, and leaving early
+                    // would show a half-done row on the report screen.
                     scope.launch {
-                        actions.onDeleteRun(run.key)?.join()
+                        (if (isIconsMode) actions.onClearFanIcons(run.key)
+                         else actions.onDeleteRun(run.key))?.join()
                         deleting = false
                         onBack()
                     }
@@ -523,12 +498,16 @@ internal fun FanOutL1Screen(
     if (deleting) {
         AlertDialog(
             onDismissRequest = { },
-            title = { Text("Deleting Fan Out") },
+            title = { Text(if (isIconsMode) "Deleting Fan Icons" else "Deleting Fan Out") },
             text = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AnimatedHourglass(fontSize = 18.sp)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Removing every row — this can take a moment.", fontSize = 13.sp)
+                    Text(
+                        if (isIconsMode) "Clearing the icons — this can take a moment."
+                        else "Removing every row — this can take a moment.",
+                        fontSize = 13.sp
+                    )
                 }
             },
             confirmButton = { }

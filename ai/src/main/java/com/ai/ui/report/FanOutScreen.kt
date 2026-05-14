@@ -95,6 +95,11 @@ data class FanOutActions(
     /** Returns the delete Job so the caller can show a "Deleting…"
      *  popup and only navigate back once the run is really gone. */
     val onDeleteRun: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
+    /** ICONS-mode 🗑 — clears just the fan-icons (each pair's icon
+     *  state + the fan-out iconCalls audit rows), keeping the
+     *  fan-out itself. Returns the Job for the same "Deleting…"
+     *  popup treatment as [onDeleteRun]. */
+    val onClearFanIcons: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
     val onRerunComplete: (FanOutRunKey) -> Unit = {},
     val onRemoveFailedPairs: (FanOutRunKey) -> Unit = {},
     val onRestartFailedPairs: (FanOutRunKey) -> Unit = {},
