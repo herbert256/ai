@@ -915,6 +915,10 @@ internal fun ColumnScope.GenerationPhase(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
+                        if (run.iconCost > 0.0) {
+                            Text(formatCents(run.iconCost), fontSize = 10.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                        }
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
@@ -1317,6 +1321,10 @@ internal data class FanOutRunSummary(
     /** Pairs that have a fan-out icon (emoji landed) or an icon-chain
      *  error. > 0 surfaces a sibling "fan-icons" row in the list. */
     val iconCount: Int,
+    /** Summed icon-chain (tier 1/2/3) call cost across the run's
+     *  pairs — rendered on the sibling "fan-icons" row. Separate from
+     *  [totalCost], which covers only the fan-out pair calls. */
+    val iconCost: Double,
     val totalCost: Double,
     /** Latest timestamp across the run; used to sort against the other
      *  meta rows. */
@@ -1349,6 +1357,7 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                 iconCount = items.count {
                     !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank()
                 },
+                iconCost = items.sumOf { it.iconInputCost + it.iconOutputCost },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
                 timestamp = items.maxOf { it.timestamp }
             )
