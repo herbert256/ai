@@ -108,7 +108,11 @@ internal fun FanOutL3Screen(
 
     if (pair == null) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "secondary_fan_out_l3", title = "Fan out - pair", onBackClick = onBack)
+            TitleBar(
+                helpTopic = "secondary_fan_out_l3",
+                title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
+                onBackClick = onBack
+            )
             Text("Pair no longer exists.", color = AppColors.TextTertiary)
         }
         return

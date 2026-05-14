@@ -185,7 +185,11 @@ fun FanOutScreen(
         // (run launched ms ago). Show a minimal title bar so back
         // works, then a "loading" sentinel.
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "secondary_fan_out_l1", title = "Fan out", onBackClick = onBack)
+            TitleBar(
+                helpTopic = "secondary_fan_out_l1",
+                title = if (mode == FanOutMode.ICONS) "Fan icons" else "Fan out",
+                onBackClick = onBack
+            )
             Text("Loading…", color = AppColors.TextTertiary)
         }
         return
