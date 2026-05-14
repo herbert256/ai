@@ -272,19 +272,10 @@ internal fun ColumnScope.GenerationPhase(
             .mapNotNull { it.metaPromptName }
             .distinct()
             .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
-        // Fan-icons: one item per fan-out prompt name whose pairs
-        // have at least one emoji or icon-chain error attached.
-        // Routes via onViewFanIcons which opens the SAME pair
-        // drill-in but flagged for ICONS-mode rendering.
-        val fanIcons = secondaryRuns
-            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
-            .groupBy { it.metaPromptName ?: "" }
-            .filter { (name, rows) ->
-                name.isNotEmpty() && rows.any {
-                    !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank()
-                }
-            }
-            .map { (name, _) -> EveryItem(name) { onViewFanIcons(name) } }
+        // (Fan-icons are surfaced as a sibling list row off each
+        //  fanOutSummary — see the items(fanOutSummaries) block —
+        //  not as a View-row group, since the fan-out pair rows that
+        //  carry the icons never enter `secondaryRuns`.)
         // Translate: one item per translationRunId.
         val translate = secondaryRuns
             .filter { it.kind == SecondaryKind.TRANSLATE }
@@ -298,7 +289,6 @@ internal fun ColumnScope.GenerationPhase(
             "meta" to meta,
             "rerank" to rerank,
             "fan_out" to fanOut,
-            "fan-icons" to fanIcons,
             "fan_in" to fanIn,
             "fan-in-model" to fanInModel,
             "translate" to translate
@@ -402,9 +392,6 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 if (everyItems["fan_out"].orEmpty().isNotEmpty()) {
                     CompactButton(onClick = { onEveryClick("fan_out") }, color = viewColor, text = "Fan-out")
-                }
-                if (everyItems["fan-icons"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("fan-icons") }, color = viewColor, text = "Fan-icons")
                 }
                 if (everyItems["fan_in"].orEmpty().isNotEmpty()) {
                     CompactButton(onClick = { onEveryClick("fan_in") }, color = viewColor, text = "Fan-in")
@@ -907,6 +894,30 @@ internal fun ColumnScope.GenerationPhase(
                     // the trace files through their own title bars.
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+
+                // Sibling "fan-icons" row — shown once a Find Icons
+                // batch has landed at least one emoji / icon error on
+                // this run's pairs. Tap opens the same pair drill-in
+                // in ICONS mode.
+                if (run.iconCount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                            onViewFanIcons(run.metaPromptName)
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🎨", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        RowTypeCell("fan-icons")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${run.metaPromptName} · ${run.iconCount} icon${if (run.iconCount == 1) "" else "s"}",
+                                fontSize = 13.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
             }
         }
 
@@ -1303,6 +1314,9 @@ internal data class FanOutRunSummary(
      *  the spinner spinning on the summary row. */
     val pendingCount: Int,
     val errorCount: Int,
+    /** Pairs that have a fan-out icon (emoji landed) or an icon-chain
+     *  error. > 0 surfaces a sibling "fan-icons" row in the list. */
+    val iconCount: Int,
     val totalCost: Double,
     /** Latest timestamp across the run; used to sort against the other
      *  meta rows. */
@@ -1332,6 +1346,9 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                 pairCount = items.size,
                 pendingCount = pending,
                 errorCount = items.count { it.errorMessage != null },
+                iconCount = items.count {
+                    !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank()
+                },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
                 timestamp = items.maxOf { it.timestamp }
             )
