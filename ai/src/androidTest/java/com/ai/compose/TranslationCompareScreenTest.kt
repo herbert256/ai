@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.report.TranslationCompareScreen
+import com.ai.util.WithBottomBar
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
@@ -46,7 +47,7 @@ class TranslationCompareScreenTest {
     @Test fun back_button_invokes_callback() {
         val backClicks = mutableIntStateOf(0)
         rule.setContent {
-            MaterialTheme {
+            WithBottomBar {
                 TranslationCompareScreen(
                     title = "Translation info",
                     originalLabel = "O", originalContent = "x",
@@ -56,7 +57,7 @@ class TranslationCompareScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("< Back").performClick()
+        rule.onNodeWithText("←").performClick()
         assertThat(backClicks.intValue).isEqualTo(1)
     }
 

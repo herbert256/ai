@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.shared.TitleBar
+import com.ai.util.WithBottomBar
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
@@ -35,16 +36,16 @@ class TitleBarTest {
     @Test fun back_button_invokes_onBackClick() {
         val backClicks = mutableIntStateOf(0)
         rule.setContent {
-            MaterialTheme {
+            WithBottomBar {
                 TitleBar(
                     title = "Title",
                     onBackClick = { backClicks.intValue++ }
                 )
             }
         }
-        // The shared TitleBar's back affordance is rendered as
-        // "< Back" (see ui/shared/SharedComponents.kt:53,79).
-        rule.onNodeWithText("< Back").performClick()
+        // TitleBar publishes onBack into LocalBottomIconState; the
+        // global BottomIconBar paints it as the "←" arrow.
+        rule.onNodeWithText("←").performClick()
         assertThat(backClicks.intValue).isEqualTo(1)
     }
 }

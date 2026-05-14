@@ -29,7 +29,7 @@ class HousekeepingScreenTest {
         rule.onNodeWithText("Export & Import").assertIsDisplayed()
         rule.onNodeWithText("Refresh").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Trim by age").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Usage statistics").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Application log").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Reset").performScrollTo().assertIsDisplayed()
     }
 }

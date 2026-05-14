@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.hub.ReportsHubScreen
+import com.ai.util.WithBottomBar
 import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
@@ -39,7 +40,7 @@ class ReportsHubScreenTest {
         rule.onNodeWithText("AI Reports").assertIsDisplayed()
         rule.onNodeWithText("New AI Report").assertIsDisplayed()
         rule.onNodeWithText("Start with a previous prompt").assertIsDisplayed()
-        rule.onNodeWithText("View previous reports").assertIsDisplayed()
+        rule.onNodeWithText("Quick local search").assertIsDisplayed()
         rule.onNodeWithText("Remote semantic search").assertIsDisplayed()
     }
 
@@ -65,7 +66,7 @@ class ReportsHubScreenTest {
     @Test fun back_button_invokes_onNavigateBack() {
         val back = mutableIntStateOf(0)
         rule.setContent {
-            MaterialTheme {
+            WithBottomBar {
                 ReportsHubScreen(
                     onNavigateBack = { back.intValue++ },
                     onNavigateHome = {},
@@ -78,7 +79,7 @@ class ReportsHubScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("< Back").performClick()
+        rule.onNodeWithText("←").performClick()
         assertThat(back.intValue).isEqualTo(1)
     }
 }
