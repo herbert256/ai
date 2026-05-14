@@ -4910,13 +4910,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         item: TranslationItem,
         pricing: PricingCache.ModelPricing
     ) {
-        // Google model benched on a >1h 429 by an earlier call —
-        // drop the item from the run instead of running it.
+        // Model benched on a >1h 429 by an earlier call — mark the
+        // item ERROR (not removed) so the run's total stays stable,
+        // the row is visible, and "Restart failed" can re-run it once
+        // the bench lifts. Skips the doomed call but still persists.
         if (isBenched(provider, model)) {
-            AppLog.w("Translation", "skip benched ${provider.id}/$model — removing item ${item.id}")
+            AppLog.w("Translation", "skip benched ${provider.id}/$model — marking item ${item.id} failed")
             _translationRuns.update { runs ->
                 val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(items = cur.items.filterNot { it.id == item.id }))
+                runs + (runId to cur.copy(items = cur.items.map {
+                    if (it.id == item.id) it.copy(
+                        status = TranslationStatus.ERROR,
+                        errorMessage = "${provider.id}/$model is rate-limited (benched) — skipped"
+                    ) else it
+                }))
+            }
+            val freshRun = _translationRuns.value[runId]
+            val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+            if (freshRun != null && freshItem != null) {
+                saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
             }
             return
         }
@@ -4946,16 +4958,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val callDurationMs = System.currentTimeMillis() - callStart
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
-        // The interceptor just benched this Google model on a >1h
-        // 429 — drop the item from the run instead of an ERROR row.
-        if (!response.isSuccess && isBenched(provider, model)) {
-            AppLog.w("Translation", "← benched ${provider.id}/$model — removing item ${item.id}")
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(items = cur.items.filterNot { it.id == item.id }))
-            }
-            return
-        }
+        // A benched-on-this-call failure (>1h 429) is no longer
+        // special-cased — it flows through the normal ERROR path
+        // below so the item stays in the run, visible and
+        // restartable, instead of silently dropping out.
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             val updated = cur.items.map {
