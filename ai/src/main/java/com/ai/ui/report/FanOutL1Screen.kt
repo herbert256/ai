@@ -313,9 +313,14 @@ internal fun FanOutL1Screen(
                         err > 0 -> "❌"
                         else -> "🕓"
                     }
+                    // No explicit background on the status glyph — the
+                    // row's drawBehind progress fill already paints it
+                    // (the icon sits at x=0). A second .background here
+                    // doubled the green so the icon read darker than
+                    // the progress bar.
                     if (icon == "⏳") {
                         Box(
-                            Modifier.width(20.dp).background(progressColor),
+                            Modifier.width(20.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             AnimatedHourglass(fontSize = 16.sp)
@@ -323,7 +328,7 @@ internal fun FanOutL1Screen(
                     } else {
                         Text(
                             icon, fontSize = 16.sp,
-                            modifier = Modifier.width(20.dp).background(progressColor)
+                            modifier = Modifier.width(20.dp)
                         )
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {

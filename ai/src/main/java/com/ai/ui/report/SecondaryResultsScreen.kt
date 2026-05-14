@@ -314,8 +314,13 @@ internal fun SecondaryResultsScreen(
     // menu bar; L3: "Fan out level 3"). The parent TitleBar is
     // suppressed in that case so we don't render two stacked headers.
     val fanOutRowsAll = filteredResults.filter { it.fanInOf == null }
+    // A non-null fanOutPrompt means the route targets a specific
+    // fan_out prompt by name — that's a definitive "this is the
+    // fan-out drill-in" signal, true even before the run's first
+    // placeholder rows land on disk (so a just-started Fan Out opens
+    // straight onto the FanOutScreen instead of the meta picker).
     val isFanOutDrillIn = kind == SecondaryKind.META &&
-        fanOutRowsAll.any { it.fanOutSourceAgentId != null }
+        (fanOutPrompt != null || fanOutRowsAll.any { it.fanOutSourceAgentId != null })
     // META rows surface inside MetaResultsPickerView (the picker
     // buttons + inline body). Hoist the selected-id state up here so
     // the parent's TitleBar can offer the trace icon for the
