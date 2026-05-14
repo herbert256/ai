@@ -414,8 +414,11 @@ internal fun SecondaryResultsScreen(
             }
             val actions = FanOutActions(
                 onDeleteRun = { rk ->
+                    // Return the Job — FanOutL1Screen awaits it behind a
+                    // "Deleting Fan Out" popup, then navigates back. No
+                    // premature refreshTick: the row would otherwise
+                    // linger half-deleted on the report screen.
                     fanOutEngine.deleteRun(context, rk)
-                    refreshTick++
                 },
                 onRerunComplete = { rk ->
                     fanOutEngine.rerunComplete(context, rk)

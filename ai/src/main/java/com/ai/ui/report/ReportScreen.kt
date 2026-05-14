@@ -3283,7 +3283,10 @@ private fun SecondaryResultsListMount(
             onBulkDelete = { ids ->
                 onBulkDeleteSecondaries(rid, ids) { onSecondaryRefresh() }
             },
-            onBack = { onCloseList() },
+            // Re-scan secondaries on the way out so a fan-out just
+            // deleted from L1 is gone from the report list, not
+            // lingering until the next poll tick.
+            onBack = { onSecondaryRefresh(); onCloseList() },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,

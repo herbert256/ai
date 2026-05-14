@@ -92,7 +92,9 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
  * TranslationLifecycleCallbacks pattern.
  */
 data class FanOutActions(
-    val onDeleteRun: (FanOutRunKey) -> Unit = {},
+    /** Returns the delete Job so the caller can show a "Deleting…"
+     *  popup and only navigate back once the run is really gone. */
+    val onDeleteRun: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
     val onRerunComplete: (FanOutRunKey) -> Unit = {},
     val onRemoveFailedPairs: (FanOutRunKey) -> Unit = {},
     val onRestartFailedPairs: (FanOutRunKey) -> Unit = {},

@@ -28,9 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.ai.data.ApiCallCaps
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -80,6 +82,11 @@ internal fun FanOutL1Screen(
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
+    // True while a delete-run is in flight — drives the blocking
+    // "Deleting Fan Out" popup so the screen stays put until the
+    // run is really gone, then navigates back.
+    var deleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
@@ -486,13 +493,39 @@ internal fun FanOutL1Screen(
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    actions.onDeleteRun(run.key)
-                    onBack()
+                    deleting = true
+                    // Await the delete Job before navigating — a big
+                    // run's disk deletes take a moment, and leaving
+                    // early would show a half-deleted row on the
+                    // report screen.
+                    scope.launch {
+                        actions.onDeleteRun(run.key)?.join()
+                        deleting = false
+                        onBack()
+                    }
                 }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
+        )
+    }
+
+    // Blocking progress popup shown while the run is being deleted.
+    // Not dismissable (onDismissRequest is a no-op, no buttons) so
+    // the user can't navigate away mid-delete.
+    if (deleting) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Deleting Fan Out") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnimatedHourglass(fontSize = 18.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Removing every row — this can take a moment.", fontSize = 13.sp)
+                }
+            },
+            confirmButton = { }
         )
     }
 
