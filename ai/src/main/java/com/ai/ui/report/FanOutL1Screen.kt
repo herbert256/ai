@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.FanOutRunKey
 import com.ai.data.FanOutRunState
+import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.effectiveStatus
 import com.ai.data.iconStatus
@@ -96,6 +97,13 @@ internal fun FanOutL1Screen(
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
     val isIconsMode = mode == FanOutMode.ICONS
 
+    // Per-pair cost for the active mode only: MAIN counts the
+    // fan-out response call, ICONS the icon-chain spend. (PairState
+    // .totalCost lumps both, so it can't be used as-is here.)
+    fun pairCost(p: PairState): Double = if (isIconsMode)
+        p.iconInputCost + p.iconOutputCost
+    else (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0)
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
@@ -149,7 +157,7 @@ internal fun FanOutL1Screen(
                 add(Triple("Running", runningCount.toString(), AppColors.Orange))
                 add(Triple("Throttled", throttledHere.toString(), if (throttledHere > 0) AppColors.Purple else AppColors.TextTertiary))
                 add(Triple("Queued", queuedCount.toString(), AppColors.TextTertiary))
-                add(Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.Blue))
+                add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.Blue))
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -344,7 +352,7 @@ internal fun FanOutL1Screen(
                     pairs.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
                     else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
                 val total = pairs.size
-                val cost = pairs.sumOf { it.totalCost }
+                val cost = pairs.sumOf { pairCost(it) }
                 val progressFraction = if (total > 0) ok / total.toFloat() else 0f
                 val progressColor = AppColors.Green.copy(alpha = 0.30f)
                 Row(
