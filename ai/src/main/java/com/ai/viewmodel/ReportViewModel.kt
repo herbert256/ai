@@ -1822,9 +1822,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPromptText: String, pairContent: String,
         aiSettings: Settings
     ): String? {
-        val host = providerHost(provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
+        // ProviderThrottle for this pair's host is already held by
+        // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
+        // non-reentrant per-host semaphore here deadlocked the batch.
+        // permitPreAcquired is inherited from the batch's context.
+        return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                 withTracerTags(reportId = reportId, category = "Fan-out icons tier 1 (chat)") {
                     val started = System.currentTimeMillis()
@@ -1859,8 +1861,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                 }
             }
-        } finally {
-            releaser.release()
         }
     }
 
@@ -1871,9 +1871,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPromptText: String, pairContent: String,
         aiSettings: Settings
     ): String? {
-        val host = providerHost(provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
+        // ProviderThrottle for this pair's host is already held by
+        // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
+        // non-reentrant per-host semaphore here deadlocked the batch.
+        // permitPreAcquired is inherited from the batch's context.
+        return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                 withTracerTags(reportId = reportId, category = "Fan-out icons tier 2 (one-shot)") {
                     val started = System.currentTimeMillis()
@@ -1913,8 +1915,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                 }
             }
-        } finally {
-            releaser.release()
         }
     }
 
@@ -1933,9 +1933,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
-        val host = providerHost(effectiveAgent.provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
+        // ProviderThrottle is already held by runFanIconsBatch
+        // (acquireOrRequeue) for this pair — re-acquiring the
+        // non-reentrant per-host semaphore here deadlocked the batch.
+        // permitPreAcquired is inherited from the batch's context.
+        return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                 withTracerTags(reportId = reportId, category = "Fan-out icons tier 3 (fixed agent)") {
                     val started = System.currentTimeMillis()
@@ -1967,8 +1969,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                 }
             }
-        } finally {
-            releaser.release()
         }
     }
 
