@@ -215,9 +215,37 @@ internal fun FanOutL1Screen(
         // Per-model row list. Grouped by (provider, model) so multi-
         // agent swarm members render as one row; per-row stats are
         // derived directly from the run's pairs map.
+        // Row order: Running / Queued first, then Errored, then
+        // Done at the bottom — each group sorted by model name.
+        // Re-derives on every runningSet change so a row sinks the
+        // moment its last pair lands.
         val answererKeys = run.answererKeys
+        val sortedKeys = remember(run, runningSet, isIconsMode) {
+            answererKeys.sortedWith(
+                compareBy(
+                    { ak ->
+                        val pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak }
+                        val total = pairs.size
+                        val ok = if (isIconsMode) pairs.count { !it.icon.isNullOrBlank() }
+                            else pairs.count { it.status == PairStatus.DONE }
+                        val err = if (isIconsMode) pairs.count { !it.iconErrorMessage.isNullOrBlank() }
+                            else pairs.count { it.status == PairStatus.ERROR }
+                        val running = if (isIconsMode) pairs.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
+                            else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
+                        when {
+                            running > 0 -> 0
+                            total == 0 -> 0
+                            ok == total -> 2
+                            err > 0 -> 1
+                            else -> 0
+                        }
+                    },
+                    { ak -> resolveModelLabel(ak).lowercase() }
+                )
+            )
+        }
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(answererKeys, key = { it }) { ak ->
+            items(sortedKeys, key = { it }) { ak ->
                 val pairs = run.pairs.values.filter {
                     "${it.providerId}|${it.model}" == ak
                 }

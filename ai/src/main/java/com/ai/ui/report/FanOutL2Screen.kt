@@ -99,7 +99,8 @@ internal fun FanOutL2Screen(
     // matching the source's (provider, model) — that requires
     // engine.runs's hydration to have populated answererAgentId
     // for every pair.)
-    val rows: List<PairState> = remember(run, role, answererKey) {
+    val isIconsMode = mode == FanOutMode.ICONS
+    val rawRows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
                 // We treat any pair whose source agent shares the
@@ -119,7 +120,7 @@ internal fun FanOutL2Screen(
         }.sortedBy { it.timestamp }
     }
 
-    val erroredHere = rows.count { it.status == PairStatus.ERROR }
+    val erroredHere = rawRows.count { it.status == PairStatus.ERROR }
 
     // Load report lazily so source agent ids can resolve to model
     // labels in the row list (mirrors the L1 "provider / model"
@@ -133,7 +134,32 @@ internal fun FanOutL2Screen(
             ?: emptyMap()
     }
 
-    val isIconsMode = mode == FanOutMode.ICONS
+    // Display order: Running / Queued first, then Errored, then
+    // Done at the bottom — each group sorted by the row's model
+    // name. The label is role-dependent (source label in
+    // Responder mode, answerer's provider/model in Initiator
+    // mode), so the sort re-derives once the report's agent
+    // labels load.
+    fun rowLabel(p: PairState): String = if (role == "Responder") {
+        agentLabels[p.sourceAgentId] ?: p.sourceAgentId
+    } else {
+        resolveModelLabel("${p.providerId}|${p.model}")
+    }
+    val rows: List<PairState> = remember(rawRows, runningSet, isIconsMode, agentLabels, role) {
+        rawRows.sortedWith(
+            compareBy(
+                { p ->
+                    when (if (isIconsMode) p.iconStatus(runningSet) else p.effectiveStatus(runningSet)) {
+                        PairStatus.RUNNING, PairStatus.PENDING -> 0
+                        PairStatus.ERROR -> 1
+                        PairStatus.DONE -> 2
+                    }
+                },
+                { p -> rowLabel(p).lowercase() }
+            )
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
