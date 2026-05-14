@@ -238,11 +238,11 @@ internal fun FanOutL1Screen(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                    ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
                         modifier = Modifier.weight(1f)
-                    ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
                 if (mainBenched > 0) {
                     Button(
