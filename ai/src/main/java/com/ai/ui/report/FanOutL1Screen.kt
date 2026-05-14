@@ -136,10 +136,14 @@ internal fun FanOutL1Screen(
         val runningCount = if (isIconsMode)
             run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }
             else run.effectiveRunningCount(runningSet)
-        val queuedCount = if (isIconsMode)
-            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING }
-            else run.effectiveQueuedCount(runningSet)
         val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
+        // Queue excludes pairs that are actively blocked on a host
+        // rate-limit cap — those are reported in the Throttled column
+        // instead, so the two columns don't double-count the same
+        // pair (a throttled pair is still PENDING by status).
+        val queuedCount = if (isIconsMode)
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.PENDING && it.id !in throttledSet }
+            else run.pairs.values.count { it.effectiveStatus(runningSet) == PairStatus.PENDING && it.id !in throttledSet }
         // Whole run finished cleanly — every row would otherwise show
         // ✅ on a full green fill. Drop both per row so a completed
         // run reads calmly instead of as a wall of check marks.
