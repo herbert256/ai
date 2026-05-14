@@ -282,7 +282,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             appViewModel.updateUiState { it.copy(
                 showGenericAgentSelection = false, showGenericReportsDialog = true,
                 genericReportsProgress = 0, genericReportsTotal = reportTasks.size,
-                genericReportsSelectedAgents = selectedAgentIds + allModelIds,
+                // Drive the result-row list off the ACTUAL dispatched
+                // tasks, not the raw picker selection — buildReportTasks
+                // deduped cross-source provider:model collisions, so
+                // `selectedAgentIds + allModelIds` would leave the
+                // deduped-away ids stranded as permanently-PENDING rows.
+                genericReportsSelectedAgents = reportTasks.map { it.resultId }.toSet(),
                 currentReportId = null
             ) }
 
@@ -2098,7 +2103,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             if (!isRegeneration) {
                 appViewModel.updateUiState { state ->
-                    state.copy(genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0))
+                    state.copy(
+                        genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
+                        // Drop it from the result-row list too — otherwise
+                        // the removed agent lingers as a permanently-PENDING row.
+                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - task.resultId
+                    )
                 }
             }
             return
@@ -2168,7 +2178,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (benched) {
             if (!isRegeneration) {
                 appViewModel.updateUiState { state ->
-                    state.copy(genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0))
+                    state.copy(
+                        genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
+                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - task.resultId
+                    )
                 }
             }
             AppLog.w("Report", "← benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} removed from run")
