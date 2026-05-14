@@ -969,17 +969,22 @@ class RateLimitRetryInterceptor : Interceptor {
             // Bail if the caller already cancelled the call — no point
             // sleeping if the response will be discarded anyway.
             if (chain.call().isCanceled()) return current
+            // Honour the server's Retry-After header when present —
+            // matches the RFC and avoids retrying into the same rate
+            // window. Falls back to the configured backoff when the
+            // header is missing / unparseable.
+            val sleepMs = resolveRetryAfter(current, defaultMs = backoffMs, hostForLog = request.url.host)
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
             current.close()
             try {
-                Thread.sleep(backoffMs)
+                Thread.sleep(sleepMs)
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw e
             }
             attempt++
-            AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${backoffMs}ms on ${request.url.host}")
+            AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)
         }
         if (current.code == 429) {
@@ -989,6 +994,36 @@ class RateLimitRetryInterceptor : Interceptor {
         }
         return current
     }
+}
+
+/** Pick a sleep duration before reissuing a rate-limited request.
+ *  Reads the `Retry-After` response header (RFC 7231): either an
+ *  integer number of seconds OR an HTTP-date. Falls back to
+ *  [defaultMs] when the header is missing or unparseable. Clamps
+ *  to [1 ms .. 5 min] so a misconfigured server can't hang the
+ *  call for hours. */
+private fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: String): Long {
+    val raw = response.header("Retry-After") ?: response.header("retry-after")
+    if (raw.isNullOrBlank()) return defaultMs
+    val trimmed = raw.trim()
+    // Seconds form — the common case for rate-limit responses.
+    trimmed.toLongOrNull()?.let { secs ->
+        if (secs <= 0) return defaultMs
+        val ms = (secs * 1000).coerceIn(1L, 5L * 60_000L)
+        AppLog.d("RateLimit", "Retry-After=${trimmed}s on $hostForLog → sleeping ${ms}ms")
+        return ms
+    }
+    // HTTP-date form — rare for rate-limit but defined by the RFC.
+    return runCatching {
+        val date = java.time.ZonedDateTime.parse(
+            trimmed, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+        )
+        val now = java.time.ZonedDateTime.now(date.zone)
+        val delta = java.time.Duration.between(now, date).toMillis()
+        if (delta <= 0) defaultMs else delta.coerceIn(1L, 5L * 60_000L).also {
+            AppLog.d("RateLimit", "Retry-After=\"$trimmed\" on $hostForLog → sleeping ${it}ms")
+        }
+    }.getOrDefault(defaultMs)
 }
 
 /** Retry on HTTP 529 (server overloaded) responses. Mirror of
@@ -1008,15 +1043,18 @@ class OverloadedRetryInterceptor : Interceptor {
         var attempt = 0
         while (current.code == 529 && attempt < maxRetries) {
             if (chain.call().isCanceled()) return current
+            // Honour Retry-After when the server includes it.
+            // Anthropic frequently does on 529 (overloaded_error).
+            val sleepMs = resolveRetryAfter(current, defaultMs = backoffMs, hostForLog = request.url.host)
             current.close()
             try {
-                Thread.sleep(backoffMs)
+                Thread.sleep(sleepMs)
             } catch (e: InterruptedException) {
                 Thread.currentThread().interrupt()
                 throw e
             }
             attempt++
-            AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${backoffMs}ms on ${request.url.host}")
+            AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)
         }
         if (current.code == 529) {
