@@ -385,7 +385,7 @@ class TracingInterceptor : Interceptor {
             try { val buffer = Buffer(); body.writeTo(buffer); buffer.readUtf8() } catch (_: Exception) { null }
         }
         val requestHeaders = headersToMap(request.headers)
-        val traceRequest = TraceRequest(request.url.toString(), request.method, requestHeaders, rawRequestBody)
+        val traceRequest = TraceRequest(redactUrl(request.url.toString()), request.method, requestHeaders, rawRequestBody)
 
         // Model + call-site tags resolved BEFORE chain.proceed so even
         // a pre-response failure (DNS, TLS, connect timeout) produces a
@@ -634,6 +634,23 @@ class TracingInterceptor : Interceptor {
         if (raw.length <= 8) return "$scheme[REDACTED]"
         return "$scheme${raw.take(4)}…[REDACTED]…${raw.takeLast(4)}"
     }
+
+    /** Redact API-key query params from a request URL before it's
+     *  persisted in the trace JSON — Google passes the key as
+     *  `?key=…`, so unlike every other provider it never shows up
+     *  in a header [isSensitiveHeader] would catch. Keeps a short
+     *  prefix/suffix so the trace stays useful for "wrong key"
+     *  debugging, mirroring [redactSecret]. */
+    private fun redactUrl(url: String): String =
+        URL_KEY_PARAM_REGEX.replace(url) { m ->
+            val v = m.groupValues[2]
+            val red = if (v.length <= 8) "[REDACTED]"
+                      else "${v.take(4)}…[REDACTED]…${v.takeLast(4)}"
+            "${m.groupValues[1]}$red"
+        }
+
+    private val URL_KEY_PARAM_REGEX =
+        Regex("""([?&](?:key|api[_-]?key|access_token|token)=)([^&\s]+)""", RegexOption.IGNORE_CASE)
 }
 
 /** Live mirror of the user-tunable network knobs. Singleton so the
