@@ -232,29 +232,18 @@ internal fun TranslationL1Screen(
                                     )
                                 }
                             }
-                            .padding(vertical = 6.dp)
+                            .padding(vertical = 8.dp)
                             .clickable { onOpenModel(row.modelKey) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val icon = when {
-                            row.running > 0 -> "⏳"
-                            row.err == row.total -> "❌"
-                            row.done == row.total -> "✅"
-                            row.err > 0 -> "❌"
-                            else -> "🕓"
-                        }
-                        if (icon == "⏳") {
-                            Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
-                                AnimatedHourglass(fontSize = 16.sp)
-                            }
-                        } else {
-                            Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
-                        }
+                        // No status glyph — the proportional bar already
+                        // conveys progress, and a finished run shouldn't
+                        // read as a wall of check marks.
                         Text(
                             row.modelKey.substringAfter('|'),
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            modifier = Modifier.weight(1f).padding(start = 8.dp)
                         )
                         if (row.cost > 0.0) {
                             Text(
