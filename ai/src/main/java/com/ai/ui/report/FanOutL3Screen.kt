@@ -188,13 +188,24 @@ internal fun FanOutL3Screen(
                 onDelete = { confirmDelete = true }
             )
             if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-                Text(
-                    text = answererLabel,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = answererLabel,
+                        fontSize = 18.sp, color = AppColors.Green,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = role,
+                        fontSize = 13.sp, color = AppColors.TextSecondary,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
