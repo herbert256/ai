@@ -113,33 +113,36 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Icons overview button — gated on at least one pair having
-        // a non-blank fan-out icon. Opens the L1 Icons grid.
+        // Icons row — "Icons" (opens the L1 Icons grid, gated on at
+        // least one pair having a non-blank fan-out icon) and "Find
+        // icons" (MAIN mode only, launches the fan-icons batch when
+        // at least one DONE pair still lacks an icon). Both share a
+        // single row; whichever is shown alone spans full width.
         val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
-        if (hasIcons) {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = onOpenIcons,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-        }
-
-        // "Find Icons" — only visible on MAIN mode and only when at
-        // least one pair has a DONE response without an icon yet.
-        // Launches the separate fan-icons batch.
-        if (!isIconsMode) {
-            val needsFindIcons = remember(run) {
-                run.pairs.values.any {
-                    it.status == PairStatus.DONE && it.icon.isNullOrBlank()
-                }
+        val needsFindIcons = remember(run) {
+            !isIconsMode && run.pairs.values.any {
+                it.status == PairStatus.DONE && it.icon.isNullOrBlank()
             }
-            if (needsFindIcons) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = { onLaunchFanIcons(run.key) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("Find icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
+        if (hasIcons || needsFindIcons) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (hasIcons) {
+                    OutlinedButton(
+                        onClick = onOpenIcons,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+                if (needsFindIcons) {
+                    Button(
+                        onClick = { onLaunchFanIcons(run.key) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    ) { Text("Find icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
             }
         }
 
