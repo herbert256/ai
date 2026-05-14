@@ -298,7 +298,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 try {
                     coroutineScope {
-                        reportTasks.map { task ->
+                        // Shuffle so a picks list clustered by provider
+                        // (e.g. four OpenAI rows followed by four
+                        // Anthropic) interleaves on dispatch instead of
+                        // hammering one host first.
+                        reportTasks.shuffled().map { task ->
                             async {
                                 ApiCallCaps.global.withPermit {
                                     ApiCallCaps.report.withPermit {
@@ -2118,7 +2122,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val withWeb = if (finalReport.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
                     val overrideParams = if (finalReport.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = finalReport.reasoningEffort) else withWeb
                     coroutineScope {
-                        tasksToRun.map { task ->
+                        // Shuffle — same rationale as the fresh-run path:
+                        // a per-provider-clustered task list otherwise
+                        // hammers one host before reaching the others.
+                        tasksToRun.shuffled().map { task ->
                             async {
                                 ApiCallCaps.global.withPermit {
                                     ApiCallCaps.report.withPermit {
@@ -2659,7 +2666,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             kotlinx.coroutines.sync.Semaphore(concurrent)
                         }
                     coroutineScope {
-                        pending.map { item ->
+                        // Shuffle so the pair list doesn't fire in
+                        // (a1,s1)(a1,s2)…(a1,sN)(a2,s1)… order — that
+                        // hammers a1's host before reaching a2's. A
+                        // shuffled launch order interleaves answerers
+                        // from the start, spreading load across hosts.
+                        pending.shuffled().map { item ->
                             // CoroutineStart.LAZY so the async body
                             // doesn't run until we've registered the
                             // Deferred in fanOutPairJobs below. Without
@@ -2812,7 +2824,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             kotlinx.coroutines.sync.Semaphore(concurrent)
                         }
                     coroutineScope {
-                        placeholders.map { ph ->
+                        // Shuffle — same rationale as runFanOutPrompt:
+                        // avoid all-of-one-answerer launching before
+                        // reaching the next answerer's pairs.
+                        placeholders.shuffled().map { ph ->
                             // CoroutineStart.LAZY mirrors runFanOutPrompt
                             // — see the comment there for why the start
                             // is gated on the post-registration .start()
