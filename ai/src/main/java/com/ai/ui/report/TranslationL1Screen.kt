@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -94,13 +93,11 @@ internal fun TranslationL1Screen(
     val errorCount = items.count { it.status == ReportViewModel.TranslationStatus.ERROR }
     val runningCount = items.count { it.status == ReportViewModel.TranslationStatus.RUNNING }
     val queuedCount = items.count { it.status == ReportViewModel.TranslationStatus.PENDING }
-    // Whole run finished cleanly — drop the per-row glyph + fill so a
-    // completed run reads calmly instead of as a wall of check marks.
-    val allDone = total > 0 && doneCount == total
 
     // Group items by the model that handled them. Unassigned PENDING
     // items (providerId/model still null) drop out — they show only
-    // in the Queue stat.
+    // in the Queue stat. Sorted by items done, descending — so the
+    // busiest model (full bar) stays at the top.
     val modelRows = remember(items) {
         items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
             .groupBy({ it.first }, { it.second })
@@ -115,19 +112,14 @@ internal fun TranslationL1Screen(
                 )
             }
             .sortedWith(
-                compareBy(
-                    { r ->
-                        when {
-                            r.running > 0 -> 0
-                            r.done == r.total -> 2
-                            r.err > 0 -> 1
-                            else -> 0
-                        }
-                    },
-                    { it.modelKey.substringAfter('|').lowercase() }
-                )
+                compareByDescending<TranslationModelRow> { it.done }
+                    .thenByDescending { it.total }
+                    .thenBy { it.modelKey.substringAfter('|').lowercase() }
             )
     }
+    // Bar denominator: the busiest model's done count. That model
+    // gets a full-width bar; the rest are proportional to it.
+    val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -212,10 +204,11 @@ internal fun TranslationL1Screen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Per-model rows. The background bar is each model's share of
-        // the WHOLE run — green for done, red for errored — because a
-        // per-model progress bar isn't possible (the work queue
-        // doesn't pre-assign, so a model's eventual total is unknown).
+        // Per-model rows. The background bar is each model's items-done
+        // relative to the busiest model — that model gets a full-width
+        // bar, the rest are proportional. Bars stay after the run is
+        // done. A per-model progress bar isn't possible: the work queue
+        // doesn't pre-assign, so a model's eventual total is unknown.
         if (modelRows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
@@ -227,63 +220,42 @@ internal fun TranslationL1Screen(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(modelRows, key = { it.modelKey }) { row ->
-                    val doneFrac = if (total > 0) row.done / total.toFloat() else 0f
-                    val errFrac = if (total > 0) row.err / total.toFloat() else 0f
-                    val doneColor = AppColors.Green.copy(alpha = 0.30f)
-                    val errColor = AppColors.Red.copy(alpha = 0.30f)
+                    val barFrac = row.done.toFloat() / maxDone
+                    val barColor = AppColors.Green.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
-                                if (!allDone) {
-                                    if (doneFrac > 0f) {
-                                        drawRect(
-                                            color = doneColor,
-                                            size = Size(size.width * doneFrac, size.height)
-                                        )
-                                    }
-                                    if (errFrac > 0f) {
-                                        drawRect(
-                                            color = errColor,
-                                            topLeft = Offset(size.width * doneFrac, 0f),
-                                            size = Size(size.width * errFrac, size.height)
-                                        )
-                                    }
+                                if (barFrac > 0f) {
+                                    drawRect(
+                                        color = barColor,
+                                        size = Size(size.width * barFrac, size.height)
+                                    )
                                 }
                             }
                             .padding(vertical = 6.dp)
                             .clickable { onOpenModel(row.modelKey) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (!allDone) {
-                            val icon = when {
-                                row.running > 0 -> "⏳"
-                                row.err == row.total -> "❌"
-                                row.done == row.total -> "✅"
-                                row.err > 0 -> "❌"
-                                else -> "🕓"
-                            }
-                            if (icon == "⏳") {
-                                Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
-                                    AnimatedHourglass(fontSize = 16.sp)
-                                }
-                            } else {
-                                Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
-                            }
+                        val icon = when {
+                            row.running > 0 -> "⏳"
+                            row.err == row.total -> "❌"
+                            row.done == row.total -> "✅"
+                            row.err > 0 -> "❌"
+                            else -> "🕓"
                         }
-                        Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                            Text(
-                                row.modelKey.substringAfter('|'),
-                                fontSize = 14.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${row.done}/${row.total} done" +
-                                    (if (row.err > 0) " · ${row.err} err" else "") +
-                                    (if (row.running > 0) " · ${row.running} run" else ""),
-                                fontSize = 10.sp, color = AppColors.TextTertiary,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
+                        if (icon == "⏳") {
+                            Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                                AnimatedHourglass(fontSize = 16.sp)
+                            }
+                        } else {
+                            Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
                         }
+                        Text(
+                            row.modelKey.substringAfter('|'),
+                            fontSize = 14.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(start = 4.dp)
+                        )
                         if (row.cost > 0.0) {
                             Text(
                                 formatCents(row.cost), fontSize = 11.sp,
