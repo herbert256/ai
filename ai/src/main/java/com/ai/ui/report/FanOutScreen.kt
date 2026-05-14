@@ -242,6 +242,7 @@ fun FanOutScreen(
             run = runState,
             answererKey = n.answererKey,
             role = n.role,
+            onSwitchRole = { newRole -> nav = FanOutNav.L2OnePage(n.answererKey, newRole) },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
         )
         FanOutNav.L1Icons -> FanOutL1IconsScreen(

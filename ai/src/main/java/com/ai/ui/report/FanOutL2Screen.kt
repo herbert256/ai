@@ -474,6 +474,7 @@ internal fun FanOutL2OnePageScreen(
     run: FanOutRunState,
     answererKey: String,
     role: String,
+    onSwitchRole: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val (activePid, activeMdl) = answererKey.split("|").let {
@@ -521,6 +522,20 @@ internal fun FanOutL2OnePageScreen(
             subject = subject,
             onBackClick = onBack
         )
+        // Active role + Switch role — mirrors the L2 list screen so
+        // the one-page view can flip Initiator ⇄ Responder in place.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 4.dp)
+        ) {
+            Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+            Button(
+                onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                modifier = Modifier.heightIn(min = 32.dp)
+            ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.weight(1f)) {
             if (isInitiator) {
