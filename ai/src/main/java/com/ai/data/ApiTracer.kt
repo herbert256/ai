@@ -1106,14 +1106,20 @@ class RateLimitRetryInterceptor : Interceptor {
         // once it sees the model is benched.
         run {
             val host = request.url.host
-            val providerId = ProviderRegistry.findByHost(host)?.id
+            val resolvedProviderId = ProviderRegistry.findByHost(host)?.id
             val isGemini = host == "generativelanguage.googleapis.com"
+            // Cohere's Trial-key monthly cap is self-identifying in the
+            // body ("…using a Trial key, which is limited to N API
+            // calls / month…"), so it's matched on the body alone — not
+            // gated on the host resolving to the "Cohere" provider id,
+            // which a renamed entry or the api.cohere.ai vs .com host
+            // split could break.
+            val cohereTrialCap = cohereTrialQuotaExhausted(response)
             val benchUntil: Long? = when {
                 isGemini && googleDailyQuotaExhausted(response) ->
                     retryAfterHintMs(response)?.let { System.currentTimeMillis() + it }
                         ?: nextPacificMidnightMs()
-                providerId == "Cohere" && cohereTrialQuotaExhausted(response) ->
-                    nextMonthStartMs()
+                cohereTrialCap -> nextMonthStartMs()
                 creditOrSpendingLimitExhausted(response) ->
                     System.currentTimeMillis() + 6L * 60L * 60L * 1000L
                 else -> retryAfterHintMs(response)
@@ -1121,6 +1127,9 @@ class RateLimitRetryInterceptor : Interceptor {
                     ?.let { System.currentTimeMillis() + it }
             }
             if (benchUntil != null) {
+                // The Cohere Trial-cap body is itself proof it's Cohere,
+                // so bench it even when findByHost didn't resolve.
+                val providerId = resolvedProviderId ?: if (cohereTrialCap) "Cohere" else null
                 val model = modelForRequest(request)
                 if (providerId != null && !model.isNullOrBlank()) {
                     ModelCooldownStore.markUnavailable(
