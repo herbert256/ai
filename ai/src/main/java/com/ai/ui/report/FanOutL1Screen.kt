@@ -33,6 +33,8 @@ import com.ai.data.ApiCallCaps
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -233,8 +235,19 @@ internal fun FanOutL1Screen(
                     else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
                 val total = pairs.size
                 val cost = pairs.sumOf { it.totalCost }
+                val progressFraction = if (total > 0) ok / total.toFloat() else 0f
+                val progressColor = AppColors.Green.copy(alpha = 0.18f)
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                    modifier = Modifier.fillMaxWidth()
+                        .drawBehind {
+                            if (progressFraction > 0f) {
+                                drawRect(
+                                    color = progressColor,
+                                    size = Size(size.width * progressFraction, size.height)
+                                )
+                            }
+                        }
+                        .padding(vertical = 6.dp)
                         .clickable { onOpenModel(ak) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -259,13 +272,6 @@ internal fun FanOutL1Screen(
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
-                        if (running > 0 || (err > 0 && ok < total)) {
-                            Text(
-                                "$ok / $total · ❌ $err",
-                                fontSize = 11.sp, color = AppColors.TextTertiary,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
                     }
                     if (cost > 0.0) {
                         Text(
