@@ -39,6 +39,7 @@ enum class SettingsSubScreen {
     AI_LOCAL_MODELS_SETUP,
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
+    AI_MODEL_COOLDOWNS,
     AI_IMPORT_EXPORT,
     AI_REFRESH,
     // Four preference buckets carved out of the main Settings screen
@@ -205,6 +206,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
@@ -381,6 +383,12 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onSave = onSaveAi
+            )
+        }
+        SettingsSubScreen.AI_MODEL_COOLDOWNS -> {
+            ModelCooldownsScreen(
+                aiSettings = aiSettings,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_AGENTS -> {

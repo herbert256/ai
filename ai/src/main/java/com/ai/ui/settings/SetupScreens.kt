@@ -93,6 +93,11 @@ fun SetupScreen(
                 SetupNavCard("\uD83D\uDCBB", "Local Models", "On-device LLMs and LiteRT text embedders", "$localCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
             }
+            run {
+                val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+                SetupNavCard("\u23F3", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
+                    onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
+            }
         }
     }
 }

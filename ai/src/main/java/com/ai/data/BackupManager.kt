@@ -90,12 +90,17 @@ object BackupManager {
      *  we don't re-hit HuggingFace for models that were already known to be
      *  absent / present. */
     private const val HUGGINGFACE_CACHE_PREFS = "huggingface_cache"
+    /** Rate-limited (provider, model) cooldowns benched by a >1h 429.
+     *  Worth preserving across a restore — a restored device should
+     *  keep skipping a model that's still inside its quota window. */
+    private const val MODEL_COOLDOWNS_PREFS = "model_cooldowns"
 
     /** Every SharedPreferences file we round-trip through backup/restore.
      *  WebViewChromiumPrefs (cookies, web-process state) is intentionally
      *  excluded — it doesn't make sense to restore on a different device. */
     private val PREFS_TO_BACKUP = listOf(
-        MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS
+        MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS,
+        MODEL_COOLDOWNS_PREFS
     )
 
     /** Top-level filesDir subdirs we never copy into a backup zip and never

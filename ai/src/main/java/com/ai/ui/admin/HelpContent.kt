@@ -1437,6 +1437,26 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Switching the provider in the editor wipes the model id (model lists are provider-scoped)."),
         )
     ),
+    "model_cooldowns_list" to HelpContent(
+        title = "Model cooldowns",
+        cards = listOf(
+            HelpCard("Overview", "List of (provider, model) pairs that are temporarily benched. A model lands here automatically when a Google call returns a 429 with a retry hint longer than 1 hour (exhausted daily quota). While benched, the model is grayed out and non-selectable in every model picker, and the report / fan-out / translation dispatchers skip it — the in-flight item is removed rather than left as a red error."),
+            HelpCard("Add cooldown", "Top button opens the editor blank — lets you manually bench a model (e.g. you know you've hit a limit) by picking provider + model + a duration in hours."),
+            HelpCard("Row tap", "Opens the editor to change how long the cooldown lasts."),
+            HelpCard("Row subtitle", "\"rate-limited · back <time>\" while active, or \"expired — tap ✕ to clear\" once the cooldown time has passed (expired rows are also pruned automatically the next time the model is checked)."),
+            HelpCard("Delete / Clear all", "The trash icon un-benches one model (with confirmation). \"Clear all\" wipes every cooldown at once."),
+            HelpCard("Persistence", "Cooldowns survive app restarts, ride along in Export/Import (\"Model cooldowns\" row) and in the full Backup/Restore."),
+        )
+    ),
+    "model_cooldowns" to HelpContent(
+        title = "Model cooldowns",
+        cards = listOf(
+            HelpCard("Overview", "Editor for a single model cooldown. Add mode lets you pick any provider + model; Edit mode locks the provider/model (they're the entry's key) and only lets you change the duration."),
+            HelpCard("Provider / Model", "Dropdowns over all providers and the chosen provider's known models. Switching the provider clears the model. Both are read-only when editing an existing cooldown."),
+            HelpCard("Available again in (hours)", "How long from now the model stays benched. Saving stores \"now + hours\". A new entry defaults to 24h; editing prefills the hours still remaining."),
+            HelpCard("Tips", "Entries normally appear here on their own from the >1h-429 detector — manual add is for when you want to pre-emptively bench a model."),
+        )
+    ),
     "external_services" to HelpContent(
         title = "External Services",
         cards = listOf(

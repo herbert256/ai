@@ -82,6 +82,39 @@ object ModelCooldownStore {
     fun availableAt(providerId: String, model: String): Long? =
         cooldownMap[key(providerId, model)]?.takeIf { it > System.currentTimeMillis() }
 
+    /** One benched (provider, model) pair. */
+    data class CooldownEntry(val providerId: String, val model: String, val availableAtMs: Long)
+
+    /** Every stored cooldown — raw, **not** expiry-pruned, so the
+     *  CRUD screen can show and clear stale rows. */
+    fun entries(): List<CooldownEntry> = cooldownMap.entries.map { (k, v) ->
+        CooldownEntry(k.substringBefore(":"), k.substringAfter(":"), v)
+    }
+
+    /** Drop a single cooldown (manual un-bench). */
+    fun remove(providerId: String, model: String) {
+        if (cooldownMap.remove(key(providerId, model)) != null) {
+            persist()
+            publish()
+        }
+    }
+
+    /** Drop every cooldown. */
+    fun clearAll() {
+        if (cooldownMap.isEmpty()) return
+        cooldownMap.clear()
+        persist()
+        publish()
+    }
+
+    /** Merge imported cooldowns into the store (import path). */
+    fun importMerge(incoming: Map<String, Long>) {
+        if (incoming.isEmpty()) return
+        cooldownMap.putAll(incoming)
+        persist()
+        publish()
+    }
+
     /** Picker caption for a benched model, e.g. "rate-limited ·
      *  back 14:30" (today) or "rate-limited · back May 15 14:30". */
     fun cooldownCaption(untilMs: Long): String {

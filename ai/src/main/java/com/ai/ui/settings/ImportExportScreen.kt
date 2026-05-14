@@ -440,6 +440,23 @@ private fun applyModelTypeOverrides(arr: JsonArray, working: Settings): Pair<Set
     return working.copy(modelTypeOverrides = merged) to incoming.size
 }
 
+// Model cooldowns live in the ModelCooldownStore singleton, not in
+// Settings — export reads the singleton's snapshot, import merges
+// straight back into it (no onSave).
+private fun buildModelCooldownsTree(): JsonObject =
+    createAppGson().toJsonTree(com.ai.data.ModelCooldownStore.cooldowns.value).asJsonObject
+
+private fun applyModelCooldowns(obj: JsonObject): Int {
+    val type = object : com.google.gson.reflect.TypeToken<Map<String, Long>>() {}.type
+    val incoming: Map<String, Long> = try {
+        createAppGson().fromJson(obj, type) ?: emptyMap()
+    } catch (e: Exception) {
+        AppLog.w("ImportExport", "Skipped model cooldowns blob: ${e.message}"); emptyMap()
+    }
+    com.ai.data.ModelCooldownStore.importMerge(incoming)
+    return incoming.size
+}
+
 private fun buildSystemPromptsTree(s: Settings): JsonArray =
     createAppGson().toJsonTree(s.systemPrompts).asJsonArray
 
@@ -493,6 +510,7 @@ private fun buildAllBundle(
     bundle.add("parameters", buildParametersTree(aiSettings))
     bundle.add("systemPrompts", buildSystemPromptsTree(aiSettings))
     bundle.add("modelTypeOverrides", buildModelTypeOverridesTree(aiSettings))
+    bundle.add("modelCooldowns", buildModelCooldownsTree())
     return bundle
 }
 
@@ -714,6 +732,13 @@ fun ImportExportScreen(
         shareExportText(context, "ai_model_overrides-${exportTimestamp()}.json", "application/json", "Share model overrides",
             createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(context, "Model overrides ready to share (${aiSettings.modelTypeOverrides.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportModelCooldowns() {
+        val tree = buildModelCooldownsTree()
+        shareExportText(context, "ai_model_cooldowns-${exportTimestamp()}.json", "application/json", "Share model cooldowns",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Model cooldowns ready to share (${com.ai.data.ModelCooldownStore.cooldowns.value.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
     // "All" bundle: single JSON file carrying every section the
@@ -1000,6 +1025,17 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Imported $n model override${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "modelCooldowns" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val obj = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
+                if (obj == null) {
+                    Toast.makeText(context, "Model cooldowns file is not a JSON object", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val n = applyModelCooldowns(obj)
+                Toast.makeText(context, "Imported $n model cooldown${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+            }
             "runtimeReports" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -1170,6 +1206,11 @@ fun ImportExportScreen(
                     if (n > 0) { working = updated; parts.add("$n model overrides") }
                 }
 
+                root.getAsJsonObject("modelCooldowns")?.let { obj ->
+                    val n = applyModelCooldowns(obj)
+                    if (n > 0) parts.add("$n model cooldowns")
+                }
+
                 if (workingGs != generalSettings) onSaveGeneral(workingGs)
                 if (working !== aiSettings) onSave(working)
                 if (parts.isEmpty()) {
@@ -1272,6 +1313,9 @@ fun ImportExportScreen(
                 ImportExportRow("Model overrides", importOnly,
                     onExport = { exportModelTypeOverrides() },
                     onImport = { importType = "modelTypeOverrides"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Model cooldowns", importOnly,
+                    onExport = { exportModelCooldowns() },
+                    onImport = { importType = "modelCooldowns"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Costs Overrides", importOnly,
                     onExport = { exportCosts() },
                     onImport = { importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) })
