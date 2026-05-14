@@ -53,6 +53,9 @@ internal fun SecondaryResultsScreen(
      *  "Find icons" button kicks off a fan-icons batch so the user
      *  watches the icon progress instead of the static MAIN page. */
     onShowFanIcons: () -> Unit = {},
+    /** Flip the drill-in back to MAIN mode — the L1 "Responses"
+     *  mode-toggle. */
+    onShowResponses: () -> Unit = {},
     /** When true, the fan-out drill-in mounts in ICONS mode —
      *  L1 / L2 / L3 classify pairs by their icon-chain status.
      *  Wired by the main report's "Fan-icons" View button. */
@@ -512,6 +515,7 @@ internal fun SecondaryResultsScreen(
                     onShowFanIcons()
                 },
                 onShowFanIcons = onShowFanIcons,
+                onShowResponses = onShowResponses,
                 onBack = onBack
             )
             return@Column

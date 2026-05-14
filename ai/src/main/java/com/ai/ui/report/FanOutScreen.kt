@@ -160,9 +160,12 @@ fun FanOutScreen(
      *  plus a switch to ICONS mode. */
     onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
     /** Switch the drill-in to ICONS mode without launching a batch
-     *  — the L1 "Icons" button uses this when a fan-icons run
+     *  — the L1 "Icons" mode-toggle uses this when a fan-icons run
      *  already exists. */
     onShowFanIcons: () -> Unit = {},
+    /** Switch the drill-in back to MAIN mode — the L1 "Responses"
+     *  mode-toggle. */
+    onShowResponses: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -220,6 +223,7 @@ fun FanOutScreen(
             mode = mode,
             onLaunchFanIcons = onLaunchFanIcons,
             onShowFanIcons = onShowFanIcons,
+            onShowResponses = onShowResponses,
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
             onOpenIcons = { nav = FanOutNav.L1Icons },
             onBack = onBack

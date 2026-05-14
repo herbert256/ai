@@ -2092,6 +2092,7 @@ fun ReportsScreen(
                 listIsFanIcons = false
             },
             onShowFanIcons = { listIsFanIcons = true },
+            onShowResponses = { listIsFanIcons = false },
             onSecondaryRefresh = { secondaryRefreshTick++ },
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
@@ -3286,6 +3287,7 @@ private fun SecondaryResultsListMount(
     onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     onCloseList: () -> Unit,
     onShowFanIcons: () -> Unit,
+    onShowResponses: () -> Unit,
     onSecondaryRefresh: () -> Unit,
     onCreateReportFromFanOut: (String, String, String) -> Unit,
     onDeleteSecondaryWithRefresh: (String, String) -> Unit,
@@ -3351,6 +3353,7 @@ private fun SecondaryResultsListMount(
             runningFanOutPairs = runningFanOutPairs,
             fanRuntime = fanRuntime,
             onShowFanIcons = onShowFanIcons,
+            onShowResponses = onShowResponses,
             isFanIconsDrillIn = listIsFanIcons,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,

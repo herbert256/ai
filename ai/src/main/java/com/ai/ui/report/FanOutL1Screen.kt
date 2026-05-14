@@ -71,9 +71,12 @@ internal fun FanOutL1Screen(
     mode: FanOutMode = FanOutMode.MAIN,
     onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
     /** Switch the screen to ICONS mode without launching anything —
-     *  used by the MAIN-mode "Icons" button when a fan-icons run
+     *  used by the mode-toggle "Icons" button when a fan-icons run
      *  already exists for this fan-out. */
     onShowFanIcons: () -> Unit = {},
+    /** Switch the screen back to MAIN mode — the mode-toggle
+     *  "Responses" button in ICONS mode. */
+    onShowResponses: () -> Unit = {},
     onOpenModel: (String) -> Unit,
     onOpenIcons: () -> Unit,
     onBack: () -> Unit
@@ -160,6 +163,29 @@ internal fun FanOutL1Screen(
             }
         }
 
+        // Mode toggle below the stats row. "Icons" (MAIN mode)
+        // switches to ICONS mode — confirming "Start Icons job"
+        // first when no fan-icons run exists yet; "Responses"
+        // (ICONS mode) switches back to MAIN.
+        val hasFanIcons = remember(run) {
+            run.pairs.values.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                if (isIconsMode) onShowResponses()
+                else if (hasFanIcons) onShowFanIcons()
+                else confirmStartIcons = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+        ) {
+            Text(
+                if (isIconsMode) "Responses" else "Icons",
+                fontSize = 12.sp, maxLines = 1, softWrap = false
+            )
+        }
+
         // Per-failure controls — visible only when at least one pair
         // errored. Both buttons follow the engine's throttle.
         if (run.errorCount > 0) {
@@ -180,18 +206,9 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Icons row.
-        //  - ICONS mode: "Show icons" opens the L1 Icons grid, gated
-        //    on at least one pair having a fan-out icon.
-        //  - MAIN mode: "Icons" switches to ICONS mode (gated on at
-        //    least one DONE pair). If no fan-icons run exists yet it
-        //    confirms "Start Icons job" first; otherwise it just
-        //    switches.
+        // "Show icons" — opens the L1 Icons grid. ICONS mode only,
+        // gated on at least one pair having a fan-out icon.
         val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
-        val hasFanIcons = remember(run) {
-            run.pairs.values.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
-        }
-        val hasDonePairs = remember(run) { run.pairs.values.any { it.status == PairStatus.DONE } }
         if (isIconsMode && hasIcons) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
@@ -200,17 +217,6 @@ internal fun FanOutL1Screen(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                 ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
-        } else if (!isIconsMode && hasDonePairs) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = {
-                        if (hasFanIcons) onShowFanIcons() else confirmStartIcons = true
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
