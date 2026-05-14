@@ -401,7 +401,12 @@ internal fun SecondaryResultsScreen(
             )
         }
 
-        if (showLanguagePicker) {
+        // Gated on !isFanOutDrillIn for the same reason the parent
+        // TitleBar above is: the fan-out drill-in paints its own
+        // L1/L2/L3 chrome and has no per-language content selection,
+        // so a stray language-picker row would just float above its
+        // title bar.
+        if (showLanguagePicker && !isFanOutDrillIn) {
             LanguagePickerRow(
                 languages = languages,
                 selectedKey = selectedLangKey,
