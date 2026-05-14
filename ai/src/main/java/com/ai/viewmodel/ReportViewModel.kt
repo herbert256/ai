@@ -4816,6 +4816,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
             val distinctModels = models.distinctBy { (p, m) -> p.id to m }
             val distinctModelCount = distinctModels.size
+            // Per-attempt wall-clock budget. The work queue rebalances
+            // *queued* items but can't steal one already in-flight in a
+            // slow worker — so a pathologically slow model (or one
+            // hitting the 120s socket timeout, then the dispatch
+            // layer's internal retry → ~240s) would hold an item
+            // hostage and strand the tail at "960/962" for minutes.
+            // Capping the call here turns that into a Failed attempt:
+            // the item is requeued and a faster model picks it up.
+            val callBudgetMs = 90_000L
 
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
@@ -4863,11 +4872,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         ApiCallCaps.global.withPermit {
                                             ApiCallCaps.translation.withPermit {
                                                 withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                    runOneTranslation(
-                                                        runId, context, ctx.provider, ctx.apiKey,
-                                                        ctx.model, ctx.baseUrl, template,
-                                                        targetLanguageName, item, ctx.pricing
-                                                    )
+                                                    // withTimeoutOrNull cancels just this
+                                                    // call on budget overrun (the HTTP call
+                                                    // gets cancelled with it); the worker
+                                                    // then requeues the item for a faster
+                                                    // model. A null result == timed out.
+                                                    kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
+                                                        runOneTranslation(
+                                                            runId, context, ctx.provider, ctx.apiKey,
+                                                            ctx.model, ctx.baseUrl, template,
+                                                            targetLanguageName, item, ctx.pricing
+                                                        )
+                                                    } ?: run {
+                                                        AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s — reassigning")
+                                                        TranslationOutcome.Failed("${ctx.provider.id}/${ctx.model} timed out after ${callBudgetMs / 1000}s")
+                                                    }
                                                 }
                                             }
                                         }
