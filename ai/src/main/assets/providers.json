@@ -557,6 +557,7 @@
         "step-1-128k"
       ],
       "id": "StepFun",
+      "defaultInactive": true,
       "modelListFormat": "object",
       "seedFieldName": "seed",
       "supportsCitations": false,
