@@ -1520,37 +1520,51 @@ fun ReportsScreen(
         return
     }
     if (showFindIconsPicker && currentReportId != null) {
-        FindIconsPickerRouter(
-            reportId = currentReportId,
-            targetLanguage = translationIconLanguageFor,
-            targetPromptId = promptIconDetailForId,
-            targetAgentId = fanOutTargetAgentId,
-            internalPrompts = aiSettings.internalPrompts,
-            aiSettings = aiSettings,
-            models = findIconsModels,
-            genericPromptText = uiState.genericPromptText,
-            translationIconCallbacks = translationIconCallbacks,
-            onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
-            onStartAgentIconFanOut = onStartAgentIconFanOut,
-            onStartIconFanOut = onStartIconFanOut,
-            onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
-            onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
-            onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
-            onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
-            onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
-            onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
-            onClearAll = { findIconsModels = emptyList() },
-            onConfirm = {
-                findIconsModels = emptyList()
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
                 pickerTarget = PickerTarget.NEW_REPORT
                 showFindIconsPicker = false
-                showAlternativeIcons = true
-            },
-            onBack = {
-                pickerTarget = PickerTarget.NEW_REPORT
-                showFindIconsPicker = false
+                showIconDetail = false
+                agentIconDetailFor = null
+                fanOutTargetAgentId = null
+                promptIconDetailForId = null
+                translationIconLanguageFor = null
             }
-        )
+        ) {
+            FindIconsPickerRouter(
+                reportId = currentReportId,
+                targetLanguage = translationIconLanguageFor,
+                targetPromptId = promptIconDetailForId,
+                targetAgentId = fanOutTargetAgentId,
+                internalPrompts = aiSettings.internalPrompts,
+                aiSettings = aiSettings,
+                models = findIconsModels,
+                genericPromptText = uiState.genericPromptText,
+                translationIconCallbacks = translationIconCallbacks,
+                onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
+                onStartAgentIconFanOut = onStartAgentIconFanOut,
+                onStartIconFanOut = onStartIconFanOut,
+                onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
+                onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
+                onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
+                onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
+                onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
+                onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
+                onClearAll = { findIconsModels = emptyList() },
+                onConfirm = {
+                    findIconsModels = emptyList()
+                    pickerTarget = PickerTarget.NEW_REPORT
+                    showFindIconsPicker = false
+                    showAlternativeIcons = true
+                },
+                onBack = {
+                    pickerTarget = PickerTarget.NEW_REPORT
+                    showFindIconsPicker = false
+                }
+            )
+        }
         return
     }
     if (showIconDetail && currentReportId != null) {
