@@ -1604,17 +1604,43 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  fan_out_icon template substitution against the pair's own
      *  (provider, model). Tier 3 = fixed-agent fan_out_icon_3th
      *  fallback. */
+    /** Outcome of one fan-out icon-chain tier. */
+    private sealed class TierResult {
+        /** Tier produced a usable emoji. */
+        data class Emoji(val value: String) : TierResult()
+        /** Tier ran but yielded no emoji (or failed for a
+         *  non-rate-limit reason) — cascade to the next tier. */
+        object Miss : TierResult()
+        /** Tier was rate-limited (429) after the in-OkHttp 429
+         *  retry loop gave up. Cascading would just hammer the same
+         *  throttled host, so the chain stops for this pair — left
+         *  icon-less for a later relaunch to retry. */
+        object RateLimited : TierResult()
+    }
+
+    /** A 429 reaching the icon chain means both the in-OkHttp 429
+     *  retry loop and the repository retry exhausted — treat it as
+     *  RateLimited, distinct from an emoji miss. The chat / agent
+     *  dispatchers format the error as "API error: 429 …". */
+    private fun isRateLimitFailure(t: Throwable): Boolean =
+        t.message?.contains("API error: 429") == true
+
     /** Per-pair 3-tier icon chain. Returns when the chain has
      *  committed a result (emoji + winning tier, or 📝 fallback)
-     *  to disk for [pair]. Suspending — the caller is responsible
-     *  for outer cap acquisition. */
+     *  to disk for [pair] — OR early, without committing, when a
+     *  tier is rate-limited (429): the chain stops, the pair's host
+     *  is added to [rateLimitedHosts] so the batch skips its other
+     *  pairs, and the pair is left icon-less for a later relaunch.
+     *  Suspending — the caller is responsible for outer cap
+     *  acquisition. */
     private suspend fun runIconChainForPair(
         context: Context, reportId: String,
         pair: SecondaryResult,
         metaPromptText: String,
         reportPrompt: String,
         sourceResponse: String,
-        aiSettings: Settings
+        aiSettings: Settings,
+        rateLimitedHosts: MutableSet<String>
     ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "fan_out_icon_chat"
@@ -1632,16 +1658,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val pairProvider = AppService.findById(pair.providerId) ?: return
         val pairContent = pair.content
         if (pairContent.isNullOrBlank()) return
+        val pairHost = providerHost(pairProvider)
 
         val tier1 = chatPrompt?.let { p ->
             runFanOutTier1(
                 context, reportId, pairProvider, pair, p,
                 reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
             )
-        }
-        if (tier1 != null) {
-            commitFanOutIconResult(context, reportId, pair.id, tier1, winningTier = 1)
-            return
+        } ?: TierResult.Miss
+        when (tier1) {
+            is TierResult.Emoji -> {
+                commitFanOutIconResult(context, reportId, pair.id, tier1.value, winningTier = 1)
+                return
+            }
+            TierResult.RateLimited -> {
+                rateLimitedHosts.add(pairHost)
+                AppLog.w("FanOutIcons", "tier 1 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
+                return
+            }
+            TierResult.Miss -> { /* cascade to tier 2 */ }
         }
 
         val tier2 = tier2Prompt?.let { p ->
@@ -1649,18 +1684,36 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 context, reportId, pairProvider, pair, p,
                 reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
             )
-        }
-        if (tier2 != null) {
-            commitFanOutIconResult(context, reportId, pair.id, tier2, winningTier = 2)
-            return
+        } ?: TierResult.Miss
+        when (tier2) {
+            is TierResult.Emoji -> {
+                commitFanOutIconResult(context, reportId, pair.id, tier2.value, winningTier = 2)
+                return
+            }
+            TierResult.RateLimited -> {
+                rateLimitedHosts.add(pairHost)
+                AppLog.w("FanOutIcons", "tier 2 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
+                return
+            }
+            TierResult.Miss -> { /* cascade to tier 3 */ }
         }
 
         val tier3 = tier3Prompt?.let { p ->
             runFanOutTier3(context, reportId, pair, p, pairContent, aiSettings)
-        }
-        if (tier3 != null) {
-            commitFanOutIconResult(context, reportId, pair.id, tier3, winningTier = 3)
-            return
+        } ?: TierResult.Miss
+        when (tier3) {
+            is TierResult.Emoji -> {
+                commitFanOutIconResult(context, reportId, pair.id, tier3.value, winningTier = 3)
+                return
+            }
+            TierResult.RateLimited -> {
+                // Tier 3 is the shared fixed agent — don't mark its
+                // host (that would wrongly skip pairs whose own model
+                // is that provider). Just stop this pair's chain.
+                AppLog.w("FanOutIcons", "tier 3 rate-limited (429) for pair=${pair.id} — chain stopped")
+                return
+            }
+            TierResult.Miss -> { /* fall through to the 📝 fallback */ }
         }
 
         commitFanOutIconResult(context, reportId, pair.id, "📝", winningTier = null)
@@ -1730,6 +1783,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val (_, concurrent) = ProviderThrottle.limitsFor(host)
                         kotlinx.coroutines.sync.Semaphore(concurrent)
                     }
+                // Hosts that returned a 429 during this batch. Once a
+                // host is in here, the icon chain stopped a pair on it;
+                // remaining pairs on that host skip immediately rather
+                // than firing another doomed call. Thread-safe — many
+                // per-pair coroutines read/write it concurrently.
+                val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
                 withTracerTags(reportId = reportId, category = "Fan-icons: ${metaPrompt.name}") {
                     coroutineScope {
@@ -1739,6 +1798,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             async(start = CoroutineStart.LAZY) {
                                 val provider = AppService.findById(pair.providerId) ?: return@async
                                 val host = providerHost(provider)
+                                if (host in rateLimitedHosts) {
+                                    AppLog.d("FanIcons", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
+                                    return@async
+                                }
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
                                 val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
@@ -1770,7 +1833,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                             metaPromptText = resolvedMeta,
                                                             reportPrompt = report.prompt,
                                                             sourceResponse = sourceBody,
-                                                            aiSettings = aiSettings
+                                                            aiSettings = aiSettings,
+                                                            rateLimitedHosts = rateLimitedHosts
                                                         )
                                                     } finally {
                                                         appViewModel.updateRunningFanIconsPairs { it - pair.id }
@@ -1836,7 +1900,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportPrompt: String, sourceResponse: String,
         metaPromptText: String, pairContent: String,
         aiSettings: Settings
-    ): String? {
+    ): TierResult {
         // ProviderThrottle for this pair's host is already held by
         // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
         // non-reentrant per-host semaphore here deadlocked the batch.
@@ -1879,10 +1943,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             inT = inT, outT = outT, durationMs = durationMs,
                             success = emoji != null
                         )
-                        emoji
+                        if (emoji != null) TierResult.Emoji(emoji) else TierResult.Miss
                     }.getOrElse { e ->
                         AppLog.w("FanOutIcons", "tier 1 failed for pair=${pair.id}: ${e.message}")
-                        null
+                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
                     }
                 }
             }
@@ -1895,7 +1959,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportPrompt: String, sourceResponse: String,
         metaPromptText: String, pairContent: String,
         aiSettings: Settings
-    ): String? {
+    ): TierResult {
         // ProviderThrottle for this pair's host is already held by
         // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
         // non-reentrant per-host semaphore here deadlocked the batch.
@@ -1933,10 +1997,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             inT = inT, outT = outT, durationMs = durationMs,
                             success = emoji != null
                         )
-                        emoji
+                        when {
+                            emoji != null -> TierResult.Emoji(emoji)
+                            response.httpStatusCode == 429 -> TierResult.RateLimited
+                            else -> TierResult.Miss
+                        }
                     }.getOrElse { e ->
                         AppLog.w("FanOutIcons", "tier 2 failed for pair=${pair.id}: ${e.message}")
-                        null
+                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
                     }
                 }
             }
@@ -1947,12 +2015,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context, reportId: String,
         pair: SecondaryResult, tier3Prompt: InternalPrompt,
         pairContent: String, aiSettings: Settings
-    ): String? {
+    ): TierResult {
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(tier3Prompt.agent, ignoreCase = true)
         } ?: run {
             AppLog.w("FanOutIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
-            return null
+            return TierResult.Miss
         }
         val effectiveAgent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
@@ -1987,10 +2055,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             inT = inT, outT = outT, durationMs = durationMs,
                             success = emoji != null
                         )
-                        emoji
+                        when {
+                            emoji != null -> TierResult.Emoji(emoji)
+                            response.httpStatusCode == 429 -> TierResult.RateLimited
+                            else -> TierResult.Miss
+                        }
                     }.getOrElse { e ->
                         AppLog.w("FanOutIcons", "tier 3 failed for pair=${pair.id}: ${e.message}")
-                        null
+                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
                     }
                 }
             }
