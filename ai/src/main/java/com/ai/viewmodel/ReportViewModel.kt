@@ -4828,6 +4828,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
             val distinctModels = models.distinctBy { (p, m) -> p.id to m }
             val distinctModelCount = distinctModels.size
+            // Cost-aware biasing. Each worker records (count, totalCost)
+            // for its own model after every successful call (single
+            // writer per key — only that model's worker touches it).
+            // Before pulling the next item, a worker hesitates for a
+            // delay proportional to how much pricier its model is than
+            // the cheapest one observed so far — so cheap models drain
+            // the queue first and an expensive model (e.g. Perplexity
+            // sonar, with its per-request search fee) only picks up
+            // work the cheap models can't keep up with. The cheapest
+            // model always has 0 penalty, so the run never stalls.
+            val modelCost = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Int, Double>>()
             // Per-attempt wall-clock budget. The work queue rebalances
             // *queued* items but can't steal one already in-flight in a
             // slow worker — so a pathologically slow model (or one
@@ -4848,9 +4859,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             ?: error("missing ctx for ${p.id}/$m")
                         launch {
                             val modelKey = ctx.provider.id to ctx.model
+                            // Hesitation before pulling the next item,
+                            // proportional to how much pricier this
+                            // model's observed per-item cost is than the
+                            // cheapest model's. Cheapest → 0; capped at
+                            // 5s. Zero until this model has done at
+                            // least one call (cold start probes freely).
+                            fun costPenaltyMs(): Long {
+                                val mine = modelCost[modelKey] ?: return 0L
+                                if (mine.first == 0) return 0L
+                                val myAvg = mine.second / mine.first
+                                if (myAvg <= 0.0) return 0L
+                                val cheapest = modelCost.values
+                                    .filter { it.first > 0 }
+                                    .minOfOrNull { it.second / it.first } ?: return 0L
+                                if (cheapest <= 0.0) return 0L
+                                return ((myAvg / cheapest - 1.0) * 600.0)
+                                    .coerceIn(0.0, 5000.0).toLong()
+                            }
                             // A benched model stops pulling — its share
                             // flows to the healthy workers instead.
                             while (!isBenched(ctx.provider, ctx.model)) {
+                                delay(costPenaltyMs())
                                 val item = itemQueue.receiveCatching().getOrNull() ?: break
                                 val tried = triedBy.computeIfAbsent(item.id) {
                                     java.util.concurrent.ConcurrentHashMap.newKeySet()
@@ -4907,8 +4937,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     }
                                 }
                                 when (outcome) {
-                                    is TranslationOutcome.Success ->
+                                    is TranslationOutcome.Success -> {
+                                        // Record the spend so costPenaltyMs
+                                        // can bias future items toward
+                                        // cheaper models.
+                                        val cur = modelCost[modelKey]
+                                        modelCost[modelKey] =
+                                            ((cur?.first ?: 0) + 1) to ((cur?.second ?: 0.0) + outcome.costDollars)
                                         if (remaining.decrementAndGet() == 0) itemQueue.close()
+                                    }
                                     is TranslationOutcome.Failed -> {
                                         // Up to 3 attempts across models;
                                         // only the 3rd failure is terminal.
@@ -4994,7 +5031,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  at the [runOneTranslation] level — the caller decides whether to
      *  retry the item on another model or finalize it as ERROR. */
     private sealed interface TranslationOutcome {
-        object Success : TranslationOutcome
+        /** [costDollars] is the call's billed cost — the work queue
+         *  feeds it into a per-model running average to bias future
+         *  items toward cheaper models. */
+        data class Success(val costDollars: Double) : TranslationOutcome
         data class Failed(val message: String) : TranslationOutcome
     }
 
@@ -5139,7 +5179,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                 " cost=${"%.5f".format(costDollars)}"
         )
-        return TranslationOutcome.Success
+        return TranslationOutcome.Success(costDollars)
     }
 
     /** Persist one TRANSLATE [SecondaryResult] for a single completed
