@@ -1762,6 +1762,11 @@ fun ReportsScreen(
                     com.ai.data.SecondaryScope.Manual(initiators),
                     responders
                 )
+                // Land on the Fan Out L1 page so the user watches the
+                // run progress instead of the report screen.
+                listKind = SecondaryKind.META
+                listFilterByName = mp.name
+                listIsFanIcons = false
             }
         )
         return
@@ -2036,6 +2041,7 @@ fun ReportsScreen(
                 listFilterByName = null
                 listIsFanIcons = false
             },
+            onShowFanIcons = { listIsFanIcons = true },
             onSecondaryRefresh = { secondaryRefreshTick++ },
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
@@ -3219,6 +3225,7 @@ private fun SecondaryResultsListMount(
     onModelFanInActiveChange: (String?, String?) -> Unit,
     onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     onCloseList: () -> Unit,
+    onShowFanIcons: () -> Unit,
     onSecondaryRefresh: () -> Unit,
     onCreateReportFromFanOut: (String, String, String) -> Unit,
     onDeleteSecondaryWithRefresh: (String, String) -> Unit,
@@ -3283,6 +3290,7 @@ private fun SecondaryResultsListMount(
             isBatching = isBatching,
             runningFanOutPairs = runningFanOutPairs,
             fanRuntime = fanRuntime,
+            onShowFanIcons = onShowFanIcons,
             isFanIconsDrillIn = listIsFanIcons,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,

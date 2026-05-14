@@ -49,6 +49,10 @@ internal fun SecondaryResultsScreen(
     /** Bundle of fan-out throttled state + fan-icons batch state
      *  + the launcher callback. See [FanRuntimeBundle]. */
     fanRuntime: FanRuntimeBundle = FanRuntimeBundle(),
+    /** Flip the drill-in into ICONS mode — fired right after the
+     *  "Find icons" button kicks off a fan-icons batch so the user
+     *  watches the icon progress instead of the static MAIN page. */
+    onShowFanIcons: () -> Unit = {},
     /** When true, the fan-out drill-in mounts in ICONS mode —
      *  L1 / L2 / L3 classify pairs by their icon-chain status.
      *  Wired by the main report's "Fan-icons" View button. */
@@ -495,6 +499,7 @@ internal fun SecondaryResultsScreen(
                 throttledIconsSet = fanRuntime.throttledFanIconsPairs,
                 onLaunchFanIcons = { _ ->
                     fanRuntime.onLaunchFanIconsBatch(reportId, fanOutPrompt.id)
+                    onShowFanIcons()
                 },
                 onBack = onBack
             )

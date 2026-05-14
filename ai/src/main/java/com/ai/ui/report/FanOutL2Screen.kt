@@ -21,7 +21,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -212,10 +211,11 @@ internal fun FanOutL2Screen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                OutlinedButton(
+                Button(
                     onClick = { confirmRemoveFailed = true },
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { confirmRestartFailed = true },
@@ -285,9 +285,10 @@ internal fun FanOutL2Screen(
 
         // "One Page View" button — only when rows exist.
         if (rows.isNotEmpty()) {
-            OutlinedButton(
+            Button(
                 onClick = onOpenOnePage,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
             ) { Text("One Page View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -297,9 +298,10 @@ internal fun FanOutL2Screen(
         // grid for the current (answerer, role).
         val hasIcons = remember(rows) { rows.any { !it.icon.isNullOrBlank() } }
         if (hasIcons) {
-            OutlinedButton(
+            Button(
                 onClick = onOpenIcons,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
             ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         }

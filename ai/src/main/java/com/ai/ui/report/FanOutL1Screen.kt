@@ -20,7 +20,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -110,9 +109,10 @@ internal fun FanOutL1Screen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedButton(
+                Button(
                     onClick = { confirmRemoveFailed = true },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { confirmRestartFailed = true },
@@ -139,9 +139,10 @@ internal fun FanOutL1Screen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 if (hasIcons) {
-                    OutlinedButton(
+                    Button(
                         onClick = onOpenIcons,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                     ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
                 if (needsFindIcons) {
