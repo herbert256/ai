@@ -397,6 +397,7 @@
         "command-r7b-12-2024"
       ],
       "id": "Cohere",
+      "maxCallsPerProviderPerMinute": 19,
       "modelListFormat": "object",
       "nativeCapabilityUrl": "https://api.cohere.com/v1/models",
       "nativeRerankUrl": "https://api.cohere.com/v2/rerank",
