@@ -14,11 +14,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -4806,16 +4809,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                 }
 
-            // Round-robin assignment of items to picked models.
-            // models[i % size] is deterministic + balanced; a run
-            // with N items and M models gives each model
-            // ceil(N/M) or floor(N/M) work units.
-            val assignments: List<Pair<TranslationItem, ModelCtx>> =
-                items.mapIndexed { idx, item ->
-                    val (p, m) = models[idx % models.size]
-                    item to (ctxByKey[p.id to m] ?: error("missing ctx for ${p.id}/$m"))
-                }
-
             // Per-host suspending caps — mirrors runFanOutPrompt /
             // rerunFanOutPlaceholders. Each provider host gets its
             // own concurrent gate sized from ProviderThrottle so a
@@ -4830,45 +4823,129 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     kotlinx.coroutines.sync.Semaphore(concurrent)
                 }
 
+            // Shared work queue. Items go into one channel; each
+            // distinct picked model gets a worker that pulls the next
+            // item, translates it, and pulls again — so a fast model
+            // keeps grabbing work instead of idling on a fixed slice.
+            // The channel is NOT closed up front: a failed attempt
+            // re-queues its item, and `remaining` (only decremented on
+            // a terminal outcome) closes the channel when the last
+            // item settles. A requeued item is non-terminal so it's
+            // still counted — `remaining` can't hit 0 while one is in
+            // flight, so the requeue `trySend` always lands.
+            val itemQueue = Channel<TranslationItem>(Channel.UNLIMITED)
+            items.forEach { itemQueue.trySend(it) }
+            val remaining = java.util.concurrent.atomic.AtomicInteger(items.size)
+            val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
+            val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
+            val distinctModels = models.distinctBy { (p, m) -> p.id to m }
+            val distinctModelCount = distinctModels.size
+
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
             // translated copy to keep traces with.
             withTracerTags(reportId = sourceReportId, category = "Translation") {
                 coroutineScope {
-                    assignments.map { (item, ctx) ->
-                        async {
-                            val host = providerHost(ctx.provider)
-                            val cap = perHostCaps[host]
-                                ?: kotlinx.coroutines.sync.Semaphore(1)
-                            // Acquire order: per-host first, then outer
-                            // global + translation. An item waiting on a
-                            // saturated per-host cap suspends without
-                            // holding the outer caps idle.
-                            cap.withPermit {
-                                // Non-blocking ProviderThrottle gate — a capped
-                                // host yields the coroutine (delay, not
-                                // Thread.sleep) so other items proceed; the
-                                // OkHttp interceptor skips its own acquire via
-                                // permitPreAcquired.
-                                val releaser = acquireOrRequeue(host)
-                                try {
-                                    ApiCallCaps.global.withPermit {
-                                        ApiCallCaps.translation.withPermit {
-                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                runOneTranslation(
-                                                    runId, context, ctx.provider, ctx.apiKey,
-                                                    ctx.model, ctx.baseUrl, template,
-                                                    targetLanguageName, item, ctx.pricing
-                                                )
+                    distinctModels.map { (p, m) ->
+                        val ctx = ctxByKey[p.id to m]
+                            ?: error("missing ctx for ${p.id}/$m")
+                        launch {
+                            val modelKey = ctx.provider.id to ctx.model
+                            // A benched model stops pulling — its share
+                            // flows to the healthy workers instead.
+                            while (!isBenched(ctx.provider, ctx.model)) {
+                                val item = itemQueue.receiveCatching().getOrNull() ?: break
+                                val tried = triedBy.computeIfAbsent(item.id) {
+                                    java.util.concurrent.ConcurrentHashMap.newKeySet()
+                                }
+                                // Prefer handing a previously-failed item
+                                // to a model that hasn't tried it yet.
+                                // Requeue + a short delay bounds the
+                                // busy-wait while other workers are
+                                // mid-call.
+                                if (modelKey in tried && tried.size < distinctModelCount) {
+                                    itemQueue.trySend(item)
+                                    delay(100)
+                                    continue
+                                }
+                                tried += modelKey
+                                val host = providerHost(ctx.provider)
+                                val cap = perHostCaps[host]
+                                    ?: kotlinx.coroutines.sync.Semaphore(1)
+                                // Acquire order: per-host first, then outer
+                                // global + translation. An item waiting on a
+                                // saturated per-host cap suspends without
+                                // holding the outer caps idle.
+                                val outcome = cap.withPermit {
+                                    // Non-blocking ProviderThrottle gate — a capped
+                                    // host yields the coroutine (delay, not
+                                    // Thread.sleep) so other items proceed; the
+                                    // OkHttp interceptor skips its own acquire via
+                                    // permitPreAcquired.
+                                    val releaser = acquireOrRequeue(host)
+                                    try {
+                                        ApiCallCaps.global.withPermit {
+                                            ApiCallCaps.translation.withPermit {
+                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                    runOneTranslation(
+                                                        runId, context, ctx.provider, ctx.apiKey,
+                                                        ctx.model, ctx.baseUrl, template,
+                                                        targetLanguageName, item, ctx.pricing
+                                                    )
+                                                }
                                             }
                                         }
+                                    } finally {
+                                        releaser.release()
                                     }
-                                } finally {
-                                    releaser.release()
+                                }
+                                when (outcome) {
+                                    is TranslationOutcome.Success ->
+                                        if (remaining.decrementAndGet() == 0) itemQueue.close()
+                                    is TranslationOutcome.Failed -> {
+                                        // Up to 3 attempts across models;
+                                        // only the 3rd failure is terminal.
+                                        val n = attempts.merge(item.id, 1, Int::plus)!!
+                                        if (n >= 3) {
+                                            finalizeTranslationError(
+                                                context, runId, item,
+                                                ctx.provider, ctx.model, ctx.pricing,
+                                                outcome.message
+                                            )
+                                            if (remaining.decrementAndGet() == 0) itemQueue.close()
+                                        } else {
+                                            // Back to PENDING + requeue for
+                                            // another model.
+                                            _translationRuns.update { runs ->
+                                                val cur = runs[runId] ?: return@update runs
+                                                runs + (runId to cur.copy(items = cur.items.map {
+                                                    if (it.id == item.id) it.copy(status = TranslationStatus.PENDING) else it
+                                                }))
+                                            }
+                                            itemQueue.trySend(item)
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }.awaitAll()
+                    }.joinAll()
+                }
+
+                // Degenerate case: every picked model is benched, so
+                // every worker breaks on the `isBenched` guard with
+                // items still non-terminal. Finalize whatever is left
+                // so nothing leaks as PENDING/RUNNING forever.
+                val leftover = _translationRuns.value[runId]?.items.orEmpty()
+                    .filter { it.status != TranslationStatus.DONE && it.status != TranslationStatus.ERROR }
+                if (leftover.isNotEmpty()) {
+                    val (p, m) = models.first()
+                    val ctx = ctxByKey[p.id to m]!!
+                    leftover.forEach {
+                        finalizeTranslationError(
+                            context, runId, it, ctx.provider, ctx.model, ctx.pricing,
+                            "no available model — all picked models are rate-limited"
+                        )
+                    }
                 }
 
                 // Per-item rows were already persisted inside
@@ -4898,6 +4975,44 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return job
     }
 
+    /** Result of a single translation call. A [Failed] is non-terminal
+     *  at the [runOneTranslation] level — the caller decides whether to
+     *  retry the item on another model or finalize it as ERROR. */
+    private sealed interface TranslationOutcome {
+        object Success : TranslationOutcome
+        data class Failed(val message: String) : TranslationOutcome
+    }
+
+    /** Mark a translation item ERROR and persist its TRANSLATE row.
+     *  This is the terminal failure path — used after the retry budget
+     *  is exhausted (3 attempts) or when no model is available at all.
+     *  Pulled out of [runOneTranslation] so the retrying caller, not
+     *  the call itself, owns the decision to give up on an item. */
+    private fun finalizeTranslationError(
+        context: Context,
+        runId: String,
+        item: TranslationItem,
+        provider: AppService,
+        model: String,
+        pricing: PricingCache.ModelPricing,
+        message: String
+    ) {
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            runs + (runId to cur.copy(items = cur.items.map {
+                if (it.id == item.id) it.copy(
+                    status = TranslationStatus.ERROR,
+                    errorMessage = message
+                ) else it
+            }))
+        }
+        val freshRun = _translationRuns.value[runId]
+        val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+        if (freshRun != null && freshItem != null) {
+            saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
+        }
+    }
+
     private suspend fun runOneTranslation(
         runId: String,
         context: Context,
@@ -4909,28 +5024,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         targetLanguageName: String,
         item: TranslationItem,
         pricing: PricingCache.ModelPricing
-    ) {
-        // Model benched on a >1h 429 by an earlier call — mark the
-        // item ERROR (not removed) so the run's total stays stable,
-        // the row is visible, and "Restart failed" can re-run it once
-        // the bench lifts. Skips the doomed call but still persists.
+    ): TranslationOutcome {
+        // Model benched on a >1h 429 by an earlier call — report it as
+        // a failed attempt without touching state or persisting. The
+        // caller retries the item on another model and only finalizes
+        // ERROR once the retry budget is spent.
         if (isBenched(provider, model)) {
-            AppLog.w("Translation", "skip benched ${provider.id}/$model — marking item ${item.id} failed")
-            _translationRuns.update { runs ->
-                val cur = runs[runId] ?: return@update runs
-                runs + (runId to cur.copy(items = cur.items.map {
-                    if (it.id == item.id) it.copy(
-                        status = TranslationStatus.ERROR,
-                        errorMessage = "${provider.id}/$model is rate-limited (benched) — skipped"
-                    ) else it
-                }))
-            }
-            val freshRun = _translationRuns.value[runId]
-            val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
-            if (freshRun != null && freshItem != null) {
-                saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
-            }
-            return
+            AppLog.w("Translation", "skip benched ${provider.id}/$model — item ${item.id} failed attempt")
+            return TranslationOutcome.Failed("${provider.id}/$model is rate-limited (benched) — skipped")
         }
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
@@ -4958,24 +5059,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val callDurationMs = System.currentTimeMillis() - callStart
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
-        // A benched-on-this-call failure (>1h 429) is no longer
-        // special-cased — it flows through the normal ERROR path
-        // below so the item stays in the run, visible and
-        // restartable, instead of silently dropping out.
+        // A failed call (incl. a benched-on-this-call >1h 429) is
+        // non-terminal here — the caller retries the item on another
+        // model, up to 3 attempts, and only then finalizes ERROR via
+        // finalizeTranslationError. So a failure leaves _translationRuns
+        // untouched (the item stays RUNNING) and persists nothing.
+        if (!response.isSuccess) {
+            AppLog.d(
+                "Translation",
+                "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
+            )
+            return TranslationOutcome.Failed(response.error ?: "Empty response")
+        }
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             val updated = cur.items.map {
                 if (it.id != item.id) it
-                else if (response.isSuccess) it.copy(
+                else it.copy(
                     status = TranslationStatus.DONE,
                     translatedText = response.analysis,
-                    costDollars = costDollars,
-                    tokenUsage = tu,
-                    durationMs = callDurationMs
-                )
-                else it.copy(
-                    status = TranslationStatus.ERROR,
-                    errorMessage = response.error ?: "Empty response",
                     costDollars = costDollars,
                     tokenUsage = tu,
                     durationMs = callDurationMs
@@ -4999,9 +5101,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         // Roll the translation call into per-(provider, model) usage so
         // it shows up on the AI Usage screen alongside report / chat
-        // calls. Skipped on error responses so the row reflects only
-        // billable traffic.
-        if (response.isSuccess && tu != null) {
+        // calls.
+        if (tu != null) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
                 kind = "translate"
@@ -5009,10 +5110,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         AppLog.d(
             "Translation",
-            "← item ${item.id} ${if (response.isSuccess) "ok" else "err"} ${callDurationMs}ms" +
+            "← item ${item.id} ok ${callDurationMs}ms" +
                 (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                 " cost=${"%.5f".format(costDollars)}"
         )
+        return TranslationOutcome.Success
     }
 
     /** Persist one TRANSLATE [SecondaryResult] for a single completed
@@ -5490,11 +5592,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     ApiCallCaps.global.withPermit {
                                         ApiCallCaps.translation.withPermit {
                                             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                runOneTranslation(
+                                                // restart-failed / start-missing path:
+                                                // no cross-model retry — a failed call
+                                                // is finalized ERROR immediately, as
+                                                // before. runOneTranslation no longer
+                                                // self-finalizes, so do it here.
+                                                val outcome = runOneTranslation(
                                                     runId, context, ctx.provider, ctx.apiKey,
                                                     ctx.model, ctx.baseUrl, template,
                                                     targetLanguageName, item, ctx.pricing
                                                 )
+                                                if (outcome is TranslationOutcome.Failed) {
+                                                    finalizeTranslationError(
+                                                        context, runId, item,
+                                                        ctx.provider, ctx.model, ctx.pricing,
+                                                        outcome.message
+                                                    )
+                                                }
                                             }
                                         }
                                     }
