@@ -857,6 +857,29 @@ fun ReportsScreen(
         kotlinx.coroutines.delay(150)
         secondaryRefreshTick++
     }
+    // Auto-resume an interrupted fan-icons batch. Find Icons runs
+    // in-memory on viewModelScope with no disk-resume, so an app
+    // kill / redeploy / long background leaves the leftover pairs
+    // stuck PENDING. On report open, for every fan-out whose pairs
+    // already carry at least one icon / icon-error (i.e. the user
+    // *did* launch Find Icons at some point — never auto-fires for
+    // an untouched fan-out), re-kick the batch. runFanIconsBatch
+    // self-guards: it skips when a job is already in flight and
+    // no-ops when nothing is left pending.
+    LaunchedEffect(currentReportId) {
+        val rid = currentReportId ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(800)
+        val pairs = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, rid)
+                .filter { it.fanOutSourceAgentId != null }
+        }
+        pairs.groupBy { it.metaPromptId }
+            .forEach { (metaPromptId, rows) ->
+                if (metaPromptId == null) return@forEach
+                val started = rows.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
+                if (started) fanRuntime.onLaunchFanIconsBatch(rid, metaPromptId)
+            }
+    }
     // Bump the polling-effect tick whenever the engine's set of
     // run keys for THIS report changes (add or remove). Without
     // this, deleting a fan-out run via the L1 trash icon left the
