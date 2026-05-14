@@ -16,10 +16,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
@@ -901,11 +905,19 @@ fun TraceDetailScreen(
                     }
                 }
             } else {
+                // PRETTY gets JSON syntax colors (same palette as the
+                // Parsed tree); RAW stays uncoloured — bytes as-is.
+                val pretty = currentMode == TraceContentMode.PRETTY
                 LazyColumn {
                     val lines = displayContent.lines()
                     items(lines.size) { index ->
-                        Text(lines[index], fontSize = 11.sp, color = Color(0xFFCCCCCC), fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(vertical = 1.dp))
+                        if (pretty) {
+                            Text(highlightJsonLine(lines[index]), fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                        } else {
+                            Text(lines[index], fontSize = 11.sp, color = Color(0xFFCCCCCC),
+                                fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
+                        }
                     }
                 }
             }
@@ -1000,6 +1012,53 @@ private fun parseJsonElement(key: String?, element: JsonElement): JsonTreeNode {
         }
         element.isJsonNull -> JsonTreeNode(key, JsonNodeType.NULL, "null")
         else -> JsonTreeNode(key, JsonNodeType.NULL, "null")
+    }
+}
+
+/** Per-line JSON syntax highlight for the trace detail's Pretty
+ *  print mode — same palette as the Parsed tree (keys blue,
+ *  strings green, numbers orange, booleans purple, null dim,
+ *  punctuation gray). Pretty-printed JSON keeps every value on
+ *  its own line, so a per-line scan is sufficient. */
+private fun highlightJsonLine(line: String): AnnotatedString = buildAnnotatedString {
+    val green = Color(0xFF6A8759)
+    var i = 0
+    while (i < line.length) {
+        val c = line[i]
+        when {
+            c == '"' -> {
+                val start = i; i++
+                while (i < line.length) {
+                    if (line[i] == '\\' && i + 1 < line.length) { i += 2; continue }
+                    if (line[i] == '"') { i++; break }
+                    i++
+                }
+                // Key when the next non-space char is a colon.
+                var j = i
+                while (j < line.length && line[j] == ' ') j++
+                val isKey = j < line.length && line[j] == ':'
+                withStyle(SpanStyle(color = if (isKey) AppColors.Blue else green)) {
+                    append(line.substring(start, i))
+                }
+            }
+            c.isDigit() || (c == '-' && i + 1 < line.length && line[i + 1].isDigit()) -> {
+                val start = i; i++
+                while (i < line.length && (line[i].isDigit() || line[i] in ".eE+-")) i++
+                withStyle(SpanStyle(color = AppColors.Orange)) { append(line.substring(start, i)) }
+            }
+            line.startsWith("true", i) -> { withStyle(SpanStyle(color = AppColors.Purple)) { append("true") }; i += 4 }
+            line.startsWith("false", i) -> { withStyle(SpanStyle(color = AppColors.Purple)) { append("false") }; i += 5 }
+            line.startsWith("null", i) -> { withStyle(SpanStyle(color = AppColors.TextDim)) { append("null") }; i += 4 }
+            else -> {
+                val start = i
+                while (i < line.length && line[i] != '"' && !line[i].isDigit() &&
+                    !(line[i] == '-' && i + 1 < line.length && line[i + 1].isDigit()) &&
+                    !line.startsWith("true", i) && !line.startsWith("false", i) && !line.startsWith("null", i)
+                ) i++
+                if (i == start) i++
+                withStyle(SpanStyle(color = AppColors.TextTertiary)) { append(line.substring(start, i)) }
+            }
+        }
     }
 }
 
