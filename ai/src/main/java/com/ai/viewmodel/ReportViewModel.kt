@@ -2047,7 +2047,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 params
             )
         }
-        return agentTasks + modelTasks
+        // One task per provider:model. Agent-sourced tasks lead and
+        // win over swarm / direct-model tasks of the same pair —
+        // swarms are re-expanded wholesale here from their ids, so
+        // without this the generation total drifts above the count
+        // the model picker showed (the picker's deduplicateModels
+        // already collapsed these cross-source duplicates).
+        val seen = mutableSetOf<String>()
+        return (agentTasks + modelTasks).filter { task ->
+            seen.add("${task.runtimeAgent.provider}:${task.runtimeAgent.model}")
+        }
     }
 
     private suspend fun executeReportTask(
