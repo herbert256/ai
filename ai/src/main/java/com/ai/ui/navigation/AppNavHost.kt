@@ -227,6 +227,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
         com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
+        com.ai.ui.shared.LocalShowBackArrow provides rootUiStateForLayout.generalSettings.showBackArrow,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp

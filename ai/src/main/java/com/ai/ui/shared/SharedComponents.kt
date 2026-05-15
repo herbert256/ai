@@ -213,6 +213,12 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  circuit when false. Default true keeps the feature live. */
 val LocalIconGenEnabled = compositionLocalOf { true }
 
+/** Mirrors GeneralSettings.showBackArrow into the composition tree.
+ *  Read only by [BottomIconBar] to decide whether to paint the ←
+ *  back arrow and whether to right-align or centre the action icons.
+ *  Default false matches the data-class default. */
+val LocalShowBackArrow = compositionLocalOf { false }
+
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider so picker / viewer / etc.
@@ -752,8 +758,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // physical edge once the system-bars inset was dropped.
         modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 8.dp, bottom = 12.dp)
     ) {
-        val backW = if (onBack != null) 45 else 0
-        val backGap = if (onBack != null) 4 else 0
+        // Settings → UI tweaks → "Show back arrow". When off the
+        // arrow is hidden AND the action strip is horizontally
+        // centred instead of right-aligned (Android system back
+        // gesture / button still works as usual).
+        val showBack = LocalShowBackArrow.current && onBack != null
+        val backW = if (showBack) 45 else 0
+        val backGap = if (showBack) 4 else 0
         val available = maxWidth.value
         val desired = (available - backW - backGap) / stripIntrinsic
         // Floor at 1.0× so the strip never shrinks below the previous
@@ -764,13 +775,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (onBack != null) {
+            if (showBack) {
                 // Big arrow needs a Box at least the glyph's intrinsic
                 // height; smaller Boxes clipped the upper / lower
                 // stroke of "←" and made it look like the arrow had
                 // disappeared entirely on some screens.
                 Box(
-                    modifier = Modifier.size(width = 50.dp, height = 56.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(width = 50.dp, height = 56.dp).clickable(onClick = onBack!!),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -779,6 +790,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     )
                 }
             }
+            // Right-align (back-arrow ON) by pushing the strip to
+            // the end with one stretched Spacer; centre (back-arrow
+            // OFF) by sandwiching the strip between two equal-weight
+            // Spacers.
             Spacer(modifier = Modifier.weight(1f))
             TitleBarActionStrip(
                 onReload = onReload,
@@ -792,6 +807,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 scale = scale,
                 extraSpacing = extraGap.dp
             )
+            if (!showBack) Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

@@ -1133,14 +1133,16 @@ private fun UiTweaksSubScreen(
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
+    var showBackArrow by remember { mutableStateOf(generalSettings.showBackArrow) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         showKnowledgeCard = showKnowledgeCard,
-        fullScreen = fullScreen
+        fullScreen = fullScreen,
+        showBackArrow = showBackArrow
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, showBackArrow) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1185,6 +1187,12 @@ private fun UiTweaksSubScreen(
                 description = "Hide the Android status bar (clock / battery / signal) so the app uses the full screen height. Swipe down from the top edge to reveal the bar transiently.",
                 checked = fullScreen,
                 onCheckedChange = { fullScreen = it }
+            )
+            ToggleSettingCard(
+                title = "Show back arrow",
+                description = "Render the ← back arrow on the left of the bottom icon bar; action icons stay right-aligned. Off (default) hides the arrow and centres the action icons — use the Android system back gesture / button to navigate back.",
+                checked = showBackArrow,
+                onCheckedChange = { showBackArrow = it }
             )
         }
     }

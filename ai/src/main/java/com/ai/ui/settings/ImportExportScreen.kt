@@ -241,6 +241,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     })
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("fullScreen", g.fullScreen)
+    addProperty("showBackArrow", g.showBackArrow)
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
@@ -267,6 +268,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
+        showBackArrow = bool("showBackArrow") ?: current.showBackArrow,
         modelNameLayout = layout ?: current.modelNameLayout,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard
