@@ -657,6 +657,7 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 importOnly = importOnly,
                 onStartRefreshAll = onStartRefreshAll,
+                onStartRefreshWorkers = onStartRefreshWorkers,
                 onNavigateToRefresh = onNavigateToRefresh
             )
         }

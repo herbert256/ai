@@ -566,15 +566,16 @@ fun ImportExportScreen(
      *  exactly the use case. */
     importOnly: Boolean = false,
     /** Wired by SettingsScreenNav to [AppViewModel.startRefreshAll].
-     *  Fired by the post-keys-import dialog's "Run Refresh all"
-     *  branch — kicks the full catalog + workers pipeline that
-     *  finishes with its own RestartAppDialog. */
+     *  Fired by the "Refresh all" button in the post-API-keys-import
+     *  action group — kicks the full catalog + workers pipeline. */
     onStartRefreshAll: () -> Unit = {},
+    /** Wired by SettingsScreenNav to [AppViewModel.startRefreshWorkers].
+     *  Fired by the "Refresh providers, model lists & default agents"
+     *  button — runs the per-provider clean-slate + worker phase
+     *  without paying for every external catalog round-trip. */
+    onStartRefreshWorkers: () -> Unit = {},
     /** Navigates the host to the Refresh sub-screen so the user
-     *  lands on the progress overlay that's about to open. The
-     *  RefreshAllState is shared via AppViewModel; the overlay
-     *  reads it from anywhere, but landing on the Refresh screen
-     *  gives the visible feedback the user expects. */
+     *  lands on the progress overlay that's about to open. */
     onNavigateToRefresh: () -> Unit = {}
 ) {
     BackHandler { onBack() }
@@ -586,41 +587,20 @@ fun ImportExportScreen(
     // PricingCache caches) are out of sync with the freshly-imported
     // disk state, so a forced restart brings everything back fresh.
     var restartMessage by remember { mutableStateOf<String?>(null) }
-    // Set after a successful "API keys" import — opens a three-choice
-    // follow-up dialog: kick a full Refresh-all (catalogs + per-provider
-    // worker phase), restart only, or do nothing. The keys are already
-    // on disk by this point; the dialog only decides what to do with
-    // them now that we have them.
-    var showKeysImportedDialog by remember { mutableStateOf(false) }
+    // Set after a successful "API keys" import — surfaces a three-
+    // button action banner at the top of the page (Refresh all /
+    // Refresh providers, model lists & default agents / Restart
+    // application). The keys are already on disk by this point; the
+    // banner just lets the user pick what should happen next. No
+    // modal — they can scroll, navigate, or import more without
+    // dismissing it first.
+    var keysImportedActions by remember { mutableStateOf(false) }
 
     // Rendered as a banner inside the page Column below — see the
     // `restartMessage?.let` call right under the TitleBar.
 
-    if (showKeysImportedDialog) {
-        AlertDialog(
-            onDismissRequest = { showKeysImportedDialog = false },
-            title = { Text("API keys imported") },
-            text = { Text("What should happen next?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showKeysImportedDialog = false
-                    onStartRefreshAll()
-                    onNavigateToRefresh()
-                }) { Text("Run Refresh all", maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {
-                        showKeysImportedDialog = false
-                        restartApp(context)
-                    }) { Text("Restart application", maxLines = 1, softWrap = false) }
-                    TextButton(onClick = { showKeysImportedDialog = false }) {
-                        Text("Do nothing", maxLines = 1, softWrap = false)
-                    }
-                }
-            }
-        )
-    }
+    // Action banner is rendered inline at the top of the page below —
+    // see the `keysImportedActions` block right under the TitleBar.
 
     fun readFromUri(uri: Uri): String? {
         return context.contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }
@@ -901,7 +881,7 @@ fun ImportExportScreen(
                     // Only prompt for the next step when at least one
                     // key actually landed — a "0 imported, N skipped"
                     // bundle has nothing to act on, no point asking.
-                    if (result.imported > 0) showKeysImportedDialog = true
+                    if (result.imported > 0) keysImportedActions = true
                 } catch (e: ConfigBundleMistakenForKeysException) {
                     Toast.makeText(context, "This looks like a full config bundle, not an API keys file.", Toast.LENGTH_LONG).show()
                 } catch (e: JsonSyntaxException) {
@@ -1322,6 +1302,37 @@ fun ImportExportScreen(
         Spacer(modifier = Modifier.height(12.dp))
         restartMessage?.let { msg ->
             RestartAppBanner(message = msg, onConfirm = { restartApp(context) })
+        }
+        if (keysImportedActions) {
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "API keys imported — pick what should happen next:",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = {
+                        keysImportedActions = false
+                        onStartRefreshAll()
+                        onNavigateToRefresh()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh all", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = {
+                        keysImportedActions = false
+                        onStartRefreshWorkers()
+                        onNavigateToRefresh()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { restartApp(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Restart application", maxLines = 1, softWrap = false) }
+            }
         }
 
         // Accordion state for the three cards on this screen: at most
