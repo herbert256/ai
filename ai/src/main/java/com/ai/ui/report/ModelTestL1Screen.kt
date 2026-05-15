@@ -153,26 +153,13 @@ internal fun ModelTestL1Screen(
             // Provider list. One row per active provider, sorted
             // running/queued → errored → done, each with a mini
             // per-provider progress fill.
-            val sortedProviders = remember(run) {
-                run.providerIds.sortedWith(
-                    compareBy(
-                        { pid ->
-                            val items = run.itemsForProvider(pid)
-                            val total = items.size
-                            val ok = items.count { it.status == TestStatus.PASS }
-                            val err = items.count { it.status == TestStatus.FAIL }
-                            val running = items.count { it.status == TestStatus.RUNNING }
-                            when {
-                                running > 0 -> 0
-                                total == 0 -> 0
-                                ok == total -> 2
-                                err > 0 -> 1
-                                else -> 0
-                            }
-                        },
-                        { pid -> (AppService.findById(pid)?.id ?: pid).lowercase() }
-                    )
-                )
+            // Plain alphabetical by provider id (case-insensitive).
+            // Previously the list was bucketed by status (running →
+            // errored → passed) and providers reshuffled as items
+            // completed; the user preferred a stable name order so
+            // the same provider always sits in the same row.
+            val sortedProviders = remember(run.providerIds) {
+                run.providerIds.sortedBy { (AppService.findById(it)?.id ?: it).lowercase() }
             }
             // The run is finished once nothing is pending or running —
             // not when every model passed (that almost never happens,
