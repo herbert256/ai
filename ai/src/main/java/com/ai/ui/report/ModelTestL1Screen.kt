@@ -131,7 +131,7 @@ internal fun ModelTestL1Screen(
                     Triple("Total", topTotal.toString(), AppColors.Blue),
                     Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
                     Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
-                    Triple("No chat", run.noChatAtStart.toString(), AppColors.TextTertiary),
+                    Triple("No chat", run.noChatAtStart.toString(), AppColors.Orange),
                     Triple("For testing", forTesting.toString(), AppColors.Blue)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -152,10 +152,10 @@ internal fun ModelTestL1Screen(
                 val stats = listOf(
                     Triple("Done", run.doneCount.toString(), AppColors.Green),
                     Triple("Errors", errorCount.toString(), AppColors.Red),
-                    Triple("Bench", benchCount.toString(), AppColors.Purple),
-                    Triple("Run", run.runningCount.toString(), AppColors.Orange),
+                    Triple("Bench", benchCount.toString(), AppColors.Blue),
+                    Triple("Running", run.runningCount.toString(), AppColors.Orange),
                     Triple("Throttled", throttledHere.toString(), AppColors.Yellow),
-                    Triple("Queue", queuedCount.toString(), AppColors.Brown)
+                    Triple("Queued", queuedCount.toString(), AppColors.Purple)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     stats.forEach { (label, _, color) ->
