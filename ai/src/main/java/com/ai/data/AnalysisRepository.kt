@@ -76,7 +76,7 @@ class AnalysisRepository {
          *  load or change so the user's edit wins everywhere
          *  without threading aiSettings through every call site. */
         @Volatile
-        internal var TEST_PROMPT: String = "Reply: OK"
+        internal var TEST_PROMPT: String = "Reply with exactly: OK"
 
         /** max_tokens for the [TEST_PROMPT] probe. The probe only
          *  checks reachability — a one-word reply is all it needs — so

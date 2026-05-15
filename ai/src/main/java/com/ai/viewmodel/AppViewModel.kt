@@ -806,6 +806,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot upgrade for the bundled `test_model` prompt: the
+        // first seed ("Reply: OK") was too ambiguous — chatty models
+        // would echo 10-50 tokens of pleasantries instead of the
+        // single "OK" token, multiplying every Test-all-models probe's
+        // generation time. Force the more directive wording when the
+        // user is still on the original bad default; manual edits stay.
+        run {
+            val oldText = "Reply: OK"
+            val newText = "Reply with exactly: OK"
+            val upgraded = ai.internalPrompts.map { p ->
+                if (p.name.equals("test_model", ignoreCase = true) && p.text == oldText) p.copy(text = newText) else p
+            }
+            if (upgraded != ai.internalPrompts) {
+                AppLog.i(tag, "Upgraded test_model prompt to the directive wording")
+                ai = ai.copy(internalPrompts = upgraded)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get

@@ -37,7 +37,7 @@
     "reference": false,
     "category": "internal",
     "agent": "*N/A",
-    "text": "Reply: OK"
+    "text": "Reply with exactly: OK"
   },
   {
     "name": "intro",
