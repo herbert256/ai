@@ -226,15 +226,9 @@ internal fun ModelTestL1Screen(
                         if (cost > 0.0) {
                             Text(
                                 formatCents(cost), fontSize = 11.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 8.dp)
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
                             )
                         }
-                        Text(
-                            "$ok/$total",
-                            fontSize = 12.sp, color = AppColors.TextSecondary,
-                            fontFamily = FontFamily.Monospace
-                        )
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
                 }
