@@ -167,6 +167,10 @@ internal fun ReportSelectModelsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    // "providerId:model" → reason for user-blocked pairs. Dim them but
+    // keep them selectable (advisory) — distinct from the disabled
+    // already-added / benched states.
+    val blockedReasons = remember(aiSettings) { aiSettings.blockedReasonByKey }
     var search by remember { mutableStateOf("") }
     val activeServices = aiSettings.getActiveServices()
     var providerFilter by remember { mutableStateOf<AppService?>(null) }
@@ -273,10 +277,12 @@ internal fun ReportSelectModelsScreen(
             val benchedUntil = cooldowns["${provider.id}:$model"]
                 ?.takeIf { it > System.currentTimeMillis() }
             val disabled = isAlreadyAdded || benchedUntil != null
+            val blockReason = blockedReasons["${provider.id}:$model"]
             val pricing = aiSettings.getModelPricing(provider, model)
                 ?: PricingCache.getPricing(context, provider, model)
             val real = pricing.source != "DEFAULT"
-            val rowAlpha = if (disabled) 0.4f else 1f
+            // Blocked rows dim like disabled ones but stay clickable.
+            val rowAlpha = if (disabled || blockReason != null) 0.4f else 1f
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !disabled) {
@@ -302,6 +308,13 @@ internal fun ReportSelectModelsScreen(
                         Text(
                             com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
                             fontSize = 10.sp, color = AppColors.Orange, maxLines = 1
+                        )
+                    }
+                    if (blockReason != null) {
+                        Text(
+                            if (blockReason.isBlank()) "🚫 Blocked" else "🚫 Blocked: $blockReason",
+                            fontSize = 10.sp, color = AppColors.Red, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

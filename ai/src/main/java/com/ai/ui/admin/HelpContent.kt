@@ -1473,6 +1473,21 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Entries normally appear here on their own from the >1h-429 detector — manual add is for when you want to pre-emptively bench a model."),
         )
     ),
+    "blocked_models" to HelpContent(
+        title = "Blocked models",
+        cards = listOf(
+            HelpCard("Overview", "A curated list of provider/model pairs flagged as \"blocked\" — dead models, wrong-endpoint models, ones that always error. Blocked pairs show dimmed (but still selectable) in every model picker."),
+            HelpCard("Test all models", "On completion, a \"Test all models\" run syncs itself into this list: every model that errored is added with its error as the reason, and every model that passed is removed. Models the run didn't cover are left untouched."),
+            HelpCard("Hand-curated", "Add / edit / delete rows yourself for anything the sweep didn't reach, or to write a clearer reason. Persisted with the rest of your configuration — included in Backup/Restore and Export/Import."),
+        )
+    ),
+    "blocked_model_edit" to HelpContent(
+        title = "Blocked model",
+        cards = listOf(
+            HelpCard("Pick model", "Opens the same model picker the New Report \"+model\" button uses. Pick the provider/model pair to block."),
+            HelpCard("Reason", "Free text shown in the list and beside the dimmed entry in pickers. Optional, but useful when you come back later."),
+        )
+    ),
     "external_services" to HelpContent(
         title = "External Services",
         cards = listOf(

@@ -60,6 +60,9 @@ fun SelectModelScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    // "providerId:model" → reason for user-blocked pairs — dimmed but
+    // still selectable (advisory).
+    val blockedReasons = remember(aiSettings) { aiSettings.blockedReasonByKey }
     var searchQuery by remember { mutableStateOf("") }
 
     // For an API-mode provider, hold the model list behind a refresh: kick off the fetch,
@@ -213,13 +216,15 @@ fun SelectModelScreen(
                 // Benched by a >1h 429 (ModelCooldownStore) — dim + block taps.
                 val benchedUntil = cooldowns["${provider.id}:$modelName"]
                     ?.takeIf { it > System.currentTimeMillis() }
+                // User-blocked — dim but stay selectable (advisory).
+                val blockReason = blockedReasons["${provider.id}:$modelName"]
 
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
                         .clickable(enabled = benchedUntil == null) { onSelectModel(modelName) }
                         .padding(vertical = 10.dp, horizontal = 4.dp)
-                        .alpha(if (benchedUntil != null) 0.4f else 1f)
+                        .alpha(if (benchedUntil != null || blockReason != null) 0.4f else 1f)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -233,6 +238,13 @@ fun SelectModelScreen(
                         Text(
                             com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
                             style = MaterialTheme.typography.bodySmall, color = AppColors.Orange, maxLines = 1
+                        )
+                    }
+                    if (blockReason != null) {
+                        Text(
+                            if (blockReason.isBlank()) "🚫 Blocked" else "🚫 Blocked: $blockReason",
+                            style = MaterialTheme.typography.bodySmall, color = AppColors.Red,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

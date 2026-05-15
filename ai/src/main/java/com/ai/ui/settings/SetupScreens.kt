@@ -98,6 +98,8 @@ fun SetupScreen(
                 SetupNavCard("\u23F3", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
                     onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
             }
+            SetupNavCard("\uD83D\uDEAB", "Blocked models", "Provider/model pairs flagged as blocked \u2014 dimmed in every model picker", "${aiSettings.blockedModels.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
         }
     }
 }

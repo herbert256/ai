@@ -143,6 +143,19 @@ data class Parameters(
 
 data class SystemPrompt(val id: String, val name: String, val prompt: String)
 
+/** A provider/model pair the user has flagged as "blocked" — surfaced
+ *  dimmed (but still selectable) in every model picker. Identity is the
+ *  `(providerId, model)` pair; no UUID. Auto-populated by the "Test all
+ *  models" sweep (every FAIL → a block, every PASS → un-block) and
+ *  hand-curated via AI Setup → Blocked models. */
+data class BlockedModel(
+    val providerId: String,
+    val model: String,
+    val reason: String = ""
+) {
+    val key: String get() = "$providerId:$model"
+}
+
 /**
  * User-managed Internal prompt — covers Meta-prompt launchers on the
  * Report Result screen ([category] == "meta"), Fan-out / Fan-in
@@ -221,7 +234,8 @@ data class Settings(
     val examplePrompts: List<ExamplePrompt> = emptyList(),
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
-    val modelTypeOverrides: List<ModelTypeOverride> = emptyList()
+    val modelTypeOverrides: List<ModelTypeOverride> = emptyList(),
+    val blockedModels: List<BlockedModel> = emptyList()
 ) {
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]
@@ -582,6 +596,27 @@ data class Settings(
     fun getExamplePromptById(id: String) = examplePrompts.find { it.id == id }
     fun getParametersById(id: String) = parameters.find { it.id == id }
     fun getParametersByName(name: String) = parameters.find { it.name.equals(name, ignoreCase = true) }
+
+    // ----- Blocked models -----
+    /** `"providerId:model"` → reason, for O(1) picker lookups. */
+    val blockedReasonByKey: Map<String, String>
+        get() = blockedModels.associate { it.key to it.reason }
+    fun isBlocked(providerId: String, model: String) =
+        blockedModels.any { it.providerId == providerId && it.model == model }
+    fun removeBlockedModel(providerId: String, model: String) = copy(
+        blockedModels = blockedModels.filterNot { it.providerId == providerId && it.model == model }
+    )
+    /** Upsert by `(providerId, model)` — incoming wins. */
+    fun upsertBlockedModel(bm: BlockedModel) = copy(
+        blockedModels = blockedModels.filterNot { it.key == bm.key } + bm
+    )
+    /** Fold a "Test all models" run into the list: drop every entry the
+     *  run actually tested (so passes un-block), then append the run's
+     *  failures (so fails block / refresh their reason). Untested
+     *  entries are left untouched. */
+    fun syncBlockedModelsFromTestRun(failures: List<BlockedModel>, testedKeys: Set<String>) = copy(
+        blockedModels = blockedModels.filterNot { it.key in testedKeys } + failures
+    )
 
     fun getEndpointsForProvider(provider: AppService): List<Endpoint> =
         endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)

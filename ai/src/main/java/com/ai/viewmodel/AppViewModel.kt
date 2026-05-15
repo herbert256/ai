@@ -1160,6 +1160,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
     }
 
+    /** Fold a finished "Test all models" run into the blocked-models
+     *  list — drop every tested model's entry, then re-add the run's
+     *  failures. Called by [com.ai.viewmodel.ModelTestEngine] on run
+     *  completion. */
+    fun applyBlockedModelsFromTestRun(
+        failures: List<com.ai.model.BlockedModel>,
+        testedKeys: Set<String>
+    ) {
+        updateSettings(
+            _uiState.value.aiSettings.syncBlockedModelsFromTestRun(failures, testedKeys)
+        )
+        AppLog.i("ModelTest", "→ blocked-models sync: ${failures.size} blocked, ${testedKeys.size} tested")
+    }
+
     fun updateProviderState(service: AppService, state: String) {
         // Compute the delta inside the StateFlow.update CAS lambda so
         // concurrent calls (e.g. the parallel provider-test sweep

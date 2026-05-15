@@ -179,6 +179,11 @@ class ModelTestEngine internal constructor(
                         }.awaitAll()
                     }
                     AppLog.i("ModelTest", "← run done (${items.size} models)")
+                    // Natural completion only — a cancelled run is
+                    // cancelled before reaching here, so "Cancelled"
+                    // FAILs never get synced. Every FAIL → a block
+                    // (error = reason), every PASS → un-block.
+                    syncToBlockedModels()
                 }
             } finally {
                 _throttledKeys.value = emptySet()
@@ -192,6 +197,28 @@ class ModelTestEngine internal constructor(
     private fun cancelItemJobs() {
         itemJobs.values.forEach { it.cancel() }
         itemJobs.clear()
+    }
+
+    /** Fold the just-finished run into [com.ai.model.Settings.blockedModels]:
+     *  every FAIL becomes a blocked entry (its error message is the
+     *  reason), every PASS removes its entry, untested models are left
+     *  alone. One settings write. */
+    private fun syncToBlockedModels() {
+        val items = _run.value?.items?.values ?: return
+        val failures = items
+            .filter { it.status == TestStatus.FAIL }
+            .map {
+                com.ai.model.BlockedModel(
+                    it.providerId, it.model,
+                    it.errorMessage?.take(300) ?: "Test failed"
+                )
+            }
+        val testedKeys = items
+            .filter { it.status == TestStatus.FAIL || it.status == TestStatus.PASS }
+            .map { it.key }
+            .toSet()
+        if (failures.isEmpty() && testedKeys.isEmpty()) return
+        appViewModel.applyBlockedModelsFromTestRun(failures, testedKeys)
     }
 
     /** Active providers with a non-blank API key, each paired with its
