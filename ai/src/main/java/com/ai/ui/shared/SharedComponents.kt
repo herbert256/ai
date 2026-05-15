@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -544,11 +545,20 @@ fun TitleBar(
     val titleStyle = MaterialTheme.typography.titleLarge
     val barFontSize = titleStyle.fontSize * 1.35f
     val reportIconTap = LocalNavigateToCurrentReport.current
-    // Negative-Y offset pulls the whole bar up against the status-bar
-    // inset that Scaffold added, gaining ~10dp of vertical space for
-    // the content underneath.
+    // Pull the whole bar up 10dp AND shrink its measured height by
+    // the same amount so the next composable starts where the bar
+    // visually ends. Plain Modifier.offset only shifts paint — it
+    // leaves the row's measured height alone, which surfaced as 10dp
+    // of empty space under every title that had no HardcodedSubjectRow
+    // filling it.
     Row(
-        modifier = modifier.fillMaxWidth().offset(y = (-10).dp),
+        modifier = modifier.fillMaxWidth().layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val shift = 10.dp.roundToPx()
+            layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
+                placeable.place(0, -shift)
+            }
+        },
         verticalAlignment = Alignment.CenterVertically
     ) {
         AiLogoButton(
