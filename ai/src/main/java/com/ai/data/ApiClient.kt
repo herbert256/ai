@@ -81,6 +81,13 @@ interface GeminiApi {
     suspend fun listModels(
         @Query("key") apiKey: String
     ): Response<GeminiModelsResponse>
+
+    @POST("v1beta/models/{model}:batchEmbedContents")
+    suspend fun batchEmbedContents(
+        @Path("model") model: String,
+        @Query("key") apiKey: String,
+        @Body request: GeminiBatchEmbedRequest
+    ): Response<GeminiBatchEmbedResponse>
 }
 
 /** Unified interface for all 28 OpenAI-compatible providers (dynamic @Url). */

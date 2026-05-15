@@ -614,6 +614,11 @@ data class ClaudeModelEffort(
     val max: ClaudeModelSupportFlag? = null
 )
 
+data class GeminiBatchEmbedRequest(val requests: List<GeminiEmbedContentRequest>)
+data class GeminiEmbedContentRequest(val model: String, val content: GeminiContent)
+data class GeminiBatchEmbedResponse(val embeddings: List<GeminiEmbedding>?)
+data class GeminiEmbedding(val values: List<Double>?)
+
 data class GeminiModelsResponse(val models: List<GeminiModel>?)
 data class GeminiModel(
     val name: String?,

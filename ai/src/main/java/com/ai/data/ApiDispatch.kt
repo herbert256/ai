@@ -141,14 +141,17 @@ suspend fun AnalysisRepository.embedWithStatus(
     baseUrl: String = service.baseUrl
 ): EmbedResult = withContext(Dispatchers.IO) {
     val t0 = System.currentTimeMillis()
-    if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) {
-        return@withContext EmbedResult(errorMessage = "Embed dispatch only supports OpenAI-compatible providers")
-    }
     if (apiKey.isBlank()) {
         return@withContext EmbedResult(errorMessage = "API key not configured for ${service.id}")
     }
     if (texts.isEmpty()) return@withContext EmbedResult(errorMessage = "No inputs")
     AppLog.d("ApiDispatch", "embed ${service.id}/$model — ${texts.size} input(s)")
+    if (service.apiFormat == ApiFormat.GOOGLE) {
+        return@withContext embedGemini(service, apiKey, model, texts, baseUrl, t0)
+    }
+    if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) {
+        return@withContext EmbedResult(errorMessage = "Embed dispatch only supports OpenAI-compatible and Google providers")
+    }
     try {
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
@@ -192,6 +195,61 @@ suspend fun AnalysisRepository.embedWithStatus(
             httpStatusCode = response.code(),
             durationMs = durationMs
         )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        EmbedResult(
+            errorMessage = "Embed call failed: ${e.message ?: e.javaClass.simpleName}",
+            durationMs = System.currentTimeMillis() - t0
+        )
+    }
+}
+
+/** Gemini batch-embed dispatch path. The API echoes vectors back as
+ *  `embeddings[i].values`; we don't get a usage block, so cost
+ *  accounting relies on pricing-by-input-tokens elsewhere. */
+private suspend fun embedGemini(
+    service: AppService, apiKey: String, model: String,
+    texts: List<String>, baseUrl: String, t0: Long
+): EmbedResult {
+    val api = ApiFactory.createGeminiApi(baseUrl)
+    // batchEmbedContents requires the model on every per-text request,
+    // in the full "models/<id>" form. Path param is the bare id.
+    val fullModelName = if (model.startsWith("models/")) model else "models/$model"
+    val request = GeminiBatchEmbedRequest(
+        requests = texts.map { text ->
+            GeminiEmbedContentRequest(
+                model = fullModelName,
+                content = GeminiContent(parts = listOf(GeminiPart(text = text)))
+            )
+        }
+    )
+    return try {
+        val response = api.batchEmbedContents(model, apiKey, request)
+        val durationMs = System.currentTimeMillis() - t0
+        if (!response.isSuccessful) {
+            val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            return EmbedResult(
+                errorMessage = "API error: ${response.code()} ${response.message()} - $errBody",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        val body = response.body()
+        val embeddings = body?.embeddings
+        if (embeddings.isNullOrEmpty()) {
+            return EmbedResult(
+                errorMessage = "No embedding vectors returned",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        val vectors = embeddings.map { it.values ?: emptyList() }
+        if (vectors.size != texts.size || vectors.any { it.isEmpty() }) {
+            return EmbedResult(
+                errorMessage = "Malformed embedding response (expected ${texts.size} vectors, got ${vectors.size})",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        EmbedResult(vectors = vectors, httpStatusCode = response.code(), durationMs = durationMs)
     } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
     } catch (e: Exception) {
