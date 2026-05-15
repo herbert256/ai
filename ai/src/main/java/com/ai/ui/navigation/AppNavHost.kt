@@ -886,6 +886,9 @@ fun AppNavHost(
                 onNavigateToModelInfo = { svc, model ->
                     navController.navigate(NavRoutes.aiModelInfo(svc.id, model))
                 },
+                onNavigateToProvider = { svc ->
+                    navController.navigate(NavRoutes.settingsProviderEdit(svc.id))
+                },
                 onBack = safePopBack
             )
         }

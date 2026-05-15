@@ -66,7 +66,11 @@ data class ModelTestActions(
     val onCheckRun: () -> Unit = {},
     val onRerunErrors: () -> Unit = {},
     val onNavigateToTraceFile: (String) -> Unit = {},
-    val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    /** Opens the provider edit page — wired to the L2 (per-provider)
+     *  info icon so the user lands on the provider's own screen
+     *  instead of the default-model's Model Info page. */
+    val onNavigateToProvider: (AppService) -> Unit = {}
 )
 
 /**
@@ -80,6 +84,7 @@ fun ModelTestScreen(
     engine: ModelTestEngine,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
+    onNavigateToProvider: (AppService) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -142,7 +147,8 @@ fun ModelTestScreen(
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         },
         onNavigateToTraceFile = onNavigateToTraceFile,
-        onNavigateToModelInfo = onNavigateToModelInfo
+        onNavigateToModelInfo = onNavigateToModelInfo,
+        onNavigateToProvider = onNavigateToProvider
     )
 
     when (val n = nav) {
