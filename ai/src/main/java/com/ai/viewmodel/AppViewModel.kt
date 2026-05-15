@@ -898,6 +898,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms", it)
         }
 
+        // Mirror of excluded.json delta-merge for inaccessible.json:
+        // append any (provider, model) pair not yet present so an APK
+        // upgrade that ships a curated "not callable on this account"
+        // list (Together non-serverless, OpenRouter Arcee, etc.)
+        // surfaces them automatically — saves the user from
+        // rediscovering them via burned sweep slots.
+        AppLog.d(tag, "→ inaccessible.json delta-merge")
+        val tInaccessible = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.InaccessibleSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled inaccessible.json entries: ${bundled.size}")
+            if (bundled.isNotEmpty()) {
+                val before = ai.inaccessibleModels.size
+                val merged = com.ai.data.InaccessibleSeed.ensureAllPresent(ai.inaccessibleModels, bundled)
+                val added = merged.size - before
+                if (added != 0) {
+                    ai = ai.copy(inaccessibleModels = merged)
+                    settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new inaccessible entries")
+                }
+                AppLog.d(tag, "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms", it)
+        }
+
         // One-time migration: pre-existing Together entries in
         // testExcludedModels came from the old non-serverless
         // auto-exclude rule (commit e928b8e8). Move them to
