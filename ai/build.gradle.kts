@@ -65,6 +65,13 @@ android {
             useSupportLibrary = true
         }
 
+        // Ship only arm64-v8a — the only ABI any modern Android device
+        // (and the standard emulator AVDs) actually runs. Dropping the
+        // other three saves ~150 MB of native libraries in the APK.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
         // Network timeouts in seconds — tuned for streaming (long reads), short connect.
         // The read-timeout values double as the first-run defaults for the
         // user-tunable GeneralSettings.{streaming,nonStreaming}ReadTimeoutSec —
@@ -180,12 +187,6 @@ dependencies {
     // .tgz archive. Kaggle ships some Gemma bundles as .tgz; this
     // saves the user a round-trip through a desktop unzipper.
     implementation("org.apache.commons:commons-compress:1.27.1")
-
-    // ML Kit text recognition — bundled Latin model so OCR works
-    // offline without Google Play Services. Used as the fallback in
-    // the Knowledge ingestion path when a PDF has no text layer
-    // (image-only scans). ~20 MB APK growth.
-    implementation("com.google.mlkit:text-recognition:16.0.1")
 
     // PDFBox-Android — Apache PDFBox port for Android. Used by the
     // Knowledge ingestion pipeline to extract text from .pdf files

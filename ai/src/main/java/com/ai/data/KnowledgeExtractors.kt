@@ -1,25 +1,15 @@
 package com.ai.data
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import android.os.ParcelFileDescriptor
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.TextRecognizer
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
-import com.google.android.gms.tasks.Tasks
 import org.jsoup.Jsoup
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.File
 import java.io.InputStream
-import java.net.URL
 import java.util.zip.ZipInputStream
 
 /**
@@ -54,7 +44,6 @@ internal object KnowledgeExtractors {
             KnowledgeSourceType.XLSX -> readUriXlsx(context, Uri.parse(origin))
             KnowledgeSourceType.ODS -> readUriOds(context, Uri.parse(origin))
             KnowledgeSourceType.CSV -> readUriCsv(context, Uri.parse(origin))
-            KnowledgeSourceType.IMAGE -> readUriImage(context, Uri.parse(origin))
             KnowledgeSourceType.URL -> fetchUrlAsText(origin)
         }
     }
@@ -76,7 +65,7 @@ internal object KnowledgeExtractors {
             PDFBoxResourceLoader.init(context.applicationContext)
             pdfBoxInited = true
         }
-        val text = context.contentResolver.openInputStream(uri).use { inp ->
+        return context.contentResolver.openInputStream(uri).use { inp ->
             requireNotNull(inp) { "Could not open $uri" }
             PDDocument.load(inp).use { doc ->
                 val stripper = PDFTextStripper()
@@ -84,107 +73,7 @@ internal object KnowledgeExtractors {
                 stripper.getText(doc)
             }
         }.normalised()
-        if (text.isNotBlank()) return text
-        // Fall back to OCR when PDFBox returned nothing — image-only
-        // PDFs (scans, screenshot PDFs) have no text layer to strip.
-        // PdfRenderer wants a ParcelFileDescriptor, not a stream;
-        // re-open the SAF Uri in "r" mode.
-        return runCatching { ocrPdf(context, uri) }
-            .getOrDefault("")
-            .normalised()
     }
-
-    /** Render each page of [uri] to a Bitmap and run ML Kit Latin
-     *  text recognition over it. Pages with no recognised text
-     *  contribute nothing; results join with double newlines so
-     *  paragraph chunking still works. Synchronous from the caller's
-     *  perspective — internally bridges ML Kit's Task<Text> API to a
-     *  suspend point so the calling IO dispatcher serialises page
-     *  renders and bitmap recycling without overlap. */
-    private fun ocrPdf(context: Context, uri: Uri): String {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        return try {
-            context.contentResolver.openFileDescriptor(uri, "r").use { pfd ->
-                requireNotNull(pfd) { "Could not open $uri for OCR" }
-                PdfRenderer(pfd).use { renderer ->
-                    val sb = StringBuilder()
-                    for (i in 0 until renderer.pageCount) {
-                        renderer.openPage(i).use { page ->
-                            // 200 DPI ≈ 200/72 ≈ 2.78x scale; clamp at
-                            // ~2400px on the long side to keep memory
-                            // manageable for poster-size pages.
-                            val scale = 2.78f.coerceAtMost(2400f / maxOf(page.width, page.height))
-                            val w = (page.width * scale).toInt().coerceAtLeast(1)
-                            val h = (page.height * scale).toInt().coerceAtLeast(1)
-                            val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-                            try {
-                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                                val pageText = ocrBitmap(recognizer, bitmap)
-                                if (pageText.isNotBlank()) {
-                                    if (sb.isNotEmpty()) sb.append("\n\n")
-                                    sb.append(pageText)
-                                }
-                            } finally {
-                                bitmap.recycle()
-                            }
-                        }
-                    }
-                    sb.toString()
-                }
-            }
-        } finally {
-            // ML Kit's recognizer holds native resources; close so
-            // the OS can release them between source imports.
-            runCatching { recognizer.close() }
-        }
-    }
-
-    /** Standalone image OCR. Loads the bitmap once via SAF, runs ML
-     *  Kit, returns the recognised text. Used by JPG / PNG sources;
-     *  PDF OCR uses the same [ocrBitmap] helper after rendering each
-     *  page. Sub-sampling guard avoids OOM on huge phone photos. */
-    private fun readUriImage(context: Context, uri: Uri): String {
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        try {
-            // Decode bounds first so we can downsample to ~2400px on
-            // the long side — same cap PDF OCR uses, keeps memory
-            // honest on 100-megapixel phone shots.
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            context.contentResolver.openInputStream(uri).use { inp ->
-                requireNotNull(inp) { "Could not open $uri" }
-                BitmapFactory.decodeStream(inp, null, bounds)
-            }
-            val maxDim = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
-            var sampleSize = 1
-            while (maxDim / sampleSize > 2400) sampleSize *= 2
-            val opts = BitmapFactory.Options().apply {
-                inSampleSize = sampleSize
-                inPreferredConfig = Bitmap.Config.ARGB_8888
-            }
-            val bitmap = context.contentResolver.openInputStream(uri).use { inp ->
-                requireNotNull(inp) { "Could not open $uri" }
-                BitmapFactory.decodeStream(inp, null, opts)
-            } ?: return ""
-            return try {
-                ocrBitmap(recognizer, bitmap).normalised()
-            } finally {
-                bitmap.recycle()
-            }
-        } finally {
-            runCatching { recognizer.close() }
-        }
-    }
-
-    /** Bridge ML Kit's Task<Text> async API to a synchronous String
-     *  via Play Services' Tasks.await, blocking the calling thread.
-     *  The calling IO dispatcher serialises overlapping work across
-     *  pages or images so we never run two recognizer.process calls
-     *  concurrently against the same client. Previously bridged via
-     *  runBlocking + suspendCancellableCoroutine; Tasks.await is a
-     *  cleaner blocking primitive that doesn't spin up a coroutine
-     *  event loop just to wait on a single callback. */
-    private fun ocrBitmap(recognizer: TextRecognizer, bitmap: Bitmap): String =
-        Tasks.await(recognizer.process(InputImage.fromBitmap(bitmap, 0))).text
 
     /** Walk a .docx (Office Open XML) zip, find word/document.xml, and
      *  pull the visible text out via a streaming XmlPullParser pass.

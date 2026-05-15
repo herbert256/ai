@@ -373,8 +373,6 @@ fun KnowledgeDetailScreen(
                     "application/vnd.oasis.opendocument.text",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     "application/vnd.oasis.opendocument.spreadsheet",
-                    "image/jpeg",
-                    "image/png",
                     "*/*"
                 )) },
                 enabled = !working, modifier = Modifier.weight(1f),
@@ -510,7 +508,6 @@ internal fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowled
         name.endsWith(".xlsx") -> KnowledgeSourceType.XLSX
         name.endsWith(".ods") -> KnowledgeSourceType.ODS
         name.endsWith(".csv") || name.endsWith(".tsv") -> KnowledgeSourceType.CSV
-        name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") -> KnowledgeSourceType.IMAGE
         name.endsWith(".txt") -> KnowledgeSourceType.TEXT
         else -> null
     }
@@ -526,7 +523,6 @@ internal fun pickTypeForUri(context: android.content.Context, uri: Uri): Knowled
         "text/csv", "text/comma-separated-values",
         "text/tab-separated-values" -> KnowledgeSourceType.CSV
         else -> when {
-            mime?.startsWith("image/") == true -> KnowledgeSourceType.IMAGE
             mime?.startsWith("text/") == true -> KnowledgeSourceType.TEXT
             else -> KnowledgeSourceType.TEXT
         }
