@@ -93,6 +93,8 @@ fun SettingsScreen(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
+    initialEditingFlockId: String? = null,
+    initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
     initialInternalPromptCategory: String? = null
 ) {
@@ -120,8 +122,8 @@ fun SettingsScreen(
     }
     val selectedProvider: AppService? = selectedProviderId?.let { AppService.findById(it) }
     var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
-    var editingFlockId by remember { mutableStateOf<String?>(null) }
-    var editingSwarmId by remember { mutableStateOf<String?>(null) }
+    var editingFlockId by remember { mutableStateOf(initialEditingFlockId) }
+    var editingSwarmId by remember { mutableStateOf(initialEditingSwarmId) }
     var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
     var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }

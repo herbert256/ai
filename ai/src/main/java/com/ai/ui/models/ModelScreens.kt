@@ -153,6 +153,18 @@ fun ModelInfoScreen(
     onNavigateToAddManualOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToAddCostOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToProviderEdit: (AppService) -> Unit = {},
+    /** "Model in AI configuration" card click targets — each opens the
+     *  matching SettingsScreen subscreen so the user lands on the list
+     *  containing this model's entry. */
+    onNavigateToBlockedModels: () -> Unit = {},
+    onNavigateToInaccessibleModels: () -> Unit = {},
+    onNavigateToCooldowns: () -> Unit = {},
+    onNavigateToModelTypes: () -> Unit = {},
+    /** "Workers" card click targets — each opens the worker's edit
+     *  screen, deep-linked by id. */
+    onNavigateToAgentEdit: (String) -> Unit = {},
+    onNavigateToFlockEdit: (String) -> Unit = {},
+    onNavigateToSwarmEdit: (String) -> Unit = {},
     onOpenReport: (String) -> Unit = {},
     /** Open a per-info-provider help topic. Wired by AppNavHost to
      *  the helpForTopic(id) route. Used by the Costs card, the
@@ -429,6 +441,43 @@ fun ModelInfoScreen(
                         computeModelUsages(context, provider, modelName, onOpenReport)
                     }
                 }
+                // Hoisted out of LazyColumn — the LazyListScope.() -> Unit
+                // lambda below isn't @Composable, so remember /
+                // rememberCoroutineScope / collectAsState calls have to
+                // live in the surrounding Column scope.
+                val isProviderActive = aiSettings.isProviderActive(provider)
+                val testScope = rememberCoroutineScope()
+                var testRunning by remember { mutableStateOf(false) }
+                var testResult by remember { mutableStateOf<String?>(null) }
+                var testPassed by remember { mutableStateOf<Boolean?>(null) }
+                val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+                val cooldownUntil = cooldowns["${provider.id}:$modelName"]
+                    ?.takeIf { it > System.currentTimeMillis() }
+                val hasTypeOverride = aiSettings.modelTypeOverrides.any {
+                    it.providerId == provider.id && it.modelId == modelName
+                }
+                val hasCostOverride = remember(provider, modelName) {
+                    PricingCache.getManualPricing(context, provider, modelName) != null
+                }
+                val blockedReason = aiSettings.blockedModels
+                    .firstOrNull { it.providerId == provider.id && it.model == modelName }?.reason
+                val inaccessibleReason = aiSettings.inaccessibleModels
+                    .firstOrNull { it.providerId == provider.id && it.model == modelName }?.reason
+                val inAnyConfig = hasTypeOverride || hasCostOverride ||
+                    cooldownUntil != null || blockedReason != null || inaccessibleReason != null
+                val matchedAgents = remember(aiSettings.agents, provider, modelName) {
+                    aiSettings.agents.filter { it.provider == provider && it.model == modelName }
+                }
+                val matchedAgentIds = remember(matchedAgents) { matchedAgents.map { it.id }.toSet() }
+                val matchedFlocks = remember(aiSettings.flocks, matchedAgentIds) {
+                    aiSettings.flocks.filter { f -> f.agentIds.any { it in matchedAgentIds } }
+                }
+                val matchedSwarms = remember(aiSettings.swarms, provider, modelName) {
+                    aiSettings.swarms.filter { s ->
+                        s.members.any { it.provider == provider && it.model == modelName }
+                    }
+                }
+                val inAnyWorker = matchedAgents.isNotEmpty() || matchedFlocks.isNotEmpty() || matchedSwarms.isNotEmpty()
                 LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     // Model name moved to the green sub-header above the
                     // LazyColumn. The 🐞 ladybug + the dedicated "API
@@ -437,8 +486,6 @@ fun ModelInfoScreen(
                     // below Capabilities (further down).
 
                     val hasUsageStats = (usageEntry?.callCount ?: 0) > 0
-
-                    // Action buttons: start a chat, or create an agent for this model.
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,6 +501,123 @@ fun ModelInfoScreen(
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
                                     ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                                    if (isProviderActive) {
+                                        Button(
+                                            onClick = {
+                                                testRunning = true
+                                                testResult = null
+                                                testPassed = null
+                                                testScope.launch {
+                                                    val apiKey = aiSettings.getApiKey(provider)
+                                                    val err = onTestAiModel(provider, apiKey, modelName)
+                                                    testPassed = err == null
+                                                    testResult = err ?: "OK"
+                                                    testRunning = false
+                                                }
+                                            },
+                                            enabled = !testRunning,
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                                        ) { Text(if (testRunning) "Testing…" else "Test", maxLines = 1, softWrap = false) }
+                                    }
+                                }
+                                testResult?.let { r ->
+                                    val passed = testPassed == true
+                                    Text(
+                                        text = if (passed) "✅ $r" else "❌ $r",
+                                        fontSize = 12.sp,
+                                        color = if (passed) AppColors.Green else AppColors.Red
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // "Model in AI configuration" card — shown only when
+                    // at least one of the five configuration lists has
+                    // an entry for this (provider, model). Each row is
+                    // clickable and deep-links into the matching CRUD.
+                    if (inAnyConfig) {
+                        item {
+                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        "Model in AI configuration",
+                                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                        color = AppColors.Blue
+                                    )
+                                    if (hasTypeOverride) {
+                                        ModelConfigRow(
+                                            label = "Model overrides",
+                                            value = aiSettings.getModelType(provider, modelName) ?: "—",
+                                            onClick = { onNavigateToAddManualOverride(provider, modelName) }
+                                        )
+                                    }
+                                    if (hasCostOverride) {
+                                        ModelConfigRow(
+                                            label = "Cost overrides",
+                                            value = "manual pricing set",
+                                            onClick = { onNavigateToAddCostOverride(provider, modelName) }
+                                        )
+                                    }
+                                    if (cooldownUntil != null) {
+                                        ModelConfigRow(
+                                            label = "Model cooldowns",
+                                            value = com.ai.data.ModelCooldownStore.cooldownCaption(cooldownUntil),
+                                            onClick = onNavigateToCooldowns
+                                        )
+                                    }
+                                    if (blockedReason != null) {
+                                        ModelConfigRow(
+                                            label = "Blocked models",
+                                            value = if (blockedReason.isBlank()) "blocked" else blockedReason,
+                                            onClick = onNavigateToBlockedModels
+                                        )
+                                    }
+                                    if (inaccessibleReason != null) {
+                                        ModelConfigRow(
+                                            label = "Inaccessible models",
+                                            value = if (inaccessibleReason.isBlank()) "inaccessible" else inaccessibleReason,
+                                            onClick = onNavigateToInaccessibleModels
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // "Workers" card — Agents matching (provider, model),
+                    // Flocks containing such an agent, Swarms with such a member.
+                    if (inAnyWorker) {
+                        item {
+                            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(
+                                        "Workers",
+                                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                                        color = AppColors.Blue
+                                    )
+                                    matchedAgents.forEach { a ->
+                                        ModelConfigRow(
+                                            label = "Agent",
+                                            value = a.name,
+                                            onClick = { onNavigateToAgentEdit(a.id) }
+                                        )
+                                    }
+                                    matchedFlocks.forEach { f ->
+                                        ModelConfigRow(
+                                            label = "Flock",
+                                            value = f.name,
+                                            onClick = { onNavigateToFlockEdit(f.id) }
+                                        )
+                                    }
+                                    matchedSwarms.forEach { s ->
+                                        ModelConfigRow(
+                                            label = "Swarm",
+                                            value = s.name,
+                                            onClick = { onNavigateToSwarmEdit(s.id) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1230,5 +1394,31 @@ private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString
                 }
             }
         }
+    }
+}
+
+/** One clickable row inside the "Model in AI configuration" /
+ *  "Workers" cards on Model Info. Label on the left (blue, fixed
+ *  width), value on the right (white, ellipsised). Drops a trailing
+ *  ›  hint so the user knows the row navigates. */
+@Composable
+private fun ModelConfigRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "$label:", fontSize = 12.sp, color = AppColors.Blue,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.width(128.dp)
+        )
+        Text(
+            value, fontSize = 13.sp, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text("›", fontSize = 14.sp, color = AppColors.TextTertiary)
     }
 }

@@ -544,6 +544,13 @@ fun AppNavHost(
                     onNavigateToAddManualOverride = { p, m -> navController.navigate(NavRoutes.aiManualOverrideAdd(p.id, m)) },
                     onNavigateToAddCostOverride = { p, m -> navController.navigate(NavRoutes.aiManualCostOverrideAdd(p.id, m)) },
                     onNavigateToProviderEdit = { p -> navController.navigate(NavRoutes.settingsProviderEdit(p.id)) },
+                    onNavigateToBlockedModels = { navController.navigate(NavRoutes.SETTINGS_BLOCKED_MODELS) },
+                    onNavigateToInaccessibleModels = { navController.navigate(NavRoutes.SETTINGS_INACCESSIBLE_MODELS) },
+                    onNavigateToCooldowns = { navController.navigate(NavRoutes.SETTINGS_MODEL_COOLDOWNS) },
+                    onNavigateToModelTypes = { navController.navigate(NavRoutes.SETTINGS_MANUAL_MODEL_TYPES) },
+                    onNavigateToAgentEdit = { aid -> navController.navigate(NavRoutes.settingsAgentEdit(aid)) },
+                    onNavigateToFlockEdit = { fid -> navController.navigate(NavRoutes.settingsFlockEdit(fid)) },
+                    onNavigateToSwarmEdit = { sid -> navController.navigate(NavRoutes.settingsSwarmEdit(sid)) },
                     onOpenReport = { rid ->
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
@@ -1152,6 +1159,58 @@ fun AppNavHost(
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_AGENTS)
         }
+        composable(NavRoutes.SETTINGS_FLOCK_EDIT) { entry ->
+            val fid = entry.arguments?.getString("flockId")
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_FLOCK_EDIT,
+                initialEditingFlockId = fid)
+        }
+        composable(NavRoutes.SETTINGS_SWARM_EDIT) { entry ->
+            val sid = entry.arguments?.getString("swarmId")
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_SWARM_EDIT,
+                initialEditingSwarmId = sid)
+        }
+        composable(NavRoutes.SETTINGS_BLOCKED_MODELS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_BLOCKED_MODELS)
+        }
+        composable(NavRoutes.SETTINGS_INACCESSIBLE_MODELS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_INACCESSIBLE_MODELS)
+        }
+        composable(NavRoutes.SETTINGS_MODEL_COOLDOWNS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_MODEL_COOLDOWNS)
+        }
+        composable(NavRoutes.SETTINGS_MANUAL_MODEL_TYPES) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_MANUAL_MODEL_TYPES)
+        }
         composable(NavRoutes.SETTINGS_FLOCKS) {
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
@@ -1219,6 +1278,8 @@ fun SettingsScreenNav(
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
+    initialEditingFlockId: String? = null,
+    initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
     initialInternalPromptCategory: String? = null
 ) {
@@ -1255,6 +1316,8 @@ fun SettingsScreenNav(
         initialSubScreen = initialSubScreen,
         initialProviderId = initialProviderId,
         initialEditingAgentId = initialEditingAgentId,
+        initialEditingFlockId = initialEditingFlockId,
+        initialEditingSwarmId = initialEditingSwarmId,
         initialEditingInternalPromptId = initialEditingInternalPromptId,
         initialInternalPromptCategory = initialInternalPromptCategory
     )
