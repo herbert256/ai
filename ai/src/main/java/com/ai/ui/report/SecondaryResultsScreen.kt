@@ -346,7 +346,7 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
