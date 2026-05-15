@@ -1186,14 +1186,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (blocked.any { it.key == key }) {
                 blocked = blocked.filterNot { it.key == key }
             }
-            if (status == com.ai.data.TestStatus.FAIL && !onCooldown) {
+            // Together's catalog lists models that are only accessible
+            // on dedicated (non-serverless) capacity. They aren't broken,
+            // just gated — keep them out of Blocked and auto-exclude
+            // from future sweeps so the probe budget doesn't burn on
+            // them every run.
+            val isTieredOnly = item.errorMessage
+                ?.contains("non-serverless", ignoreCase = true) == true
+            if (status == com.ai.data.TestStatus.FAIL && !onCooldown && !isTieredOnly) {
                 blocked = blocked + com.ai.model.BlockedModel(
                     item.providerId, item.model,
                     item.errorMessage?.take(300) ?: "Test failed"
                 )
             }
             var excluded = s.testExcludedModels
-            if (item.totalCost > COSTLY_PROBE_USD_THRESHOLD && excluded.none { it.key == key }) {
+            val shouldExclude =
+                item.totalCost > COSTLY_PROBE_USD_THRESHOLD || isTieredOnly
+            if (shouldExclude && excluded.none { it.key == key }) {
                 excluded = excluded + com.ai.model.TestExcludedModel(item.providerId, item.model)
             }
             if (blocked === s.blockedModels && excluded === s.testExcludedModels) return@update current
