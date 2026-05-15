@@ -6,6 +6,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -113,7 +114,17 @@ internal fun ColumnScope.SelectionPhase(
 
     // Selected models list — sorted by model name (case-insensitive),
     // with sortedIndices so the per-row delete callback still removes
-    // the right entry from the caller's original list.
+    // the right entry from the caller's original list. Each row is
+    // dimmed (alpha 0.4) when the model has a per-pair advisory state:
+    //   • >1h-429 cooldown (orange caption)
+    //   • user-blocked (🚫 badge + reason)
+    //   • inaccessible / tier-gated (🔒 badge + reason)
+    // Same treatment the SelectModelScreen / ReportSelectModelsScreen
+    // pickers already use, so the selected-models list and the picker
+    // stay visually consistent.
+    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    val blockedReasons = remember(aiSettings) { aiSettings.blockedReasonByKey }
+    val inaccessibleReasons = remember(aiSettings) { aiSettings.inaccessibleReasonByKey }
     val sortedIndices = remember(models) {
         models.indices.sortedBy { models[it].model.lowercase() }
     }
@@ -124,28 +135,61 @@ internal fun ColumnScope.SelectionPhase(
             sortedIndices.forEach { index ->
                 val entry = models[index]
                 val pricing = formatPricingPerMillion(context, entry.provider, entry.model)
+                val key = "${entry.provider.id}:${entry.model}"
+                val benchedUntil = cooldowns[key]?.takeIf { it > System.currentTimeMillis() }
+                val blockReason = blockedReasons[key]
+                val inaccessibleReason = inaccessibleReasons[key]
+                val isDimmed = benchedUntil != null || blockReason != null || inaccessibleReason != null
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .modelInfoClickable(entry.provider, entry.model)
                         .padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.weight(1f)
+                            .alpha(if (isDimmed) 0.4f else 1f)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(entry.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(entry.provider, entry.model))
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(entry.provider, entry.model))
                             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(entry.provider, entry.model))
+                            com.ai.ui.shared.CooldownBadge(benchedUntil != null)
+                            com.ai.ui.shared.BlockedBadge(blockReason != null)
                         }
                         Text("${entry.provider.id}${if (entry.sourceName.isNotBlank()) " via ${entry.sourceName}" else ""}", fontSize = 11.sp, color = AppColors.TextTertiary)
+                        if (benchedUntil != null) {
+                            Text(
+                                com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
+                                fontSize = 10.sp, color = AppColors.Orange, maxLines = 1
+                            )
+                        }
+                        if (blockReason != null) {
+                            Text(
+                                if (blockReason.isBlank()) "🚫 Blocked" else "🚫 Blocked: $blockReason",
+                                fontSize = 10.sp, color = AppColors.Red,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (inaccessibleReason != null) {
+                            Text(
+                                if (inaccessibleReason.isBlank()) "🔒 Inaccessible" else "🔒 Inaccessible: $inaccessibleReason",
+                                fontSize = 10.sp, color = AppColors.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                     Text(pricing.text, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
                         color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.Red,
-                        modifier = if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                        modifier = (if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            .alpha(if (isDimmed) 0.4f else 1f))
                     Spacer(modifier = Modifier.width(8.dp))
                     // ✕ stays clickable independently; the row's
                     // model-info clickable fires only when the tap
-                    // lands outside this delete hit-target.
+                    // lands outside this delete hit-target. Stays
+                    // full opacity so the user can always remove a
+                    // dimmed model from the list.
                     Text("✕", color = AppColors.Red, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
