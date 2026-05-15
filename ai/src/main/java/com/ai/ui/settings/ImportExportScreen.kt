@@ -488,6 +488,22 @@ private fun applyBlockedModels(arr: JsonArray, working: Settings): Pair<Settings
     return working.copy(blockedModels = merged) to incoming.size
 }
 
+private fun buildTestExcludedModelsTree(s: Settings): JsonArray =
+    createAppGson().toJsonTree(s.testExcludedModels).asJsonArray
+
+/** Upsert by `(providerId, model)` key. Bad rows are logged and skipped. */
+private fun applyTestExcludedModels(arr: JsonArray, working: Settings): Pair<Settings, Int> {
+    val gson = createAppGson()
+    val incoming = mutableListOf<com.ai.model.TestExcludedModel>()
+    arr.forEach { el ->
+        try { incoming.add(gson.fromJson(el, com.ai.model.TestExcludedModel::class.java)) }
+        catch (e: Exception) { AppLog.w("ImportExport", "Skipped test-excluded model entry: ${e.message}") }
+    }
+    val incomingKeys = incoming.map { it.key }.toSet()
+    val merged = working.testExcludedModels.filterNot { it.key in incomingKeys } + incoming
+    return working.copy(testExcludedModels = merged) to incoming.size
+}
+
 /** Build the All-bundle JsonObject. API keys are intentionally omitted
  *  — they ship via the dedicated API Keys export. The Import-card All
  *  button still tolerates an `apiKeys` section (older bundles), since
@@ -528,6 +544,7 @@ private fun buildAllBundle(
     bundle.add("modelTypeOverrides", buildModelTypeOverridesTree(aiSettings))
     bundle.add("modelCooldowns", buildModelCooldownsTree())
     bundle.add("blockedModels", buildBlockedModelsTree(aiSettings))
+    bundle.add("testExcludedModels", buildTestExcludedModelsTree(aiSettings))
     return bundle
 }
 
@@ -765,6 +782,13 @@ fun ImportExportScreen(
         Toast.makeText(context, "Blocked models ready to share (${aiSettings.blockedModels.size} entries)", Toast.LENGTH_SHORT).show()
     }
 
+    fun exportTestExcludedModels() {
+        val tree = buildTestExcludedModelsTree(aiSettings)
+        shareExportText(context, "ai_test_excluded_models-${exportTimestamp()}.json", "application/json", "Share test-excluded models",
+            createAppGson(prettyPrint = true).toJson(tree))
+        Toast.makeText(context, "Test-excluded models ready to share (${aiSettings.testExcludedModels.size} entries)", Toast.LENGTH_SHORT).show()
+    }
+
     // "All" bundle: single JSON file carrying every section the
     // individual buttons would have written, except API keys (those
     // ship via the dedicated API Keys export). Structure:
@@ -788,12 +812,13 @@ fun ImportExportScreen(
         val sysPrompts = bundle.getAsJsonArray("systemPrompts")?.size() ?: 0
         val modelLists = bundle.getAsJsonObject("modelLists")?.size() ?: 0
         val blocked = bundle.getAsJsonArray("blockedModels")?.size() ?: 0
+        val excluded = bundle.getAsJsonArray("testExcludedModels")?.size() ?: 0
         Toast.makeText(
             context,
             "Bundle ready to share ($costs costs, $providers providers, " +
                 "$prompts prompts, $examples examples, " +
                 "${aiSettings.agents.size} agents, ${aiSettings.flocks.size} flocks, ${aiSettings.swarms.size} swarms, " +
-                "$modelLists model lists, $params parameters, $sysPrompts system prompts, $blocked blocked models)",
+                "$modelLists model lists, $params parameters, $sysPrompts system prompts, $blocked blocked models, $excluded test-excluded models)",
             Toast.LENGTH_LONG
         ).show()
     }
@@ -1077,6 +1102,22 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Imported $n blocked model${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
                 }
             }
+            "testExcludedModels" -> {
+                val json = readFromUri(uri)
+                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
+                val arr = try { JsonParser.parseString(json) as? JsonArray } catch (_: Exception) { null }
+                if (arr == null) {
+                    Toast.makeText(context, "Test-excluded models file is not a JSON array", Toast.LENGTH_LONG).show()
+                    return@rememberLauncherForActivityResult
+                }
+                val (updated, n) = applyTestExcludedModels(arr, aiSettings)
+                if (n == 0) {
+                    Toast.makeText(context, "No test-excluded models found in file", Toast.LENGTH_LONG).show()
+                } else {
+                    onSave(updated)
+                    Toast.makeText(context, "Imported $n test-excluded model${if (n == 1) "" else "s"}", Toast.LENGTH_SHORT).show()
+                }
+            }
             "runtimeReports" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -1257,6 +1298,11 @@ fun ImportExportScreen(
                     if (n > 0) { working = updated; parts.add("$n blocked models") }
                 }
 
+                root.getAsJsonArray("testExcludedModels")?.let { arr ->
+                    val (updated, n) = applyTestExcludedModels(arr, working)
+                    if (n > 0) { working = updated; parts.add("$n test-excluded models") }
+                }
+
                 if (workingGs != generalSettings) onSaveGeneral(workingGs)
                 if (working !== aiSettings) onSave(working)
                 if (parts.isEmpty()) {
@@ -1365,6 +1411,9 @@ fun ImportExportScreen(
                 ImportExportRow("Blocked models", importOnly,
                     onExport = { exportBlockedModels() },
                     onImport = { importType = "blockedModels"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
+                ImportExportRow("Test-excluded models", importOnly,
+                    onExport = { exportTestExcludedModels() },
+                    onImport = { importType = "testExcludedModels"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("Costs Overrides", importOnly,
                     onExport = { exportCosts() },
                     onImport = { importType = "costs"; importFileLauncher.launch(arrayOf("text/*", "text/csv", "application/octet-stream")) })

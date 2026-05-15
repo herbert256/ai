@@ -156,6 +156,17 @@ data class BlockedModel(
     val key: String get() = "$providerId:$model"
 }
 
+/** A provider/model pair the user (or the >5¢ auto-add rule) has
+ *  flagged as "don't probe in Test all models". Identity is the
+ *  `(providerId, model)` pair; no UUID, no reason field — the list is
+ *  a simple skip-set. */
+data class TestExcludedModel(
+    val providerId: String,
+    val model: String
+) {
+    val key: String get() = "$providerId:$model"
+}
+
 /**
  * User-managed Internal prompt — covers Meta-prompt launchers on the
  * Report Result screen ([category] == "meta"), Fan-out / Fan-in
@@ -235,7 +246,8 @@ data class Settings(
     val endpoints: Map<AppService, List<Endpoint>> = emptyMap(),
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList(),
-    val blockedModels: List<BlockedModel> = emptyList()
+    val blockedModels: List<BlockedModel> = emptyList(),
+    val testExcludedModels: List<TestExcludedModel> = emptyList()
 ) {
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]
@@ -617,6 +629,29 @@ data class Settings(
     fun syncBlockedModelsFromTestRun(failures: List<BlockedModel>, testedKeys: Set<String>) = copy(
         blockedModels = blockedModels.filterNot { it.key in testedKeys } + failures
     )
+
+    // ----- Test-excluded models -----
+    /** `"providerId:model"` set, for the O(1) skip-filter in
+     *  [com.ai.viewmodel.ModelTestEngine.startRun]. */
+    val testExcludedKeys: Set<String>
+        get() = testExcludedModels.mapTo(HashSet()) { it.key }
+    fun isTestExcluded(providerId: String, model: String) =
+        testExcludedModels.any { it.providerId == providerId && it.model == model }
+    fun removeTestExcluded(providerId: String, model: String) = copy(
+        testExcludedModels = testExcludedModels.filterNot { it.providerId == providerId && it.model == model }
+    )
+    fun upsertTestExcluded(e: TestExcludedModel) = copy(
+        testExcludedModels = testExcludedModels.filterNot { it.key == e.key } + e
+    )
+    /** Append entries from a test-run sweep, skipping anything whose
+     *  key is already present — no clobber, no duplicates. */
+    fun addTestExclusionsFromTestRun(extras: List<TestExcludedModel>): Settings {
+        if (extras.isEmpty()) return this
+        val existing = testExcludedKeys
+        val novel = extras.filterNot { it.key in existing }
+        if (novel.isEmpty()) return this
+        return copy(testExcludedModels = testExcludedModels + novel)
+    }
 
     fun getEndpointsForProvider(provider: AppService): List<Endpoint> =
         endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)

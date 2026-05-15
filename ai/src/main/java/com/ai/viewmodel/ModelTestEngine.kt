@@ -98,6 +98,7 @@ class ModelTestEngine internal constructor(
         // do on the caller's thread; the disk write happens in dispatch.
         val aiSettings = appViewModel.uiState.value.aiSettings
         val items = LinkedHashMap<ModelTestKey, ModelTestState>()
+        val skipKeys = aiSettings.testExcludedKeys
         for (service in aiSettings.getActiveServices()) {
             if (service.id !in providerIds) continue
             val config = aiSettings.getProvider(service)
@@ -106,6 +107,7 @@ class ModelTestEngine internal constructor(
                 if (model.isBlank()) continue
                 val key = modelTestKey(service.id, model)
                 if (key in items) continue
+                if (key in skipKeys) continue   // Test-excluded — skip entirely.
                 items[key] = ModelTestState(
                     key = key,
                     providerId = service.id,
@@ -181,9 +183,9 @@ class ModelTestEngine internal constructor(
                     AppLog.i("ModelTest", "← run done (${items.size} models)")
                     // Natural completion only — a cancelled run is
                     // cancelled before reaching here, so "Cancelled"
-                    // FAILs never get synced. Every FAIL → a block
-                    // (error = reason), every PASS → un-block.
-                    syncToBlockedModels()
+                    // FAILs never get synced. Folds Blocked-models and
+                    // Test-excluded updates into one Settings write.
+                    syncTestRunSideEffects()
                 }
             } finally {
                 _throttledKeys.value = emptySet()
@@ -199,19 +201,19 @@ class ModelTestEngine internal constructor(
         itemJobs.clear()
     }
 
-    /** Fold the just-finished run into [com.ai.model.Settings.blockedModels]:
-     *  every FAIL becomes a blocked entry (its error message is the
-     *  reason), every PASS removes its entry, untested models are left
-     *  alone. One settings write.
+    /** End-of-run side effects, folded into a single Settings write:
+     *   • Blocked models: drop every tested model, then re-add the
+     *     non-cooldown failures (FAIL ∧ not on >1h-429 cooldown). So a
+     *     PASS un-blocks, a FAIL re-blocks with the latest error, and a
+     *     cooldown'd model is removed from Blocked (the cooldown list
+     *     owns it).
+     *   • Test-excluded: any probe whose total cost exceeded
+     *     [COSTLY_PROBE_USD_THRESHOLD] is appended (no-clobber) so the
+     *     next sweep won't pay for it again.
      *
-     *  A "Test all models" probe can itself land a model in the >1h-429
-     *  cooldown list ([ModelCooldownStore]) — the bench check inside
-     *  the rate-limit retry interceptor runs during the probe. Such
-     *  models are owned by the cooldown list, not the blocked list:
-     *  they are dropped from the blocked list (every tested model is)
-     *  and never re-added here, so a model in Model cooldowns is never
-     *  also in Blocked models. */
-    private fun syncToBlockedModels() {
+     *  A cancelled run is cancelled before this point — "Cancelled"
+     *  FAILs never reach here. */
+    private fun syncTestRunSideEffects() {
         val items = _run.value?.items?.values ?: return
         fun onCooldown(it: ModelTestState) =
             com.ai.data.ModelCooldownStore.isUnavailable(it.providerId, it.model)
@@ -223,15 +225,23 @@ class ModelTestEngine internal constructor(
                     it.errorMessage?.take(300) ?: "Test failed"
                 )
             }
-        // Every tested model is dropped from the blocked list first;
-        // only non-cooldown failures are re-added (via `failures`). So
-        // a model that just went on cooldown is removed from blocked.
         val testedKeys = items
             .filter { it.status == TestStatus.FAIL || it.status == TestStatus.PASS }
             .map { it.key }
             .toSet()
-        if (failures.isEmpty() && testedKeys.isEmpty()) return
-        appViewModel.applyBlockedModelsFromTestRun(failures, testedKeys)
+        val autoExclude = items
+            .filter { it.totalCost > COSTLY_PROBE_USD_THRESHOLD }
+            .map { com.ai.model.TestExcludedModel(it.providerId, it.model) }
+        if (failures.isEmpty() && testedKeys.isEmpty() && autoExclude.isEmpty()) return
+        appViewModel.applyTestRunResults(failures, testedKeys, autoExclude)
+    }
+
+    private companion object {
+        /** A "Test all models" probe whose cost exceeds this (in USD)
+         *  is auto-added to Settings.testExcludedModels so the next
+         *  sweep doesn't pay for it again. 5¢ — matches the user-
+         *  facing wording on the AI Setup card. */
+        const val COSTLY_PROBE_USD_THRESHOLD = 0.05
     }
 
     /** Active providers with a non-blank API key, each paired with its
@@ -244,7 +254,12 @@ class ModelTestEngine internal constructor(
             .map { it to aiSettings.getProvider(it) }
             .filter { (_, config) -> config.apiKey.isNotBlank() }
             .map { (service, config) ->
-                service to config.models.count { it.isNotBlank() }
+                // Subtract test-excluded so the count matches what the
+                // sweep will actually probe.
+                val n = config.models.count {
+                    it.isNotBlank() && !aiSettings.isTestExcluded(service.id, it)
+                }
+                service to n
             }
     }
 

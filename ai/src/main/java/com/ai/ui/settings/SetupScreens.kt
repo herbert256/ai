@@ -100,6 +100,8 @@ fun SetupScreen(
             }
             SetupNavCard("\uD83D\uDEAB", "Blocked models", "Provider/model pairs flagged as blocked \u2014 dimmed in every model picker", "${aiSettings.blockedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
+            SetupNavCard("\uD83D\uDCB8", "Test-excluded models", "Skipped by Test all models \u2014 auto-added when a probe costs > 5\u00A2", "${aiSettings.testExcludedModels.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
         }
     }
 }

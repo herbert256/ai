@@ -1488,6 +1488,20 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reason", "Free text shown in the list and beside the dimmed entry in pickers. Optional, but useful when you come back later."),
         )
     ),
+    "test_excluded_models" to HelpContent(
+        title = "Test-excluded models",
+        cards = listOf(
+            HelpCard("Overview", "Provider/model pairs the \"Test all models\" sweep skips entirely — never enumerated, never probed, no Total/Done/Errors contribution."),
+            HelpCard("Auto-add on expensive probes", "Any probe whose computed cost is more than 5¢ is added to this list on run completion. The next sweep won't pay for that model again. Removing an entry here makes the sweep probe it once more."),
+            HelpCard("Hand-curated", "Add / edit / delete entries yourself for models you simply don't want tested. Persisted with the rest of your configuration — included in Backup/Restore and Export/Import."),
+        )
+    ),
+    "test_excluded_model_edit" to HelpContent(
+        title = "Test-excluded model",
+        cards = listOf(
+            HelpCard("Pick model", "Opens the same model picker the New Report \"+model\" button uses. Pick the provider/model pair to exclude from the sweep."),
+        )
+    ),
     "external_services" to HelpContent(
         title = "External Services",
         cards = listOf(

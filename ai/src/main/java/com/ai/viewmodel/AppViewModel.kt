@@ -1160,18 +1160,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
     }
 
-    /** Fold a finished "Test all models" run into the blocked-models
-     *  list — drop every tested model's entry, then re-add the run's
-     *  failures. Called by [com.ai.viewmodel.ModelTestEngine] on run
-     *  completion. */
-    fun applyBlockedModelsFromTestRun(
+    /** Fold a finished "Test all models" run into two Settings lists in
+     *  one write — Blocked models (drop every tested model, re-add the
+     *  non-cooldown failures) and Test-excluded models (append every
+     *  costly probe). Called by [com.ai.viewmodel.ModelTestEngine] on
+     *  run completion. */
+    fun applyTestRunResults(
         failures: List<com.ai.model.BlockedModel>,
-        testedKeys: Set<String>
+        testedKeys: Set<String>,
+        autoExclude: List<com.ai.model.TestExcludedModel>
     ) {
-        updateSettings(
-            _uiState.value.aiSettings.syncBlockedModelsFromTestRun(failures, testedKeys)
+        val updated = _uiState.value.aiSettings
+            .syncBlockedModelsFromTestRun(failures, testedKeys)
+            .addTestExclusionsFromTestRun(autoExclude)
+        updateSettings(updated)
+        AppLog.i(
+            "ModelTest",
+            "→ test-run sync: ${failures.size} blocked, ${testedKeys.size} tested, ${autoExclude.size} auto-excluded"
         )
-        AppLog.i("ModelTest", "→ blocked-models sync: ${failures.size} blocked, ${testedKeys.size} tested")
     }
 
     fun updateProviderState(service: AppService, state: String) {
