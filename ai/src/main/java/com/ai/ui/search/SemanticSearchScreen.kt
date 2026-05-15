@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -55,7 +56,7 @@ fun SemanticSearchScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
+    val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
 
     // Embedding-capable (provider, model) pairs across active providers — read
     // from Settings.modelTypes which is populated by ModelType.infer at fetch
@@ -95,17 +96,17 @@ fun SemanticSearchScreen(
             }
             DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                 embeddingChoices.forEach { (s, m) ->
-                    // Benched by a >1h 429 (ModelCooldownStore) — disabled.
-                    val benchedUntil = cooldowns["${s.id}:$m"]
-                        ?.takeIf { it > System.currentTimeMillis() }
+                    val state = advisory.stateFor(s.id, m)
                     DropdownMenuItem(
                         text = {
-                            Text(
-                                com.ai.ui.shared.modelLabel(s.id, m, separator = " / ") +
-                                    (benchedUntil?.let { " — ${com.ai.data.ModelCooldownStore.cooldownCaption(it)}" } ?: "")
-                            )
+                            Column(modifier = Modifier.alpha(state.rowAlpha)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(com.ai.ui.shared.modelLabel(s.id, m, separator = " / "))
+                                    com.ai.ui.shared.ModelAdvisoryBadges(state)
+                                }
+                                com.ai.ui.shared.ModelAdvisoryCaptions(state)
+                            }
                         },
-                        enabled = benchedUntil == null,
                         onClick = { picked = s to m; pickerOpen = false }
                     )
                 }

@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -45,6 +46,7 @@ import java.util.Locale
 
 @Composable
 fun TraceListScreen(
+    aiSettings: com.ai.model.Settings,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSelectTrace: (String) -> Unit,
@@ -192,6 +194,7 @@ fun TraceListScreen(
 
     if (showModelPicker) {
         TraceModelPickerOverlay(
+            aiSettings = aiSettings,
             models = pickableModels,
             current = selectedModel,
             onSelect = { sel -> selectedModel = sel; showModelPicker = false; currentPage = 0 },
@@ -447,12 +450,14 @@ private fun FilterLauncherButton(
  *  clear the filter. */
 @Composable
 private fun TraceModelPickerOverlay(
+    aiSettings: com.ai.model.Settings,
     models: List<Pair<String, String>>,
     current: String?,
     onSelect: (String?) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "trace_pick_model", title = "Pick model", onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
@@ -470,15 +475,20 @@ private fun TraceModelPickerOverlay(
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items(models, key = { "${it.first}::${it.second}" }) { (provider, model) ->
                 val selected = current == model
+                val state = advisory.stateFor(provider, model)
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                     modifier = Modifier.fillMaxWidth().clickable { onSelect(model) }
                 ) {
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(provider, fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column(modifier = Modifier.weight(1f).alpha(state.rowAlpha)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(provider, fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                com.ai.ui.shared.ModelAdvisoryBadges(state)
+                            }
                             Text(model, fontSize = 13.sp,
                                 color = if (selected) AppColors.Blue else Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            com.ai.ui.shared.ModelAdvisoryCaptions(state)
                         }
                         if (selected) Text("✓", color = AppColors.Blue, fontSize = 13.sp)
                     }

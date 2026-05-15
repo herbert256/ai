@@ -1035,7 +1035,9 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.TRACE_LIST) {
-            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+            val uiState by appViewModel.uiState.collectAsState()
+            TraceListScreen(aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() })
         }
@@ -1052,7 +1054,9 @@ fun AppNavHost(
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport
             ) {
-                TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                val uiState by appViewModel.uiState.collectAsState()
+                TraceListScreen(aiSettings = uiState.aiSettings,
+                    onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
             }
@@ -1069,7 +1073,9 @@ fun AppNavHost(
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport
             ) {
-                TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+                val uiState by appViewModel.uiState.collectAsState()
+                TraceListScreen(aiSettings = uiState.aiSettings,
+                    onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() },
                     reportId = reportId, initialCategory = category)
@@ -1077,7 +1083,9 @@ fun AppNavHost(
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
             val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
-            TraceListScreen(onBack = safePopBack, onNavigateHome = navigateHome,
+            val uiState by appViewModel.uiState.collectAsState()
+            TraceListScreen(aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, modelFilter = model)
         }

@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
@@ -521,23 +522,26 @@ fun ProviderModelSettingsScreen(
             if (models.isNotEmpty()) {
                 Text("${models.size} models available", fontSize = 12.sp, color = AppColors.TextTertiary)
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 4.dp))
+                val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
                 models.sorted().forEach { modelId ->
-                    Row(
+                    val state = advisory.stateFor(service.id, modelId)
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onNavigateToModelInfo(service, modelId) }
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(vertical = 2.dp)
                     ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             modelId,
                             fontSize = 13.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).alpha(state.rowAlpha)
                         )
                         VisionBadge(aiSettings.isVisionCapable(service, modelId))
                         WebSearchBadge(aiSettings.isWebSearchCapable(service, modelId))
                         ReasoningBadge(aiSettings.isReasoningCapable(service, modelId))
+                        com.ai.ui.shared.ModelAdvisoryBadges(state)
                         // getModelType() consults the user's manual overrides first, so
                         // edits in AI Setup → Manual model types overrides surface here
                         // immediately without needing a re-fetch.
@@ -562,6 +566,8 @@ fun ProviderModelSettingsScreen(
                                 Text("\u2715", fontSize = 14.sp, color = AppColors.TextTertiary, maxLines = 1, softWrap = false)
                             }
                         }
+                    }
+                    com.ai.ui.shared.ModelAdvisoryCaptions(state)
                     }
                 }
             }

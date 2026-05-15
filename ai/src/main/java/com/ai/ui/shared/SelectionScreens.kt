@@ -59,14 +59,10 @@ fun SelectModelScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
-    // "providerId:model" → reason for user-blocked pairs — dimmed but
-    // still selectable (advisory).
-    val blockedReasons = remember(aiSettings) { aiSettings.blockedReasonByKey }
-    // "providerId:model" → reason for inaccessible pairs (tier-gated,
-    // e.g. Together non-serverless). Dimmed but still selectable so a
-    // user with dedicated capacity can pick them anyway.
-    val inaccessibleReasons = remember(aiSettings) { aiSettings.inaccessibleReasonByKey }
+    // Shared advisory lookup — covers cooldown (>1h 429), user-blocked,
+    // and tier-gated Inaccessible entries with one consistent dim
+    // treatment (alpha 0.4 + leading badge + reason caption).
+    val advisory = rememberModelAdvisoryLookup(aiSettings)
     var searchQuery by remember { mutableStateOf("") }
 
     // For an API-mode provider, hold the model list behind a refresh: kick off the fetch,
@@ -217,52 +213,24 @@ fun SelectModelScreen(
                     ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
                 val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
-                // Benched by a >1h 429 (ModelCooldownStore) — dim, but
-                // still selectable (advisory), same as a blocked row.
-                val benchedUntil = cooldowns["${provider.id}:$modelName"]
-                    ?.takeIf { it > System.currentTimeMillis() }
-                // User-blocked — dim but stay selectable (advisory).
-                val blockReason = blockedReasons["${provider.id}:$modelName"]
-                // Tier-gated (Inaccessible list) — same dim treatment as
-                // blocked / benched. Still selectable so a user with
-                // dedicated capacity can pick the model anyway.
-                val inaccessibleReason = inaccessibleReasons["${provider.id}:$modelName"]
-
+                val state = advisory.stateFor(provider.id, modelName)
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
                         .clickable { onSelectModel(modelName) }
                         .padding(vertical = 10.dp, horizontal = 4.dp)
-                        .alpha(if (benchedUntil != null || blockReason != null || inaccessibleReason != null) 0.4f else 1f)
+                        .alpha(state.rowAlpha)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         VisionBadge(aiSettings.isVisionCapable(provider, modelName))
                         WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
                         ReasoningBadge(aiSettings.isReasoningCapable(provider, modelName))
+                        ModelAdvisoryBadges(state)
                         Text(formatPrice(pricing.promptPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                         Text(formatPrice(pricing.completionPrice), style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, color = priceColor, textAlign = TextAlign.End, modifier = Modifier.width(70.dp))
                     }
-                    if (benchedUntil != null) {
-                        Text(
-                            com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
-                            style = MaterialTheme.typography.bodySmall, color = AppColors.Orange, maxLines = 1
-                        )
-                    }
-                    if (blockReason != null) {
-                        Text(
-                            if (blockReason.isBlank()) "🚫 Blocked" else "🚫 Blocked: $blockReason",
-                            style = MaterialTheme.typography.bodySmall, color = AppColors.Red,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (inaccessibleReason != null) {
-                        Text(
-                            if (inaccessibleReason.isBlank()) "🔒 Inaccessible" else "🔒 Inaccessible: $inaccessibleReason",
-                            style = MaterialTheme.typography.bodySmall, color = AppColors.TextTertiary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    ModelAdvisoryCaptions(state)
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }

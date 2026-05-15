@@ -20,9 +20,10 @@ import com.ai.ui.shared.CrudListScreen
  * access non-serverless"; hand-curable here.
  *
  * Add / Edit jumps straight to the picker — same picker-direct flow as
- * TestExcludedModelsListScreen. The picker passed `hideInaccessible =
- * false` so the user can still pick a currently-inaccessible model to
- * delete or to point an entry at a different model.
+ * TestExcludedModelsListScreen. Inaccessible models surface in every
+ * picker now (dimmed + selectable with the shared advisory treatment),
+ * so the user can pick the same currently-inaccessible model to point
+ * an entry at a different one.
  */
 @Composable
 fun InaccessibleModelsListScreen(
@@ -39,7 +40,6 @@ fun InaccessibleModelsListScreen(
         com.ai.ui.report.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             titleText = "Pick inaccessible model",
-            hideInaccessible = false,
             onConfirm = { (provider, m) ->
                 val cleared = (mode as? InaccessiblePickerMode.Edit)?.let {
                     aiSettings.removeInaccessibleModel(it.original.providerId, it.original.model)

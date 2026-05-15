@@ -356,6 +356,21 @@ fun BlockedBadge(isBlocked: Boolean) {
 }
 
 /**
+ * Tiny "tier-gated / inaccessible" badge for model lists. 🔒 matches
+ * the Inaccessible models card icon. Selecting one will usually fail
+ * unless the user has dedicated capacity on that provider.
+ */
+@Composable
+fun InaccessibleBadge(isInaccessible: Boolean) {
+    if (!isInaccessible) return
+    Text(
+        text = "🔒",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Tiny "not a chat model" badge for the main model pickers. 🖼️ stands
  * in for the family — image / TTS / STT / moderation / classify / OCR.
  * Selecting one of these for a chat flow will fail at runtime; the

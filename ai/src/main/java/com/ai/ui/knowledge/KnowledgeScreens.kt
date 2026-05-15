@@ -14,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -207,10 +208,20 @@ fun NewKnowledgeBaseScreen(
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
                 }
+                val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
                 DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                     options.forEach { opt ->
+                        val state = advisory.stateFor(opt.first, opt.second)
                         DropdownMenuItem(
-                            text = { Text(embedderOptionLabel(opt.first, opt.second)) },
+                            text = {
+                                Column(modifier = Modifier.alpha(state.rowAlpha)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(embedderOptionLabel(opt.first, opt.second))
+                                        com.ai.ui.shared.ModelAdvisoryBadges(state)
+                                    }
+                                    com.ai.ui.shared.ModelAdvisoryCaptions(state)
+                                }
+                            },
                             onClick = { selected = opt; pickerOpen = false }
                         )
                     }
