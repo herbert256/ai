@@ -20,8 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -88,18 +86,8 @@ internal fun ModelTestL2Screen(
             val allDone = rows.isNotEmpty() && rows.all { it.status == TestStatus.PASS }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
-                    val progressFraction = if (p.status == TestStatus.PASS) 1f else 0f
-                    val progressColor = AppColors.Green.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .drawBehind {
-                                if (!allDone && progressFraction > 0f) {
-                                    drawRect(
-                                        color = progressColor,
-                                        size = Size(size.width * progressFraction, size.height)
-                                    )
-                                }
-                            }
                             .padding(vertical = 6.dp)
                             .clickable { onOpenModel(p.model) },
                         verticalAlignment = Alignment.CenterVertically

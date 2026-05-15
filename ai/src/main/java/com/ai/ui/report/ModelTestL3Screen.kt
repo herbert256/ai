@@ -33,7 +33,6 @@ import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
-import com.ai.ui.shared.modelLabel
 
 /**
  * L3 of the Test-all-models drill-in: one model's test result —
@@ -89,7 +88,7 @@ internal fun ModelTestL3Screen(
         TitleBar(
             helpTopic = "test_all_models_l3",
             title = "Test all models - model",
-            subject = modelLabel(providerId, model),
+            subject = model,
             onBackClick = onBack,
             onInfo = service?.let { svc -> { actions.onNavigateToModelInfo(svc, model) } },
             onTrace = if (ApiTracer.isTracingEnabled && item.traceFilename != null) {
@@ -131,6 +130,14 @@ internal fun ModelTestL3Screen(
                     color = AppColors.TextSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace
                 )
             }
+
+            Spacer(Modifier.height(12.dp))
+            Text("Prompt", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                com.ai.data.AnalysisRepository.TEST_PROMPT,
+                fontSize = 13.sp, color = Color.White
+            )
 
             if (!item.responseText.isNullOrBlank()) {
                 Spacer(Modifier.height(12.dp))
