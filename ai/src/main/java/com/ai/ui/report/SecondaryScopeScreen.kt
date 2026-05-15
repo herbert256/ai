@@ -39,10 +39,7 @@ internal fun SecondaryScopeScreen(
     reranks: List<SecondaryResult>,
     languages: List<Pair<String, String?>>, // (English, native) pairs; empty when no translations
     totalReports: Int,
-    /** Extra initiators / responders picked here — only meaningful when
-     *  the prompt is a fan-out (its model pickers used to live on the
-     *  Run page). Null for the meta path. */
-    onContinue: (SecondaryScope, SecondaryLanguageScope, Set<String>?, Set<String>?) -> Unit,
+    onContinue: (SecondaryScope, SecondaryLanguageScope) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -93,16 +90,9 @@ internal fun SecondaryScopeScreen(
     val pickedLanguages = remember { mutableStateMapOf<String, Boolean>().apply {
         languages.forEach { (lang, _) -> put(lang, true) }
     } }
-    // fan_out: initiator and responder model sets — both default to
-    // every successful agent, matching the prior FanOutConfirmScreen
-    // defaults. Empty maps when the prompt isn't fan_out.
-    val isFanOut = metaPrompt.category == "fan_out"
-    val initiatorPicked = remember(agents.map { it.agentId }) {
-        mutableStateMapOf<String, Boolean>().apply { agents.forEach { put(it.agentId, true) } }
-    }
-    val responderPicked = remember(agents.map { it.agentId }) {
-        mutableStateMapOf<String, Boolean>().apply { agents.forEach { put(it.agentId, true) } }
-    }
+    // Initiator / responder model pickers used to live on this
+    // screen for fan_out; they're back on the Run page (above the
+    // prompt) so the Scope step stays focused on scope + language.
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -239,56 +229,6 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            // Fan-out only: pick initiator + responder model sets here
-            // (the Run screen lost its pickers). Self-pairs are skipped
-            // at run time so leaving both fully ticked is the natural
-            // "everything-against-everything" default.
-            if (isFanOut && agents.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(20.dp))
-                com.ai.ui.shared.CollapsibleCard(
-                    title = "Initiator models (${initiatorPicked.values.count { it }})"
-                ) {
-                    agents.forEach { a ->
-                        val checked = initiatorPicked[a.agentId] ?: false
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { initiatorPicked[a.agentId] = !checked }.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val agentProv = AppService.findById(a.provider)?.id ?: a.provider
-                            Text(
-                                com.ai.ui.shared.modelLabel(agentProv, a.model, separator = " / "),
-                                fontSize = 12.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-                com.ai.ui.shared.CollapsibleCard(
-                    title = "Responder models (${responderPicked.values.count { it }})"
-                ) {
-                    agents.forEach { a ->
-                        val checked = responderPicked[a.agentId] ?: false
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable { responderPicked[a.agentId] = !checked }.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            val agentProv = AppService.findById(a.provider)?.id ?: a.provider
-                            Text(
-                                com.ai.ui.shared.modelLabel(agentProv, a.model, separator = " / "),
-                                fontSize = 12.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
-
             // Translation language fan-out: meta and fan_out categories
             // both surface the picker when the report has translation
             // rows so the user can target the fan-out at a specific
@@ -362,9 +302,7 @@ internal fun SecondaryScopeScreen(
                     if (pickedOriginal) picked.add("")
                     SecondaryLanguageScope.Selected(picked)
                 }
-                val initiators = if (isFanOut) initiatorPicked.filterValues { it }.keys.toSet() else null
-                val responders = if (isFanOut) responderPicked.filterValues { it }.keys.toSet() else null
-                onContinue(scope, langScope, initiators, responders)
+                onContinue(scope, langScope)
             },
             enabled = canContinue,
             modifier = Modifier.fillMaxWidth(),
