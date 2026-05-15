@@ -104,13 +104,19 @@ fun PairState.effectiveStatus(runningSet: Set<String>): PairStatus = when (statu
  *  but for the fan-icons batch:
  *    - DONE when an emoji has landed on [icon].
  *    - ERROR when every tier of the chain failed
- *      ([iconErrorMessage] non-null).
+ *      ([iconErrorMessage] non-null) OR the underlying fan-out
+ *      pair errored without producing a response body — the icons
+ *      batch filters such pairs out of [pending] (it needs
+ *      content to fire the chain on), so without this short-circuit
+ *      iconStatus would sit at PENDING forever and the L1 row would
+ *      read 🕓 Queued indefinitely.
  *    - RUNNING when the runtime set says so.
  *    - PENDING otherwise (never launched, or batch hasn't
  *      reached this pair yet). */
 fun PairState.iconStatus(runningIconsSet: Set<String>): PairStatus = when {
     !icon.isNullOrBlank() -> PairStatus.DONE
     !iconErrorMessage.isNullOrBlank() -> PairStatus.ERROR
+    !errorMessage.isNullOrBlank() && content.isNullOrBlank() -> PairStatus.ERROR
     id in runningIconsSet -> PairStatus.RUNNING
     else -> PairStatus.PENDING
 }
