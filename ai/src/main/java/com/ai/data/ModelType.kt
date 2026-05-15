@@ -76,7 +76,8 @@ object ModelType {
             "moderation" in id -> MODERATION
             "whisper" in id || "transcrib" in id -> STT
             "tts" in id || "speech-2" in id || "text-to-speech" in id ||
-                "cosyvoice" in id || "orpheus" in id -> TTS
+                "cosyvoice" in id || "orpheus" in id ||
+                "fish-speech" in id || "tts-preview" in id -> TTS
             // Audio-modality chat (gpt-audio*, gpt-4o-audio-preview,
             // *-realtime-*) routes via /v1/realtime (WebSocket) or
             // requires audio modality — neither is wired in the app.
@@ -88,10 +89,16 @@ object ModelType {
             // that exist in provider catalogs but don't dispatch as
             // chat-completions: OpenAI's gpt-3.5-turbo-instruct (the
             // text-completion endpoint), xAI's grok-*-multi-agent (a
-            // separate multi-agent endpoint). Same TTS-as-skip
-            // precedent as the audio-modality entries above.
+            // separate multi-agent endpoint), Google's deep-research-*
+            // (Interactions API only) and computer-use-* (needs the
+            // Computer Use tool). Same TTS-as-skip precedent as the
+            // audio-modality entries above. `deep-research-` is
+            // anchored at startsWith so Perplexity's sonar-deep-research
+            // (a real chat model) is *not* caught.
             id.startsWith("gpt-3.5-turbo-instruct") ||
-                "multi-agent" in id -> TTS
+                "multi-agent" in id ||
+                id.startsWith("deep-research-") ||
+                "computer-use" in id -> TTS
             // Image / video / music generation — none have a chat-shaped
             // dispatch in the app today.
             "dall-e" in id || id.startsWith("gpt-image-") || "chatgpt-image-" in id ||
@@ -99,7 +106,14 @@ object ModelType {
                 "sdxl" in id || "nano-banana" in id || id.startsWith("bria/") ||
                 id.startsWith("bria-") || "lyria" in id || "-t2v-" in id ||
                 "-i2v-" in id || "text-to-video" in id || "image-preview" in id ||
-                id.startsWith("grok-imagine-") -> IMAGE
+                id.startsWith("grok-imagine-") ||
+                // Catalog patterns picked up from sweep "Model does not
+                // exist" fails on DeepInfra / SiliconFlow.
+                "qwen-image" in id || "seedream" in id || "seedance" in id ||
+                "janus-pro" in id || id.startsWith("clarityai/") ||
+                "z-image" in id || id.endsWith("-image") ||
+                ("prunaai/" in id && "image" in id) ||
+                (("wan2.6" in id || "wan2.7" in id) && ("image" in id || "t2i" in id)) -> IMAGE
             else -> CHAT
         }
     }
