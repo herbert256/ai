@@ -16,7 +16,7 @@ import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.RestartAppDialog
+import com.ai.ui.shared.RestartAppBanner
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.viewmodel.CatalogStep
@@ -130,11 +130,13 @@ fun RefreshScreen(
                 onOpenProvider(svc)
             },
             onNavigateToHelpTopic = onNavigateToHelpTopic,
-            onBack = onBack
+            onBack = onBack,
+            // Surfaces a "Restart application" banner at the top of the
+            // progress screen once the run is done — replaces the
+            // earlier modal RestartAppDialog. Null while running.
+            onRestart = if (state.isFinished) ({ doRestart() }) else null,
+            restartMessage = if (state.isFinished) "${state.title} done" else null
         )
-        if (state.isFinished) {
-            RestartAppDialog(message = "${state.title} done", onConfirm = { doRestart() })
-        }
         return
     }
 
@@ -571,12 +573,20 @@ private fun RefreshAllProgressScreen(
     failedProviders: List<AppService>,
     onOpenProvider: (AppService) -> Unit,
     onNavigateToHelpTopic: (String) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Non-null once the run is finished — renders the "Restart
+     *  application" banner at the top of the page. Tapping it calls
+     *  the host's restart routine (which flushes usage stats first). */
+    onRestart: (() -> Unit)? = null,
+    restartMessage: String? = null
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh_all", title = state.title, onBackClick = onBack)
         Spacer(modifier = Modifier.height(8.dp))
+        if (onRestart != null && restartMessage != null) {
+            RestartAppBanner(message = restartMessage, onConfirm = onRestart)
+        }
         val totalSteps = state.catalogSteps.size + state.workerRows.size
         val doneCatalogs = state.catalogSteps.count {
             it.status is RefreshStepStatus.Done || it.status is RefreshStepStatus.Skipped || it.status is RefreshStepStatus.Failed

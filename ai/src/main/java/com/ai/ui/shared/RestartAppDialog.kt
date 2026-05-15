@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -13,6 +14,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Spacer
 
 /**
  * Relaunch the launcher activity in a fresh task and kill the current
@@ -56,4 +59,35 @@ fun RestartAppDialog(message: String, onConfirm: () -> Unit) {
             ) { Text("OK", maxLines = 1, softWrap = false) }
         }
     )
+}
+
+/**
+ * Non-modal sibling of [RestartAppDialog] — a sticky "Restart
+ * application" call-to-action button rendered at the top of a page
+ * after an action (Restore, Import all, Refresh all) leaves the
+ * in-memory state out of sync with disk. The user is still free to
+ * navigate, but the prompt stays put until they tap it.
+ */
+@Composable
+fun RestartAppBanner(message: String, onConfirm: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Button(
+            onClick = onConfirm,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) {
+            Text(
+                "Restart application",
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                fontSize = 14.sp,
+                maxLines = 1, softWrap = false
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            message,
+            fontSize = 11.sp,
+            color = AppColors.TextTertiary
+        )
+    }
 }

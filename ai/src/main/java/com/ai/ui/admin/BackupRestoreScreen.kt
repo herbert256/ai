@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.BackupManager
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.RestartAppDialog
+import com.ai.ui.shared.RestartAppBanner
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.shareExport
@@ -40,15 +40,12 @@ fun BackupRestoreScreen(
     val scope = rememberCoroutineScope()
     var busyLabel by remember { mutableStateOf<String?>(null) }
     var showRestoreConfirm by remember { mutableStateOf<android.net.Uri?>(null) }
-    // Set once a Restore finishes successfully. The popup blocks every
-    // other interaction until the user taps OK to restart — the
+    // Set once a Restore finishes successfully. Rendered as a sticky
+    // "Restart application" banner at the top of the page — the
     // in-memory state is out of sync with the freshly-restored disk
-    // state at this point.
+    // state and the user must restart before things are coherent, but
+    // we no longer block every other interaction with a modal.
     var restartMessage by remember { mutableStateOf<String?>(null) }
-
-    restartMessage?.let { msg ->
-        RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
-    }
 
     fun runBackup() {
         busyLabel = "Backing up…"
@@ -132,6 +129,9 @@ fun BackupRestoreScreen(
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))
+        restartMessage?.let { msg ->
+            RestartAppBanner(message = msg, onConfirm = { restartApp(context) })
+        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {

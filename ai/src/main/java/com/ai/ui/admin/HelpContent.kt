@@ -1546,7 +1546,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Clean slate", "At the start of the run the `default agents` flock is emptied and every existing default agent (any agent whose name matches its provider id) is deleted. Custom agents — anything you renamed away from a provider id — survive untouched. The flock and its agents are then rebuilt from the workers that pass."),
             HelpCard("Re-entry", "Tasks continue in the background if you back-gesture out. Open Refresh again while a run is in flight and the live progress screen comes back. Tap the help icon on the progress screen to read this page without stopping anything."),
             HelpCard("Failed providers", "Workers that fail the key test list at the bottom with a tap-target that opens that provider's settings so you can fix the key / endpoint."),
-            HelpCard("Auto-restart", "When both phases finish, a non-dismissible popup forces an app restart so freshly-loaded catalogs, capabilities, and rebuilt agents take effect cleanly.")
+            HelpCard("Restart", "When both phases finish, a 'Restart application' button appears at the top of the page — tap to relaunch so freshly-loaded catalogs, capabilities, and rebuilt agents take effect cleanly. The app stays usable while the button is showing, but in-memory state is out of sync with disk until you tap it.")
         )
     ),
     "import_export" to HelpContent(

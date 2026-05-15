@@ -33,7 +33,7 @@ import com.ai.data.createAppGson
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ControlledCollapsibleCard
-import com.ai.ui.shared.RestartAppDialog
+import com.ai.ui.shared.RestartAppBanner
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.csvField
@@ -593,9 +593,8 @@ fun ImportExportScreen(
     // them now that we have them.
     var showKeysImportedDialog by remember { mutableStateOf(false) }
 
-    restartMessage?.let { msg ->
-        RestartAppDialog(message = msg, onConfirm = { restartApp(context) })
-    }
+    // Rendered as a banner inside the page Column below — see the
+    // `restartMessage?.let` call right under the TitleBar.
 
     if (showKeysImportedDialog) {
         AlertDialog(
@@ -1321,6 +1320,9 @@ fun ImportExportScreen(
             onBackClick = onBack
         )
         Spacer(modifier = Modifier.height(12.dp))
+        restartMessage?.let { msg ->
+            RestartAppBanner(message = msg, onConfirm = { restartApp(context) })
+        }
 
         // Accordion state for the three cards on this screen: at most
         // one is expanded at a time. Tapping the open card's header
