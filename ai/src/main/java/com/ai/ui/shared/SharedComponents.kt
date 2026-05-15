@@ -758,10 +758,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val desired = (available - backW - backGap) / stripIntrinsic
         // Floor at 1.0× so the strip never shrinks below the previous
         // top-bar size; ceiling at 1.875× = 1.5× × 1.25× preserves the
-        // original headroom multiplier on roomy screens. The whole
-        // window then multiplies by 1.1 so the icons sit a touch
-        // larger than the title-bar variant.
-        val scale = desired.coerceIn(1.0f, 1.875f) * 1.1f
+        // original headroom multiplier on roomy screens.
+        val scale = desired.coerceIn(1.0f, 1.875f)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -783,7 +781,6 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
-            Box(modifier = Modifier.offset(y = (-4).dp)) {
             TitleBarActionStrip(
                 onReload = onReload,
                 onChat = onChat,
@@ -796,7 +793,6 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 scale = scale,
                 extraSpacing = extraGap.dp
             )
-            }
         }
     }
 }
