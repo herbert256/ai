@@ -317,7 +317,7 @@ fun RefreshScreen(
     // that captures the surrounding state. The Boolean parameter controls
     // whether the per-step result dialog opens at the end.
     val runOpenRouter: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Pulling OpenRouter catalog…"
+        progressText = "Pulling OpenRouter catalog"
         withContext(Dispatchers.IO) {
             val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
             if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
@@ -327,7 +327,7 @@ fun RefreshScreen(
         if (showDialogAtEnd) showOpenRouterDialog = true
     }
     val runLiteLLM: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading model_prices_and_context_window.json…"
+        progressText = "Downloading model_prices_and_context_window.json"
         val n = PricingCache.fetchLiteLLMPricingOnline(context)
         litellmResult = n
         // Catalog answers may have shifted — refresh the precomputed
@@ -336,27 +336,27 @@ fun RefreshScreen(
         if (showDialogAtEnd) showLiteLLMDialog = true
     }
     val runModelsDev: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading models.dev/api.json…"
+        progressText = "Downloading models.dev/api.json"
         val n = PricingCache.fetchModelsDevOnline(context)
         modelsDevResult = n
         if (n != null) onSave(aiSettings.recomputeAllCapabilities())
         if (showDialogAtEnd) showModelsDevDialog = true
     }
     val runHelicone: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading helicone.ai/api/llm-costs…"
+        progressText = "Downloading helicone.ai/api/llm-costs"
         val n = PricingCache.fetchHeliconeOnline(context)
         heliconeResult = n
         // Helicone is pricing-only — no capability flags, so no recompute.
         if (showDialogAtEnd) showHeliconeDialog = true
     }
     val runLLMPrices: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading simonw/llm-prices vendor files…"
+        progressText = "Downloading simonw/llm-prices vendor files"
         val n = PricingCache.fetchLLMPricesOnline(context)
         llmPricesResult = n
         if (showDialogAtEnd) showLLMPricesDialog = true
     }
     val runArtificialAnalysis: suspend (Boolean) -> Unit = { showDialogAtEnd ->
-        progressText = "Downloading artificialanalysis.ai/api/v2/data/llms/models…"
+        progressText = "Downloading artificialanalysis.ai/api/v2/data/llms/models"
         val n = PricingCache.fetchArtificialAnalysisOnline(context, artificialAnalysisApiKey)
         aaResult = n
         if (showDialogAtEnd) showAaDialog = true
@@ -616,7 +616,7 @@ private fun RefreshAllProgressScreen(
             state.catalogSteps.forEach { step ->
                 val (icon, statusText, color) = when (val s = step.status) {
                     RefreshStepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
-                    is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running…", AppColors.Orange)
+                    is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running", AppColors.Orange)
                     is RefreshStepStatus.Done -> Triple("✓", s.detail ?: "done", AppColors.Green)
                     is RefreshStepStatus.Failed -> Triple("✗", s.detail ?: "failed", AppColors.Red)
                     RefreshStepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
@@ -630,9 +630,9 @@ private fun RefreshAllProgressScreen(
                 state.workerRows.forEach { row ->
                     val (icon, statusText, color, isPending) = when (val stage = row.stage) {
                         WorkerStage.Pending -> WorkerStageView("⏳", "queued", AppColors.TextTertiary, true)
-                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key…", AppColors.Orange, false)
-                        WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models…", AppColors.Orange, false)
-                        WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent…", AppColors.Orange, false)
+                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key", AppColors.Orange, false)
+                        WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models", AppColors.Orange, false)
+                        WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent", AppColors.Orange, false)
                         WorkerStage.Done -> WorkerStageView("✓", "done", AppColors.Green, false)
                         is WorkerStage.Failed -> WorkerStageView("✗", stage.reason.take(60).ifBlank { "failed" }, AppColors.Red, false)
                     }
