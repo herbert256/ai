@@ -356,6 +356,22 @@ fun BlockedBadge(isBlocked: Boolean) {
 }
 
 /**
+ * Tiny "not a chat model" badge for the main model pickers. 🖼️ stands
+ * in for the family — image / TTS / STT / moderation / classify / OCR.
+ * Selecting one of these for a chat flow will fail at runtime; the
+ * badge + dimmed row warn the user before they tap.
+ */
+@Composable
+fun NonTestableBadge(isNonTestable: Boolean) {
+    if (!isNonTestable) return
+    Text(
+        text = "🖼️",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Generic title bar used across all screens.
  * Left: optional back button. Right: a strip of six action icons —
  * Home, Reload, Info, Delete, Trace, Help (left → right). Home and

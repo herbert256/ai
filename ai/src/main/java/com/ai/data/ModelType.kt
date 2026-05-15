@@ -33,6 +33,12 @@ object ModelType {
      *  intentionally excluded — it's a runtime fallback, not a configurable kind. */
     val ALL: List<String> = listOf(CHAT, RESPONSES, EMBEDDING, RERANK, IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR)
 
+    /** Types the app has no chat-shaped dispatch for. Used by the Test
+     *  all models sweep to skip these at enumeration, and by the main
+     *  model pickers (AI Report, AI Chat) to dim them — selecting one
+     *  for a chat flow will fail at runtime. */
+    val NON_TESTABLE_TYPES: Set<String> = setOf(IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR)
+
     /** User-supplied global defaults from AI Setup → Model Types. Sits between the
      *  per-provider override and the hardcoded DEFAULT_PATHS. AppViewModel keeps
      *  this in sync with GeneralSettings.defaultTypePaths on every settings save. */

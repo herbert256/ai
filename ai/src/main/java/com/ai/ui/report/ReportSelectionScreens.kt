@@ -276,14 +276,24 @@ internal fun ReportSelectModelsScreen(
             // still selectable (advisory), same as a blocked row.
             val benchedUntil = cooldowns["${provider.id}:$model"]
                 ?.takeIf { it > System.currentTimeMillis() }
+            // Non-testable type (IMAGE / TTS / STT / Moderation /
+            // Classify / OCR) — no chat-shaped dispatch in the app, so
+            // picking one for a chat / report flow will fail. Skip
+            // this hint when modelTypeFilter explicitly *asks* for one
+            // of these (e.g. the Moderation picker passes MODERATION
+            // — the user wants exactly that type then).
+            val modelType = aiSettings.getModelType(provider, model)
+            val isNonTestable = provider.id != AppService.LOCAL.id &&
+                modelType in com.ai.data.ModelType.NON_TESTABLE_TYPES &&
+                modelType != modelTypeFilter
             // Only an already-added row is non-selectable; benched +
-            // blocked rows just dim.
+            // blocked + non-testable rows just dim.
             val disabled = isAlreadyAdded
             val blockReason = blockedReasons["${provider.id}:$model"]
             val pricing = aiSettings.getModelPricing(provider, model)
                 ?: PricingCache.getPricing(context, provider, model)
             val real = pricing.source != "DEFAULT"
-            val rowAlpha = if (disabled || benchedUntil != null || blockReason != null) 0.4f else 1f
+            val rowAlpha = if (disabled || benchedUntil != null || blockReason != null || isNonTestable) 0.4f else 1f
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !disabled) {
@@ -302,6 +312,7 @@ internal fun ReportSelectModelsScreen(
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
                         com.ai.ui.shared.CooldownBadge(benchedUntil != null)
                         com.ai.ui.shared.BlockedBadge(blockReason != null)
+                        com.ai.ui.shared.NonTestableBadge(isNonTestable)
                         // already-added rows still render dimmed and
                         // ignore taps so the user can see them in the
                         // catalog without re-adding; the trailing

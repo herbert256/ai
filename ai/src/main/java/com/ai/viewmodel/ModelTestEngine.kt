@@ -283,16 +283,10 @@ class ModelTestEngine internal constructor(
     }
 
     private companion object {
-        /** Model types the sweep does not probe — no dispatch path in
-         *  the app today. They're filtered out of the candidate list
-         *  in [startRun] and the count in [testableProviders] so they
-         *  don't show as "pending" or "failed". Types not in this set
-         *  (CHAT, RESPONSES, EMBEDDING, RERANK, UNKNOWN, null) all
-         *  have a working probe in [runOne]. */
-        private val NON_TESTABLE_TYPES: Set<String> = setOf(
-            ModelType.IMAGE, ModelType.TTS, ModelType.STT,
-            ModelType.MODERATION, ModelType.CLASSIFY, ModelType.OCR
-        )
+        /** Alias for the shared [ModelType.NON_TESTABLE_TYPES] so the
+         *  existing `in NON_TESTABLE_TYPES` call sites in this file stay
+         *  legible. Single source of truth lives in [ModelType]. */
+        private val NON_TESTABLE_TYPES: Set<String> = ModelType.NON_TESTABLE_TYPES
     }
 
     /** Active providers with a non-blank API key, each paired with its
