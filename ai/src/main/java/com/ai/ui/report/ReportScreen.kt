@@ -2832,9 +2832,16 @@ private fun AgentIconDetailScreen(
                     Text(label, fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 4.dp))
+                    // A null winningTier with a real (non-📝) icon means
+                    // the user picked an alternative via Find alternative
+                    // icons. Genuine all-tier failures land on the 📝
+                    // fallback.
                     Text(
                         tierView?.body
-                            ?: "No tier succeeded — icon is the 📝 fallback (or was picked manually).",
+                            ?: if (!icon.isNullOrBlank() && icon != "📝")
+                                "Manual selected an alternative icon"
+                            else
+                                "No tier succeeded — icon is the 📝 fallback.",
                         fontSize = 13.sp, color = Color.White, lineHeight = 18.sp
                     )
                 }
