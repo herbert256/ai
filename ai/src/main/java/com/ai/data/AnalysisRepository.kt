@@ -64,6 +64,14 @@ class AnalysisRepository {
     companion object {
         internal const val RETRY_DELAY_MS = 500L
         internal const val TEST_PROMPT = "Reply with exactly: OK"
+
+        /** max_tokens for the [TEST_PROMPT] probe. The probe only
+         *  checks reachability — a one-word reply is all it needs — so
+         *  a tiny cap keeps it cheap and, crucially, stops balance-
+         *  gating providers (OpenRouter) from pre-authorising the
+         *  model's whole output window against the account balance and
+         *  402-ing expensive models that would otherwise answer fine. */
+        internal const val TEST_MAX_TOKENS = 64
         internal const val XAI_COST_TICKS_DIVISOR = 10_000_000_000.0
 
         /** Set of 4xx codes that withRetry treats as deterministic

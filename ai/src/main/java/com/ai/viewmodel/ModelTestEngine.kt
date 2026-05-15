@@ -2,6 +2,7 @@ package com.ai.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.viewModelScope
+import com.ai.data.AgentParameters
 import com.ai.data.AnalysisRepository
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
@@ -283,7 +284,8 @@ class ModelTestEngine internal constructor(
                         ) {
                             withTraceCategory("Test all models") {
                                 appViewModel.repository.analyze(
-                                    service, apiKey, AnalysisRepository.TEST_PROMPT, item.model
+                                    service, apiKey, AnalysisRepository.TEST_PROMPT, item.model,
+                                    params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
                                 )
                             }
                         }
