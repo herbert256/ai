@@ -328,7 +328,7 @@
       "adminUrl": "https://open.bigmodel.cn/usercenter/apikeys",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.z.ai/api/paas/v4/",
-      "defaultModel": "glm-4.7-flash",
+      "defaultModel": "glm-4.5-air",
       "defaultModelSource": "API",
       "extractApiCost": false,
       "hardcodedModels": [
@@ -345,7 +345,6 @@
         { "id": "zai-coding", "name": "Coding", "url": "https://api.z.ai/api/coding/paas/v4/chat/completions" }
       ],
       "id": "Z.AI",
-      "defaultInactive": true,
       "modelFilter": "glm|codegeex|charglm",
       "modelListFormat": "object",
       "modelsPath": "models",
@@ -390,8 +389,7 @@
       "apiFormat": "OPENAI_COMPATIBLE",
       "auxHosts": ["api.cohere.com"],
       "baseUrl": "https://api.cohere.ai/compatibility/",
-      "defaultInactive": true,
-      "defaultModel": "command-a-03-2025",
+      "defaultModel": "command-r7b-12-2024",
       "extractApiCost": false,
       "hardcodedModels": [
         "command-a-03-2025",
@@ -470,7 +468,6 @@
         "accounts/fireworks/models/llama-v3p1-8b-instruct"
       ],
       "id": "Fireworks",
-      "defaultInactive": true,
       "maxCallsPerProviderPerMinute": 12,
       "maxConcurrentCallsPerProvider": 2,
       "modelListFormat": "object",
