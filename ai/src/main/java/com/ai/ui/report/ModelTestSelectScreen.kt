@@ -58,6 +58,13 @@ internal fun ModelTestSelectScreen(
     var selected by remember {
         mutableStateOf(providers.map { it.first.id }.toSet())
     }
+    // Alphabetical by provider id (case-insensitive) — registry order
+    // is a mix of priority / historical, which makes hunting for a
+    // specific provider a scan job. Cheap, stable, keyed on the input
+    // identity so memoised.
+    val sortedProviders = remember(providers) {
+        providers.sortedBy { it.first.id.lowercase() }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -93,7 +100,7 @@ internal fun ModelTestSelectScreen(
             }
 
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(providers, key = { it.first.id }) { (service, modelCount) ->
+                items(sortedProviders, key = { it.first.id }) { (service, modelCount) ->
                     val checked = service.id in selected
                     Row(
                         modifier = Modifier.fillMaxWidth()
