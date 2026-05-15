@@ -61,6 +61,13 @@ class ModelTestEngine internal constructor(
     private val _run = MutableStateFlow<ModelTestRunState?>(null)
     val run: StateFlow<ModelTestRunState?> = _run.asStateFlow()
 
+    /** Live UiState — re-exposed so the L1 screen can read the
+     *  current `aiSettings` and recompute catalog stats (Inaccessible
+     *  / Excluded / No chat / For testing) dynamically without
+     *  threading AppViewModel through the screen signature. */
+    val uiState: StateFlow<com.ai.viewmodel.UiState>
+        get() = appViewModel.uiState
+
     /** Keys currently blocked inside [acquireOrRequeue] — feeds the
      *  L1 "Throttled" stat. */
     private val _throttledKeys = MutableStateFlow<Set<String>>(emptySet())
