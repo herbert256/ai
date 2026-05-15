@@ -461,7 +461,7 @@
       "adminUrl": "https://app.fireworks.ai/",
       "apiFormat": "OPENAI_COMPATIBLE",
       "baseUrl": "https://api.fireworks.ai/inference/",
-      "defaultModel": "accounts/fireworks/models/llama-v3p3-70b-instruct",
+      "defaultModel": "accounts/fireworks/models/gpt-oss-120b",
       "extractApiCost": false,
       "hardcodedModels": [
         "accounts/fireworks/models/llama-v3p3-70b-instruct",
