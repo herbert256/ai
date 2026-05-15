@@ -31,7 +31,9 @@ import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.withContext
 
 /**
@@ -437,7 +439,28 @@ internal fun SecondaryResultsScreen(
             // disk; subsequent disk changes (via the existing
             // ReportViewModel runners) re-hydrate on each refresh tick.
             val runKey = com.ai.data.runKey(reportId, fanOutPrompt.id)
-            LaunchedEffect(reportId, runKey, refreshTick) {
+            // Throttle hydration to ~3 fps. The old key-on-tick
+            // pattern re-launched (and cancelled) the in-flight
+            // hydrate every time refreshTick bumped — during a
+            // fan-icons burst the disk pass (1k+ JSON files) was
+            // perpetually cancelled, the L1 stats froze, and only
+            // when the burst settled did one hydrate finish and the
+            // count jump by 100+. snapshotFlow + sample() ensures
+            // at most one hydrate is dispatched per 300 ms window
+            // and the running hydrate is never cancelled mid-read.
+            @OptIn(FlowPreview::class)
+            LaunchedEffect(reportId, runKey) {
+                androidx.compose.runtime.snapshotFlow { refreshTick }
+                    .sample(300L)
+                    .collect {
+                        withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
+                    }
+            }
+            // Kick off the first hydrate immediately on entry — sample()
+            // only starts emitting after its first window elapses, so
+            // without this prime the screen would show stale data for
+            // the first 300 ms.
+            LaunchedEffect(reportId, runKey) {
                 withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
             }
             val actions = FanOutActions(
