@@ -790,7 +790,8 @@
       "supportsCitations": false,
       "supportsSearchRecency": false,
       "typePaths": {
-        "chat": "chat/completions"
+        "chat": "chat/completions",
+        "embedding": "embeddings"
       }
     },
     {
