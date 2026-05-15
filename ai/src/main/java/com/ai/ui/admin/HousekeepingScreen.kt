@@ -40,7 +40,8 @@ fun HousekeepingScreen(
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
     onNavigateToReset: () -> Unit = {},
-    onNavigateToAppLog: () -> Unit = {}
+    onNavigateToAppLog: () -> Unit = {},
+    onNavigateToTest: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
 
@@ -63,6 +64,8 @@ fun HousekeepingScreen(
             // Available even on first run (no active provider) because the
             // log is populated immediately on app start (bootstrap line).
             NavCard("Application log", onClick = onNavigateToAppLog)
+            // Diagnostic test flows — currently "Test all models".
+            NavCard("Test", onClick = onNavigateToTest)
             // Refresh and Reset live together at the bottom — both
             // wholesale-state operations that finish with a forced app
             // restart popup.

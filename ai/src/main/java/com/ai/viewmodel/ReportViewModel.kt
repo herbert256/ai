@@ -159,6 +159,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  polling loop. */
     val fanOutEngine: FanOutEngine = FanOutEngine(appViewModel, this)
 
+    /** Runtime owner for the "Test all models" run (Housekeeping →
+     *  Test). One run, persisted to its own JSON document. */
+    val modelTestEngine: ModelTestEngine = ModelTestEngine(appViewModel)
+
     private data class ReportTask(
         val resultId: String,
         val reportAgent: ReportAgent,

@@ -955,6 +955,7 @@ private fun MaximalApiCallsSubScreen(
     var translationText by remember { mutableStateOf(generalSettings.maxConcurrentTranslationCalls.toString()) }
     var fanOutText by remember { mutableStateOf(generalSettings.maxConcurrentFanOutCalls.toString()) }
     var fanIconsText by remember { mutableStateOf(generalSettings.maxConcurrentFanIconsCalls.toString()) }
+    var testText by remember { mutableStateOf(generalSettings.maxTestApiCalls.toString()) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         maxConcurrentApiCalls = apiText.toIntOrNull()?.coerceAtLeast(1)
@@ -966,10 +967,12 @@ private fun MaximalApiCallsSubScreen(
         maxConcurrentFanOutCalls = fanOutText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.maxConcurrentFanOutCalls,
         maxConcurrentFanIconsCalls = fanIconsText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentFanIconsCalls
+            ?: generalSettings.maxConcurrentFanIconsCalls,
+        maxTestApiCalls = testText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxTestApiCalls
     )
 
-    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanIconsText) {
+    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanIconsText, testText) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1052,6 +1055,18 @@ private fun MaximalApiCallsSubScreen(
                     value = fanIconsText,
                     onValueChange = { fanIconsText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Concurrent Fan Icons calls") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Concurrent Test all models API calls",
+                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 8."
+            ) {
+                OutlinedTextField(
+                    value = testText,
+                    onValueChange = { testText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Test all models calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

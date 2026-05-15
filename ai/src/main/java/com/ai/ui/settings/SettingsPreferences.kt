@@ -85,6 +85,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             maxConcurrentTranslationCalls = prefs.getInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, 15),
             maxConcurrentFanOutCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, 15),
             maxConcurrentFanIconsCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, 15),
+            maxTestApiCalls = prefs.getInt(KEY_MAX_TEST_API_CALLS, 8),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
             maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),
@@ -130,6 +131,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, settings.maxConcurrentTranslationCalls)
             putInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, settings.maxConcurrentFanOutCalls)
             putInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, settings.maxConcurrentFanIconsCalls)
+            putInt(KEY_MAX_TEST_API_CALLS, settings.maxTestApiCalls)
             putInt(KEY_MAX_RETRIES_ON_429, settings.maxRetriesOn429)
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
             putInt(KEY_MAX_RETRIES_ON_529, settings.maxRetriesOn529)
@@ -500,6 +502,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MAX_CONCURRENT_TRANSLATION_CALLS = "max_concurrent_translation_calls"
         private const val KEY_MAX_CONCURRENT_FAN_OUT_CALLS = "max_concurrent_fan_out_calls"
         private const val KEY_MAX_CONCURRENT_FAN_ICONS_CALLS = "max_concurrent_fan_icons_calls"
+        private const val KEY_MAX_TEST_API_CALLS = "max_test_api_calls"
         private const val KEY_MAX_RETRIES_ON_429 = "max_retries_on_429"
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"
         private const val KEY_MAX_RETRIES_ON_529 = "max_retries_on_529"

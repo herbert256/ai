@@ -863,7 +863,24 @@ fun AppNavHost(
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
-                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) }
+                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) }
+            )
+        }
+        composable(NavRoutes.AI_TEST) {
+            com.ai.ui.admin.TestScreen(
+                onBack = safePopBack,
+                onOpenTestAllModels = { navController.navigate(NavRoutes.AI_TEST_ALL_MODELS) }
+            )
+        }
+        composable(NavRoutes.AI_TEST_ALL_MODELS) {
+            com.ai.ui.report.ModelTestScreen(
+                engine = reportViewModel.modelTestEngine,
+                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { svc, model ->
+                    navController.navigate(NavRoutes.aiModelInfo(svc.id, model))
+                },
+                onBack = safePopBack
             )
         }
         composable(NavRoutes.AI_APPLOG_LIST) {

@@ -159,6 +159,11 @@ data class GeneralSettings(
      *  separately so it doesn't compete with the parent fan-out's
      *  budget. Mirrors the per-host cap structure used by fan-out. */
     val maxConcurrentFanIconsCalls: Int = 15,
+    /** Cap on concurrent calls in the "Test all models" run
+     *  (Housekeeping → Test). Read directly by
+     *  [com.ai.viewmodel.ModelTestEngine] to size its in-flight
+     *  semaphore — not mirrored into [com.ai.data.NetworkSettings]. */
+    val maxTestApiCalls: Int = 8,
     /** Maximum number of in-line retries the OkHttp client performs on
      *  a 429 response from a single provider host. Defaults to 3 —
      *  three retries × the backoff below = ~3 s of in-line waiting.
