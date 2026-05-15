@@ -672,7 +672,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     if (onMemo != null) slot(28)
     val stripIntrinsic = (stripBase + (slotCount - 1).coerceAtLeast(0) * extraGap).coerceAtLeast(1)
     androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp)
+        // Bottom padding lifts the bar a touch above the gesture
+        // pill — without it the strip sat dead flush against the
+        // physical edge once the system-bars inset was dropped.
+        modifier = modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 12.dp)
     ) {
         val backW = if (onBack != null) 45 else 0
         val backGap = if (onBack != null) 4 else 0
@@ -688,11 +691,14 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         ) {
             if (onBack != null) {
                 Box(
-                    modifier = Modifier.size(width = 45.dp, height = 40.dp).clickable(onClick = onBack),
+                    // Match the icon strip's intrinsic 32 dp height
+                    // so the row sizes to its content — no top slack
+                    // above the action icons.
+                    modifier = Modifier.size(width = 45.dp, height = 32.dp).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "←", color = Color.White, fontSize = 40.sp,
+                        "←", color = Color.White, fontSize = 32.sp,
                         fontWeight = FontWeight.Black
                     )
                 }
