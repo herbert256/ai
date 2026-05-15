@@ -288,6 +288,8 @@
       "crossProviderModelList": true,
       "extractApiCost": true,
       "id": "OpenRouter",
+      "maxCallsPerProviderPerMinute": 60,
+      "maxConcurrentCallsPerProvider": 5,
       "modelListFormat": "object",
       "seedFieldName": "seed",
       "supportsCitations": false,
