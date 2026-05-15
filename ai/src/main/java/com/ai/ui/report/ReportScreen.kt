@@ -3599,7 +3599,7 @@ private fun FanOutConfirmScreen(
                     if (successful == null) {
                         Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
                     } else {
-                        val gridText = "${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} × ${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
+                        val gridText = "${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} × ${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
                         Text(
                             gridText, fontSize = 15.sp, color = Color.White,
                             fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
