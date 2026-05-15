@@ -14,7 +14,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.RestartAppDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.viewmodel.AppViewModel
@@ -265,13 +264,30 @@ fun ResetAssetsScreen(
 fun ResetApplicationScreen(
     onResetApplication: ((success: Boolean, message: String) -> Unit) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** Wired by AppNavHost to AppViewModel.startRefreshAll + navigate
+     *  to the Refresh screen — for the "Refresh all" button on the
+     *  post-reset action banner. */
+    onStartRefreshAll: () -> Unit = {},
+    /** Wired by AppNavHost to AppViewModel.startRefreshWorkers + nav,
+     *  for the "Refresh providers, model lists & default agents"
+     *  button. */
+    onStartRefreshWorkers: () -> Unit = {},
+    /** Open the Import / Export screen — used by the post-reset
+     *  "Import API keys" button so the user can re-seed keys from a
+     *  bundle backup without leaving the flow. */
+    onNavigateToImportExport: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
     var confirmText by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    // Non-null after a successful reset → renders the 4-button action
+    // banner at the top of the page (no modal). The on-disk state is
+    // fresh but the in-memory singletons are stale until the user taps
+    // one of the buttons — three lead to a restart eventually, one
+    // navigates them into Import/Export to seed API keys first.
     var restartMessage by remember { mutableStateOf<String?>(null) }
 
     if (busy) {
@@ -282,8 +298,6 @@ fun ResetApplicationScreen(
             confirmButton = {}
         )
     }
-
-    restartMessage?.let { msg -> RestartAppDialog(message = msg, onConfirm = { restartApp(context) }) }
 
     if (showConfirm) {
         AlertDialog(
@@ -334,9 +348,38 @@ fun ResetApplicationScreen(
         TitleBar(helpTopic = "reset_application", title = "Reset application", onBackClick = onBack)
         Spacer(modifier = Modifier.height(12.dp))
 
+        restartMessage?.let { msg ->
+            Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "$msg — pick what should happen next:",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
+                Button(
+                    onClick = { restartMessage = null; onStartRefreshAll() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh all", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { restartMessage = null; onStartRefreshWorkers() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { restartApp(context) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Restart application", maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { restartMessage = null; onNavigateToImportExport() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                ) { Text("Import API keys", maxLines = 1, softWrap = false) }
+            }
+        }
+
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets, then the Refresh-all chain runs (catalogs → provider tests → model lists → default-agents flock). A type-to-confirm dialog gates the action; the app force-restarts on success so every singleton picks up the fresh state.",
+                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. A type-to-confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             Button(

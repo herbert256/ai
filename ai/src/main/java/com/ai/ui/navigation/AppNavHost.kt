@@ -973,7 +973,18 @@ fun AppNavHost(
             com.ai.ui.admin.ResetApplicationScreen(
                 onResetApplication = { onComplete -> appViewModel.resetApplication(ctx, onComplete) },
                 onBack = { navController.popBackStack() },
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onStartRefreshAll = {
+                    appViewModel.startRefreshAll()
+                    navController.navigate(NavRoutes.AI_REFRESH)
+                },
+                onStartRefreshWorkers = {
+                    appViewModel.startRefreshWorkers()
+                    navController.navigate(NavRoutes.AI_REFRESH)
+                },
+                onNavigateToImportExport = {
+                    navController.navigate(NavRoutes.AI_IMPORT_EXPORT)
+                }
             )
         }
         composable(NavRoutes.AI_IMPORT_EXPORT) {
