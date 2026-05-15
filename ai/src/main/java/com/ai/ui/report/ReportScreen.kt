@@ -1159,6 +1159,11 @@ fun ReportsScreen(
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
     var fanOutConfirmMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    // Initiator / responder sets picked on the scope screen — passed
+    // through to FanOutConfirmScreen so its (now read-only) summary
+    // shows what's going to run.
+    var pendingFanOutInitiators by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var pendingFanOutResponders by remember { mutableStateOf<Set<String>>(emptySet()) }
     // Fan_in run model picker. Triggered from the fan out detail
     // screen's "Combine reports and all fan out responses" button.
     var fanInPickerPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
@@ -1775,14 +1780,16 @@ fun ReportsScreen(
             reranks = sd.reranks,
             languages = sd.languages,
             totalReports = sd.totalReports,
-            onContinue = { chosenScope, chosenLangScope ->
+            onContinue = { chosenScope, chosenLangScope, initiators, responders ->
                 pendingSecondaryScope = chosenScope
                 pendingLanguageScope = chosenLangScope
                 secondaryScopeMetaPrompt = null
                 if (scopeMetaPrompt.category == "fan_out") {
-                    // No model picker for fan out — answerers are always
-                    // every successful report-model. Jump straight to
-                    // the call-count confirm dialog.
+                    // Initiators / responders already picked on the
+                    // scope page — Run page just edits the prompt and
+                    // confirms.
+                    pendingFanOutInitiators = initiators ?: emptySet()
+                    pendingFanOutResponders = responders ?: emptySet()
                     fanOutConfirmMetaPrompt = scopeMetaPrompt
                 } else {
                     secondaryPickerMetaPrompt = scopeMetaPrompt
@@ -1805,15 +1812,17 @@ fun ReportsScreen(
             fanOutMp = fanOutMp,
             reportId = currentReportId,
             context = context,
+            initiators = pendingFanOutInitiators,
+            responders = pendingFanOutResponders,
             onCancel = { fanOutConfirmMetaPrompt = null },
-            onRun = { mp, initiators, responders ->
+            onRun = { mp ->
                 fanOutConfirmMetaPrompt = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
                 onRunFanOut(
                     currentReportId, mp,
-                    com.ai.data.SecondaryScope.Manual(initiators),
-                    responders
+                    com.ai.data.SecondaryScope.Manual(pendingFanOutInitiators),
+                    pendingFanOutResponders
                 )
                 // Land on the Fan Out L1 page so the user watches the
                 // run progress instead of the report screen.
@@ -2188,6 +2197,8 @@ fun ReportsScreen(
                     // Nothing to fan out against — fall back to the
                     // confirm screen so the user sees the empty state
                     // and a Cancel button.
+                    pendingFanOutInitiators = emptySet()
+                    pendingFanOutResponders = emptySet()
                     fanOutConfirmMetaPrompt = mp
                 } else {
                     onRunFanOut(rid, mp, com.ai.data.SecondaryScope.Manual(ids), ids)
@@ -3448,8 +3459,10 @@ private fun FanOutConfirmScreen(
     fanOutMp: InternalPrompt,
     reportId: String,
     context: android.content.Context,
+    initiators: Set<String>,
+    responders: Set<String>,
     onCancel: () -> Unit,
-    onRun: (InternalPrompt, Set<String>, Set<String>) -> Unit
+    onRun: (InternalPrompt) -> Unit
 ) {
     val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) {
@@ -3459,18 +3472,13 @@ private fun FanOutConfirmScreen(
         }
     }
     val successful = successfulState.value
-    val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
-    var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
-    var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
     // Per-run prompt edit — never written back to the InternalPrompt
     // store. Keyed on fanOutMp.id so switching prompts reseeds the
     // field with the new template.
     var editablePrompt by remember(fanOutMp.id) { mutableStateOf(fanOutMp.text) }
-    val pairCount = selectedInitiators.sumOf { init ->
-        selectedResponders.count { resp -> resp != init }
+    val pairCount = initiators.sumOf { init ->
+        responders.count { resp -> resp != init }
     }
-    fun agentLabel(a: com.ai.data.ReportAgent): String =
-        a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
     BackHandler { onCancel() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
@@ -3495,7 +3503,7 @@ private fun FanOutConfirmScreen(
                     if (successful == null) {
                         Text("Loading…", fontSize = 13.sp, color = AppColors.TextTertiary)
                     } else {
-                        val gridText = "${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} × ${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
+                        val gridText = "${responders.size} responder${if (responders.size == 1) "" else "s"} × ${initiators.size} initiator${if (initiators.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
                         Text(
                             gridText, fontSize = 15.sp, color = Color.White,
                             fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
@@ -3503,56 +3511,11 @@ private fun FanOutConfirmScreen(
                     }
                 }
             }
-            if (successful != null && successful.isNotEmpty()) {
-                com.ai.ui.shared.CollapsibleCard(
-                    title = "Initiator models for this Fan-Out (${selectedInitiators.size})"
-                ) {
-                    successful.forEach { agent ->
-                        val checked = agent.agentId in selectedInitiators
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                selectedInitiators = if (checked) selectedInitiators - agent.agentId
-                                    else selectedInitiators + agent.agentId
-                            }.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-                com.ai.ui.shared.CollapsibleCard(
-                    title = "Responder models for this Fan-out (${selectedResponders.size})"
-                ) {
-                    successful.forEach { agent ->
-                        val checked = agent.agentId in selectedResponders
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                selectedResponders = if (checked) selectedResponders - agent.agentId
-                                    else selectedResponders + agent.agentId
-                            }.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(checked = checked, onCheckedChange = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-            }
 
             // Editable prompt at the bottom of the scroll body — the
             // edit lives only for this Run; the stored InternalPrompt
-            // isn't touched.
+            // isn't touched. Initiator / responder model picks live on
+            // the Scope screen now and aren't re-shown here.
             Text("Fan-out prompt (edit for this run)", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = editablePrompt,
@@ -3571,7 +3534,7 @@ private fun FanOutConfirmScreen(
             ) { Text("Cancel", maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
-                    onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
+                    onRun(fanOutMp.copy(text = editablePrompt))
                 },
                 enabled = pairCount > 0,
                 modifier = Modifier.weight(1f),
