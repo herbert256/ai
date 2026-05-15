@@ -167,7 +167,6 @@ fun ModelsListScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "models", title = "Models", onBackClick = onBackToAiSetup)
-        Spacer(modifier = Modifier.height(12.dp))
         // Only show providers with a working API key (state == "ok"), matching the "Active"
         // filter on the Providers screen.
         val activeProviders = AppService.entries

@@ -55,7 +55,6 @@ fun ChatManageScreen(
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
         TitleBar(helpTopic = "chat_manage", title = "Manage chats", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(16.dp))
 
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {

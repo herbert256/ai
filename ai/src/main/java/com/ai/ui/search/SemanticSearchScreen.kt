@@ -71,7 +71,6 @@ fun SemanticSearchScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "search_semantic", title = "Semantic search", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         if (embeddingChoices.isEmpty()) {
             Text(

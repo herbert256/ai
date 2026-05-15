@@ -58,7 +58,6 @@ fun SetupScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_setup", title = "AI Setup", onBackClick = onBackToSettings)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
@@ -139,7 +138,6 @@ fun ModelsSetupScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "setup_models", title = "AI Models setup", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
@@ -181,7 +179,6 @@ fun WorkersSetupScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "setup_workers", title = "AI Workers", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🤖", "Agents", "Named AI model configurations", "$agentCount",
@@ -218,7 +215,6 @@ fun PromptsSetupScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
@@ -263,7 +259,6 @@ fun FanInOutPromptsHubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "fan_in_out_prompts_hub", title = "Fan out/in prompts", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
 
@@ -301,7 +296,6 @@ fun LocalModelsSetupScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "setup_local_models", title = "Local models", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("📱", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
@@ -385,7 +379,6 @@ fun ProvidersScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->
@@ -560,7 +553,6 @@ fun ExternalServicesScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "external_services", title = "External Services", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(16.dp))
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),

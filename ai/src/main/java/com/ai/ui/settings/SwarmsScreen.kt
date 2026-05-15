@@ -135,7 +135,6 @@ fun SwarmEditScreen(
             subject = name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(

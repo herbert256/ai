@@ -70,7 +70,6 @@ fun SystemPromptEditScreen(
             subject = name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

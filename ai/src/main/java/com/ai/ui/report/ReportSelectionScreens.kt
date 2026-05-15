@@ -63,7 +63,6 @@ internal fun ReportSelectAgentScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -226,7 +225,6 @@ internal fun ReportSelectModelsScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_model", title = titleText, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
@@ -428,7 +426,6 @@ internal fun ReportSelectFlockScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -550,7 +547,6 @@ internal fun ReportSelectSwarmScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -694,7 +690,6 @@ internal fun ReportSelectInternalPromptScreen(
             else -> "secondary_list"
         }
         TitleBar(helpTopic = helpId, title = titleText, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -784,7 +779,6 @@ internal fun ReportActionPickerScreen(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = helpTopic, title = titleText, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             options.forEach { opt ->
                 Column(
@@ -860,7 +854,6 @@ internal fun ReportOneTimePromptScreen(
             else -> "internal_prompt_edit"
         }
         TitleBar(helpTopic = helpId, title = "One-time prompt", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -965,7 +958,6 @@ internal fun ReportSelectFromReportScreen(
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search title or prompt...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
@@ -1079,7 +1071,6 @@ private fun SwarmInfoScreen(
             subject = swarm.name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
         if (swarm.members.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("No members", color = AppColors.TextTertiary, fontSize = 13.sp)
@@ -1121,7 +1112,6 @@ private fun FlockInfoScreen(
             subject = flock.name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
         if (flockParamNames.isNotEmpty() || flockSystemPromptName != null) {
             Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -128,7 +128,6 @@ fun BackupRestoreScreen(
             title = if (restoreOnly) "Restore" else "Backup & Restore",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
         restartMessage?.let { msg ->
             RestartAppBanner(message = msg, onConfirm = { restartApp(context) })
         }

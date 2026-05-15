@@ -2610,7 +2610,6 @@ private fun ReportIconDetailScreen(
             title = "Icon",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
@@ -2806,7 +2805,6 @@ private fun AgentIconDetailScreen(
                 { onNavigateToTraceFile(traceFilename) }
             } else null
         )
-        Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
@@ -3131,7 +3129,6 @@ private fun InternalPromptIconDetailScreen(
             subject = subject,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
@@ -3228,7 +3225,6 @@ private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Uni
     val report = reportState.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_icons_grid", title = "Icons", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
             a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }
         }
@@ -3459,7 +3455,6 @@ private fun MetaRunScreen(
             title = "Run ${metaPrompt.name}",
             onBackClick = onCancel
         )
-        Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -3536,7 +3531,6 @@ private fun FanOutConfirmScreen(
             title = "Fan Out - run",
             onBackClick = onCancel
         )
-        Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)

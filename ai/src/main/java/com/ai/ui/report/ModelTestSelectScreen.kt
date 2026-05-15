@@ -72,7 +72,6 @@ internal fun ModelTestSelectScreen(
             title = "Test all models",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             "Pick the providers to test — every configured model of each " +

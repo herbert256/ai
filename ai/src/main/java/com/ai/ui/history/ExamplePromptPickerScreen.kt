@@ -46,7 +46,6 @@ fun ExamplePromptPickerScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "example_prompt_picker", title = "Pick an example prompt", onBackClick = onNavigateBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
             value = search, onValueChange = { search = it },

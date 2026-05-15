@@ -210,7 +210,6 @@ fun ReportsHubScreen(
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
         TitleBar(helpTopic = "reports_hub", title = "AI Reports", onBackClick = onNavigateBack)
-        Spacer(modifier = Modifier.height(24.dp))
         if (inFlightReports.isNotEmpty()) {
             InFlightPill(
                 count = inFlightReports.size,
@@ -519,7 +518,6 @@ fun NewReportScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New AI Report", onBackClick = onNavigateBack)
-        Spacer(modifier = Modifier.height(16.dp))
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(

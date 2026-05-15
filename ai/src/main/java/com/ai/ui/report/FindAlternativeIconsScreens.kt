@@ -53,7 +53,6 @@ fun ModelSelectionScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         // +Add chip row — same layout as SelectionPhase but fewer
         // sources matter for an icon: we keep all the same chips so
@@ -169,7 +168,6 @@ fun AlternativeIconsScreen(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Stable order: by provider id, then model id — so re-renders
         // as candidates flip Running → Done/Error don't reshuffle rows.

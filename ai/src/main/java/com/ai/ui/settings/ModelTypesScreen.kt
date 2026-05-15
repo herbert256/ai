@@ -57,7 +57,6 @@ fun ModelTypesScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "model_types", title = "Model Types", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             "Default API path per model type. Per-provider overrides win; if you " +

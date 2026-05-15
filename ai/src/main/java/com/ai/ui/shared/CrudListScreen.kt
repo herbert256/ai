@@ -79,7 +79,6 @@ fun <T> CrudListScreen(
     ) {
         TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack)
 
-        Spacer(modifier = Modifier.height(16.dp))
 
         if (!fixedList) {
             Button(

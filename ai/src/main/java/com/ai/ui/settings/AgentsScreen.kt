@@ -169,7 +169,6 @@ fun AgentEditScreen(
             subject = name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

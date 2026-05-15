@@ -112,7 +112,6 @@ fun BlockedModelEditScreen(
             subject = if (hasModel) "$providerId · $model" else "",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedButton(
             onClick = { showPicker = true },

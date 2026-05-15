@@ -50,7 +50,6 @@ fun QuickLocalSearchScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "search_quick", title = "Quick local search", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = query, onValueChange = { query = it },

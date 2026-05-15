@@ -116,7 +116,6 @@ internal fun ReportMetaScreen(
             title = "Meta",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
 
         if (results.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {

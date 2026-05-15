@@ -159,7 +159,6 @@ internal fun ManualModelTypeEditScreen(
             title = if (initial == null) "Add override" else "Edit override",
             onBackClick = onCancel
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),

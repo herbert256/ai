@@ -386,7 +386,6 @@ fun RefreshScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Fresh-install gate: with no keyed provider, the Workers phase
         // has nothing to act on, so "Refresh all" would just run the
@@ -456,7 +455,6 @@ private fun InfoProvidersRefreshPage(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -583,7 +581,6 @@ private fun RefreshAllProgressScreen(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh_all", title = state.title, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
         if (onRestart != null && restartMessage != null) {
             RestartAppBanner(message = restartMessage, onConfirm = onRestart)
         }
@@ -715,7 +712,6 @@ private fun RefreshResultScreen(
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "refresh_result", title = titleText, onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!description.isNullOrBlank()) {
                 Text(description, fontSize = 13.sp, color = AppColors.TextSecondary)

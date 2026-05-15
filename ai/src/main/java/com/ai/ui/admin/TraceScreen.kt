@@ -451,7 +451,6 @@ private fun TraceModelPickerOverlay(
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "trace_pick_model", title = "Pick model", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(8.dp))
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
         ) {

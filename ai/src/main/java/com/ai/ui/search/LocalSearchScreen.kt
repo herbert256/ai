@@ -50,7 +50,6 @@ fun LocalSearchScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(helpTopic = "search_local", title = "Extended local search", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         OutlinedTextField(
             value = query, onValueChange = { query = it },

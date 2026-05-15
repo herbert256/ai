@@ -75,7 +75,6 @@ internal fun ModelTestL1Screen(
             title = "Test all models",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(8.dp))
 
         if (run == null) {
             // No run persisted yet — empty state + the launch button.

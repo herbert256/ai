@@ -723,7 +723,6 @@ private fun SettingsMainScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_main", title = "Settings", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Nav rows into the four preference buckets. Each opens
@@ -880,7 +879,6 @@ private fun NetworkSettingsSubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_network", title = "Network settings", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Nav row to the Maximal API calls sub-screen. Styled like
             // SettingCard (same surface, title weight, chevron) so it
@@ -1040,7 +1038,6 @@ private fun MaximalApiCallsSubScreen(
             title = "Maximal API calls",
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1160,7 +1157,6 @@ private fun UiTweaksSubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_ui", title = "UI tweaks", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Model name layout", "How model labels render across rows and pickers.") {
                 Column {
@@ -1241,7 +1237,6 @@ private fun OtherSettingsSubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_other", title = "Other settings", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
@@ -1316,7 +1311,6 @@ private fun LoggingAndTracingSubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "API tracing",

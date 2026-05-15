@@ -76,7 +76,6 @@ fun LocalSemanticSearchScreen(
                 { onNavigateToTraceFile(tfTop) }
             } else null
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         if (availableModels.isEmpty()) {
             Text(

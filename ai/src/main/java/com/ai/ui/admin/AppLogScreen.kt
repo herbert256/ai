@@ -68,7 +68,6 @@ fun AppLogListScreen(
             onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             "Daily-rotating log under filesDir/applog/. Tap a row to view, copy or share.",
@@ -593,7 +592,6 @@ fun AppLogDetailScreen(
             onShare = { shareAction = ShareAction.SHARE }
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
 
         // ===== Filter row =====
         // Search field + tag pulldown share one row. The pulldown is
@@ -956,7 +954,6 @@ private fun AppLogEntryScreen(
             onTrace = matchingTrace?.let { tf -> { onNavigateToTrace(tf) } }
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
 
         // Body: tap left half → previous entry, tap right half → next
         // entry. detectTapGestures + verticalScroll cohabit cleanly —

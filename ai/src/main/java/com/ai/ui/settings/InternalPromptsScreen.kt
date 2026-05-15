@@ -175,7 +175,6 @@ fun InternalPromptEditScreen(
             subject = name,
             onBackClick = onBack
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Name + Title belong together: both are display fields on

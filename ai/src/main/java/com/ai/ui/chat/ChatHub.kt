@@ -85,7 +85,6 @@ fun ChatsHubScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
         TitleBar(helpTopic = "chat_hub", title = "AI Chat", onBackClick = onNavigateBack)
-        Spacer(modifier = Modifier.height(24.dp))
 
         if (unfinishedSessions.isNotEmpty()) {
             UnfinishedChatPill(

@@ -57,7 +57,6 @@ fun ReportManageScreen(
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
         TitleBar(helpTopic = "report_manage", title = "Manage reports", onBackClick = onBack)
-        Spacer(modifier = Modifier.height(16.dp))
 
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
