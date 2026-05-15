@@ -89,9 +89,20 @@ class ModelTestEngine internal constructor(
         if (_run.value != null) return
         val persisted = withContext(Dispatchers.IO) { ModelTestRunStore.load(context) }
         if (persisted != null) {
-            val rehydrated = if (persisted.catalogTotal == 0 && persisted.items.isNotEmpty()) {
+            // Reconcile the snapshot: the four buckets + items.size
+            // must equal catalogTotal. They can drift when a probe
+            // mid-run is auto-added to test-excluded (cost > 5¢) or
+            // inaccessible — the model ends up counted in two
+            // places. Recompute when the math doesn't balance.
+            val sum = persisted.inaccessibleAtStart + persisted.excludedAtStart +
+                persisted.noChatAtStart + persisted.items.size
+            val needsBackfill = persisted.items.isNotEmpty() &&
+                (persisted.catalogTotal == 0 || sum != persisted.catalogTotal)
+            val rehydrated = if (needsBackfill) {
                 val aiSettings = appViewModel.uiState.value.aiSettings
-                val stats = computeCatalogPartition(persisted.providerIds, aiSettings)
+                val stats = computeCatalogPartition(
+                    persisted.providerIds, aiSettings, persisted.items.keys
+                )
                 val updated = persisted.copy(
                     catalogTotal = stats.total,
                     inaccessibleAtStart = stats.inaccessible,
@@ -99,7 +110,7 @@ class ModelTestEngine internal constructor(
                     noChatAtStart = stats.noChat
                 )
                 withContext(Dispatchers.IO) { ModelTestRunStore.save(context, updated) }
-                AppLog.i("ModelTest", "→ hydrate backfill: catalog=${stats.total}, inacc=${stats.inaccessible}, excl=${stats.excluded}, noChat=${stats.noChat}")
+                AppLog.i("ModelTest", "→ hydrate backfill: catalog=${stats.total}, inacc=${stats.inaccessible}, excl=${stats.excluded}, noChat=${stats.noChat}, items=${updated.items.size}")
                 updated
             } else persisted
             _run.update { it ?: rehydrated }
@@ -112,12 +123,16 @@ class ModelTestEngine internal constructor(
         val total: Int, val inaccessible: Int, val excluded: Int, val noChat: Int
     )
 
-    /** Bucket the catalog of [providerIds] into the four L1 top-row
-     *  categories. Priority order matters so the buckets sum back to
-     *  [total]: inaccessible > excluded > no-chat > for-testing. */
+    /** Bucket the catalog of [providerIds] into the three skip
+     *  categories. Models whose key is in [itemKeys] are treated as
+     *  *already classified as for-testing* — even if they appear in
+     *  a skip list now (mid-flight detection can add them
+     *  post-startRun). Prevents double-counting when the L1 top-row
+     *  computes Total as inacc + excl + noChat + items.size. */
     private fun computeCatalogPartition(
         providerIds: List<String>,
-        aiSettings: com.ai.model.Settings
+        aiSettings: com.ai.model.Settings,
+        itemKeys: Set<String> = emptySet()
     ): CatalogPartition {
         var total = 0; var inacc = 0; var excl = 0; var noChat = 0
         for (pid in providerIds) {
@@ -125,6 +140,7 @@ class ModelTestEngine internal constructor(
             for (model in aiSettings.getProvider(svc).models) {
                 if (model.isBlank()) continue
                 total++
+                if (modelTestKey(pid, model) in itemKeys) continue
                 when {
                     aiSettings.isInaccessible(pid, model) -> inacc++
                     aiSettings.isTestExcluded(pid, model) -> excl++
@@ -181,7 +197,7 @@ class ModelTestEngine internal constructor(
                 )
             }
         }
-        val stats = computeCatalogPartition(selectedProviderIds, aiSettings)
+        val stats = computeCatalogPartition(selectedProviderIds, aiSettings, items.keys)
         _run.value = ModelTestRunState(
             startedAt = System.currentTimeMillis(),
             items = items,

@@ -115,17 +115,24 @@ internal fun ModelTestL1Screen(
                     }
                 }
             ) {
-                // Top row — catalog snapshot captured at startRun
-                // (or backfilled on hydrate for pre-snapshot persisted
-                // runs). Stable for the lifetime of the run; the four
-                // sub-buckets + "For testing" remainder always
-                // reconcile to Total.
+                // Top row — catalog snapshot. The skip buckets are
+                // frozen at startRun (or hydrate-backfilled); "For
+                // testing" is always [run.items.size] so the bottom
+                // row's Done + Errors + Bench + Run + Throttled +
+                // Queue reconciles exactly. Total is computed as the
+                // sum of the four columns so the math is consistent
+                // by construction — even when mid-flight detection
+                // adds a model to a skip list that was originally
+                // counted as for-testing.
+                val forTesting = run.items.size
+                val topTotal = run.inaccessibleAtStart + run.excludedAtStart +
+                    run.noChatAtStart + forTesting
                 val topStats = listOf(
-                    Triple("Total", run.catalogTotal.toString(), AppColors.Blue),
+                    Triple("Total", topTotal.toString(), AppColors.Blue),
                     Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
                     Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
                     Triple("No chat", run.noChatAtStart.toString(), AppColors.TextTertiary),
-                    Triple("For testing", run.forTestingAtStart.toString(), AppColors.Blue)
+                    Triple("For testing", forTesting.toString(), AppColors.Blue)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     topStats.forEach { (label, _, color) ->
