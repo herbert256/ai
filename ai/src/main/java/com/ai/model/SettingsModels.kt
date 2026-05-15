@@ -350,13 +350,21 @@ data class Settings(
      *  stored classification (native list APIs / naming heuristic). LiteLLM
      *  is conservative on model types — it tags gpt-5/o-series as "chat"
      *  even though we route them through the Responses API — so we only
-     *  trust LiteLLM when it returns something more specific than CHAT. */
+     *  trust LiteLLM when it returns something more specific than CHAT.
+     *
+     *  Last-resort fallback: the naming heuristic in [ModelType.infer].
+     *  Only used when nothing earlier has classified the model and
+     *  infer() returns a non-CHAT type (so we don't over-eagerly type
+     *  a generic LLM as CHAT and clobber a future native-list update).
+     *  This catches embedding models that the provider's list API
+     *  didn't tag (e.g. DeepInfra's Qwen3-Embedding-*). */
     fun getModelType(service: AppService, modelId: String): String? {
         modelTypeOverrides.firstOrNull { it.providerId == service.id && it.modelId == modelId }?.let { return it.type }
         com.ai.data.PricingCache.liteLLMModelType(service, modelId)?.let {
             if (it != com.ai.data.ModelType.CHAT) return it
         }
-        return getProvider(service).modelTypes[modelId]
+        getProvider(service).modelTypes[modelId]?.let { return it }
+        return com.ai.data.ModelType.infer(modelId).takeIf { it != com.ai.data.ModelType.CHAT }
     }
 
     fun withModelTypeOverrides(overrides: List<ModelTypeOverride>) = copy(modelTypeOverrides = overrides)

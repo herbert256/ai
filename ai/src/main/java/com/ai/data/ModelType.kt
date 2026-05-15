@@ -78,6 +78,14 @@ object ModelType {
             // skips them.
             "realtime" in id || "-audio-" in id || id.startsWith("gpt-audio") ||
                 "audio-preview" in id -> TTS
+            // Legacy completion-only / dedicated-endpoint chat models
+            // that exist in provider catalogs but don't dispatch as
+            // chat-completions: OpenAI's gpt-3.5-turbo-instruct (the
+            // text-completion endpoint), xAI's grok-*-multi-agent (a
+            // separate multi-agent endpoint). Same TTS-as-skip
+            // precedent as the audio-modality entries above.
+            id.startsWith("gpt-3.5-turbo-instruct") ||
+                "multi-agent" in id -> TTS
             // Image / video / music generation — none have a chat-shaped
             // dispatch in the app today.
             "dall-e" in id || id.startsWith("gpt-image-") || "chatgpt-image-" in id ||
