@@ -205,15 +205,7 @@ data class InternalPrompt(
      *  user-given [name] is the identifier; [title] is a one-line
      *  description shown alongside it on Fan out and the prompt-edit
      *  screen. */
-    val title: String = "",
-    /** Meta-prompt launch scope. "Default" runs against every report
-     *  agent (and every present language) with no extra picker step.
-     *  "Select" routes the user through SecondaryScopeScreen so they
-     *  can pick a subset / top-N / language fan-out. Currently
-     *  consulted only by the meta launch flow; other categories carry
-     *  the value verbatim so round-tripping through prompts.json and
-     *  the export bundle is lossless. */
-    val scope: String = "Default"
+    val title: String = ""
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user

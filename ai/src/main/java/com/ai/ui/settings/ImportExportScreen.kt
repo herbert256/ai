@@ -56,7 +56,6 @@ private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf(
     "reference" to p.reference,
     "category" to p.category,
     "agent" to p.agent,
-    "scope" to p.scope,
     "text" to p.text
 )
 

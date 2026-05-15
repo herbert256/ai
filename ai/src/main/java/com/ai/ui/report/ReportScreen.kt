@@ -2184,60 +2184,14 @@ fun ReportsScreen(
         return
     }
 
-    // Helper used by the Meta card and the Meta hub's "Add" list.
-    // Every Meta-category prompt now goes through the scope screen.
-    // fan_out prompts have their own button + popup and are routed
-    // via launchFanOutPrompt below.
+    // Every Meta- and Fan-out launch now routes through
+    // SecondaryScopeScreen — the user picks scope / language /
+    // initiator / responder there before continuing to the Run page.
     val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        if (mp.scope.equals("Default", ignoreCase = true)) {
-            // Skip SecondaryScopeScreen — run against every report
-            // agent (AllReports) and every present language (AllPresent),
-            // the same defaults the scope screen's Continue would have
-            // written for "All". Land on the Run page so the user can
-            // still tweak the prompt for this single run.
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            metaRunScreenPrompt = mp
-        } else {
-            secondaryScopeMetaPrompt = mp
-        }
+        secondaryScopeMetaPrompt = mp
     }
-    // fan_out: same scope-field branch as launchMetaPrompt. "Default"
-    // skips BOTH the scope picker AND the run-confirm screen — fan-out
-    // runs across every (answerer, source) pair of successful report
-    // agents immediately. "Select" preserves the prior behaviour of
-    // routing through SecondaryScopeScreen → fanOutConfirmMetaPrompt.
     val launchFanOutPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        val rid = currentReportId
-        if (mp.scope.equals("Default", ignoreCase = true) && rid != null) {
-            // Load the successful-agent list off-thread, then fire
-            // onRunFanOut with Manual(all) on both sides — mirrors
-            // what the confirm screen's Run button does with both
-            // checkbox sets fully ticked (the default state there).
-            scope.launch {
-                val successful = withContext(Dispatchers.IO) {
-                    com.ai.data.ReportStorage.getReport(context, rid)?.agents?.filter {
-                        it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }.orEmpty()
-                }
-                val ids = successful.map { it.agentId }.toSet()
-                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                if (ids.isEmpty()) {
-                    // Nothing to fan out against — fall back to the
-                    // confirm screen so the user sees the empty state
-                    // and a Cancel button.
-                    fanOutConfirmMetaPrompt = mp
-                } else {
-                    // Default-scope direct run: drop the picker so
-                    // Android back from L1 doesn't land back on it.
-                    showFanOutPicker = false
-                    onRunFanOut(rid, mp, com.ai.data.SecondaryScope.Manual(ids), ids)
-                }
-            }
-        } else {
-            secondaryScopeMetaPrompt = mp
-        }
+        secondaryScopeMetaPrompt = mp
     }
 
     if (showMetaScreen && currentReportId != null) {
