@@ -483,16 +483,23 @@ fun TitleBar(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AiLogoButton(onClick = navigateHome)
-        Spacer(modifier = Modifier.width(8.dp))
-        HelpButton(onClick = { navigateHelp(helpTopic) })
+        AiLogoButton(
+            onClick = navigateHome,
+            modifier = Modifier.offset(x = (-14).dp, y = (-10).dp)
+        )
+        HelpButton(
+            onClick = { navigateHelp(helpTopic) },
+            modifier = Modifier.offset(y = (-10).dp)
+        )
         if (resolvedReportIcon != null) {
             Spacer(modifier = Modifier.width(8.dp))
-            TitleBarIcon(
-                resolvedReportIcon, Color.Unspecified,
-                onClick = reportIconTap ?: {},
-                width = 28.dp, scale = 1.5f
-            )
+            Box(modifier = Modifier.offset(y = (-10).dp)) {
+                TitleBarIcon(
+                    resolvedReportIcon, Color.Unspecified,
+                    onClick = reportIconTap ?: {},
+                    width = 28.dp, scale = 1.75f
+                )
+            }
         }
         Spacer(modifier = Modifier.weight(1f))
         if (title != null) {
@@ -508,22 +515,22 @@ fun TitleBar(
 }
 
 @Composable
-private fun AiLogoButton(onClick: () -> Unit) {
+private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Image(
         painter = painterResource(R.drawable.ic_launcher_foreground),
         contentDescription = "Home",
         alpha = 0.55f,
-        modifier = Modifier.size(56.dp).clickable(onClick = onClick)
+        modifier = modifier.size(64.dp).clickable(onClick = onClick)
     )
 }
 
 @Composable
-private fun HelpButton(onClick: () -> Unit) {
+private fun HelpButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Text(
         text = "❓",
-        fontSize = 22.sp,
+        fontSize = 28.sp,
         color = AppColors.Blue,
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = modifier.clickable(onClick = onClick)
     )
 }
 
