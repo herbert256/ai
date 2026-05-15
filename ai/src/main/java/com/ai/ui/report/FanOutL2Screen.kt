@@ -170,7 +170,7 @@ internal fun FanOutL2Screen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = if (isIconsMode) "Fan icons - model" else "Fan out - model",
@@ -610,7 +610,7 @@ internal fun FanOutL2OnePageScreen(
         report?.agents?.firstOrNull { "${it.provider}|${it.model}" == answererKey }?.responseBody
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - one page",

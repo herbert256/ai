@@ -83,7 +83,7 @@ internal fun FanOutL1IconsScreen(
             .map { it.key to it.value.sortedBy { p -> p.timestamp } }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
             title = "Fan out - icons",
@@ -179,7 +179,7 @@ internal fun FanOutL2IconsScreen(
             .sortedBy { it.timestamp }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - model icons",

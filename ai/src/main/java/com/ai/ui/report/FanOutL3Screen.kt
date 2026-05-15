@@ -107,7 +107,7 @@ internal fun FanOutL3Screen(
     }
 
     if (pair == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
                 title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
