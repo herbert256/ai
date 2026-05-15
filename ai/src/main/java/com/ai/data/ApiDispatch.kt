@@ -272,7 +272,12 @@ private suspend fun AnalysisRepository.analyzeResponsesApi(
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
+        // Pass `usage` on the empty-content path too — a reasoning
+        // model that exhausted max_tokens on hidden thinking still
+        // reports completion_tokens, and downstream callers (the
+        // "Test all models" probe) treat 200 + outputTokens > 0 as
+        // reachable rather than a hard failure.
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -324,7 +329,7 @@ private suspend fun AnalysisRepository.analyzeAnthropic(
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -367,7 +372,7 @@ private suspend fun AnalysisRepository.analyzeGemini(
             citations = webData.citations, searchResults = webData.searchResults, relatedQuestions = webData.queries,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode
         )
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -989,7 +994,12 @@ private fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService, 
         if (!content.isNullOrBlank()) AnalysisResponse(service, content, null, usage,
             citations = body?.citations, searchResults = body?.search_results, relatedQuestions = body?.related_questions,
             rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
-        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", httpHeaders = headers, httpStatusCode = statusCode)
+        // Pass `usage` on the empty-content branch too — a reasoning
+        // model that burned all max_tokens on encrypted reasoning
+        // (OpenAI o-series via OpenRouter) still reports
+        // completion_tokens. The "Test all models" probe treats 200 +
+        // outputTokens > 0 as reachable instead of a hard failure.
+        else AnalysisResponse(service, null, body?.error?.message ?: "No response content", usage, rawUsageJson = rawUsageJson, httpHeaders = headers, httpStatusCode = statusCode)
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $errorBody", httpHeaders = headers, httpStatusCode = statusCode)
@@ -1064,17 +1074,17 @@ internal fun AppService.knownEndpointPaths(): List<String> = listOfNotNull(
 /** Read [OpenAiMessage.content] as a String regardless of whether it was a
  *  raw String or (after a future round-trip) a serialized list. Response
  *  bodies always come back with content as a JSON string, so this is safe. */
-/** OpenAI-compatible chat responses sometimes ship `content: ""`
- *  alongside the real reply in `reasoning_content` — reasoning models
- *  that exhausted `max_tokens` during thinking, or strict OpenAI-clone
- *  servers that emit empty content when there's nothing to say. Treat
- *  empty the same as null so the caller's `?:` chain falls through to
- *  the `reasoning_content` fallback (mirrors the streaming
- *  extractOpenAiContent which already uses takeIf { isNotEmpty }). */
+/** OpenAI-compatible chat responses sometimes ship empty / whitespace
+ *  `content` alongside the real reply in `reasoning_content` /
+ *  `reasoning` — reasoning models that exhausted `max_tokens` during
+ *  thinking, strict OpenAI-clone servers that emit empty content when
+ *  there's nothing to say, or providers (e.g. OpenRouter reka-flash-3)
+ *  that pad with a single space. Treat blank the same as null so the
+ *  caller's `?:` chain falls through to the reasoning fallbacks. */
 internal fun OpenAiMessage.contentAsString(): String? = when (val c = content) {
-    is String -> c.takeIf { it.isNotEmpty() }
+    is String -> c.takeIf { it.isNotBlank() }
     null -> null
-    else -> c.toString().takeIf { it.isNotEmpty() }
+    else -> c.toString().takeIf { it.isNotBlank() }
 }
 
 // ============================================================================

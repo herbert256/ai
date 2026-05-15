@@ -316,6 +316,7 @@
       ],
       "id": "SiliconFlow",
       "modelListFormat": "object",
+      "nativeRerankUrl": "https://api.siliconflow.com/v1/rerank",
       "seedFieldName": "seed",
       "supportsCitations": false,
       "supportsSearchRecency": false,

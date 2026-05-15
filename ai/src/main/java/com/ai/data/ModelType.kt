@@ -69,8 +69,22 @@ object ModelType {
             "classifier" in id || id.endsWith("classify") -> CLASSIFY
             "moderation" in id -> MODERATION
             "whisper" in id || "transcrib" in id -> STT
-            "tts" in id || "speech-2" in id || "text-to-speech" in id -> TTS
-            "dall-e" in id || id.startsWith("gpt-image-") || "imagen" in id || "flux" in id || "stable-diffusion" in id || "sdxl" in id -> IMAGE
+            "tts" in id || "speech-2" in id || "text-to-speech" in id ||
+                "cosyvoice" in id || "orpheus" in id -> TTS
+            // Audio-modality chat (gpt-audio*, gpt-4o-audio-preview,
+            // *-realtime-*) routes via /v1/realtime (WebSocket) or
+            // requires audio modality — neither is wired in the app.
+            // Map to TTS as the closest non-testable type so the sweep
+            // skips them.
+            "realtime" in id || "-audio-" in id || id.startsWith("gpt-audio") ||
+                "audio-preview" in id -> TTS
+            // Image / video / music generation — none have a chat-shaped
+            // dispatch in the app today.
+            "dall-e" in id || id.startsWith("gpt-image-") || "chatgpt-image-" in id ||
+                "imagen" in id || "flux" in id || "stable-diffusion" in id ||
+                "sdxl" in id || "nano-banana" in id || id.startsWith("bria/") ||
+                id.startsWith("bria-") || "lyria" in id || "-t2v-" in id ||
+                "-i2v-" in id || "text-to-video" in id || "image-preview" in id -> IMAGE
             else -> CHAT
         }
     }

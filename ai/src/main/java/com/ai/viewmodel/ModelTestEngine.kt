@@ -172,22 +172,63 @@ class ModelTestEngine internal constructor(
      *  some are still lingering from a process-killed prior run; use
      *  [resumeRun] for those). At end-of-rerun the same
      *  [syncTestRunSideEffects] hook fires, so Blocked-models +
-     *  Test-excluded stay consistent with the merged state. */
+     *  Test-excluded stay consistent with the merged state.
+     *
+     *  Also drops FAIL items that should never have been in the sweep
+     *  to begin with: test-excluded models (added since the original
+     *  run) and non-testable types ([NON_TESTABLE_TYPES] — images,
+     *  TTS, STT, etc., possibly inherited from a run that predates the
+     *  type filter). These are removed from `_run.items` entirely so
+     *  the L1 Total reflects what's actually testable. */
     fun rerunErrors(context: Context): RerunErrorsOutcome {
         if (runJob?.isActive == true) return RerunErrorsOutcome.ALREADY_RUNNING
         val run = _run.value ?: return RerunErrorsOutcome.NO_RUN
-        val failed = run.items.values.filter { it.status == TestStatus.FAIL }
-        if (failed.isEmpty()) return RerunErrorsOutcome.NO_ERRORS
+        val aiSettings = appViewModel.uiState.value.aiSettings
+
+        val originalFailedKeys = run.items.values
+            .filter { it.status == TestStatus.FAIL }
+            .map { it.key }
+            .toSet()
+        // Stale FAIL items — items that wouldn't be in a fresh sweep
+        // today (test-excluded, or non-testable type). Drop them
+        // entirely rather than re-probing them every rerun.
+        val staleKeys = run.items.values
+            .filter { st ->
+                if (st.key !in originalFailedKeys) return@filter false
+                if (aiSettings.isTestExcluded(st.providerId, st.model)) return@filter true
+                val svc = AppService.findById(st.providerId) ?: return@filter false
+                val t = aiSettings.getModelType(svc, st.model)
+                t != null && t in NON_TESTABLE_TYPES
+            }
+            .map { it.key }
+            .toSet()
+        val toRerunKeys = originalFailedKeys - staleKeys
+
+        if (toRerunKeys.isEmpty()) {
+            if (staleKeys.isNotEmpty()) {
+                _run.update { r -> r?.copy(items = r.items.filterKeys { it !in staleKeys }) }
+                AppLog.i("ModelTest", "↻ rerunErrors dropped ${staleKeys.size} stale, nothing to rerun")
+                _run.value?.let { ModelTestRunStore.save(context, it) }
+            }
+            return RerunErrorsOutcome.NO_ERRORS
+        }
 
         cancelItemJobs()
         _throttledKeys.value = emptySet()
+        // One atomic StateFlow update: drop stale items, flip the
+        // rerun set back to PENDING.
         _run.update { r ->
-            r?.copy(items = r.items.mapValues { (_, st) ->
-                if (st.status == TestStatus.FAIL) st.copy(status = TestStatus.PENDING) else st
-            })
+            r?.copy(items = r.items
+                .filterKeys { it !in staleKeys }
+                .mapValues { (k, st) ->
+                    if (k in toRerunKeys) st.copy(status = TestStatus.PENDING) else st
+                })
         }
-        AppLog.i("ModelTest", "↻ rerunErrors ${failed.size} previously-failed models")
-        dispatch(context, failed.map { it.key })
+        if (staleKeys.isNotEmpty()) {
+            AppLog.i("ModelTest", "↻ rerunErrors dropped ${staleKeys.size} stale items")
+        }
+        AppLog.i("ModelTest", "↻ rerunErrors ${toRerunKeys.size} previously-failed models")
+        dispatch(context, toRerunKeys.toList())
         return RerunErrorsOutcome.RESTARTED
     }
 
@@ -463,17 +504,27 @@ class ModelTestEngine internal constructor(
 
     /** Chat probe — the original "Reply with exactly: OK" call, capped
      *  at [AnalysisRepository.TEST_MAX_TOKENS] tokens so balance-gating
-     *  providers don't pre-auth the model's whole output window. */
+     *  providers don't pre-auth the model's whole output window.
+     *
+     *  Treats `HTTP 200 + completion_tokens > 0 + empty content` as
+     *  *reachable*: OpenAI's gpt-5 / o-series via OpenRouter return
+     *  encrypted `reasoning_details` and null content when the 64-token
+     *  budget is exhausted on hidden reasoning. The model IS responsive
+     *  on its endpoint; only the *visible* output is empty. The probe's
+     *  job is reachability, not "did the model produce useful text". */
     private suspend fun probeChat(service: AppService, apiKey: String, model: String): ProbeResult {
         val t0 = System.currentTimeMillis()
         val r = appViewModel.repository.analyze(
             service, apiKey, AnalysisRepository.TEST_PROMPT, model,
             params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
         )
+        val outputTokens = r.tokenUsage?.outputTokens ?: 0
+        val reachableViaReasoning = !r.isSuccess && r.httpStatusCode == 200 && outputTokens > 0
         return ProbeResult(
-            isSuccess = r.isSuccess,
-            errorMessage = r.error,
-            responseText = r.analysis,
+            isSuccess = r.isSuccess || reachableViaReasoning,
+            errorMessage = if (reachableViaReasoning) null else r.error,
+            responseText = r.analysis
+                ?: if (reachableViaReasoning) "Reachable — emitted $outputTokens reasoning tokens, no visible content" else null,
             durationMs = System.currentTimeMillis() - t0,
             tokenUsage = r.tokenUsage
         )
