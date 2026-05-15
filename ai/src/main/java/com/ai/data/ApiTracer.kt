@@ -789,6 +789,19 @@ object ProviderThrottle {
      *  [TagPropagatingExecutor]. */
     val permitPreAcquired: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
 
+    /** True on threads whose flow does not want the in-line 429 / 529
+     *  retry loops (the `Thread.sleep`-based backoff in
+     *  [RateLimitRetryInterceptor] / [OverloadedRetryInterceptor]).
+     *  Set by bulk health sweeps — the "Test all models" run — where a
+     *  rate-limited / overloaded response is itself the result worth
+     *  recording, and a multi-second sleep would just pin a shared
+     *  concurrency permit and stall the whole run. The fast bench
+     *  check (long Retry-After → [ModelCooldownStore]) still runs; only
+     *  the sleeping retry loop is skipped.
+     *
+     *  Same propagation contract as [permitPreAcquired]. */
+    val suppressInlineRetry: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+
     class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore) {
         private val released = java.util.concurrent.atomic.AtomicBoolean(false)
         fun release() { if (released.compareAndSet(false, true)) sem.release() }
@@ -1146,8 +1159,12 @@ class RateLimitRetryInterceptor : Interceptor {
         // and the next iteration of the retry loop picks up the new
         // values. maxRetries == 0 is a valid "no in-line retries"
         // setting; the loop exits immediately and the original 429
-        // bubbles up to the outer withRetry layer.
-        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor429(request.url.host)
+        // bubbles up to the outer withRetry layer. A flow that opted
+        // out of the sleeping retry loop (the "Test all models" sweep)
+        // is treated as maxRetries == 0 — the 429 is returned as-is.
+        val (maxRetries, backoffMs) =
+            if (ProviderThrottle.suppressInlineRetry.get() == true) 0 to 0L
+            else ProviderThrottle.retryLimitsFor429(request.url.host)
         AppLog.d("RateLimit", "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0
@@ -1382,7 +1399,11 @@ class OverloadedRetryInterceptor : Interceptor {
         val response = chain.proceed(request)
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 529) return response
-        val (maxRetries, backoffMs) = ProviderThrottle.retryLimitsFor529(request.url.host)
+        // A flow that opted out of the sleeping retry loop (the "Test
+        // all models" sweep) is treated as maxRetries == 0.
+        val (maxRetries, backoffMs) =
+            if (ProviderThrottle.suppressInlineRetry.get() == true) 0 to 0L
+            else ProviderThrottle.retryLimitsFor529(request.url.host)
         AppLog.d("Overloaded", "529 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)")
         var current = response
         var attempt = 0
@@ -1545,6 +1566,11 @@ class TagPropagatingExecutor(
         // (the worker's ThreadLocal default) and double-acquire on
         // Fan-out pairs.
         val capturedPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
+        // Carry the suppress-inline-retry flag the same way so the
+        // retry interceptors on the worker see the originating flow's
+        // intent (the "Test all models" sweep skips the sleeping retry
+        // loops).
+        val capturedSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
         // Carry the trace-filename sink (if any) onto the worker so
         // TracingInterceptor's save can hand the filename back to the
         // originating coroutine.
@@ -1555,15 +1581,18 @@ class TagPropagatingExecutor(
         delegate.execute {
             val previousTags = ApiTracer.currentTags.get()
             val previousPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
+            val previousSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
             val previousSink = ApiTracer.traceFilenameSink.get()
             ApiTracer.currentTags.set(captured)
             if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(true)
+            if (capturedSuppressRetry) ProviderThrottle.suppressInlineRetry.set(true)
             ApiTracer.traceFilenameSink.set(capturedSink)
             try {
                 command.run()
             } finally {
                 ApiTracer.currentTags.set(previousTags)
                 if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
+                if (capturedSuppressRetry) ProviderThrottle.suppressInlineRetry.set(previousSuppressRetry)
                 ApiTracer.traceFilenameSink.set(previousSink)
             }
         }

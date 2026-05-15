@@ -271,7 +271,16 @@ class ModelTestEngine internal constructor(
                         // per-host semaphore and three same-host probes
                         // self-deadlock (each waits on a permit its own
                         // coroutine holds).
-                        val response = withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                        //
+                        // suppressInlineRetry: a 429 / 529 here is a
+                        // result worth recording, not something to
+                        // sleep-and-retry — the sleeping retry loop
+                        // would pin this ioCap permit for tens of
+                        // seconds and stall the whole sweep.
+                        val response = withContext(
+                            ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                ProviderThrottle.suppressInlineRetry.asContextElement(true)
+                        ) {
                             withTraceCategory("Test all models") {
                                 appViewModel.repository.analyze(
                                     service, apiKey, AnalysisRepository.TEST_PROMPT, item.model
