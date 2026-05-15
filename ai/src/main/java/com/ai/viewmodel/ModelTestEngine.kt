@@ -25,10 +25,12 @@ import com.ai.data.withTracerTags
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -473,30 +475,59 @@ class ModelTestEngine internal constructor(
                         // sleep-and-retry — the sleeping retry loop
                         // would pin this ioCap permit for tens of
                         // seconds and stall the whole sweep.
-                        val probe = withContext(
-                            ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                                ProviderThrottle.suppressInlineRetry.asContextElement(true)
-                        ) {
-                            withTraceCategory("Test all models") {
-                                when (type) {
-                                    ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
-                                    ModelType.RERANK -> probeRerank(service, apiKey, item.model)
-                                    // CHAT, RESPONSES, UNKNOWN, null →
-                                    // the existing chat-completions probe.
-                                    else -> probeChat(service, apiKey, item.model)
+                        val probe = try {
+                            // Per-probe 60s ceiling. A single hung model
+                            // (e.g. an OpenRouter free-tier worker that
+                            // just stops responding) would otherwise pin
+                            // its per-host semaphore slot for the full
+                            // network read timeout (~120s) and block
+                            // every sibling probe queued behind it. The
+                            // longest legitimate Test-all run we see is
+                            // ~18s on gpt-5-pro/o3-pro; 60s gives 3x
+                            // headroom while keeping a stuck probe from
+                            // stalling the sweep.
+                            withTimeout(60_000) {
+                                withContext(
+                                    ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                        ProviderThrottle.suppressInlineRetry.asContextElement(true)
+                                ) {
+                                    withTraceCategory("Test all models") {
+                                        when (type) {
+                                            ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
+                                            ModelType.RERANK -> probeRerank(service, apiKey, item.model)
+                                            // CHAT, RESPONSES, UNKNOWN, null →
+                                            // the existing chat-completions probe.
+                                            else -> probeChat(service, apiKey, item.model)
+                                        }
+                                    }
                                 }
                             }
+                        } catch (e: TimeoutCancellationException) {
+                            ProbeResult(
+                                isSuccess = false,
+                                errorMessage = "Test timed out after 60s",
+                                responseText = null,
+                                durationMs = System.currentTimeMillis() - t0,
+                                tokenUsage = null
+                            )
                         }
-                        // Tier-gating: a probe that came back with
-                        // "Unable to access non-serverless" (Together's
-                        // catalog includes ~60 dedicated-only entries)
+                        // Tier-gating: a probe that came back with a
+                        // "model not reachable on this account" signal
                         // isn't really a failure — the model just isn't
-                        // reachable on this account. Move it to the
-                        // Inaccessible list (skipped next sweep) and
-                        // count this run's item as Done — keep it in
-                        // _run.items so the run's Total stays stable.
+                        // available here. Move it to the Inaccessible
+                        // list (skipped next sweep) and count this run's
+                        // item as Done — keep it in _run.items so the
+                        // run's Total stays stable.
+                        //   - "non-serverless" — Together's dedicated-
+                        //     only entries (~60 of them).
+                        //   - "is not available on" — SambaNova's HTTP
+                        //     410 wording for retired/unprovisioned
+                        //     model ids (DeepSeek-R1, Qwen3-32B, etc).
                         val errMsg = probe.errorMessage
-                        val isTierGated = errMsg?.contains("non-serverless", ignoreCase = true) == true
+                        val isTierGated = errMsg != null && (
+                            errMsg.contains("non-serverless", ignoreCase = true) ||
+                                errMsg.contains("is not available on", ignoreCase = true)
+                        )
                         if (isTierGated) {
                             appViewModel.upsertInaccessibleModel(
                                 com.ai.model.InaccessibleModel(
