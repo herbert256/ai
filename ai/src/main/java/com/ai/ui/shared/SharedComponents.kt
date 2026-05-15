@@ -481,27 +481,27 @@ fun TitleBar(
     val reportIconTap = LocalNavigateToCurrentReport.current
     Row(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
         AiLogoButton(onClick = navigateHome)
         Spacer(modifier = Modifier.width(8.dp))
         HelpButton(onClick = { navigateHelp(helpTopic) })
-        Spacer(modifier = Modifier.weight(1f))
         if (resolvedReportIcon != null) {
+            Spacer(modifier = Modifier.width(8.dp))
             TitleBarIcon(
                 resolvedReportIcon, Color.Unspecified,
                 onClick = reportIconTap ?: {},
-                width = 22.dp, scale = 2.0f
+                width = 28.dp, scale = 1.5f
             )
-            Spacer(modifier = Modifier.weight(1f))
         }
+        Spacer(modifier = Modifier.weight(1f))
         if (title != null) {
             Text(
                 text = title, style = titleStyle, color = Color.White,
                 fontSize = barFontSize, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
                 maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp)
+                modifier = Modifier.align(Alignment.Top).padding(top = 4.dp)
             )
         }
     }
@@ -512,7 +512,8 @@ private fun AiLogoButton(onClick: () -> Unit) {
     Image(
         painter = painterResource(R.drawable.ic_launcher_foreground),
         contentDescription = "Home",
-        modifier = Modifier.size(40.dp).clickable(onClick = onClick)
+        alpha = 0.55f,
+        modifier = Modifier.size(56.dp).clickable(onClick = onClick)
     )
 }
 
@@ -522,7 +523,7 @@ private fun HelpButton(onClick: () -> Unit) {
         text = "❓",
         fontSize = 22.sp,
         color = AppColors.Blue,
-        modifier = Modifier.padding(top = 4.dp).clickable(onClick = onClick)
+        modifier = Modifier.clickable(onClick = onClick)
     )
 }
 
