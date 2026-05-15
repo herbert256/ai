@@ -3462,6 +3462,10 @@ private fun FanOutConfirmScreen(
     val allIds = remember(successful) { successful?.map { it.agentId }?.toSet() ?: emptySet() }
     var selectedInitiators by remember(allIds) { mutableStateOf(allIds) }
     var selectedResponders by remember(allIds) { mutableStateOf(allIds) }
+    // Per-run prompt edit — never written back to the InternalPrompt
+    // store. Keyed on fanOutMp.id so switching prompts reseeds the
+    // field with the new template.
+    var editablePrompt by remember(fanOutMp.id) { mutableStateOf(fanOutMp.text) }
     val pairCount = selectedInitiators.sumOf { init ->
         selectedResponders.count { resp -> resp != init }
     }
@@ -3483,18 +3487,6 @@ private fun FanOutConfirmScreen(
                 "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. Self-pairs are skipped.",
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
-            if (fanOutMp.text.isNotBlank()) {
-                Text("Fan-out prompt", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        fanOutMp.text, fontSize = 11.sp, color = AppColors.TextDim,
-                        modifier = Modifier.padding(12.dp), maxLines = 12, overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth()
@@ -3557,6 +3549,19 @@ private fun FanOutConfirmScreen(
                     }
                 }
             }
+
+            // Editable prompt at the bottom of the scroll body — the
+            // edit lives only for this Run; the stored InternalPrompt
+            // isn't touched.
+            Text("Fan-out prompt (edit for this run)", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = editablePrompt,
+                onValueChange = { editablePrompt = it },
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedFieldColors(),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.White),
+                minLines = 4
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -3566,7 +3571,7 @@ private fun FanOutConfirmScreen(
             ) { Text("Cancel", maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
-                    onRun(fanOutMp, selectedInitiators, selectedResponders)
+                    onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
                 },
                 enabled = pairCount > 0,
                 modifier = Modifier.weight(1f),
