@@ -174,7 +174,11 @@ internal fun ModelTestL1Screen(
                     )
                 )
             }
-            val allDone = run.total > 0 && run.doneCount == run.total
+            // The run is finished once nothing is pending or running —
+            // not when every model passed (that almost never happens,
+            // there are always some dead models). When finished, drop
+            // the per-row progress chrome for a calm final list.
+            val allDone = run.total > 0 && (run.queuedCount + run.runningCount) == 0
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(sortedProviders, key = { it }) { pid ->
                     val items = run.itemsForProvider(pid)
@@ -184,7 +188,10 @@ internal fun ModelTestL1Screen(
                     val running = items.count { it.status == TestStatus.RUNNING }
                     val cost = items.sumOf { it.totalCost }
                     val label = AppService.findById(pid)?.id ?: pid
-                    val progressFraction = if (total > 0) ok / total.toFloat() else 0f
+                    // Green fill = how much of this provider is *tested*
+                    // (pass + fail), i.e. progress — not the pass rate.
+                    val tested = ok + err
+                    val progressFraction = if (total > 0) tested / total.toFloat() else 0f
                     val progressColor = AppColors.Green.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
