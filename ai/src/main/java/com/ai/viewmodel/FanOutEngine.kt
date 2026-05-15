@@ -26,6 +26,7 @@ import com.ai.data.toCombinedReportState
 import com.ai.data.toPairState
 import com.ai.data.withTracerTags
 import com.ai.model.InternalPrompt
+import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
 import com.ai.model.Settings
 import kotlinx.coroutines.CoroutineStart
@@ -297,7 +298,7 @@ class FanOutEngine internal constructor(
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
                             if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.id} / ${answerer.model}"
+                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
                             ) {

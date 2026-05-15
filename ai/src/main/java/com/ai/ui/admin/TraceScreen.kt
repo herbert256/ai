@@ -476,7 +476,7 @@ private fun TraceModelPickerOverlay(
                                 Text(provider, fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 com.ai.ui.shared.ModelAdvisoryBadges(state)
                             }
-                            Text(model, fontSize = 13.sp,
+                            Text(com.ai.ui.shared.shortModelName(model), fontSize = 13.sp,
                                 color = if (selected) AppColors.Blue else Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.ModelAdvisoryCaptions(state)

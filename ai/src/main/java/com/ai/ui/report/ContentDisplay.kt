@@ -911,7 +911,7 @@ fun ReportCostTable(report: Report) {
                             Text(g.provider ?: "", fontSize = vSize, color = vColor,
                                 modifier = Modifier.width(providerColW).padding(start = 8.dp),
                                 fontFamily = FontFamily.Monospace)
-                            Text(g.model ?: "", fontSize = vSize, color = vColor,
+                            Text(com.ai.ui.shared.shortModelName(g.model ?: ""), fontSize = vSize, color = vColor,
                                 modifier = Modifier.width(modelColW).padding(start = 8.dp),
                                 fontFamily = FontFamily.Monospace)
                         } else {
@@ -1081,7 +1081,7 @@ fun ReportCostTable(report: Report) {
                         // No ellipsis on Provider / Model — long names
                         // wrap rather than getting truncated.
                         Text(r.providerDisplay, fontSize = vSize, color = vColor, modifier = Modifier.width(140.dp))
-                        Text(r.model, fontSize = vSize, color = vColor, modifier = Modifier.width(220.dp), fontFamily = FontFamily.Monospace)
+                        Text(com.ai.ui.shared.shortModelName(r.model), fontSize = vSize, color = vColor, modifier = Modifier.width(220.dp), fontFamily = FontFamily.Monospace)
                         Text(r.tier, fontSize = vSize, color = tierColor, modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(fmtS(r.durationMs), fontSize = vSize, color = vColor, modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)
                         Text(fmtT(r.inputTokens), fontSize = vSize, color = vColor, modifier = Modifier.width(64.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End, fontFamily = FontFamily.Monospace)

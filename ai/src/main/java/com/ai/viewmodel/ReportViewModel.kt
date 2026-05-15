@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.ui.report.translationRunGroupingId
+import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -2163,8 +2164,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,
-                ReportAgent(sid, "${member.provider.id} / ${member.model}", member.provider.id, member.model, ReportStatus.PENDING),
-                Agent(sid, "${member.provider.id} / ${member.model}", member.provider, member.model, aiSettings.getApiKey(member.provider)),
+                ReportAgent(sid, "${member.provider.id} / ${shortModelName(member.model)}", member.provider.id, member.model, ReportStatus.PENDING),
+                Agent(sid, "${member.provider.id} / ${shortModelName(member.model)}", member.provider, member.model, aiSettings.getApiKey(member.provider)),
                 params
             )
         }
@@ -2795,7 +2796,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                         .map { it.responseBody!! }
                     if (responses.isEmpty()) return@withTracerTags
-                    val agentName = "Local / $modelName"
+                    val agentName = "Local / ${shortModelName(modelName)}"
                     val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName)
                     ReportStorage.bumpReportTimestamp(context, reportId)
 
@@ -2968,7 +2969,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
                             if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.id} / ${answerer.model}"
+                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
                             ) {
@@ -3892,7 +3893,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     if (perReport.all { it.second.isEmpty() }) {
                         val (provider, model) = pick
-                        val agentName = "${provider.id} / $model"
+                        val agentName = "${provider.id} / ${shortModelName(model)}"
                         SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, provider.id, model, agentName
                         ) {
@@ -4024,7 +4025,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // fan_in does for empty fan-out states.
                     val nothingToCombine = responders.isEmpty() && responderPairs.isEmpty()
                     if (nothingToCombine) {
-                        val agentName = "${provider.id} / $model"
+                        val agentName = "${provider.id} / ${shortModelName(model)}"
                         SecondaryResultStorage.create(
                             context, reportId, SecondaryKind.META, provider.id, model, agentName
                         ) {
@@ -4053,7 +4054,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // are persisted from the start (executeSecondaryTask
                     // doesn't take scopeProviderId / scopeModel — we
                     // pass the staged row in via existingPlaceholder).
-                    val agentName = "${provider.id} / $model"
+                    val agentName = "${provider.id} / ${shortModelName(model)}"
                     val placeholder = SecondaryResultStorage.create(
                         context, reportId, SecondaryKind.META, provider.id, model, agentName
                     ) {
@@ -4127,7 +4128,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val newAgents = rows.map { row ->
             ReportAgent(
                 agentId = java.util.UUID.randomUUID().toString(),
-                agentName = "${row.providerId} / ${row.model}",
+                agentName = "${row.providerId} / ${shortModelName(row.model)}",
                 provider = row.providerId,
                 model = row.model,
                 reportStatus = if (row.errorMessage != null) ReportStatus.ERROR else ReportStatus.SUCCESS,
@@ -4304,7 +4305,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
-        val agentName = "${provider.id} / $model$langSuffix"
+        val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
         val placeholder = existingPlaceholder ?: SecondaryResultStorage.create(
             context, reportId, kind, provider.id, model, agentName
         ) {
@@ -4745,7 +4746,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
                     items += TranslationItem(
                         id = "agent:${agent.agentId}",
-                        label = "$provDisplay / ${agent.model}",
+                        label = "$provDisplay / ${shortModelName(agent.model)}",
                         kind = TranslationKind.AGENT_RESPONSE,
                         sourceText = agent.responseBody!!,
                         target = agent.agentId
@@ -4763,7 +4764,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
                     items += TranslationItem(
                         id = "meta:${s.id}",
-                        label = "$name ${idx + 1}: $provDisplay / ${s.model}",
+                        label = "$name ${idx + 1}: $provDisplay / ${shortModelName(s.model)}",
                         kind = TranslationKind.META,
                         sourceText = s.content!!,
                         target = s.id

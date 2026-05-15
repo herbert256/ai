@@ -307,11 +307,21 @@ fun modelLabel(
     separator: String = " · "
 ): String {
     val layout = LocalModelNameLayout.current
+    val short = shortModelName(model)
     return when (layout) {
-        com.ai.viewmodel.ModelNameLayout.MODEL_ONLY -> model
-        com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL -> "$providerDisplay$separator$model"
+        com.ai.viewmodel.ModelNameLayout.MODEL_ONLY -> short
+        com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL -> "$providerDisplay$separator$short"
     }
 }
+
+/** Strip namespace / route / hf-org prefixes from a model id so the
+ *  user only sees the leaf — e.g. `anthropic/claude-sonnet-4-5` →
+ *  `claude-sonnet-4-5`, `meta-llama/Llama-3-8B-Instruct` →
+ *  `Llama-3-8B-Instruct`. The Model Info screen deliberately uses
+ *  the raw string so the user can still see the canonical id; every
+ *  other display site should call this. */
+fun shortModelName(model: String): String =
+    if (model.contains('/')) model.substringAfterLast('/') else model
 
 /**
  * Tiny "vision-capable" badge for model lists. Renders nothing when the

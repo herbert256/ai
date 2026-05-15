@@ -317,7 +317,7 @@ fun EditApiRequestScreen(
         // Info card
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("${provider.id} / $model", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("${provider.id} / ${com.ai.ui.shared.shortModelName(model)}", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                 Text(apiUrl, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

@@ -140,7 +140,7 @@ internal fun ColumnScope.SelectionPhase(
                         modifier = Modifier.weight(1f).alpha(state.rowAlpha)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(entry.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(com.ai.ui.shared.shortModelName(entry.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(entry.provider, entry.model))
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(entry.provider, entry.model))
                             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(entry.provider, entry.model))

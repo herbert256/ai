@@ -71,7 +71,7 @@ fun ModelCooldownsScreen(
         addLabel = "+ Add cooldown",
         emptyMessage = "No cooldowns. Models rate-limited by a >1h 429 land here automatically; you can also add one manually.",
         sortKey = { "${it.providerId}/${it.model}" },
-        itemTitle = { "${it.providerId} / ${it.model}" },
+        itemTitle = { "${it.providerId} / ${com.ai.ui.shared.shortModelName(it.model)}" },
         itemSubtitle = {
             if (it.availableAtMs > System.currentTimeMillis())
                 ModelCooldownStore.cooldownCaption(it.availableAtMs)

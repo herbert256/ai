@@ -405,7 +405,7 @@ fun ProvidersScreen(
                             Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                             if (state == "ok") {
                                 val model = aiSettings.getModel(provider)
-                                if (model.isNotBlank()) Text(model, fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (model.isNotBlank()) Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                         Text(stateEmoji, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))

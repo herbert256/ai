@@ -178,7 +178,7 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(swc.stat.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 // Type pill — only shown for non-default kinds (rerank,
                 // summarize). The default "report" kind matches the
                 // implicit assumption and would just be visual noise.
@@ -449,7 +449,7 @@ private fun CostConfigCard(
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(providerName, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
-            Text(model, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
             if (isEditing) {
                 Spacer(modifier = Modifier.height(8.dp))

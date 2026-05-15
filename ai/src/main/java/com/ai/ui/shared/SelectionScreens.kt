@@ -222,7 +222,7 @@ fun SelectModelScreen(
                         .alpha(state.rowAlpha)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(modelName, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(shortModelName(modelName), style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         VisionBadge(aiSettings.isVisionCapable(provider, modelName))
                         WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
                         ReasoningBadge(aiSettings.isReasoningCapable(provider, modelName))
