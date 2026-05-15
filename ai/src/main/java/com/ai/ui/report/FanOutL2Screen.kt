@@ -214,43 +214,57 @@ internal fun FanOutL2Screen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Row 2: Create Report + New Fan In on their own row.
+        // Action buttons all packed in one row — Report / Fan In are
+        // always shown; Remove + Restart appear when there are
+        // errored pairs; onepage when rows exist; Icons when at
+        // least one pair has a generated icon. equalWeight keeps
+        // each button at the same width and labels stay short so a
+        // 4–6 button row still fits on a phone.
+        val hasIcons = remember(rawRows) { rawRows.any { !it.icon.isNullOrBlank() } }
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Button(
                 onClick = { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) },
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-            ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            ) { Text("Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Button(
                 onClick = { actions.onRunModelFanIn(run.key, activePid, activeMdl) },
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-            ) { Text("New Fan In", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-        }
-
-        // Per-failure buttons (L2-scoped).
-        if (erroredHere > 0) {
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            ) { Text("Fan in", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            if (erroredHere > 0) {
                 Button(
                     onClick = { confirmRemoveFailed = true },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 32.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-                ) { Text("Remove failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { confirmRestartFailed = true },
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-                ) { Text("Restart failed items", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                ) { Text("Restart", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+            if (rawRows.isNotEmpty()) {
+                Button(
+                    onClick = onOpenOnePage,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("onepage", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+            if (hasIcons) {
+                Button(
+                    onClick = onOpenIcons,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
@@ -309,28 +323,6 @@ internal fun FanOutL2Screen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // "One Page View" button — only when rows exist.
-        if (rows.isNotEmpty()) {
-            Button(
-                onClick = onOpenOnePage,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("One Page View", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        // Icons overview — gated on the role-scoped rows having at
-        // least one non-blank fan-out icon. Opens the L2 Icons
-        // grid for the current (answerer, role).
-        val hasIcons = remember(rows) { rows.any { !it.icon.isNullOrBlank() } }
-        if (hasIcons) {
-            Button(
-                onClick = onOpenIcons,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
         } // end of MAIN-mode buttons block (paired with `if (isIconsMode)` above)
 
         if (rows.isEmpty()) {
@@ -508,12 +500,14 @@ internal fun FanOutL2Screen(
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f).padding(start = 4.dp)
                             )
+                            // Same trailing 8dp padding as the per-pair
+                            // cost above so the totals column lines up
+                            // pixel-perfect with the row costs.
                             Text(
                                 formatCents(rowsTotalCost), fontSize = 11.sp,
                                 color = AppColors.Blue, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
-                            Box(modifier = Modifier.width(16.dp))
                         }
                     }
                 }

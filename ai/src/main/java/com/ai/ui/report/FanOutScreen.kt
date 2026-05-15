@@ -248,7 +248,13 @@ fun FanOutScreen(
                 nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role)
             },
             onOpenOnePage = { nav = FanOutNav.L2OnePage(n.answererKey, n.role) },
-            onOpenIcons = { nav = FanOutNav.L2Icons(n.answererKey, n.role) },
+            // Fan out L2's "Icons" button flips the top-level mode to
+            // ICONS — the FanOutScreen's nav state (rememberSaveable
+            // L2(answererKey, role)) is preserved across the mode
+            // change since there's only one FanOutScreen composition,
+            // so the user lands on Fan icons L2 for the same model
+            // instead of an icons-grid sub-screen.
+            onOpenIcons = onShowFanIcons,
             onBack = { nav = FanOutNav.L1 }
         )
         is FanOutNav.L3 -> FanOutL3Screen(
