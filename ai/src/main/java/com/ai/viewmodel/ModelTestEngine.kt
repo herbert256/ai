@@ -102,9 +102,16 @@ class ModelTestEngine internal constructor(
         // do on the caller's thread; the disk write happens in dispatch.
         val aiSettings = appViewModel.uiState.value.aiSettings
         val items = LinkedHashMap<ModelTestKey, ModelTestState>()
-        // Test-excluded (cost > 5¢) and inaccessible (tier-gated, e.g.
-        // Together non-serverless) both mean "skip at enumeration".
-        val skipKeys = aiSettings.testExcludedKeys + aiSettings.inaccessibleKeys
+        // L1 top-row catalog snapshot: every model of every selected
+        // provider gets bucketed into exactly one of inaccessible /
+        // excluded / no-chat / for-testing. Priority order matters so
+        // the four buckets sum back to the catalog total without
+        // double-counting (a model in *both* inaccessible and
+        // test-excluded only adds to inaccessible).
+        var catalogTotal = 0
+        var inaccCount = 0
+        var exclCount = 0
+        var noChatCount = 0
         for (service in aiSettings.getActiveServices()) {
             if (service.id !in providerIds) continue
             val config = aiSettings.getProvider(service)
@@ -113,13 +120,17 @@ class ModelTestEngine internal constructor(
                 if (model.isBlank()) continue
                 val key = modelTestKey(service.id, model)
                 if (key in items) continue
-                if (key in skipKeys) continue   // Test-excluded / Inaccessible — skip entirely.
-                // Skip types we have no working probe for (image / tts /
-                // stt / moderation / classify / ocr). CHAT / RESPONSES /
-                // EMBEDDING / RERANK / unknown go through their native
-                // dispatch in runOne.
+                catalogTotal++
+                if (aiSettings.isInaccessible(service.id, model)) {
+                    inaccCount++; continue
+                }
+                if (aiSettings.isTestExcluded(service.id, model)) {
+                    exclCount++; continue
+                }
                 val type = aiSettings.getModelType(service, model)
-                if (type != null && type in NON_TESTABLE_TYPES) continue
+                if (type != null && type in NON_TESTABLE_TYPES) {
+                    noChatCount++; continue
+                }
                 items[key] = ModelTestState(
                     key = key,
                     providerId = service.id,
@@ -128,8 +139,15 @@ class ModelTestEngine internal constructor(
                 )
             }
         }
-        _run.value = ModelTestRunState(startedAt = System.currentTimeMillis(), items = items)
-        AppLog.i("ModelTest", "→ startRun ${items.size} models")
+        _run.value = ModelTestRunState(
+            startedAt = System.currentTimeMillis(),
+            items = items,
+            catalogTotal = catalogTotal,
+            inaccessibleAtStart = inaccCount,
+            excludedAtStart = exclCount,
+            noChatAtStart = noChatCount
+        )
+        AppLog.i("ModelTest", "→ startRun ${items.size} models (catalog=$catalogTotal, inacc=$inaccCount, excl=$exclCount, noChat=$noChatCount)")
         dispatch(context, items.keys.toList())
     }
 
@@ -415,8 +433,9 @@ class ModelTestEngine internal constructor(
                         // catalog includes ~60 dedicated-only entries)
                         // isn't really a failure — the model just isn't
                         // reachable on this account. Move it to the
-                        // Inaccessible list and drop it from the run
-                        // entirely so it never ticks the FAIL counter.
+                        // Inaccessible list (skipped next sweep) and
+                        // count this run's item as Done — keep it in
+                        // _run.items so the run's Total stays stable.
                         val errMsg = probe.errorMessage
                         val isTierGated = errMsg?.contains("non-serverless", ignoreCase = true) == true
                         if (isTierGated) {
@@ -425,7 +444,15 @@ class ModelTestEngine internal constructor(
                                     item.providerId, item.model, errMsg.take(200)
                                 )
                             )
-                            _run.update { r -> r?.copy(items = r.items - key) }
+                            val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
+                            transition(key) {
+                                it.copy(
+                                    status = TestStatus.PASS,
+                                    errorMessage = null,
+                                    responseText = "Inaccessible — tier-gated, will be skipped next sweep",
+                                    durationMs = durationMs
+                                )
+                            }
                         } else {
                             val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
                             val (inCost, outCost) = probe.tokenUsage?.let { usage ->

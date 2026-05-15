@@ -58,10 +58,26 @@ data class ModelTestState(
 data class ModelTestRunState(
     val startedAt: Long = System.currentTimeMillis(),
     /** Keyed by [ModelTestKey] for O(1) lookup. */
-    val items: Map<ModelTestKey, ModelTestState> = emptyMap()
+    val items: Map<ModelTestKey, ModelTestState> = emptyMap(),
+    /** Catalog snapshot captured at [com.ai.viewmodel.ModelTestEngine.startRun]
+     *  time, used by the L1 top-row stats panel. These are *catalog*
+     *  counts (everything in the selected providers' model lists),
+     *  partitioned by the skip rule that applied: inaccessible (tier-
+     *  gated, e.g. Together non-serverless), excluded (cost > 5¢ +
+     *  manual), or "no chat" (non-testable types — image / TTS / etc.).
+     *  Stable for the lifetime of the run; the second-row [doneCount]
+     *  / [errorCount] / etc. track the actual probe progress. */
+    val catalogTotal: Int = 0,
+    val inaccessibleAtStart: Int = 0,
+    val excludedAtStart: Int = 0,
+    val noChatAtStart: Int = 0
 ) {
     val total: Int get() = items.size
     val doneCount: Int get() = items.values.count { it.status == TestStatus.PASS }
+    /** Top-row "For testing" — derived so the four catalog buckets +
+     *  this always sum back to [catalogTotal]. */
+    val forTestingAtStart: Int
+        get() = (catalogTotal - inaccessibleAtStart - excludedAtStart - noChatAtStart).coerceAtLeast(0)
     val errorCount: Int get() = items.values.count { it.status == TestStatus.FAIL }
     val runningCount: Int get() = items.values.count { it.status == TestStatus.RUNNING }
     val queuedCount: Int get() = items.values.count { it.status == TestStatus.PENDING }

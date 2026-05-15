@@ -96,8 +96,11 @@ internal fun ModelTestL1Screen(
             }
             val queuedCount = (run.queuedCount - throttledHere).coerceAtLeast(0)
 
-            // Stats panel — bleeds ~14dp into each side's 16dp padding
-            // so the 8 columns get more width (mirrors Fan Out L1).
+            // Stats panel — two rows, each bleeds ~14dp into the
+            // side padding so the columns get more width (mirrors
+            // Fan Out L1). The top row is the *catalog snapshot*
+            // captured at startRun (stable for the lifetime of the
+            // run); the bottom row is the *live run progress*.
             Column(
                 modifier = Modifier.layout { measurable, constraints ->
                     val extra = 28.dp.roundToPx()
@@ -112,16 +115,44 @@ internal fun ModelTestL1Screen(
                     }
                 }
             ) {
-                val stats = buildList {
-                    add(Triple("Total", run.total.toString(), AppColors.Blue))
-                    add(Triple("Done", run.doneCount.toString(), AppColors.Green))
-                    add(Triple("Errors", errorCount.toString(), AppColors.Red))
-                    add(Triple("Bench", benchCount.toString(), AppColors.Purple))
-                    add(Triple("Run", run.runningCount.toString(), AppColors.Orange))
-                    add(Triple("Throttled", throttledHere.toString(), AppColors.Yellow))
-                    add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
-                    add(Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.Blue))
+                // Top row — catalog snapshot. Total = sum of the four
+                // skip-buckets + the "For testing" remainder, so the
+                // user can see at a glance why the test set is what
+                // it is. Doesn't change during the run.
+                val catalogTotal = run.catalogTotal.coerceAtLeast(
+                    run.inaccessibleAtStart + run.excludedAtStart + run.noChatAtStart + run.total
+                )
+                val forTesting = (catalogTotal - run.inaccessibleAtStart - run.excludedAtStart - run.noChatAtStart).coerceAtLeast(0)
+                val topStats = listOf(
+                    Triple("Total", catalogTotal.toString(), AppColors.Blue),
+                    Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
+                    Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
+                    Triple("No chat", run.noChatAtStart.toString(), AppColors.TextTertiary),
+                    Triple("For testing", forTesting.toString(), AppColors.Blue)
+                )
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    topStats.forEach { (label, _, color) ->
+                        Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                    }
                 }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    topStats.forEach { (_, value, color) ->
+                        Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                // Bottom row — live run progress. No Total (top row
+                // owns it) and no Costs (a header row in the provider
+                // list owns that, aligned with the per-provider cost
+                // column).
+                val stats = listOf(
+                    Triple("Done", run.doneCount.toString(), AppColors.Green),
+                    Triple("Errors", errorCount.toString(), AppColors.Red),
+                    Triple("Bench", benchCount.toString(), AppColors.Purple),
+                    Triple("Run", run.runningCount.toString(), AppColors.Orange),
+                    Triple("Throttled", throttledHere.toString(), AppColors.Yellow),
+                    Triple("Queue", queuedCount.toString(), AppColors.Brown)
+                )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     stats.forEach { (label, _, color) ->
                         Text(label, fontSize = 11.sp, color = color, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
@@ -167,6 +198,34 @@ internal fun ModelTestL1Screen(
             // the per-row progress chrome for a calm final list.
             val allDone = run.total > 0 && (run.queuedCount + run.runningCount) == 0
             LazyColumn(modifier = Modifier.weight(1f)) {
+                // Total-costs header row: same layout as the per-
+                // provider rows below so the dollar amount aligns
+                // with each provider's cost column. The leading
+                // 20dp spacer keeps alignment when the per-provider
+                // rows are showing a status icon (run in flight);
+                // it collapses with the icon column being absent
+                // once allDone, but the right-edge cost stays
+                // aligned because both use the same width-1f label.
+                item(key = "__total_costs__") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!allDone) Spacer(modifier = Modifier.width(20.dp))
+                        Text(
+                            "Total costs",
+                            fontSize = 13.sp, color = AppColors.TextTertiary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(start = 4.dp)
+                        )
+                        Text(
+                            formatCents(run.totalCost, decimals = 2),
+                            fontSize = 11.sp, color = AppColors.Blue,
+                            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
                 items(sortedProviders, key = { it }) { pid ->
                     val items = run.itemsForProvider(pid)
                     val total = items.size
