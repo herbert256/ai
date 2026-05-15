@@ -42,6 +42,7 @@ enum class SettingsSubScreen {
     AI_MODEL_COOLDOWNS,
     AI_BLOCKED_MODELS, AI_BLOCKED_MODEL_EDIT,
     AI_TEST_EXCLUDED_MODELS,
+    AI_INACCESSIBLE_MODELS,
     AI_IMPORT_EXPORT,
     AI_REFRESH,
     // Four preference buckets carved out of the main Settings screen
@@ -214,6 +215,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
+            SettingsSubScreen.AI_INACCESSIBLE_MODELS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
             SettingsSubScreen.AI_BLOCKED_MODEL_EDIT -> { editingBlockedModelKey = null; currentSubScreen = SettingsSubScreen.AI_BLOCKED_MODELS }
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
@@ -423,6 +425,12 @@ fun SettingsScreen(
         }
         SettingsSubScreen.AI_TEST_EXCLUDED_MODELS -> {
             TestExcludedModelsListScreen(
+                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
+                onSave = onSaveAi, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.AI_INACCESSIBLE_MODELS -> {
+            InaccessibleModelsListScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
                 onSave = onSaveAi, onNavigateHome = onNavigateHome
             )

@@ -35,6 +35,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listModelTypeOverrideType: Type = object : TypeToken<List<ModelTypeOverride>>() {}.type
         val listBlockedModelType: Type = object : TypeToken<List<BlockedModel>>() {}.type
         val listTestExcludedModelType: Type = object : TypeToken<List<TestExcludedModel>>() {}.type
+        val listInaccessibleModelType: Type = object : TypeToken<List<InaccessibleModel>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
         val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
@@ -170,7 +171,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             providerStates = loadMap(KEY_PROVIDER_STATES),
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType),
             blockedModels = loadList(KEY_AI_BLOCKED_MODELS, TypeTokens.listBlockedModelType),
-            testExcludedModels = loadList(KEY_AI_TEST_EXCLUDED_MODELS, TypeTokens.listTestExcludedModelType)
+            testExcludedModels = loadList(KEY_AI_TEST_EXCLUDED_MODELS, TypeTokens.listTestExcludedModelType),
+            inaccessibleModels = loadList(KEY_AI_INACCESSIBLE_MODELS, TypeTokens.listInaccessibleModelType)
         )
     }
 
@@ -277,6 +279,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_MODEL_TYPE_OVERRIDES, gson.toJson(settings.modelTypeOverrides))
             putString(KEY_AI_BLOCKED_MODELS, if (settings.blockedModels.isEmpty()) null else gson.toJson(settings.blockedModels))
             putString(KEY_AI_TEST_EXCLUDED_MODELS, if (settings.testExcludedModels.isEmpty()) null else gson.toJson(settings.testExcludedModels))
+            putString(KEY_AI_INACCESSIBLE_MODELS, if (settings.inaccessibleModels.isEmpty()) null else gson.toJson(settings.inaccessibleModels))
         }
     }
 
@@ -529,6 +532,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_MODEL_TYPE_OVERRIDES = "ai_model_type_overrides"
         private const val KEY_AI_BLOCKED_MODELS = "ai_blocked_models"
         private const val KEY_AI_TEST_EXCLUDED_MODELS = "ai_test_excluded_models"
+        private const val KEY_AI_INACCESSIBLE_MODELS = "ai_inaccessible_models"
 
         const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"

@@ -156,6 +156,8 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
             ModelsSetupNavCard("💸", "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
+            ModelsSetupNavCard("🔒", "Inaccessible models", "Not reachable on this account — hidden from every model picker", "${aiSettings.inaccessibleModels.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })
         }
     }
 }

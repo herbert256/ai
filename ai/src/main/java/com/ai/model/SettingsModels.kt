@@ -167,6 +167,21 @@ data class TestExcludedModel(
     val key: String get() = "$providerId:$model"
 }
 
+/** A provider/model pair the user can't actually call on their tier
+ *  (Together non-serverless catalog entries, etc.). Distinct from
+ *  [TestExcludedModel]: entries here are *hidden* from model pickers
+ *  (the model is genuinely unreachable) and dropped from sweep results
+ *  rather than counted as FAIL. Auto-populated by the test engine when
+ *  a probe returns "Unable to access non-serverless" (or similar
+ *  tier-gating errors); hand-curable here. */
+data class InaccessibleModel(
+    val providerId: String,
+    val model: String,
+    val reason: String
+) {
+    val key: String get() = "$providerId:$model"
+}
+
 /**
  * User-managed Internal prompt — covers Meta-prompt launchers on the
  * Report Result screen ([category] == "meta"), Fan-out / Fan-in
@@ -247,7 +262,8 @@ data class Settings(
     val providerStates: Map<String, String> = emptyMap(),
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList(),
     val blockedModels: List<BlockedModel> = emptyList(),
-    val testExcludedModels: List<TestExcludedModel> = emptyList()
+    val testExcludedModels: List<TestExcludedModel> = emptyList(),
+    val inaccessibleModels: List<InaccessibleModel> = emptyList()
 ) {
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]
@@ -666,6 +682,25 @@ data class Settings(
         if (novel.isEmpty()) return this
         return copy(testExcludedModels = testExcludedModels + novel)
     }
+
+    // ----- Inaccessible models -----
+    /** `"providerId:model"` set, for the O(1) skip-filter in the test
+     *  engine and the picker. */
+    val inaccessibleKeys: Set<String>
+        get() = inaccessibleModels.mapTo(HashSet()) { it.key }
+    /** `"providerId:model"` → reason map, for surfacing the cause in
+     *  the CRUD list rows. */
+    val inaccessibleReasonByKey: Map<String, String>
+        get() = inaccessibleModels.associate { it.key to it.reason }
+    fun isInaccessible(providerId: String, model: String) =
+        inaccessibleModels.any { it.providerId == providerId && it.model == model }
+    fun removeInaccessibleModel(providerId: String, model: String) = copy(
+        inaccessibleModels = inaccessibleModels.filterNot { it.providerId == providerId && it.model == model }
+    )
+    /** Upsert by `(providerId, model)` — incoming wins. */
+    fun upsertInaccessibleModel(m: InaccessibleModel) = copy(
+        inaccessibleModels = inaccessibleModels.filterNot { it.key == m.key } + m
+    )
 
     fun getEndpointsForProvider(provider: AppService): List<Endpoint> =
         endpoints[provider]?.ifEmpty { getBuiltInEndpoints(provider) } ?: getBuiltInEndpoints(provider)

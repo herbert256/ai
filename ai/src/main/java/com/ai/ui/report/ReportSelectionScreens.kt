@@ -162,7 +162,13 @@ internal fun ReportSelectModelsScreen(
      *  user picks a row (from either Recent or the main list). Lets
      *  Report-section call sites bump their entry to the front of
      *  the persisted recents without changing onConfirm signatures. */
-    onRecordRecent: ((Pair<AppService, String>) -> Unit)? = null
+    onRecordRecent: ((Pair<AppService, String>) -> Unit)? = null,
+    /** When true (default), entries in [Settings.inaccessibleModels] are
+     *  filtered out of the visible list entirely — those models can't
+     *  be called on this account. Set to false only on the
+     *  Inaccessible-models CRUD screen so the user can still pick a
+     *  currently-inaccessible model to swap it. */
+    hideInaccessible: Boolean = true
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -202,8 +208,17 @@ internal fun ReportSelectModelsScreen(
         remote + local
     }
     val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
+    // Inaccessible entries (Together non-serverless catalog noise,
+    // etc.) are hidden from every picker by default — the model can't
+    // be called on this account, so showing it is just a footgun. The
+    // Inaccessible CRUD screen overrides this so its own edit picker
+    // can still see them.
+    val inaccessibleKeys = remember(aiSettings) { aiSettings.inaccessibleKeys }
+    val accessibleFiltered = if (hideInaccessible && inaccessibleKeys.isNotEmpty())
+        providerFiltered.filter { (prov, model) -> "${prov.id}:$model" !in inaccessibleKeys }
+        else providerFiltered
     val typeFiltered = if (typeOnly && modelTypeFilter != null) {
-        providerFiltered.filter { (prov, model) ->
+        accessibleFiltered.filter { (prov, model) ->
             // LOCAL is not in Settings.providers so getModelType returns
             // null; but localModelsForFilter was already populated by
             // modelTypeFilter, so any (LOCAL, model) pair already matches
@@ -211,7 +226,7 @@ internal fun ReportSelectModelsScreen(
             // the local rerank / LLM rows visible with the type filter on.
             prov.id == AppService.LOCAL.id || aiSettings.getModelType(prov, model) == modelTypeFilter
         }
-    } else providerFiltered
+    } else accessibleFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
         prov.id.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
     }

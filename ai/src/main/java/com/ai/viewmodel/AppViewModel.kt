@@ -898,6 +898,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms", it)
         }
 
+        // One-time migration: pre-existing Together entries in
+        // testExcludedModels came from the old non-serverless
+        // auto-exclude rule (commit e928b8e8). Move them to
+        // inaccessibleModels — that's the semantically correct
+        // bucket (tier-gated, hide from pickers). Guarded by a flag
+        // so it doesn't re-run on every start; data-clear / reset
+        // re-enables the migration which is correct (the bundled
+        // excluded.json has nothing Together-specific).
+        if (!prefs.getBoolean(KEY_TOGETHER_TIER_MIGRATED, false)) {
+            val togetherInExcluded = ai.testExcludedModels.filter { it.providerId == "Together" }
+            if (togetherInExcluded.isNotEmpty()) {
+                val reason = "Unable to access non-serverless (auto-migrated)"
+                val existingKeys = ai.inaccessibleModels.mapTo(HashSet()) { it.key }
+                val newEntries = togetherInExcluded
+                    .filterNot { it.key in existingKeys }
+                    .map { com.ai.model.InaccessibleModel(it.providerId, it.model, reason) }
+                val droppedKeys = togetherInExcluded.mapTo(HashSet()) { it.key }
+                ai = ai.copy(
+                    inaccessibleModels = ai.inaccessibleModels + newEntries,
+                    testExcludedModels = ai.testExcludedModels.filterNot { it.key in droppedKeys }
+                )
+                settingsPrefs.saveSettings(ai)
+                AppLog.i(tag, "→ Migrated ${togetherInExcluded.size} Together entries from test-excluded to inaccessible")
+            }
+            prefs.edit().putBoolean(KEY_TOGETHER_TIER_MIGRATED, true).apply()
+        }
+
         AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")
         return gs to ai
     }
@@ -1212,27 +1239,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             if (blocked.any { it.key == key }) {
                 blocked = blocked.filterNot { it.key == key }
             }
-            // Together's catalog lists models that are only accessible
-            // on dedicated (non-serverless) capacity. They aren't broken,
-            // just gated — keep them out of Blocked and auto-exclude
-            // from future sweeps so the probe budget doesn't burn on
-            // them every run.
-            val isTieredOnly = item.errorMessage
-                ?.contains("non-serverless", ignoreCase = true) == true
-            if (status == com.ai.data.TestStatus.FAIL && !onCooldown && !isTieredOnly) {
+            if (status == com.ai.data.TestStatus.FAIL && !onCooldown) {
                 blocked = blocked + com.ai.model.BlockedModel(
                     item.providerId, item.model,
                     item.errorMessage?.take(300) ?: "Test failed"
                 )
             }
             var excluded = s.testExcludedModels
-            val shouldExclude =
-                item.totalCost > COSTLY_PROBE_USD_THRESHOLD || isTieredOnly
-            if (shouldExclude && excluded.none { it.key == key }) {
+            if (item.totalCost > COSTLY_PROBE_USD_THRESHOLD && excluded.none { it.key == key }) {
                 excluded = excluded + com.ai.model.TestExcludedModel(item.providerId, item.model)
             }
             if (blocked === s.blockedModels && excluded === s.testExcludedModels) return@update current
             current.copy(aiSettings = s.copy(blockedModels = blocked, testExcludedModels = excluded))
+        }
+    }
+
+    /** Append an [InaccessibleModel] entry in-memory (no disk write —
+     *  the test engine flushes once at end-of-run via
+     *  [flushAiSettingsToDisk]). Called from the engine when a probe
+     *  returns a tier-gating error ("Unable to access non-serverless"
+     *  on Together, etc.) so the user sees the entry appear in the
+     *  Inaccessible CRUD live. Upsert by `(providerId, model)`. */
+    fun upsertInaccessibleModel(m: com.ai.model.InaccessibleModel) {
+        _uiState.update { current ->
+            val s = current.aiSettings
+            if (s.inaccessibleModels.any { it.key == m.key && it.reason == m.reason }) return@update current
+            current.copy(aiSettings = s.upsertInaccessibleModel(m))
         }
     }
 
@@ -1245,7 +1277,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(snapshot) }
         AppLog.i(
             "ModelTest",
-            "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded"
+            "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
         )
     }
 
@@ -1913,5 +1945,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // user data, untouched by APK upgrades), so the bundled
         // providers.json + prompts.json import is one-shot per install.
         internal const val KEY_FIRST_RUN_BOOTSTRAPPED = "first_run_bootstrapped"
+
+        /** One-time migration flag: move pre-existing Together entries
+         *  from [Settings.testExcludedModels] to
+         *  [Settings.inaccessibleModels] (they were auto-added by the
+         *  retired non-serverless rule in
+         *  [applyTestItemIncrement]). Cleared on data-clear / reset. */
+        internal const val KEY_TOGETHER_TIER_MIGRATED = "together_tier_migrated"
     }
 }

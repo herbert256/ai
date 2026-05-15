@@ -102,7 +102,9 @@ class ModelTestEngine internal constructor(
         // do on the caller's thread; the disk write happens in dispatch.
         val aiSettings = appViewModel.uiState.value.aiSettings
         val items = LinkedHashMap<ModelTestKey, ModelTestState>()
-        val skipKeys = aiSettings.testExcludedKeys
+        // Test-excluded (cost > 5¢) and inaccessible (tier-gated, e.g.
+        // Together non-serverless) both mean "skip at enumeration".
+        val skipKeys = aiSettings.testExcludedKeys + aiSettings.inaccessibleKeys
         for (service in aiSettings.getActiveServices()) {
             if (service.id !in providerIds) continue
             val config = aiSettings.getProvider(service)
@@ -111,7 +113,7 @@ class ModelTestEngine internal constructor(
                 if (model.isBlank()) continue
                 val key = modelTestKey(service.id, model)
                 if (key in items) continue
-                if (key in skipKeys) continue   // Test-excluded — skip entirely.
+                if (key in skipKeys) continue   // Test-excluded / Inaccessible — skip entirely.
                 // Skip types we have no working probe for (image / tts /
                 // stt / moderation / classify / ocr). CHAT / RESPONSES /
                 // EMBEDDING / RERANK / unknown go through their native
@@ -190,12 +192,13 @@ class ModelTestEngine internal constructor(
             .map { it.key }
             .toSet()
         // Stale FAIL items — items that wouldn't be in a fresh sweep
-        // today (test-excluded, or non-testable type). Drop them
-        // entirely rather than re-probing them every rerun.
+        // today (test-excluded, inaccessible, or non-testable type).
+        // Drop them entirely rather than re-probing them every rerun.
         val staleKeys = run.items.values
             .filter { st ->
                 if (st.key !in originalFailedKeys) return@filter false
                 if (aiSettings.isTestExcluded(st.providerId, st.model)) return@filter true
+                if (aiSettings.isInaccessible(st.providerId, st.model)) return@filter true
                 val svc = AppService.findById(st.providerId) ?: return@filter false
                 val t = aiSettings.getModelType(svc, st.model)
                 t != null && t in NON_TESTABLE_TYPES
@@ -299,11 +302,13 @@ class ModelTestEngine internal constructor(
             .map { it to aiSettings.getProvider(it) }
             .filter { (_, config) -> config.apiKey.isNotBlank() }
             .map { (service, config) ->
-                // Subtract test-excluded + non-testable model types so
-                // the count matches what the sweep will actually probe.
+                // Subtract test-excluded + inaccessible + non-testable
+                // model types so the count matches what the sweep will
+                // actually probe.
                 val n = config.models.count { m ->
                     if (m.isBlank()) return@count false
                     if (aiSettings.isTestExcluded(service.id, m)) return@count false
+                    if (aiSettings.isInaccessible(service.id, m)) return@count false
                     val t = aiSettings.getModelType(service, m)
                     t == null || t !in NON_TESTABLE_TYPES
                 }
@@ -405,40 +410,58 @@ class ModelTestEngine internal constructor(
                                 }
                             }
                         }
-                        val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
-                        val (inCost, outCost) = probe.tokenUsage?.let { usage ->
-                            PricingCache.computeInOutCost(
-                                usage, PricingCache.getPricing(context, service, item.model)
+                        // Tier-gating: a probe that came back with
+                        // "Unable to access non-serverless" (Together's
+                        // catalog includes ~60 dedicated-only entries)
+                        // isn't really a failure — the model just isn't
+                        // reachable on this account. Move it to the
+                        // Inaccessible list and drop it from the run
+                        // entirely so it never ticks the FAIL counter.
+                        val errMsg = probe.errorMessage
+                        val isTierGated = errMsg?.contains("non-serverless", ignoreCase = true) == true
+                        if (isTierGated) {
+                            appViewModel.upsertInaccessibleModel(
+                                com.ai.model.InaccessibleModel(
+                                    item.providerId, item.model, errMsg.take(200)
+                                )
                             )
-                        } ?: (0.0 to 0.0)
-                        val trace = if (com.ai.data.ApiTracer.isTracingEnabled) {
-                            com.ai.data.ApiTracer.getTraceFiles()
-                                .firstOrNull { it.model == item.model && it.timestamp >= t0 }
-                                ?.filename
-                        } else null
-                        transition(key) {
-                            it.copy(
-                                status = if (probe.isSuccess) TestStatus.PASS else TestStatus.FAIL,
-                                errorMessage = probe.errorMessage,
-                                responseText = probe.responseText,
-                                durationMs = durationMs,
-                                inputCost = inCost,
-                                outputCost = outCost,
-                                traceFilename = trace
-                            )
+                            _run.update { r -> r?.copy(items = r.items - key) }
+                        } else {
+                            val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
+                            val (inCost, outCost) = probe.tokenUsage?.let { usage ->
+                                PricingCache.computeInOutCost(
+                                    usage, PricingCache.getPricing(context, service, item.model)
+                                )
+                            } ?: (0.0 to 0.0)
+                            val trace = if (com.ai.data.ApiTracer.isTracingEnabled) {
+                                com.ai.data.ApiTracer.getTraceFiles()
+                                    .firstOrNull { it.model == item.model && it.timestamp >= t0 }
+                                    ?.filename
+                            } else null
+                            transition(key) {
+                                it.copy(
+                                    status = if (probe.isSuccess) TestStatus.PASS else TestStatus.FAIL,
+                                    errorMessage = probe.errorMessage,
+                                    responseText = probe.responseText,
+                                    durationMs = durationMs,
+                                    inputCost = inCost,
+                                    outputCost = outCost,
+                                    traceFilename = trace
+                                )
+                            }
+                            // A passing probe means the model is healthy
+                            // again — drop any stale >1h-429 cooldown so
+                            // future calls aren't gratuitously dimmed.
+                            if (probe.isSuccess) {
+                                com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
+                            }
+                            // Live-sync this item's outcome into the
+                            // Blocked / Test-excluded lists so the user
+                            // sees entries appear as the sweep progresses.
+                            // Disk flush happens once at end-of-run /
+                            // cancel.
+                            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                         }
-                        // A passing probe means the model is healthy
-                        // again — drop any stale >1h-429 cooldown so
-                        // future calls aren't gratuitously dimmed.
-                        if (probe.isSuccess) {
-                            com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
-                        }
-                        // Live-sync this item's outcome into the
-                        // Blocked / Test-excluded lists so the user
-                        // sees entries appear as the sweep progresses.
-                        // Disk flush happens once at end-of-run /
-                        // cancel.
-                        _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
