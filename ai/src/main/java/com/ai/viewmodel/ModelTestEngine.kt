@@ -261,11 +261,12 @@ class ModelTestEngine internal constructor(
                         }.awaitAll()
                     }
                     AppLog.i("ModelTest", "← run done (${items.size} models)")
-                    // Natural completion only — a cancelled run is
-                    // cancelled before reaching here, so "Cancelled"
-                    // FAILs never get synced. Folds Blocked-models and
-                    // Test-excluded updates into one Settings write.
-                    syncTestRunSideEffects()
+                    // Per-item PASS/FAIL transitions in [runOne] have
+                    // already pushed the cumulative effect into the
+                    // in-memory Blocked / Test-excluded lists via
+                    // [AppViewModel.applyTestItemIncrement]; just
+                    // capture the final state to disk in one write.
+                    appViewModel.flushAiSettingsToDisk()
                 }
             } finally {
                 _throttledKeys.value = emptySet()
@@ -281,48 +282,7 @@ class ModelTestEngine internal constructor(
         itemJobs.clear()
     }
 
-    /** End-of-run side effects, folded into a single Settings write:
-     *   • Blocked models: drop every tested model, then re-add the
-     *     non-cooldown failures (FAIL ∧ not on >1h-429 cooldown). So a
-     *     PASS un-blocks, a FAIL re-blocks with the latest error, and a
-     *     cooldown'd model is removed from Blocked (the cooldown list
-     *     owns it).
-     *   • Test-excluded: any probe whose total cost exceeded
-     *     [COSTLY_PROBE_USD_THRESHOLD] is appended (no-clobber) so the
-     *     next sweep won't pay for it again.
-     *
-     *  A cancelled run is cancelled before this point — "Cancelled"
-     *  FAILs never reach here. */
-    private fun syncTestRunSideEffects() {
-        val items = _run.value?.items?.values ?: return
-        fun onCooldown(it: ModelTestState) =
-            com.ai.data.ModelCooldownStore.isUnavailable(it.providerId, it.model)
-        val failures = items
-            .filter { it.status == TestStatus.FAIL && !onCooldown(it) }
-            .map {
-                com.ai.model.BlockedModel(
-                    it.providerId, it.model,
-                    it.errorMessage?.take(300) ?: "Test failed"
-                )
-            }
-        val testedKeys = items
-            .filter { it.status == TestStatus.FAIL || it.status == TestStatus.PASS }
-            .map { it.key }
-            .toSet()
-        val autoExclude = items
-            .filter { it.totalCost > COSTLY_PROBE_USD_THRESHOLD }
-            .map { com.ai.model.TestExcludedModel(it.providerId, it.model) }
-        if (failures.isEmpty() && testedKeys.isEmpty() && autoExclude.isEmpty()) return
-        appViewModel.applyTestRunResults(failures, testedKeys, autoExclude)
-    }
-
     private companion object {
-        /** A "Test all models" probe whose cost exceeds this (in USD)
-         *  is auto-added to Settings.testExcludedModels so the next
-         *  sweep doesn't pay for it again. 5¢ — matches the user-
-         *  facing wording on the AI Setup card. */
-        const val COSTLY_PROBE_USD_THRESHOLD = 0.05
-
         /** Model types the sweep does not probe — no dispatch path in
          *  the app today. They're filtered out of the candidate list
          *  in [startRun] and the count in [testableProviders] so they
@@ -374,6 +334,13 @@ class ModelTestEngine internal constructor(
             })
         }
         _run.value?.let { ModelTestRunStore.save(context, it) }
+        // Per-item incremental updates accumulated in memory during the
+        // run aren't persisted by runOne — flush them now so the
+        // Blocked / Test-excluded state survives if the process dies
+        // before another save. Cancelled items skip the incremental
+        // (they don't go through transition()), so they don't pollute
+        // either list.
+        appViewModel.flushAiSettingsToDisk()
         AppLog.i("ModelTest", "✕ run cancelled")
     }
 
@@ -398,6 +365,7 @@ class ModelTestEngine internal constructor(
         val item = _run.value?.items?.get(key) ?: return
         val service = AppService.findById(item.providerId) ?: run {
             transition(key) { it.copy(status = TestStatus.FAIL, errorMessage = "Provider not registered") }
+            _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
             persist(context)
             return
         }
@@ -471,6 +439,12 @@ class ModelTestEngine internal constructor(
                         if (probe.isSuccess) {
                             com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
                         }
+                        // Live-sync this item's outcome into the
+                        // Blocked / Test-excluded lists so the user
+                        // sees entries appear as the sweep progresses.
+                        // Disk flush happens once at end-of-run /
+                        // cancel.
+                        _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -481,6 +455,7 @@ class ModelTestEngine internal constructor(
                                 durationMs = System.currentTimeMillis() - t0
                             )
                         }
+                        _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                     }
                 } finally {
                     releaser.release()

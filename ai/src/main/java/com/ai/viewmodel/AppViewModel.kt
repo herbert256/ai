@@ -1160,25 +1160,60 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
     }
 
-    /** Fold a finished "Test all models" run into two Settings lists in
-     *  one write — Blocked models (drop every tested model, re-add the
-     *  non-cooldown failures) and Test-excluded models (append every
-     *  costly probe). Called by [com.ai.viewmodel.ModelTestEngine] on
-     *  run completion. */
-    fun applyTestRunResults(
-        failures: List<com.ai.model.BlockedModel>,
-        testedKeys: Set<String>,
-        autoExclude: List<com.ai.model.TestExcludedModel>
-    ) {
-        val updated = _uiState.value.aiSettings
-            .syncBlockedModelsFromTestRun(failures, testedKeys)
-            .addTestExclusionsFromTestRun(autoExclude)
-        updateSettings(updated)
+    /** Apply one just-completed "Test all models" item to the
+     *  Blocked-models + Test-excluded lists *in memory only* (no disk
+     *  write — the engine flushes once at end-of-run via
+     *  [flushAiSettingsToDisk]). Called from the engine's per-item
+     *  PASS/FAIL transition so the user sees entries appear in those
+     *  lists live as the sweep progresses. Semantics match the former
+     *  batched [applyTestRunResults]:
+     *   - PASS → drop from Blocked.
+     *   - FAIL not on cooldown → upsert Blocked with the error as reason.
+     *   - FAIL on cooldown → drop from Blocked (the cooldown list owns it).
+     *   - totalCost > [COSTLY_PROBE_USD_THRESHOLD] → append to Test-
+     *     excluded (no-clobber). */
+    fun applyTestItemIncrement(item: com.ai.data.ModelTestState) {
+        val status = item.status
+        if (status != com.ai.data.TestStatus.PASS && status != com.ai.data.TestStatus.FAIL) return
+        val onCooldown = com.ai.data.ModelCooldownStore.isUnavailable(item.providerId, item.model)
+        _uiState.update { current ->
+            val s = current.aiSettings
+            val key = item.key
+            var blocked = s.blockedModels
+            // Always start by dropping any existing entry for this
+            // (provider, model); FAIL-not-on-cooldown re-adds with the
+            // fresh error message below.
+            if (blocked.any { it.key == key }) {
+                blocked = blocked.filterNot { it.key == key }
+            }
+            if (status == com.ai.data.TestStatus.FAIL && !onCooldown) {
+                blocked = blocked + com.ai.model.BlockedModel(
+                    item.providerId, item.model,
+                    item.errorMessage?.take(300) ?: "Test failed"
+                )
+            }
+            var excluded = s.testExcludedModels
+            if (item.totalCost > COSTLY_PROBE_USD_THRESHOLD && excluded.none { it.key == key }) {
+                excluded = excluded + com.ai.model.TestExcludedModel(item.providerId, item.model)
+            }
+            if (blocked === s.blockedModels && excluded === s.testExcludedModels) return@update current
+            current.copy(aiSettings = s.copy(blockedModels = blocked, testExcludedModels = excluded))
+        }
+    }
+
+    /** Persist the in-memory Settings to disk once. Used by
+     *  [com.ai.viewmodel.ModelTestEngine] at end-of-run / cancel to
+     *  capture the cumulative effect of all [applyTestItemIncrement]
+     *  calls in a single SharedPreferences write. */
+    fun flushAiSettingsToDisk() {
+        val snapshot = _uiState.value.aiSettings
+        viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(snapshot) }
         AppLog.i(
             "ModelTest",
-            "→ test-run sync: ${failures.size} blocked, ${testedKeys.size} tested, ${autoExclude.size} auto-excluded"
+            "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded"
         )
     }
+
 
     fun updateProviderState(service: AppService, state: String) {
         // Compute the delta inside the StateFlow.update CAS lambda so
@@ -1827,6 +1862,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val PREFS_NAME = "eval_prefs"
+        /** A "Test all models" probe whose cost exceeds this (USD) is
+         *  auto-added to [com.ai.model.Settings.testExcludedModels] so
+         *  the next sweep doesn't pay for it again. Matches the user-
+         *  facing "5¢" wording on the AI Setup card. */
+        internal const val COSTLY_PROBE_USD_THRESHOLD = 0.05
         fun estimateTokens(text: String): Int = (text.length / 4).coerceAtLeast(1)
         internal const val AI_REPORT_AGENTS_KEY = "ai_report_agents_v2"
         internal const val AI_REPORT_MODELS_KEY = "ai_report_models_v2"
