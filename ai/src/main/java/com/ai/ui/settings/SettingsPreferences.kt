@@ -63,7 +63,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
-            fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, true),
+            fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
