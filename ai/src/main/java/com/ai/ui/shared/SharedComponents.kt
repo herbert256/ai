@@ -517,8 +517,11 @@ fun TitleBar(
     val titleStyle = MaterialTheme.typography.titleLarge
     val barFontSize = titleStyle.fontSize * 1.35f
     val reportIconTap = LocalNavigateToCurrentReport.current
+    // Negative-Y offset pulls the whole bar up against the status-bar
+    // inset that Scaffold added, gaining ~10dp of vertical space for
+    // the content underneath.
     Row(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().offset(y = (-10).dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AiLogoButton(
