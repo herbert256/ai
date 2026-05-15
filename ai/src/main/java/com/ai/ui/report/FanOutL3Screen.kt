@@ -210,7 +210,7 @@ internal fun FanOutL3Screen(
                     )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
             // Source pane — header row carries the source's "provider /
@@ -310,6 +310,10 @@ internal fun FanOutL3Screen(
                     }
                 }
             }
+            // Trailing divider — mirrors the one between source and
+            // answerer above so the response pane has a clean closing
+            // edge before the Prev / Next buttons.
+            HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
             // Prev / Next arrow row at the bottom.
             Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
