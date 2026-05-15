@@ -580,6 +580,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.v(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
             ApiTracer.isTracingEnabled = bs.first.tracingEnabled
             AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}")
+            syncTestModelPrompt(bs.second)
+            AppLog.v(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
             NetworkSettings.nonStreamingReadTimeoutSec = bs.first.nonStreamingReadTimeoutSec
             NetworkSettings.maxCallsPerProviderPerMinute = bs.first.maxCallsPerProviderPerMinute
@@ -1228,7 +1230,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(settings: Settings) {
         _uiState.update { it.copy(aiSettings = settings) }
+        syncTestModelPrompt(settings)
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
+    }
+
+    /** Mirror the bundled `test_model` internal prompt's body into
+     *  [com.ai.data.AnalysisRepository.TEST_PROMPT] so every OK-probe
+     *  call site (ApiDispatch.testModel, ModelTestEngine, the
+     *  per-provider tests, the L3 display) uses the live text without
+     *  threading aiSettings through. Falls back to whatever was there
+     *  if the prompt is missing. */
+    private fun syncTestModelPrompt(settings: Settings) {
+        val live = settings.internalPrompts.firstOrNull {
+            it.name.equals("test_model", ignoreCase = true) && it.category.equals("internal", ignoreCase = true)
+        }
+        if (live != null && live.text.isNotBlank()) {
+            com.ai.data.AnalysisRepository.TEST_PROMPT = live.text
+        }
     }
 
     /** Apply one just-completed "Test all models" item to the

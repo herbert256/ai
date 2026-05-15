@@ -108,10 +108,9 @@ private fun ModelTypeChip(type: String) {
     )
 }
 
-/** Prompt sent to every model by the "Test all models" action — short, deterministic,
- *  cheap, and surfaces shaping issues (refusal, JSON wrapping, mode-locked models). */
-private const val MODEL_TEST_PROMPT =
-    "This is a test, only return the exact string 'ok', nothing more."
+// "Test all models" probe — same as every other OK-test. The
+// AnalysisRepository.TEST_PROMPT var is kept up-to-date by
+// AppViewModel from the bundled `test_model` internal prompt.
 
 private sealed class ModelTestStatus {
     object Running : ModelTestStatus()
@@ -407,7 +406,7 @@ fun ProviderModelSettingsScreen(
                                                     // style and cancel every sibling. The
                                                     // sibling cancellations would otherwise
                                                     // leave them stuck on Running forever.
-                                                    val r = runCatching { onTestSpecificModel(m, MODEL_TEST_PROMPT) }
+                                                    val r = runCatching { onTestSpecificModel(m, com.ai.data.AnalysisRepository.TEST_PROMPT) }
                                                     val (ok, trace) = r.getOrElse { false to null }
                                                     // Drop late writes for models the user
                                                     // already removed (the dropdown's prune

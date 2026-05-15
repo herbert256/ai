@@ -68,7 +68,15 @@ data class AnalysisResponse(
 class AnalysisRepository {
     companion object {
         internal const val RETRY_DELAY_MS = 500L
-        internal const val TEST_PROMPT = "Reply with exactly: OK"
+        /** Body of the OK-probe sent by every model-test path
+         *  (provider screen test, Test all models, ApiDispatch
+         *  testModel). Default mirrors the bundled `test_model`
+         *  internal prompt in assets/prompts.json; AppViewModel
+         *  pushes the live prompt body in here whenever settings
+         *  load or change so the user's edit wins everywhere
+         *  without threading aiSettings through every call site. */
+        @Volatile
+        internal var TEST_PROMPT: String = "Reply: OK"
 
         /** max_tokens for the [TEST_PROMPT] probe. The probe only
          *  checks reachability — a one-word reply is all it needs — so

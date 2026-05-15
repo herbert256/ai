@@ -36,6 +36,15 @@
     "text": ""
   },
   {
+    "name": "test_model",
+    "title": "Minimal test for an AI Model",
+    "reference": false,
+    "category": "internal",
+    "scope": "*N/A",
+    "agent": "*N/A",
+    "text": "Reply: OK"
+  },
+  {
     "name": "intro",
     "title": "Brief two-sentence model introduction",
     "reference": false,
