@@ -201,17 +201,28 @@ internal fun SecondaryResultsScreen(
         if (recentlySettled.isEmpty()) runningFanOutPairs
         else runningFanOutPairs + recentlySettled
     }
-    // Throttled mirror of refreshTick — updates at most once every
-    // 500 ms via sample(). Every downstream produceState / hydrate
-    // re-keys on THIS tick instead of refreshTick directly, so a fan-
-    // icons burst that fires refreshTick ~20× per second doesn't
-    // cancel in-flight disk reads (which take longer than the burst
-    // interval). First emission is immediate so the page isn't blank.
+    // Throttled mirror of refreshTick. Two updaters:
+    //   (a) snapshotFlow + sample(500) — for refreshTick bumps that
+    //       happen OUTSIDE a batch (user actions, restarts, etc).
+    //   (b) Polling loop while isBatching — fires every 500 ms
+    //       regardless of refreshTick. The bump-on-pair-leave plumbing
+    //       is unreliable during fan-icons bursts (the set churns
+    //       faster than the LaunchedEffect can react and ticks get
+    //       coalesced); a fixed-period poll guarantees the L1 stats
+    //       update at least 2× per second while a batch is in flight.
+    var throttledTick by remember { mutableIntStateOf(refreshTick) }
     @OptIn(FlowPreview::class)
-    val throttledTick by produceState(initialValue = refreshTick, reportId) {
+    LaunchedEffect(reportId) {
         androidx.compose.runtime.snapshotFlow { refreshTick }
             .sample(500L)
-            .collect { value = it }
+            .collect { throttledTick = it }
+    }
+    LaunchedEffect(reportId, isBatching) {
+        if (!isBatching) return@LaunchedEffect
+        while (true) {
+            throttledTick++
+            delay(500)
+        }
     }
     // Single disk pass per throttledTick. Previously three separate
     // produceStates each called SecondaryResultStorage.listForReport,
