@@ -272,17 +272,18 @@ internal fun ReportSelectModelsScreen(
         fun ModelRow(entry: Pair<AppService, String>) {
             val (provider, model) = entry
             val isAlreadyAdded = entry in alreadyAdded
-            // Benched by a >1h 429 (ModelCooldownStore) — dim + block
-            // taps just like an already-added row.
+            // Benched by a >1h 429 (ModelCooldownStore) — dim, but
+            // still selectable (advisory), same as a blocked row.
             val benchedUntil = cooldowns["${provider.id}:$model"]
                 ?.takeIf { it > System.currentTimeMillis() }
-            val disabled = isAlreadyAdded || benchedUntil != null
+            // Only an already-added row is non-selectable; benched +
+            // blocked rows just dim.
+            val disabled = isAlreadyAdded
             val blockReason = blockedReasons["${provider.id}:$model"]
             val pricing = aiSettings.getModelPricing(provider, model)
                 ?: PricingCache.getPricing(context, provider, model)
             val real = pricing.source != "DEFAULT"
-            // Blocked rows dim like disabled ones but stay clickable.
-            val rowAlpha = if (disabled || blockReason != null) 0.4f else 1f
+            val rowAlpha = if (disabled || benchedUntil != null || blockReason != null) 0.4f else 1f
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !disabled) {

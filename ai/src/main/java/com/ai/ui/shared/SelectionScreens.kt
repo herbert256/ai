@@ -213,7 +213,8 @@ fun SelectModelScreen(
                     ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
                 val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
-                // Benched by a >1h 429 (ModelCooldownStore) — dim + block taps.
+                // Benched by a >1h 429 (ModelCooldownStore) — dim, but
+                // still selectable (advisory), same as a blocked row.
                 val benchedUntil = cooldowns["${provider.id}:$modelName"]
                     ?.takeIf { it > System.currentTimeMillis() }
                 // User-blocked — dim but stay selectable (advisory).
@@ -222,7 +223,7 @@ fun SelectModelScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
-                        .clickable(enabled = benchedUntil == null) { onSelectModel(modelName) }
+                        .clickable { onSelectModel(modelName) }
                         .padding(vertical = 10.dp, horizontal = 4.dp)
                         .alpha(if (benchedUntil != null || blockReason != null) 0.4f else 1f)
                 ) {
