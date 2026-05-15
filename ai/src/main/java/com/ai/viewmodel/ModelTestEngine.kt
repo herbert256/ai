@@ -475,12 +475,16 @@ class ModelTestEngine internal constructor(
      *  at [AnalysisRepository.TEST_MAX_TOKENS] tokens so balance-gating
      *  providers don't pre-auth the model's whole output window.
      *
-     *  Treats `HTTP 200 + completion_tokens > 0 + empty content` as
-     *  *reachable*: OpenAI's gpt-5 / o-series via OpenRouter return
-     *  encrypted `reasoning_details` and null content when the 64-token
-     *  budget is exhausted on hidden reasoning. The model IS responsive
-     *  on its endpoint; only the *visible* output is empty. The probe's
-     *  job is reachability, not "did the model produce useful text". */
+     *  Treats `HTTP 200 + (output_tokens > 0 OR reasoning_tokens > 0) +
+     *  empty content` as *reachable*. Two real cases:
+     *   - OpenAI gpt-5 / o-series via OpenRouter — encrypted
+     *     `reasoning_details` and null content when the budget went
+     *     to hidden reasoning (we see [TokenUsage.outputTokens] > 0).
+     *   - Gemini 2.5 / 3.x thinking models — the budget burns entirely
+     *     in [GeminiUsageMetadata.thoughtsTokenCount] and visible
+     *     output is empty (we see [TokenUsage.reasoningTokens] > 0).
+     *  The probe's job is reachability, not "did the model produce
+     *  useful text" — both shapes count as reachable. */
     private suspend fun probeChat(service: AppService, apiKey: String, model: String): ProbeResult {
         val t0 = System.currentTimeMillis()
         val r = appViewModel.repository.analyze(
@@ -488,12 +492,14 @@ class ModelTestEngine internal constructor(
             params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
         )
         val outputTokens = r.tokenUsage?.outputTokens ?: 0
-        val reachableViaReasoning = !r.isSuccess && r.httpStatusCode == 200 && outputTokens > 0
+        val reasoningTokens = r.tokenUsage?.reasoningTokens ?: 0
+        val emittedTokens = outputTokens + reasoningTokens
+        val reachableViaReasoning = !r.isSuccess && r.httpStatusCode == 200 && emittedTokens > 0
         return ProbeResult(
             isSuccess = r.isSuccess || reachableViaReasoning,
             errorMessage = if (reachableViaReasoning) null else r.error,
             responseText = r.analysis
-                ?: if (reachableViaReasoning) "Reachable — emitted $outputTokens reasoning tokens, no visible content" else null,
+                ?: if (reachableViaReasoning) "Reachable — emitted $emittedTokens reasoning tokens, no visible content" else null,
             durationMs = System.currentTimeMillis() - t0,
             tokenUsage = r.tokenUsage
         )

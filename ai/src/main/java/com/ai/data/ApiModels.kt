@@ -353,7 +353,12 @@ data class GeminiUsageMetadata(
     val cost_in_usd_ticks: Long? = null,
     val cost_usd: UsageCost? = null,
     // Subset of promptTokenCount that came from the cached-content store.
-    val cachedContentTokenCount: Int? = null
+    val cachedContentTokenCount: Int? = null,
+    // Gemini 2.5 / 3.x thinking models report hidden reasoning here.
+    // Billed at the output rate, but distinct from candidatesTokenCount
+    // (which is *visible* output). When the budget cap is small the
+    // probe can burn it all here and produce no visible text.
+    val thoughtsTokenCount: Int? = null
 )
 
 data class GeminiResponse(
@@ -794,7 +799,8 @@ fun GeminiUsageMetadata.toTokenUsage(): TokenUsage {
         inputTokens = fresh,
         outputTokens = candidatesTokenCount ?: 0,
         apiCost = extractApiCost(this),
-        cachedInputTokens = cached
+        cachedInputTokens = cached,
+        reasoningTokens = thoughtsTokenCount ?: 0
     )
 }
 

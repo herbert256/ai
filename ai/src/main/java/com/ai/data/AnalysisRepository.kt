@@ -31,9 +31,14 @@ data class TokenUsage(
     val outputTokens: Int,
     val apiCost: Double? = null,
     val cachedInputTokens: Int = 0,
-    val cacheCreationTokens: Int = 0
+    val cacheCreationTokens: Int = 0,
+    /** Hidden reasoning tokens — Gemini's thoughtsTokenCount, OpenAI's
+     *  reasoning_tokens. Billed at the output rate but distinct from
+     *  visible output. Lets the test probe recognise "model is reachable,
+     *  budget went to reasoning" when [outputTokens] is 0. */
+    val reasoningTokens: Int = 0
 ) {
-    val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens
+    val totalTokens: Int get() = inputTokens + outputTokens + cachedInputTokens + cacheCreationTokens + reasoningTokens
 }
 
 /**
