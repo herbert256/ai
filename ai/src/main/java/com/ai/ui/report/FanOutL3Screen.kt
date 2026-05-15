@@ -219,6 +219,14 @@ internal fun FanOutL3Screen(
             // upstream call that produced the body shown below). The
             // source agent's per-model report icon (if generated) is
             // shown as a leading emoji.
+            // Source = "the prompt this pair received". In Responder
+            // mode the source agent is the OTHER model (the
+            // counterpart we're exploring), so its info / trace icons
+            // live here. In Initiator mode the source agent IS the
+            // active model — the user came from its L2 view — so the
+            // peek-into-other-model icons move down to the response
+            // pane instead (see below).
+            val sourcePaneIsOther = role == "Responder"
             Column(Modifier.fillMaxWidth().heightIn(max = halfMax).padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val sourceIcon = sourceAgent?.icon
@@ -232,16 +240,18 @@ internal fun FanOutL3Screen(
                     Text(
                         sourceLabel, fontSize = 14.sp, color = AppColors.Blue,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (sourceProviderService != null && sourceAgent != null) {
+                    if (sourcePaneIsOther && sourceProviderService != null && sourceAgent != null) {
                         Text(
                             "ℹ️", fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
                                 .clickable { actions.onNavigateToModelInfo(sourceProviderService, sourceAgent.model) }
                         )
                     }
-                    if (ApiTracer.isTracingEnabled && sourceTrace != null) {
+                    if (sourcePaneIsOther && ApiTracer.isTracingEnabled && sourceTrace != null) {
                         Text(
                             "🐞", fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
@@ -263,6 +273,10 @@ internal fun FanOutL3Screen(
 
             // Answerer / response pane. Leading emoji is the icon
             // produced by the fan-out icon chain (fanOutIconGenEnabled).
+            // In Initiator mode the answerer IS the OTHER model, so
+            // the peek-into-other-model icons (info + trace) live
+            // here. In Responder mode they live up on the source pane.
+            val responsePaneIsOther = role == "Initiator"
             Column(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!pair.icon.isNullOrBlank()) {
@@ -275,12 +289,29 @@ internal fun FanOutL3Screen(
                     Text(
                         answererLabel, fontSize = 14.sp, color = AppColors.Green,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
+                    if (responsePaneIsOther && answererProviderService != null) {
+                        Text(
+                            "ℹ️", fontSize = 16.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                                .clickable { actions.onNavigateToModelInfo(answererProviderService, pair.model) }
+                        )
+                    }
+                    if (responsePaneIsOther && ApiTracer.isTracingEnabled && answererTrace != null) {
+                        Text(
+                            "🐞", fontSize = 16.sp,
+                            modifier = Modifier.padding(start = 6.dp)
+                                .clickable { actions.onNavigateToTraceFile(answererTrace!!) }
+                        )
+                    }
                     if (pair.totalCost > 0.0) {
                         Text(
                             "${formatCents(pair.totalCost)} ¢", fontSize = 11.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(start = 6.dp)
                         )
                     }
                 }
