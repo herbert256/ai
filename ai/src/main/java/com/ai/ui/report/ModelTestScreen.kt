@@ -87,17 +87,34 @@ fun ModelTestScreen(
     val throttledKeys by engine.throttledKeys.collectAsState()
 
     // Hydrate on first entry so L1 shows the last persisted run.
+    var hydrated by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { engine.hydrate(context) }
+        hydrated = true
     }
 
     var nav by rememberSaveable(stateSaver = modelTestNavSaver) {
         mutableStateOf<ModelTestNav>(ModelTestNav.L1)
     }
+    // No run yet — skip the empty L1 and jump straight to the
+    // provider picker. Hydration is async; wait for it to finish so
+    // we don't bounce a returning user through Select before their
+    // persisted run shows up.
+    LaunchedEffect(hydrated, run) {
+        if (hydrated && run == null && nav == ModelTestNav.L1) {
+            nav = ModelTestNav.Select
+        }
+    }
     BackHandler {
         nav = when (val n = nav) {
             ModelTestNav.L1 -> { onBack(); return@BackHandler }
-            is ModelTestNav.Select -> ModelTestNav.L1
+            is ModelTestNav.Select -> {
+                // From Select with no run yet, back exits the whole
+                // Test screen — otherwise L1 would just bounce us
+                // back to Select via the auto-redirect above.
+                if (run == null) { onBack(); return@BackHandler }
+                ModelTestNav.L1
+            }
             is ModelTestNav.L2 -> ModelTestNav.L1
             is ModelTestNav.L3 -> ModelTestNav.L2(n.providerId)
         }
