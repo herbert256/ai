@@ -598,17 +598,7 @@ private fun OnePageReportView(
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
-        // No outer page padding on this screen, so the green subject
-        // needs its own horizontal 16dp inset. top = 4.dp matches the
-        // HardcodedSubjectRow contract so the y-position lines up with
-        // every other HARDCODED screen.
-        Text(
-            text = titleText,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-        )
+        com.ai.ui.shared.HardcodedSubjectRow(titleText, horizontalPadding = 16.dp, maxLines = 2)
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
         val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
         LazyColumn(

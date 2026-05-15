@@ -533,25 +533,49 @@ private fun HelpButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
 }
 
 /**
- * Green subject sub-header rendered just below [TitleBar]. Self-gates
- * on blank text so callers can drop it in unconditionally. Single
- * padding contract (`top = 4.dp`, no bottom) — matches the AI Report
- * reference. Callers keep whatever trailing Spacer they already had
- * for the gap between the subject and the screen body; this helper
- * only owns the gap between the title bar and the green subject so
- * that y-position is consistent across every screen.
+ * Green subject sub-header rendered just below [TitleBar]. The only
+ * shared definition of the green page-subject line — every screen
+ * paints it via this helper so font / colour / y-position stay
+ * identical app-wide.
+ *
+ * Self-gates on blank text so callers can drop it in unconditionally.
+ * [providerService] + [model] make the subject clickable → Model Info
+ * when both are non-null. [horizontalPadding] pads start/end for
+ * screens whose outer Column doesn't already inset by 16 dp.
+ * [trailing] slot at the right edge — used by Fan out L3 to surface
+ * the role indicator beside the answerer label.
  */
 @Composable
-fun HardcodedSubjectRow(text: String?) {
+fun HardcodedSubjectRow(
+    text: String?,
+    providerService: com.ai.data.AppService? = null,
+    model: String? = null,
+    horizontalPadding: Dp = 0.dp,
+    maxLines: Int = 1,
+    trailing: @Composable RowScope.() -> Unit = {}
+) {
     if (text.isNullOrBlank()) return
-    Text(
-        text = text,
-        fontSize = 26.sp, color = AppColors.Green,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().offset(y = (-8).dp)
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .offset(y = (-8).dp)
+            .padding(horizontal = horizontalPadding),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val clickableTextMod = if (providerService != null && !model.isNullOrBlank()) {
+            Modifier.weight(1f, fill = true).modelInfoClickable(providerService, model)
+        } else {
+            Modifier.weight(1f, fill = true)
+        }
+        Text(
+            text = text,
+            fontSize = 26.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = maxLines,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = clickableTextMod
+        )
+        trailing()
+    }
 }
 
 /** Action strip rendered on the right of [BottomIconBar]. Home / Help

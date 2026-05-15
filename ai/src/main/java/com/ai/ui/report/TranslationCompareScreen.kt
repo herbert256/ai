@@ -55,15 +55,7 @@ internal fun TranslationCompareScreen(
             },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
-        // No outer page padding on this screen; horizontal 16dp + the
-        // shared top = 4.dp keep this aligned with HardcodedSubjectRow.
-        Text(
-            text = title,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-        )
+        com.ai.ui.shared.HardcodedSubjectRow(title, horizontalPadding = 16.dp)
 
         // Top pane — original.
         Column(

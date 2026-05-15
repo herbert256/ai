@@ -182,15 +182,7 @@ internal fun TranslationL3Screen(
                 },
                 onDelete = { confirmDelete = true }
             )
-            // No outer page padding on this screen; horizontal 16dp + the
-            // shared top = 4.dp keep this aligned with HardcodedSubjectRow.
-            Text(
-                text = titleLang,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-            )
+            com.ai.ui.shared.HardcodedSubjectRow(titleLang, horizontalPadding = 16.dp)
             if (item.costDollars > 0.0) {
                 Text(
                     "Cost: ${formatCents(item.costDollars)} ¢",

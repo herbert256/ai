@@ -187,20 +187,12 @@ fun ReportSingleResultScreen(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
-        // No outer page padding; horizontal 16dp + top = 4.dp keep
-        // this aligned with HardcodedSubjectRow. The agent label is
-        // wrapped in a clickable modifier to route taps to Model Info.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                agentLabel,
-                fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).modelInfoClickable(provider, agent.model)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(
+            agentLabel,
+            providerService = provider,
+            model = agent.model,
+            horizontalPadding = 16.dp
+        )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)) {
             val rawBody = agent.responseBody

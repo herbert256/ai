@@ -1243,20 +1243,10 @@ private fun ColumnScope.FanOutDrillInView(
                 { onNavigateToTraceFile(l2Trace) }
             } else null
         )
-        // Bespoke row instead of HardcodedSubjectRow — adds a click
-        // hit-target that opens the active (provider, model) in
-        // Model Info. top = 4.dp matches HardcodedSubjectRow so the
-        // y-position lines up with every other HARDCODED screen.
-        Text(
-            text = l2Subject,
-            fontSize = 18.sp,
-            color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-                .padding(top = 4.dp)
-                .modelInfoClickable(activeProviderService, activeMdl)
+        com.ai.ui.shared.HardcodedSubjectRow(
+            l2Subject,
+            providerService = activeProviderService,
+            model = activeMdl
         )
         // Row 1: role label + Switch role button.
         Row(verticalAlignment = Alignment.CenterVertically,
@@ -1660,17 +1650,7 @@ private fun ColumnScope.FanOutDrillInView(
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
     )
-    if (l1SubHeader.isNotBlank()) {
-        Text(
-            text = l1SubHeader,
-            fontSize = 18.sp,
-            color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-        )
-    }
+    com.ai.ui.shared.HardcodedSubjectRow(l1SubHeader)
     if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -2168,18 +2148,10 @@ private fun OnePageView(
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null
         )
-        // Bespoke row instead of HardcodedSubjectRow — adds a click
-        // hit-target that opens the active (provider, model) in
-        // Model Info. top = 4.dp matches HardcodedSubjectRow so the
-        // y-position lines up with every other HARDCODED screen.
-        Text(
-            text = modelLabel,
-            fontSize = 18.sp, color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
-                .padding(top = 4.dp)
-                .modelInfoClickable(activeProviderService, activeMdl)
+        com.ai.ui.shared.HardcodedSubjectRow(
+            modelLabel,
+            providerService = activeProviderService,
+            model = activeMdl
         )
         // Role label + Switch role button — same shape as the L2
         // list page, hoisted up so the user can toggle without
