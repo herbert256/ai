@@ -285,7 +285,7 @@ internal fun FanOutL3Screen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     when (pair.effectiveStatus(runningSet)) {
                         PairStatus.ERROR -> Text(
                             "❌ ${pair.errorMessage}",
@@ -308,12 +308,16 @@ internal fun FanOutL3Screen(
                             }
                         }
                     }
+                    // Trailing divider — mirrors the one between source
+                    // and answerer above so the response pane has a
+                    // clean closing edge tight against the content,
+                    // not floating at the bottom of the screen.
+                    HorizontalDivider(
+                        color = AppColors.DividerDark, thickness = 2.dp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
-            // Trailing divider — mirrors the one between source and
-            // answerer above so the response pane has a clean closing
-            // edge before the Prev / Next buttons.
-            HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
             // Prev / Next arrow row at the bottom.
             Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
