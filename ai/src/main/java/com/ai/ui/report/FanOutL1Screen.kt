@@ -376,7 +376,10 @@ internal fun FanOutL1Screen(
                     else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
                 val total = pairs.size
                 val cost = pairs.sumOf { pairCost(it) }
-                val progressFraction = if (total > 0) ok / total.toFloat() else 0f
+                // Failed pairs count toward the bar too — without
+                // them the row would stall at < 100 % when every
+                // remaining pair errored out.
+                val progressFraction = if (total > 0) (ok + err).toFloat() / total else 0f
                 val progressColor = AppColors.Green.copy(alpha = 0.30f)
                 Row(
                     modifier = Modifier.fillMaxWidth()

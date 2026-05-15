@@ -32,11 +32,13 @@ import com.ai.model.Settings
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -429,12 +431,35 @@ class FanOutEngine internal constructor(
                             title = report.title
                         )
                         val resolved = resolvedBase.replace("@RESPONSE@", sourceResponseBody)
-                        reportViewModel.executeSecondaryTask(
-                            context, report.id, SecondaryKind.META, metaPrompt,
-                            provider, answererModel, resolved, aiSettings, report,
-                            fanOutSourceAgentId = sourceAgentId,
-                            existingPlaceholder = placeholder
-                        )
+                        // Per-pair 60s ceiling — same cap the
+                        // Test-all-models engine uses. Stops a single
+                        // runaway model (the Qwen2.5-7B word-salad case
+                        // that produced 4096 tokens of nonsense in
+                        // ~108s) from pinning its per-host slot for
+                        // most of the wall clock. On timeout we persist
+                        // an errorMessage so the row counts as ERROR
+                        // for the progress bar.
+                        try {
+                            withTimeout(60_000) {
+                                reportViewModel.executeSecondaryTask(
+                                    context, report.id, SecondaryKind.META, metaPrompt,
+                                    provider, answererModel, resolved, aiSettings, report,
+                                    fanOutSourceAgentId = sourceAgentId,
+                                    existingPlaceholder = placeholder
+                                )
+                            }
+                        } catch (e: TimeoutCancellationException) {
+                            // Stamp the placeholder so the post-call
+                            // re-read picks it up as ERROR and the
+                            // progress bar advances.
+                            val timedOut = (SecondaryResultStorage.get(context, report.id, placeholderId) ?: placeholder)
+                                .copy(
+                                    errorMessage = "Fan-out pair timed out after 60s",
+                                    durationMs = System.currentTimeMillis() - pairStart
+                                )
+                            SecondaryResultStorage.save(context, timedOut)
+                            AppLog.w("FanOut", "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s")
+                        }
                         // Re-read the now-persisted row to pick up the
                         // result + cost + tokens stamped by executeSecondaryTask.
                         val saved = SecondaryResultStorage.get(context, report.id, placeholderId)
