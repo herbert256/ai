@@ -328,6 +328,34 @@ fun ReasoningBadge(isReasoningCapable: Boolean) {
 }
 
 /**
+ * Tiny "on a >1h-429 cooldown" badge for model lists. ⏳ matches the
+ * Model cooldowns card / SetupScreen icon. Same shape as VisionBadge.
+ */
+@Composable
+fun CooldownBadge(onCooldown: Boolean) {
+    if (!onCooldown) return
+    Text(
+        text = "⏳",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
+ * Tiny "user-blocked" badge for model lists. 🚫 matches the Blocked
+ * models card icon. Same shape as VisionBadge.
+ */
+@Composable
+fun BlockedBadge(isBlocked: Boolean) {
+    if (!isBlocked) return
+    Text(
+        text = "🚫",
+        fontSize = 11.sp,
+        modifier = Modifier.padding(start = 4.dp)
+    )
+}
+
+/**
  * Generic title bar used across all screens.
  * Left: optional back button. Right: a strip of six action icons —
  * Home, Reload, Info, Delete, Trace, Help (left → right). Home and

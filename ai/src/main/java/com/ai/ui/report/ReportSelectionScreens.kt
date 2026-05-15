@@ -300,6 +300,8 @@ internal fun ReportSelectModelsScreen(
                         com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                         com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
+                        com.ai.ui.shared.CooldownBadge(benchedUntil != null)
+                        com.ai.ui.shared.BlockedBadge(blockReason != null)
                         // already-added rows still render dimmed and
                         // ignore taps so the user can see them in the
                         // catalog without re-adding; the trailing
