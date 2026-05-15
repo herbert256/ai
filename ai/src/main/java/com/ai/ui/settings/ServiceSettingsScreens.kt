@@ -869,7 +869,12 @@ fun ProviderSettingsScreen(
             title = "Provider",
             subject = service.id,
             onBackClick = onBackToSettings,
-            onInfo = { onNavigateToHelpTopic(com.ai.ui.admin.providerHelpTopicId(service.id)) }
+            onInfo = { onNavigateToHelpTopic(com.ai.ui.admin.providerHelpTopicId(service.id)) },
+            // 🐞 appears once the user has run the in-page Test
+            // button and a trace was captured. Hidden until then so
+            // the bar isn't claiming a trace exists when one doesn't.
+            onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.isTracingEnabled && onNavigateToTrace != null }
+                ?.let { tf -> { onNavigateToTrace!!(tf) } }
         )
         com.ai.ui.shared.HardcodedSubjectRow(service.id)
         Spacer(modifier = Modifier.height(8.dp))
@@ -999,13 +1004,13 @@ fun ProviderSettingsScreen(
                                         val error = onTestApiKey(fresh, apiKey, defaultModel)
                                         testSuccess = error == null
                                         testResult = error ?: "Connection successful"
-                                        // On failure, attach the trace from this run so the
-                                        // user can jump to the captured request/response.
-                                        testTraceFile = if (error != null) {
-                                            com.ai.data.ApiTracer.getTraceFiles()
-                                                .firstOrNull { it.timestamp >= startedAt }
-                                                ?.filename
-                                        } else null
+                                        // Attach the trace from this run regardless of
+                                        // outcome — success or failure, the user can jump
+                                        // to the captured request/response via the 🐞 icon
+                                        // in the bottom icon bar (gated on tracing enabled).
+                                        testTraceFile = com.ai.data.ApiTracer.getTraceFiles()
+                                            .firstOrNull { it.timestamp >= startedAt }
+                                            ?.filename
                                         // Successful test atomically flips state to "ok"
                                         // AND adds this provider's default agent to the
                                         // "default agents" flock — mirrors Refresh All →
