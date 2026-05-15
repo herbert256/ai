@@ -97,7 +97,7 @@ internal fun SecondaryScopeScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "secondary_scope",
-            title = "Scope",
+            title = if (metaPrompt.category == "fan_out") "Fan Out - scope" else "Scope",
             subject = kindLabel,
             onBackClick = onBack
         )

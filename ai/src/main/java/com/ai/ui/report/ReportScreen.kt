@@ -1749,7 +1749,12 @@ fun ReportsScreen(
     // top-N from a rerank / a manual subset) and, when translation
     // rows exist, which target languages to fan out to.
     val scopeMetaPrompt = secondaryScopeMetaPrompt
-    if (scopeMetaPrompt != null && currentReportId != null) {
+    // Hidden while Run / model picker is active — layered state so
+    // Android back unwinds one step at a time.
+    if (scopeMetaPrompt != null && currentReportId != null
+        && fanOutConfirmMetaPrompt == null
+        && metaRunScreenPrompt == null
+        && secondaryPickerMetaPrompt == null) {
         val rid = currentReportId
         data class ScopeData(
             val agents: List<com.ai.data.ReportAgent>,
@@ -1783,7 +1788,11 @@ fun ReportsScreen(
             onContinue = { chosenScope, chosenLangScope ->
                 pendingSecondaryScope = chosenScope
                 pendingLanguageScope = chosenLangScope
-                secondaryScopeMetaPrompt = null
+                // Forward without clearing secondaryScopeMetaPrompt;
+                // the scope render guards on fanOutConfirmMetaPrompt /
+                // metaRunScreenPrompt being non-null so the higher
+                // step takes precedence while the scope state remains
+                // available for Android-back to unwind to.
                 if (scopeMetaPrompt.category == "fan_out") {
                     // Run page picks initiators / responders, edits the
                     // prompt, then confirms.
@@ -1810,9 +1819,16 @@ fun ReportsScreen(
             fanOutMp = fanOutMp,
             reportId = currentReportId,
             context = context,
+            // Back from Run → unwind to Scope (state still set);
+            // back from there → Picker; back from there → main.
             onCancel = { fanOutConfirmMetaPrompt = null },
             onRun = { mp, initiators, responders ->
+                // Commit clears the whole fan-out stack so the user
+                // doesn't pop back into Scope/Picker after the run
+                // kicked off.
                 fanOutConfirmMetaPrompt = null
+                secondaryScopeMetaPrompt = null
+                showFanOutPicker = false
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
                 onRunFanOut(
@@ -2213,6 +2229,9 @@ fun ReportsScreen(
                     // and a Cancel button.
                     fanOutConfirmMetaPrompt = mp
                 } else {
+                    // Default-scope direct run: drop the picker so
+                    // Android back from L1 doesn't land back on it.
+                    showFanOutPicker = false
                     onRunFanOut(rid, mp, com.ai.data.SecondaryScope.Manual(ids), ids)
                 }
             }
@@ -2380,14 +2399,19 @@ fun ReportsScreen(
         }
         return
     }
-    if (showFanOutPicker) {
+    // Render only if no later step in the fan-out flow is active —
+    // forward navigation now layers state instead of clearing it, so
+    // back from Scope / Run unwinds one screen at a time.
+    if (showFanOutPicker && secondaryScopeMetaPrompt == null && fanOutConfirmMetaPrompt == null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
             ReportSelectInternalPromptScreen(
-                titleText = "Run a Fan out prompt",
+                titleText = "Fan Out - prompt",
                 category = "fan_out",
                 prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
                 onSelectPrompt = {
-                    showFanOutPicker = false
+                    // Forward without clearing the picker flag — back
+                    // from Scope / Run unwinds one step at a time and
+                    // lands here again.
                     launchFanOutPrompt(it)
                 },
                 onBack = { showFanOutPicker = false },
@@ -3555,7 +3579,7 @@ private fun FanOutConfirmScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "report_fan_out_confirm",
-            title = "Run ${fanOutMp.name}",
+            title = "Fan Out - run",
             onBackClick = onCancel
         )
         Spacer(modifier = Modifier.height(8.dp))
