@@ -1203,22 +1203,45 @@ object PricingCache {
         return java.io.File(dir, "$name.json")
     }
 
-    /** Read a tier blob, falling back once to the legacy SharedPreferences key for
-     *  installs that pre-date the file move. The migration is one-shot: on a hit the
-     *  prefs entry is rewritten to disk and removed from prefs. */
+    /** Read a tier blob. Look-up order:
+     *   1. `filesDir/pricing/<key>.json` — the post-Refresh on-disk copy.
+     *   2. Legacy SharedPreferences key — one-shot migration for installs
+     *      that pre-date the file move; on a hit the prefs entry is
+     *      rewritten to disk and removed from prefs.
+     *   3. Bundled `assets/info-providers/<key>.json` — shipped snapshot
+     *      so a fresh install has working pricing/capabilities tiers
+     *      without forcing the user through Housekeeping → Refresh on
+     *      first run. Not written through to filesDir: timestamps stay
+     *      unset (the UI still surfaces "never refreshed"), and the
+     *      next Refresh overwrites the in-memory state and persists to
+     *      filesDir as usual. */
     private fun loadBlob(context: Context, prefsKey: String): String? {
         val f = blobFile(context, prefsKey)
         if (f.exists()) return runCatching { f.readText() }.getOrNull()
         val prefs = getPrefs(context)
-        val fromPrefs = prefs.getString(prefsKey, null) ?: return null
-        // Only drop the prefs key after the on-disk copy actually
-        // landed. The previous flow removed the prefs entry
-        // unconditionally, so a writeTextAtomic failure (disk full,
-        // permission, OOM mid-write) silently wiped the only copy.
-        if (f.writeTextAtomic(fromPrefs)) {
-            prefs.edit { remove(prefsKey) }
+        val fromPrefs = prefs.getString(prefsKey, null)
+        if (fromPrefs != null) {
+            // Only drop the prefs key after the on-disk copy actually
+            // landed. The previous flow removed the prefs entry
+            // unconditionally, so a writeTextAtomic failure (disk full,
+            // permission, OOM mid-write) silently wiped the only copy.
+            if (f.writeTextAtomic(fromPrefs)) {
+                prefs.edit { remove(prefsKey) }
+            }
+            return fromPrefs
         }
-        return fromPrefs
+        return loadBundledInfoProviderBlob(context, prefsKey)
+    }
+
+    /** Read a bundled tier blob from `assets/info-providers/<key>.json`.
+     *  Used by [loadBlob] when neither the post-Refresh file nor the
+     *  legacy prefs key exists — gives a fresh install pre-populated
+     *  pricing / capability tiers until the user runs Refresh. */
+    private fun loadBundledInfoProviderBlob(context: Context, prefsKey: String): String? = try {
+        context.assets.open("info-providers/$prefsKey.json")
+            .bufferedReader().use { it.readText() }
+    } catch (_: java.io.IOException) {
+        null  // Asset absent — tier wasn't shipped, fall through to DEFAULT_PRICING.
     }
 
     /** Atomically write a tier blob and drop the legacy prefs key if it lingers. */
