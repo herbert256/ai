@@ -933,7 +933,11 @@ fun AppNavHost(
         composable(NavRoutes.AI_RESET_RUNTIME) {
             val ctx = LocalContext.current
             com.ai.ui.admin.ResetRuntimeDataScreen(
-                onClearRuntimeData = { appViewModel.clearAllRuntimeData(ctx) },
+                onClearRuntimeData = {
+                    appViewModel.clearAllRuntimeData(ctx).also {
+                        reportViewModel.modelTestEngine.clearRun()
+                    }
+                },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )

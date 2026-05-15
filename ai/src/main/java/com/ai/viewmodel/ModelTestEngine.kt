@@ -83,9 +83,9 @@ class ModelTestEngine internal constructor(
     // -----------------------------------------------------------------
 
     /** Start a fresh run — tests every configured model of every
-     *  active provider. Replaces the previous run entirely. No-op when
-     *  a run is already in flight. */
-    fun startRun(context: Context) {
+     *  active provider whose id is in [providerIds]. Replaces the
+     *  previous run entirely. No-op when a run is already in flight. */
+    fun startRun(context: Context, providerIds: Set<String>) {
         if (runJob?.isActive == true) return
         // Cancel any leftover per-item coroutines from a prior run.
         itemJobs.values.forEach { it.cancel() }
@@ -103,6 +103,7 @@ class ModelTestEngine internal constructor(
                     // active provider. Dedupe defensively by key.
                     val items = LinkedHashMap<ModelTestKey, ModelTestState>()
                     for (service in aiSettings.getActiveServices()) {
+                        if (service.id !in providerIds) continue
                         val config = aiSettings.getProvider(service)
                         if (config.apiKey.isBlank()) continue
                         for (model in config.models) {
@@ -149,6 +150,53 @@ class ModelTestEngine internal constructor(
             }
         }
         runJob = outer
+    }
+
+    /** Active providers with a non-blank API key, each paired with its
+     *  configured-model count — the candidate set the provider-
+     *  selection screen offers. Mirrors the filter [startRun] applies
+     *  when enumerating models. */
+    fun testableProviders(): List<Pair<AppService, Int>> {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        return aiSettings.getActiveServices()
+            .map { it to aiSettings.getProvider(it) }
+            .filter { (_, config) -> config.apiKey.isNotBlank() }
+            .map { (service, config) ->
+                service to config.models.count { it.isNotBlank() }
+            }
+    }
+
+    /** Stop the in-flight run. Cancels the outer + every per-item
+     *  coroutine, then marks anything not yet finished as a cancelled
+     *  failure so the persisted run stays a consistent, complete
+     *  snapshot (and L1's count-based "running" flag goes false). */
+    fun cancel(context: Context) {
+        runJob?.cancel()
+        runJob = null
+        itemJobs.values.forEach { it.cancel() }
+        itemJobs.clear()
+        _throttledKeys.value = emptySet()
+        _run.update { run ->
+            run?.copy(items = run.items.mapValues { (_, st) ->
+                if (st.status == TestStatus.PENDING || st.status == TestStatus.RUNNING)
+                    st.copy(status = TestStatus.FAIL, errorMessage = "Cancelled")
+                else st
+            })
+        }
+        _run.value?.let { ModelTestRunStore.save(context, it) }
+        AppLog.i("ModelTest", "✕ run cancelled")
+    }
+
+    /** Drop the in-memory run + cancel any in-flight work. Paired with
+     *  [ModelTestRunStore.delete] on the Clear-runtime-data path so the
+     *  L1 screen reflects the wipe without an app restart. */
+    fun clearRun() {
+        runJob?.cancel()
+        runJob = null
+        itemJobs.values.forEach { it.cancel() }
+        itemJobs.clear()
+        _throttledKeys.value = emptySet()
+        _run.value = null
     }
 
     // -----------------------------------------------------------------

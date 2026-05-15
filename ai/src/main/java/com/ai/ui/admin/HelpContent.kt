@@ -1635,8 +1635,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you're seeing", "One row per active provider. Each row shows that provider's models-passed count and a green progress fill. Tap a provider to drill into its model list."),
             HelpCard("The stats panel", "Total models · Done (passed) · Errors · Bench · Run (in flight) · Throttled (waiting on a provider rate-limit) · Queue · Costs. Bench counts models whose key is on a >1h-429 cooldown — they failed only because they're rate-limited and will recover on their own, so they're split out from genuine Errors."),
-            HelpCard("Test all models button", "Starts a fresh run — probes every configured model of every active provider with a short \"reply OK\" prompt. It replaces the previous run's results and can be hundreds of API calls, so it's behind a confirm dialog. Disabled while a run is in flight."),
-            HelpCard("Persistence", "The last run is kept on disk and reloaded every time you open this screen, so you can leave and come back to review results. Starting a fresh run overwrites it."),
+            HelpCard("Test all models button", "Opens the provider picker, where you choose which providers to test before a fresh run starts. The run replaces the previous run's results and can be hundreds of API calls."),
+            HelpCard("Cancel test button", "While a run is in flight the bottom button turns red — tap it to stop. Models that hadn't finished are marked as a \"Cancelled\" failure so the run stays a complete, consistent snapshot."),
+            HelpCard("Persistence", "The last run is kept on disk and reloaded every time you open this screen, so you can leave and come back to review results. Starting a fresh run overwrites it; Housekeeping → Reset → Clear runtime data drops it."),
+        )
+    ),
+    "test_all_models_select" to HelpContent(
+        title = "Test all models - pick providers",
+        cards = listOf(
+            HelpCard("What you're seeing", "Every active provider that has an API key, each with its configured-model count. All are checked by default."),
+            HelpCard("Select all / none", "Quick toggles for the whole list — handy when you only want to test one or two providers."),
+            HelpCard("Start test", "Launches a fresh run scoped to the checked providers and returns to the run screen. Disabled until at least one provider is checked."),
         )
     ),
     "test_all_models_l2" to HelpContent(

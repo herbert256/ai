@@ -36,7 +36,8 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── pricing/<key>.json
 │   ├── prompt-history.json
 │   ├── prompt_cache/...
-│   └── usage-stats.json
+│   ├── usage-stats.json
+│   └── test_run.json
 └── cache/
     └── (exports, shared traces, camera captures — except
          in-flight temp files matching CACHE_TOPLEVEL_SKIP_PREFIXES)
@@ -100,6 +101,8 @@ in `FILES_DIR_BACKUP_EXCLUDES` (see next section). Notable contents:
   info" prompt and similar TTL-cached responses)
 - `usage-stats.json` — per-(provider, model, kind) cumulative
   costs that drive the AI Usage screen
+- `test_run.json` — the single most-recent "Test all models" run
+  (`ModelTestRunStore`); not excluded, so it round-trips
 
 ### Cache (under `<cacheDir>`)
 

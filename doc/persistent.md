@@ -285,6 +285,16 @@ on a 2-second debounce. `ViewModel.onCleared` forces a flush off
 the main thread on `NonCancellable` so a Refresh-all auto-restart
 can't drop in-flight stats. Read by the AI Usage screen.
 
+### `test_run.json`
+The single most-recent "Test all models" run (Housekeeping → Test →
+Test all models). One JSON document — `ModelTestRunState` with a
+per-`(provider, model)` `ModelTestState` map. Managed by
+`ModelTestRunStore`: the `ModelTestEngine` flushes it on each item
+completion (crash-safe partial results) and once on run end. A fresh
+run overwrites it; Housekeeping → Reset → Clear runtime data drops it.
+Atomic writes under a `ReentrantLock`. Not in
+`FILES_DIR_BACKUP_EXCLUDES`, so it round-trips through backup/restore.
+
 ### `prompt_cache/`
 Cached `PromptCache` entries — per-prompt cached responses with TTL.
 Used by `PromptCache` to short-circuit repeat lookups (e.g. the

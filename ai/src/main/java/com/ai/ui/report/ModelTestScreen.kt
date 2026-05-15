@@ -6,6 +6,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -21,11 +22,13 @@ import kotlinx.coroutines.withContext
  * shape.
  *  - [L1]: every active provider, the stats panel + progress bar +
  *    the "Test all models" button.
+ *  - [Select]: the provider picker shown before a fresh run starts.
  *  - [L2]: one provider's full configured model list.
  *  - [L3]: one model's test result detail.
  */
 sealed class ModelTestNav {
     object L1 : ModelTestNav()
+    object Select : ModelTestNav()
     data class L2(val providerId: String) : ModelTestNav()
     data class L3(val providerId: String, val model: String) : ModelTestNav()
 }
@@ -36,6 +39,7 @@ private val modelTestNavSaver: Saver<ModelTestNav, Any> = Saver(
     save = { nav ->
         when (nav) {
             is ModelTestNav.L1 -> listOf("L1", "", "")
+            is ModelTestNav.Select -> listOf("Select", "", "")
             is ModelTestNav.L2 -> listOf("L2", nav.providerId, "")
             is ModelTestNav.L3 -> listOf("L3", nav.providerId, nav.model)
         }
@@ -44,6 +48,7 @@ private val modelTestNavSaver: Saver<ModelTestNav, Any> = Saver(
         @Suppress("UNCHECKED_CAST")
         val l = list as List<String>
         when (l[0]) {
+            "Select" -> ModelTestNav.Select
             "L2" -> ModelTestNav.L2(l[1])
             "L3" -> ModelTestNav.L3(l[1], l[2])
             else -> ModelTestNav.L1
@@ -55,7 +60,8 @@ private val modelTestNavSaver: Saver<ModelTestNav, Any> = Saver(
  *  parameter so each screen's signature stays small (mirrors
  *  [FanOutActions]). */
 data class ModelTestActions(
-    val onStartRun: () -> Unit = {},
+    val onStartRun: (Set<String>) -> Unit = {},
+    val onCancelRun: () -> Unit = {},
     val onNavigateToTraceFile: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 )
@@ -88,13 +94,15 @@ fun ModelTestScreen(
     BackHandler {
         nav = when (val n = nav) {
             ModelTestNav.L1 -> { onBack(); return@BackHandler }
+            is ModelTestNav.Select -> ModelTestNav.L1
             is ModelTestNav.L2 -> ModelTestNav.L1
             is ModelTestNav.L3 -> ModelTestNav.L2(n.providerId)
         }
     }
 
     val actions = ModelTestActions(
-        onStartRun = { engine.startRun(context) },
+        onStartRun = { ids -> engine.startRun(context, ids) },
+        onCancelRun = { engine.cancel(context) },
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToModelInfo = onNavigateToModelInfo
     )
@@ -105,8 +113,20 @@ fun ModelTestScreen(
             throttledKeys = throttledKeys,
             actions = actions,
             onOpenProvider = { pid -> nav = ModelTestNav.L2(pid) },
+            onOpenSelect = { nav = ModelTestNav.Select },
             onBack = onBack
         )
+        is ModelTestNav.Select -> {
+            val providers = remember { engine.testableProviders() }
+            ModelTestSelectScreen(
+                providers = providers,
+                onStart = { ids ->
+                    actions.onStartRun(ids)
+                    nav = ModelTestNav.L1
+                },
+                onBack = { nav = ModelTestNav.L1 }
+            )
+        }
         is ModelTestNav.L2 -> ModelTestL2Screen(
             run = run,
             providerId = n.providerId,

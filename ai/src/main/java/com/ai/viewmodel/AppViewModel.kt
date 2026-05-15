@@ -927,31 +927,40 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     data class RuntimeWipeResult(
         val logs: Int, val chats: Int, val traces: Int,
-        val reports: Int, val prompts: Int
+        val reports: Int, val prompts: Int, val testModels: Int
     )
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
     /** Wipe the activity / personal-history surface the user almost
      *  always wants gone together: app logs, chat sessions, API
      *  traces, usage statistics, AI reports (incl. cascaded
-     *  SecondaryResult rows), and prompt history. Everything else —
-     *  configuration (providers, agents, prompts, parameters, keys),
-     *  knowledge bases, Info-provider caches, model-list cache,
-     *  embeddings — is preserved. Use Clear all configuration or
-     *  Reset application for wider wipes. */
+     *  SecondaryResult rows), prompt history, and the "Test all
+     *  models" run. Everything else — configuration (providers,
+     *  agents, prompts, parameters, keys), knowledge bases,
+     *  Info-provider caches, model-list cache, embeddings — is
+     *  preserved. Use Clear all configuration or Reset application for
+     *  wider wipes.
+     *
+     *  Drops only the persisted `test_run.json`; the caller must also
+     *  call `ModelTestEngine.clearRun()` to reset the in-memory flow. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats")
+        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats / test run")
         val chats = ChatHistoryManager.deleteAllSessions()
         val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
         val reports = ReportStorage.deleteAllReports(context)
         val prompts = settingsPrefs.clearPromptHistory()
         settingsPrefs.clearUsageStats()
+        val testModels = ModelTestRunStore.load(context)?.total ?: 0
+        ModelTestRunStore.delete(context)
         // AppLog last — the prior log lines for this method will be
         // dropped along with everything else. Recorded count is what
         // was on disk at clear-time.
         val logs = AppLog.clearLogs()
-        return RuntimeWipeResult(logs = logs, chats = chats, traces = traces, reports = reports, prompts = prompts)
+        return RuntimeWipeResult(
+            logs = logs, chats = chats, traces = traces,
+            reports = reports, prompts = prompts, testModels = testModels
+        )
     }
 
     /** Drop every cached Info-provider tier (OpenRouter / LiteLLM /

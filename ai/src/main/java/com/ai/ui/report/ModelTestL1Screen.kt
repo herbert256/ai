@@ -14,20 +14,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -51,8 +47,9 @@ import com.ai.ui.shared.formatCents
 /**
  * L1 of the Test-all-models drill-in: every active provider, the
  * stats panel + progress bar (both mirror Fan Out L1), and the
- * "Test all models" button that launches a fresh run. Tapping a
- * provider row opens L2.
+ * bottom button — "Test all models" (opens the provider picker) when
+ * idle, "Cancel test" (stops the run) while one is in flight. Tapping
+ * a provider row opens L2.
  *
  * On open, [run] is the last persisted run (or null when none has
  * been run yet).
@@ -63,10 +60,9 @@ internal fun ModelTestL1Screen(
     throttledKeys: Set<String>,
     actions: ModelTestActions,
     onOpenProvider: (String) -> Unit,
+    onOpenSelect: () -> Unit,
     onBack: () -> Unit
 ) {
-    var confirmStart by remember { mutableStateOf(false) }
-
     // Benched = FAIL AND the model is on a >1h-429 cooldown. Observed
     // reactively; expiry checked from the snapshot.
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
@@ -245,42 +241,27 @@ internal fun ModelTestL1Screen(
             }
         }
 
-        // "Test all models" button — pinned at the bottom. Disabled
-        // while a run is in flight.
+        // Bottom button — "Cancel test" (red) while a run is in
+        // flight, "Test all models" (blue, opens the provider picker)
+        // otherwise.
         val running = run != null && (run.queuedCount + run.runningCount) > 0
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = { confirmStart = true },
-            enabled = !running,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) {
-            Text(
-                if (running) "Testing…" else "Test all models",
-                fontSize = 13.sp, maxLines = 1, softWrap = false
-            )
-        }
-    }
-
-    if (confirmStart) {
-        AlertDialog(
-            onDismissRequest = { confirmStart = false },
-            title = { Text("Test all models?") },
-            text = {
-                Text(
-                    "Probes every configured model of every active provider with a short \"reply OK\" prompt. " +
-                        "This replaces the previous run's results and can be hundreds of API calls."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmStart = false
-                    actions.onStartRun()
-                }) { Text("Start", maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmStart = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+        if (running) {
+            Button(
+                onClick = { actions.onCancelRun() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+            ) {
+                Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
-        )
+        } else {
+            Button(
+                onClick = onOpenSelect,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) {
+                Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
+            }
+        }
     }
 }
