@@ -8,7 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -40,7 +40,13 @@ class MainActivity : ComponentActivity() {
 
             AppTheme {
                 Scaffold(
-                    modifier = Modifier.fillMaxSize().systemBarsPadding()
+                    // Only pad the status bar — the nav bar inset is
+                    // dropped so BottomIconBar can sit flush at the
+                    // physical bottom of the screen. Both bars share
+                    // the app's #0A0A0A background after the colours
+                    // got reconciled, so drawing under the gesture
+                    // pill stays visually consistent.
+                    modifier = Modifier.fillMaxSize().statusBarsPadding()
                 ) { innerPadding ->
                     AppNavHost(
                         modifier = Modifier.padding(innerPadding),

@@ -688,13 +688,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         ) {
             if (onBack != null) {
                 Box(
-                    modifier = Modifier.size(width = 45.dp, height = 60.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(width = 45.dp, height = 40.dp).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "←", color = Color.White, fontSize = 50.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.offset(y = (-15).dp)
+                        "←", color = Color.White, fontSize = 40.sp,
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
