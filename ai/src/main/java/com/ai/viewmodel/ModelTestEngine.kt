@@ -61,13 +61,6 @@ class ModelTestEngine internal constructor(
     private val _run = MutableStateFlow<ModelTestRunState?>(null)
     val run: StateFlow<ModelTestRunState?> = _run.asStateFlow()
 
-    /** Live UiState — re-exposed so the L1 screen can read the
-     *  current `aiSettings` and recompute catalog stats (Inaccessible
-     *  / Excluded / No chat / For testing) dynamically without
-     *  threading AppViewModel through the screen signature. */
-    val uiState: StateFlow<com.ai.viewmodel.UiState>
-        get() = appViewModel.uiState
-
     /** Keys currently blocked inside [acquireOrRequeue] — feeds the
      *  L1 "Throttled" stat. */
     private val _throttledKeys = MutableStateFlow<Set<String>>(emptySet())
@@ -85,11 +78,64 @@ class ModelTestEngine internal constructor(
     // -----------------------------------------------------------------
 
     /** Load the last persisted run into the flow on screen open.
-     *  Idempotent: a no-op once the flow already holds a run. */
+     *  Idempotent: a no-op once the flow already holds a run.
+     *
+     *  Pre-snapshot runs (persisted before catalogTotal /
+     *  inaccessibleAtStart / etc. existed) load with those fields at
+     *  zero — backfill them from current aiSettings + the providers
+     *  in the run so the L1 top row shows real counts. Persisted
+     *  back to disk so the next launch doesn't need to recompute. */
     suspend fun hydrate(context: Context) {
         if (_run.value != null) return
         val persisted = withContext(Dispatchers.IO) { ModelTestRunStore.load(context) }
-        if (persisted != null) _run.update { it ?: persisted }
+        if (persisted != null) {
+            val rehydrated = if (persisted.catalogTotal == 0 && persisted.items.isNotEmpty()) {
+                val aiSettings = appViewModel.uiState.value.aiSettings
+                val stats = computeCatalogPartition(persisted.providerIds, aiSettings)
+                val updated = persisted.copy(
+                    catalogTotal = stats.total,
+                    inaccessibleAtStart = stats.inaccessible,
+                    excludedAtStart = stats.excluded,
+                    noChatAtStart = stats.noChat
+                )
+                withContext(Dispatchers.IO) { ModelTestRunStore.save(context, updated) }
+                AppLog.i("ModelTest", "→ hydrate backfill: catalog=${stats.total}, inacc=${stats.inaccessible}, excl=${stats.excluded}, noChat=${stats.noChat}")
+                updated
+            } else persisted
+            _run.update { it ?: rehydrated }
+        }
+    }
+
+    /** Result of [computeCatalogPartition] — every model of the given
+     *  providers' catalogs falls into exactly one bucket. */
+    private data class CatalogPartition(
+        val total: Int, val inaccessible: Int, val excluded: Int, val noChat: Int
+    )
+
+    /** Bucket the catalog of [providerIds] into the four L1 top-row
+     *  categories. Priority order matters so the buckets sum back to
+     *  [total]: inaccessible > excluded > no-chat > for-testing. */
+    private fun computeCatalogPartition(
+        providerIds: List<String>,
+        aiSettings: com.ai.model.Settings
+    ): CatalogPartition {
+        var total = 0; var inacc = 0; var excl = 0; var noChat = 0
+        for (pid in providerIds) {
+            val svc = AppService.findById(pid) ?: continue
+            for (model in aiSettings.getProvider(svc).models) {
+                if (model.isBlank()) continue
+                total++
+                when {
+                    aiSettings.isInaccessible(pid, model) -> inacc++
+                    aiSettings.isTestExcluded(pid, model) -> excl++
+                    else -> {
+                        val t = aiSettings.getModelType(svc, model)
+                        if (t != null && t in NON_TESTABLE_TYPES) noChat++
+                    }
+                }
+            }
+        }
+        return CatalogPartition(total, inacc, excl, noChat)
     }
 
     // -----------------------------------------------------------------
@@ -109,35 +155,24 @@ class ModelTestEngine internal constructor(
         // do on the caller's thread; the disk write happens in dispatch.
         val aiSettings = appViewModel.uiState.value.aiSettings
         val items = LinkedHashMap<ModelTestKey, ModelTestState>()
-        // L1 top-row catalog snapshot: every model of every selected
-        // provider gets bucketed into exactly one of inaccessible /
-        // excluded / no-chat / for-testing. Priority order matters so
-        // the four buckets sum back to the catalog total without
-        // double-counting (a model in *both* inaccessible and
-        // test-excluded only adds to inaccessible).
-        var catalogTotal = 0
-        var inaccCount = 0
-        var exclCount = 0
-        var noChatCount = 0
-        for (service in aiSettings.getActiveServices()) {
-            if (service.id !in providerIds) continue
+        val selectedProviderIds = aiSettings.getActiveServices()
+            .filter { it.id in providerIds && aiSettings.getProvider(it).apiKey.isNotBlank() }
+            .map { it.id }
+        // Build the testable item list — every model that doesn't
+        // land in inaccessible / test-excluded / non-chat. The L1
+        // top-row counts come from [computeCatalogPartition] over
+        // the same provider set so they reconcile exactly.
+        for (pid in selectedProviderIds) {
+            val service = AppService.findById(pid) ?: continue
             val config = aiSettings.getProvider(service)
-            if (config.apiKey.isBlank()) continue
             for (model in config.models) {
                 if (model.isBlank()) continue
                 val key = modelTestKey(service.id, model)
                 if (key in items) continue
-                catalogTotal++
-                if (aiSettings.isInaccessible(service.id, model)) {
-                    inaccCount++; continue
-                }
-                if (aiSettings.isTestExcluded(service.id, model)) {
-                    exclCount++; continue
-                }
+                if (aiSettings.isInaccessible(service.id, model)) continue
+                if (aiSettings.isTestExcluded(service.id, model)) continue
                 val type = aiSettings.getModelType(service, model)
-                if (type != null && type in NON_TESTABLE_TYPES) {
-                    noChatCount++; continue
-                }
+                if (type != null && type in NON_TESTABLE_TYPES) continue
                 items[key] = ModelTestState(
                     key = key,
                     providerId = service.id,
@@ -146,15 +181,16 @@ class ModelTestEngine internal constructor(
                 )
             }
         }
+        val stats = computeCatalogPartition(selectedProviderIds, aiSettings)
         _run.value = ModelTestRunState(
             startedAt = System.currentTimeMillis(),
             items = items,
-            catalogTotal = catalogTotal,
-            inaccessibleAtStart = inaccCount,
-            excludedAtStart = exclCount,
-            noChatAtStart = noChatCount
+            catalogTotal = stats.total,
+            inaccessibleAtStart = stats.inaccessible,
+            excludedAtStart = stats.excluded,
+            noChatAtStart = stats.noChat
         )
-        AppLog.i("ModelTest", "→ startRun ${items.size} models (catalog=$catalogTotal, inacc=$inaccCount, excl=$exclCount, noChat=$noChatCount)")
+        AppLog.i("ModelTest", "→ startRun ${items.size} models (catalog=${stats.total}, inacc=${stats.inaccessible}, excl=${stats.excluded}, noChat=${stats.noChat})")
         dispatch(context, items.keys.toList())
     }
 

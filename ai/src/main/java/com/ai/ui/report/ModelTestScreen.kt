@@ -85,8 +85,6 @@ fun ModelTestScreen(
     val context = LocalContext.current
     val run by engine.run.collectAsState()
     val throttledKeys by engine.throttledKeys.collectAsState()
-    val uiState by engine.uiState.collectAsState()
-    val aiSettings = uiState.aiSettings
 
     // Hydrate on first entry so L1 shows the last persisted run.
     var hydrated by remember { mutableStateOf(false) }
@@ -150,7 +148,6 @@ fun ModelTestScreen(
     when (val n = nav) {
         is ModelTestNav.L1 -> ModelTestL1Screen(
             run = run,
-            aiSettings = aiSettings,
             throttledKeys = throttledKeys,
             actions = actions,
             onOpenProvider = { pid -> nav = ModelTestNav.L2(pid) },

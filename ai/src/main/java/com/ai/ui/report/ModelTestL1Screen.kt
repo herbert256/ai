@@ -57,7 +57,6 @@ import com.ai.ui.shared.formatCents
 @Composable
 internal fun ModelTestL1Screen(
     run: ModelTestRunState?,
-    aiSettings: com.ai.model.Settings,
     throttledKeys: Set<String>,
     actions: ModelTestActions,
     onOpenProvider: (String) -> Unit,
@@ -116,24 +115,17 @@ internal fun ModelTestL1Screen(
                     }
                 }
             ) {
-                // Top row — catalog summary, computed live from
-                // current aiSettings against the providers represented
-                // in this run. Each catalog model falls into exactly
-                // one bucket (priority: inaccessible > excluded >
-                // no-chat > for-testing) so the four sub-buckets +
-                // Total are consistent. Recomputes on every
-                // recomposition — cheap (~thousand checks) and keeps
-                // pre-existing persisted runs accurate without a
-                // migration.
-                val catalog = remember(run.providerIds, aiSettings) {
-                    computeCatalogStats(run.providerIds, aiSettings)
-                }
+                // Top row — catalog snapshot captured at startRun
+                // (or backfilled on hydrate for pre-snapshot persisted
+                // runs). Stable for the lifetime of the run; the four
+                // sub-buckets + "For testing" remainder always
+                // reconcile to Total.
                 val topStats = listOf(
-                    Triple("Total", catalog.total.toString(), AppColors.Blue),
-                    Triple("Inaccessible", catalog.inaccessible.toString(), AppColors.Purple),
-                    Triple("Excluded", catalog.excluded.toString(), AppColors.Yellow),
-                    Triple("No chat", catalog.noChat.toString(), AppColors.TextTertiary),
-                    Triple("For testing", catalog.forTesting.toString(), AppColors.Blue)
+                    Triple("Total", run.catalogTotal.toString(), AppColors.Blue),
+                    Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
+                    Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
+                    Triple("No chat", run.noChatAtStart.toString(), AppColors.TextTertiary),
+                    Triple("For testing", run.forTestingAtStart.toString(), AppColors.Blue)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     topStats.forEach { (label, _, color) ->
@@ -339,43 +331,3 @@ internal fun ModelTestL1Screen(
     }
 }
 
-/** Carrier for the L1 top-row catalog stats. */
-private data class CatalogStats(
-    val total: Int,
-    val inaccessible: Int,
-    val excluded: Int,
-    val noChat: Int,
-    val forTesting: Int
-)
-
-/** Bucket every model of [providerIds]' catalogs into exactly one of
- *  the four skip categories (inaccessible / excluded / no-chat /
- *  for-testing), priority-ordered so the totals always reconcile. */
-private fun computeCatalogStats(
-    providerIds: List<String>,
-    aiSettings: com.ai.model.Settings
-): CatalogStats {
-    var total = 0
-    var inacc = 0
-    var excl = 0
-    var noChat = 0
-    var forTesting = 0
-    for (pid in providerIds) {
-        val svc = AppService.findById(pid) ?: continue
-        val models = aiSettings.getProvider(svc).models
-        for (m in models) {
-            if (m.isBlank()) continue
-            total++
-            when {
-                aiSettings.isInaccessible(pid, m) -> inacc++
-                aiSettings.isTestExcluded(pid, m) -> excl++
-                else -> {
-                    val t = aiSettings.getModelType(svc, m)
-                    if (t != null && t in com.ai.data.ModelType.NON_TESTABLE_TYPES) noChat++
-                    else forTesting++
-                }
-            }
-        }
-    }
-    return CatalogStats(total = total, inaccessible = inacc, excluded = excl, noChat = noChat, forTesting = forTesting)
-}
