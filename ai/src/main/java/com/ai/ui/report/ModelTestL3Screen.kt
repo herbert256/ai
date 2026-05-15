@@ -101,6 +101,10 @@ internal fun ModelTestL3Screen(
         Spacer(Modifier.height(8.dp))
 
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Text("Provider: ${service?.id ?: providerId}", color = AppColors.TextSecondary, fontSize = 13.sp)
+            Text("Model: $model", color = AppColors.TextSecondary, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+
             // Status line.
             when (item.status) {
                 TestStatus.PASS -> Text("✅ Passed", color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
