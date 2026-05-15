@@ -242,7 +242,9 @@ private fun AnalysisRepository.streamOpenAi(
         val openAiMessages = messages.map { it.toOpenAiMessage() }
         val request = OpenAiRequest(
             model = model, messages = openAiMessages, stream = true,
-            max_tokens = params.maxTokens, temperature = params.temperature,
+            // Bounded default — see [defaultMaxTokens].
+            max_tokens = params.maxTokens ?: defaultMaxTokens(service, model),
+            temperature = params.temperature,
             top_p = params.topP, top_k = params.topK,
             frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
             search = if (params.searchEnabled) true else null,

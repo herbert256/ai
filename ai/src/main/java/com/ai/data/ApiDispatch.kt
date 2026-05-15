@@ -11,11 +11,16 @@ import okhttp3.RequestBody.Companion.toRequestBody
 // ============================================================================
 
 /**
- * Anthropic requires max_tokens on every request. The API caps differ by model;
- * sending 4096 for a Claude 4 Sonnet/Opus silently truncates long completions.
- * This returns a safe default when the user didn't specify one.
+ * A safe `max_tokens` for a (service, model) when the user didn't set one.
+ *
+ * Anthropic *requires* max_tokens, so this was originally a Claude-only
+ * helper. But OpenAI-compatible providers need it too: omitting max_tokens
+ * lets balance-gating providers (OpenRouter) pre-authorise the model's
+ * entire output window against the account balance, which 402s expensive
+ * models that would answer a normal request fine. Per-model rule first
+ * (the provider's maxTokensDefaults table), then a sane fixed fallback.
  */
-internal fun defaultClaudeMaxTokens(service: AppService, model: String): Int =
+internal fun defaultMaxTokens(service: AppService, model: String): Int =
     service.maxTokensDefaults.resolveMaxTokens(model) ?: 4_096
 
 /**
@@ -315,7 +320,8 @@ private suspend fun AnalysisRepository.chatOpenAi(
     val openAiMessages = messages.map { it.toOpenAiMessage() }
     val request = OpenAiRequest(
         model = model, messages = openAiMessages,
-        max_tokens = params.maxTokens, temperature = params.temperature,
+        max_tokens = params.maxTokens ?: defaultMaxTokens(service, model),
+        temperature = params.temperature,
         top_p = params.topP, top_k = params.topK,
         frequency_penalty = params.frequencyPenalty, presence_penalty = params.presencePenalty,
         search = if (params.searchEnabled) true else null,
@@ -857,7 +863,11 @@ internal fun buildOpenAiRequest(service: AppService, model: String, messages: Li
     val jsonAllowed = jsonRequested && PricingCache.liteLLMSupportsResponseSchema(service, model) != false
     return OpenAiRequest(
         model = model, messages = messages, stream = stream,
-        max_tokens = params?.maxTokens, temperature = params?.temperature,
+        // Fall back to a bounded default so balance-gating providers
+        // (OpenRouter) don't pre-authorise the model's whole output
+        // window — see [defaultMaxTokens].
+        max_tokens = params?.maxTokens ?: defaultMaxTokens(service, model),
+        temperature = params?.temperature,
         top_p = params?.topP, top_k = params?.topK,
         frequency_penalty = params?.frequencyPenalty, presence_penalty = params?.presencePenalty,
         stop = params?.stopSequences?.takeIf { it.isNotEmpty() },
@@ -1097,7 +1107,7 @@ internal fun claudeReasoningBundle(
 ): ClaudeReasoningBundle {
     val thinking = anthropicThinkingField(service, model, effort)
     val outputConfig = anthropicOutputConfigField(service, model, effort)
-    val baseMax = requestedMax ?: defaultClaudeMaxTokens(service, model)
+    val baseMax = requestedMax ?: defaultMaxTokens(service, model)
     val budget = (thinking?.get("budget_tokens") as? Int) ?: 0
     // Anthropic 400s when max_tokens <= budget_tokens — give the
     // response some additional headroom on top of the thinking budget.
