@@ -84,7 +84,8 @@ object ModelType {
                 "imagen" in id || "flux" in id || "stable-diffusion" in id ||
                 "sdxl" in id || "nano-banana" in id || id.startsWith("bria/") ||
                 id.startsWith("bria-") || "lyria" in id || "-t2v-" in id ||
-                "-i2v-" in id || "text-to-video" in id || "image-preview" in id -> IMAGE
+                "-i2v-" in id || "text-to-video" in id || "image-preview" in id ||
+                id.startsWith("grok-imagine-") -> IMAGE
             else -> CHAT
         }
     }
