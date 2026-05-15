@@ -1132,13 +1132,15 @@ private fun UiTweaksSubScreen(
 ) {
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
+    var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
-        showKnowledgeCard = showKnowledgeCard
+        showKnowledgeCard = showKnowledgeCard,
+        fullScreen = fullScreen
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1177,6 +1179,12 @@ private fun UiTweaksSubScreen(
                 description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
                 checked = showKnowledgeCard,
                 onCheckedChange = { showKnowledgeCard = it }
+            )
+            ToggleSettingCard(
+                title = "Full screen",
+                description = "Hide the Android status bar (clock / battery / signal) so the app uses the full screen height. Swipe down from the top edge to reveal the bar transiently.",
+                checked = fullScreen,
+                onCheckedChange = { fullScreen = it }
             )
         }
     }

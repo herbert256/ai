@@ -63,6 +63,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
+            fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, true),
             modelNameLayout = modelNameLayout,
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
@@ -112,6 +113,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
+            putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
@@ -490,6 +492,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
+        private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"

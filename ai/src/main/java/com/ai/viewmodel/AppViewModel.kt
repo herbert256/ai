@@ -47,6 +47,11 @@ data class GeneralSettings(
      *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
      *  sites consult a single global. */
     val tracingEnabled: Boolean = true,
+    /** True (default) hides the Android status bar — clock, signal,
+     *  battery — so the app gets the full screen height. Reads via
+     *  WindowInsetsControllerCompat in MainActivity on every settings
+     *  flush. Off restores the bar. */
+    val fullScreen: Boolean = true,
     /** Controls whether combined provider+model labels (Fan out drill-in
      *  rows, secondary picker buttons, agent rows on Report Result,
      *  chat headers, …) show only the model or both. Provided to the

@@ -10,8 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.data.SharedContent
 import com.ai.ui.navigation.AppNavHost
@@ -37,16 +43,32 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val viewModel: AppViewModel = viewModel()
+            val uiState by viewModel.uiState.collectAsState()
+            val fullScreen = uiState.generalSettings.fullScreen
+            // Apply / restore the Android status-bar hide based on the
+            // user's Full screen toggle. WindowInsetsControllerCompat
+            // is idempotent so re-running on every recomposition where
+            // fullScreen changed is fine.
+            LaunchedEffect(fullScreen) {
+                val controller = WindowInsetsControllerCompat(window, window.decorView)
+                if (fullScreen) {
+                    controller.systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsetsCompat.Type.statusBars())
+                } else {
+                    controller.show(WindowInsetsCompat.Type.statusBars())
+                }
+            }
 
             AppTheme {
                 Scaffold(
-                    // Only pad the status bar — the nav bar inset is
-                    // dropped so BottomIconBar can sit flush at the
-                    // physical bottom of the screen. Both bars share
-                    // the app's #0A0A0A background after the colours
-                    // got reconciled, so drawing under the gesture
-                    // pill stays visually consistent.
-                    modifier = Modifier.fillMaxSize().statusBarsPadding()
+                    // Pad the status bar only when it's visible — with
+                    // Full screen on the bar is hidden so there's no
+                    // inset to reserve for it. Both system bars share
+                    // the app's #0A0A0A background so drawing under
+                    // the gesture pill stays visually consistent.
+                    modifier = if (fullScreen) Modifier.fillMaxSize()
+                               else Modifier.fillMaxSize().statusBarsPadding()
                 ) { innerPadding ->
                     AppNavHost(
                         modifier = Modifier.padding(innerPadding),
