@@ -2,7 +2,6 @@ package com.ai.ui.report
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -11,9 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,6 +21,7 @@ import com.ai.data.AppService
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -177,7 +175,6 @@ fun ReportSingleResultScreen(
         )
     }
     val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
-    val swipeThresholdPx = with(LocalDensity.current) { 60.dp.toPx() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "report_single_result",
@@ -207,20 +204,17 @@ fun ReportSingleResultScreen(
         )
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)
-            .pointerInput(currentAgentId, orderedAgents) {
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onDragEnd = {
-                        if (totalDrag > swipeThresholdPx) {
-                            orderedAgents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
-                        } else if (totalDrag < -swipeThresholdPx) {
-                            orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
-                        }
-                    },
-                    onDragCancel = { totalDrag = 0f }
-                ) { _, dragAmount -> totalDrag += dragAmount }
-            }) {
+            .horizontalSwipeNavigation(
+                key1 = currentAgentId,
+                key2 = orderedAgents,
+                onSwipeLeft = {
+                    orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
+                },
+                onSwipeRight = {
+                    orderedAgents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
+                }
+            )
+        ) {
             val rawBody = agent.responseBody
             val errorMessage = agent.errorMessage
             when {
@@ -285,32 +279,10 @@ fun ReportSingleResultScreen(
             }
         }
 
-        // Previous / Next — step through every agent on this report
-        // (success and error rows alike). Same ordering and index the
-        // swipe handler above uses. Updating currentAgentId rekeys the
-        // trace lookup and the source-agent body produceState so they
-        // re-fetch.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Button(
-                onClick = {
-                    orderedAgents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
-                },
-                enabled = agentIdx > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Previous", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
-                },
-                enabled = agentIdx >= 0 && agentIdx < orderedAgents.size - 1,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Next", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        }
+        // Step between agents via the horizontalSwipeNavigation handler
+        // on the response Box above — swipe left advances, right goes
+        // back. Updating currentAgentId rekeys the trace lookup and the
+        // source-agent body produceState so they re-fetch.
 
         if (canShowTranslation) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

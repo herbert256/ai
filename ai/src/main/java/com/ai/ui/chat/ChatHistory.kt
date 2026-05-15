@@ -22,6 +22,7 @@ import com.ai.data.ChatHistoryManager
 import com.ai.data.ChatSession
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.horizontalSwipeNavigation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -67,10 +68,15 @@ fun ChatHistoryScreen(
                     if (currentPage >= totalPages && totalPages > 0) currentPage = totalPages - 1
                 }
 
-                Column(modifier = Modifier.fillMaxSize()) {
-                    PaginationControls(currentPage, totalPages, allSessions.size) { currentPage = it }
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                Column(
+                    modifier = Modifier.fillMaxSize()
+                        .horizontalSwipeNavigation(
+                            key1 = currentPage,
+                            key2 = totalPages,
+                            onSwipeLeft = { if (currentPage < totalPages - 1) currentPage += 1 },
+                            onSwipeRight = { if (currentPage > 0) currentPage -= 1 }
+                        )
+                ) {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(currentPageSessions, key = { it.id }) { session ->
                             // Per-row trace probe \u2014 gates the \uD83D\uDC1E icon's
@@ -112,26 +118,17 @@ fun ChatHistoryScreen(
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))
-                    PaginationControls(currentPage, totalPages, allSessions.size) { currentPage = it }
+                    // Page status only — Previous/Next gestures live on
+                    // the horizontalSwipeNavigation modifier wrapping
+                    // the surrounding Column.
+                    Text(
+                        text = "Page ${currentPage + 1} of $totalPages (${allSessions.size} chats)",
+                        fontSize = 12.sp, color = AppColors.TextTertiary,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PaginationControls(currentPage: Int, totalPages: Int, totalItems: Int, onPageChange: (Int) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TextButton(onClick = { onPageChange(currentPage - 1) }, enabled = currentPage > 0) {
-            Text("< Previous", color = if (currentPage > 0) AppColors.Blue else AppColors.TextDim, maxLines = 1, softWrap = false)
-        }
-        Text("Page ${currentPage + 1} of $totalPages ($totalItems chats)", fontSize = 12.sp, color = AppColors.TextTertiary)
-        TextButton(onClick = { onPageChange(currentPage + 1) }, enabled = currentPage < totalPages - 1) {
-            Text("Next >", color = if (currentPage < totalPages - 1) AppColors.Blue else AppColors.TextDim, maxLines = 1, softWrap = false)
         }
     }
 }

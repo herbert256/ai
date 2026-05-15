@@ -888,7 +888,16 @@ fun TraceDetailScreen(
             else -> null
         } else null
 
-        Box(modifier = Modifier.weight(1f)) {
+        Box(modifier = Modifier.weight(1f).horizontalSwipeNavigation(
+            key1 = currentFilename,
+            key2 = traceFiles,
+            onSwipeLeft = {
+                if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
+            },
+            onSwipeRight = {
+                if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
+            }
+        )) {
             if (treeNodes != null) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     items(treeNodes.size) { index ->
@@ -926,13 +935,10 @@ fun TraceDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Bottom buttons: navigation + actions
+        // Bottom buttons — navigation between traces is via horizontal
+        // swipe on the content Box above. This row carries the
+        // non-navigation actions only.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(onClick = {
-                if (hasPrev) { currentFilename = traceFiles[currentIndex - 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
-            }, enabled = hasPrev, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp).semantics { contentDescription = "Previous trace" }, colors = AppColors.outlinedButtonColors()
-            ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             // Fixed report indicator + jump-back button. Only rendered
             // when this trace is report-scoped — paints the same 📝
             // glyph every report-scoped screen uses, so the user has
@@ -970,11 +976,6 @@ fun TraceDetailScreen(
                     }
                 onEditRequest()
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = {
-                if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
-            }, enabled = hasNext, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp).semantics { contentDescription = "Next trace" }, colors = AppColors.outlinedButtonColors()
-            ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
         }
     }
 }

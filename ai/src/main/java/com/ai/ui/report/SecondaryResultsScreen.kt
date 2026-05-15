@@ -28,6 +28,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1059,6 +1060,23 @@ private fun ColumnScope.FanOutDrillInView(
         }
         com.ai.ui.shared.HardcodedSubjectRow(sourceLabel)
         Spacer(modifier = Modifier.height(4.dp))
+        // Walk the L2 list in role-aware order via horizontal swipes —
+        // left advances to the next pair, right backs up to the
+        // previous one. l3PairKey is "$pid|$mdl|$srcAgentId"; split on
+        // the LAST `|` so a model name containing a literal pipe
+        // doesn't shift the ans/src boundary.
+        val currentPairKey = "$answererKeyL3|$srcAgentIdL3"
+        val currentIdx = remember(l2Rows, currentPairKey) {
+            l2Rows.indexOfFirst { it.l3PairKey == currentPairKey }
+        }
+        fun gotoPair(row: L2Row?) {
+            row ?: return
+            val pivot = row.l3PairKey.lastIndexOf('|')
+            val ans = if (pivot > 0) row.l3PairKey.substring(0, pivot) else row.l3PairKey
+            val src = if (pivot > 0) row.l3PairKey.substring(pivot + 1) else ""
+            l3AnswererKey = ans
+            l3SourceAgentId = src
+        }
         // Source response (top) + answerer response (bottom). Top
         // wraps to its content but is capped at half the available
         // height so a long source body can never push the response
@@ -1066,6 +1084,16 @@ private fun ColumnScope.FanOutDrillInView(
         // split-pane shape.
         androidx.compose.foundation.layout.BoxWithConstraints(
             modifier = Modifier.weight(1f).fillMaxWidth()
+                .horizontalSwipeNavigation(
+                    key1 = currentPairKey,
+                    key2 = l2Rows,
+                    onSwipeLeft = {
+                        if (currentIdx in 0 until l2Rows.size - 1) gotoPair(l2Rows.getOrNull(currentIdx + 1))
+                    },
+                    onSwipeRight = {
+                        if (currentIdx > 0) gotoPair(l2Rows.getOrNull(currentIdx - 1))
+                    }
+                )
         ) {
             val halfMax = maxHeight / 2
             Column(modifier = Modifier.fillMaxSize()) {
@@ -1141,44 +1169,6 @@ private fun ColumnScope.FanOutDrillInView(
                     }
                 }
             }
-        }
-        // Previous / Next — step through the L2 list in role-aware order.
-        // The current pair is identified by l3PairKey. Disabled at ends.
-        Spacer(modifier = Modifier.height(8.dp))
-        val currentPairKey = "$answererKeyL3|$srcAgentIdL3"
-        val currentIdx = remember(l2Rows, currentPairKey) {
-            l2Rows.indexOfFirst { it.l3PairKey == currentPairKey }
-        }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = {
-                    val prev = l2Rows.getOrNull(currentIdx - 1) ?: return@Button
-                    // l3PairKey is "$pid|$mdl|$srcAgentId" — split
-                    // off the last segment so a model name with a `|`
-                    // in it doesn't shift the ans / src boundary.
-                    val pivot = prev.l3PairKey.lastIndexOf('|')
-                    val ans = if (pivot > 0) prev.l3PairKey.substring(0, pivot) else prev.l3PairKey
-                    val src = if (pivot > 0) prev.l3PairKey.substring(pivot + 1) else ""
-                    l3AnswererKey = ans
-                    l3SourceAgentId = src
-                },
-                enabled = currentIdx > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Previous", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    val next = l2Rows.getOrNull(currentIdx + 1) ?: return@Button
-                    val pivot = next.l3PairKey.lastIndexOf('|')
-                    val ans = if (pivot > 0) next.l3PairKey.substring(0, pivot) else next.l3PairKey
-                    val src = if (pivot > 0) next.l3PairKey.substring(pivot + 1) else ""
-                    l3AnswererKey = ans
-                    l3SourceAgentId = src
-                },
-                enabled = currentIdx >= 0 && currentIdx < l2Rows.size - 1,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Next", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
         return
     }

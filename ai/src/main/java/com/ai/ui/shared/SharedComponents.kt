@@ -7,14 +7,18 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -23,6 +27,40 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
+
+/** Horizontal swipe-to-navigate, the pattern first introduced on the
+ *  Model response screen: swipe **left** for the next item, **right**
+ *  for the previous one. Uses [detectHorizontalDragGestures], which
+ *  only consumes events after horizontal touch slop — so a vertical
+ *  scroll inside the gestured region keeps working untouched.
+ *
+ *  [key1] / [key2] feed [pointerInput]'s keys so the lambdas always
+ *  close over fresh state when the current item or its surrounding
+ *  list changes. Bound checks are the caller's responsibility — the
+ *  callbacks should no-op at list ends (the buttons they replace
+ *  were disabled there). */
+fun Modifier.horizontalSwipeNavigation(
+    key1: Any?,
+    key2: Any? = Unit,
+    thresholdDp: Dp = 60.dp,
+    onSwipeLeft: () -> Unit,
+    onSwipeRight: () -> Unit,
+): Modifier = this.composed {
+    val thresholdPx = with(LocalDensity.current) { thresholdDp.toPx() }
+    pointerInput(key1, key2) {
+        var totalDrag = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { totalDrag = 0f },
+            onDragEnd = {
+                when {
+                    totalDrag > thresholdPx -> onSwipeRight()
+                    totalDrag < -thresholdPx -> onSwipeLeft()
+                }
+            },
+            onDragCancel = { totalDrag = 0f }
+        ) { _, dragAmount -> totalDrag += dragAmount }
+    }
+}
 
 /** Returns a state that increments every time the host's
  *  [androidx.lifecycle.Lifecycle] reaches [Lifecycle.State.RESUMED].

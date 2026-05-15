@@ -27,6 +27,7 @@ import com.ai.data.LogLevel
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.copyToClipboard
+import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.shareText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -717,7 +718,15 @@ fun AppLogDetailScreen(
         // screen view of that one entry with prev/next within this
         // file's entry list. Stack-trace continuation lines stay
         // glued to their header by parseLogEntries.
-        Box(modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)) {
+        Box(
+            modifier = Modifier.weight(1f).background(AppColors.CardBackground).padding(8.dp)
+                .horizontalSwipeNavigation(
+                    key1 = currentFilename,
+                    key2 = files,
+                    onSwipeLeft = { if (hasNext) currentFilename = files[currentIndex + 1] },
+                    onSwipeRight = { if (hasPrev) currentFilename = files[currentIndex - 1] }
+                )
+        ) {
             if (entries.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
@@ -748,25 +757,13 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            OutlinedButton(
-                onClick = { if (hasPrev) currentFilename = files[currentIndex - 1] },
-                enabled = hasPrev, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("<", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-            Text(
-                if (currentIndex >= 0) "${currentIndex + 1} / ${files.size}" else "",
-                fontSize = 12.sp, color = AppColors.TextTertiary,
-                modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-            )
-            OutlinedButton(
-                onClick = { if (hasNext) currentFilename = files[currentIndex + 1] },
-                enabled = hasNext, contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.width(36.dp),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text(">", fontSize = 14.sp, maxLines = 1, softWrap = false) }
-        }
+        // File-step navigation moved to horizontal swipe on the log
+        // content Box above. Counter stays as a centred status.
+        Text(
+            if (currentIndex >= 0) "${currentIndex + 1} / ${files.size}" else "",
+            fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+        )
     }
 }
 
