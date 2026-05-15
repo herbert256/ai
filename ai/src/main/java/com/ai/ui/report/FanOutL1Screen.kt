@@ -204,27 +204,10 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Mode toggle below the stats row. "Icons" (MAIN mode)
-        // switches to ICONS mode — confirming "Start Icons job"
-        // first when no fan-icons run exists yet; "Responses"
-        // (ICONS mode) switches back to MAIN.
+        // Mode-toggle moved to the bottom button row (next to Run a
+        // Fan in prompt / Show icons) so the stats area stays tight.
         val hasFanIcons = remember(run) {
             run.pairs.values.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                if (isIconsMode) onShowResponses()
-                else if (hasFanIcons) onShowFanIcons()
-                else confirmStartIcons = true
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) {
-            Text(
-                if (isIconsMode) "Responses" else "Icons",
-                fontSize = 12.sp, maxLines = 1, softWrap = false
-            )
         }
 
         // Per-failure controls. The remove/restart buttons act on the
@@ -458,24 +441,40 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // Bottom button — keeps the L1 page leading with the model
-        // list. MAIN mode: "Run a Fan in prompt". ICONS mode:
-        // "Show icons" (opens the L1 Icons grid), gated on at least
-        // one pair having a fan-out icon.
-        if (!isIconsMode) {
-            Spacer(modifier = Modifier.height(8.dp))
+        // Bottom button row — mode toggle + the action button for the
+        // current mode share a Row at the foot of the screen so the
+        // L1 page leads with the model list and ends with everything
+        // the user might tap next.
+        Spacer(modifier = Modifier.height(8.dp))
+        val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(
-                onClick = { actions.onRunFanIn(run.key) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        } else {
-            val hasIcons = remember(run) { run.pairs.values.any { !it.icon.isNullOrBlank() } }
-            if (hasIcons) {
-                Spacer(modifier = Modifier.height(8.dp))
+                onClick = {
+                    if (isIconsMode) onShowResponses()
+                    else if (hasFanIcons) onShowFanIcons()
+                    else confirmStartIcons = true
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) {
+                Text(
+                    if (isIconsMode) "Responses" else "Icons",
+                    fontSize = 12.sp, maxLines = 1, softWrap = false
+                )
+            }
+            if (!isIconsMode) {
+                Button(
+                    onClick = { actions.onRunFanIn(run.key) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
+            } else if (hasIcons) {
                 Button(
                     onClick = onOpenIcons,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                 ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
