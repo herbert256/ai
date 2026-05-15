@@ -728,16 +728,18 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) {
+                // Larger glyph with negative y offset — the arrow lifts
+                // above the action-icon strip baseline for a more
+                // tappable target, while the Box's reserved height
+                // still matches the icon row so the bar stays tight.
                 Box(
-                    // Match the icon strip's intrinsic 32 dp height
-                    // so the row sizes to its content — no top slack
-                    // above the action icons.
-                    modifier = Modifier.size(width = 45.dp, height = 32.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(width = 50.dp, height = 32.dp).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "←", color = Color.White, fontSize = 32.sp,
-                        fontWeight = FontWeight.Black
+                        "←", color = Color.White, fontSize = 48.sp,
+                        fontWeight = FontWeight.Black,
+                        modifier = Modifier.offset(y = (-10).dp)
                     )
                 }
             }
