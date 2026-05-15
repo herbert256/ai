@@ -132,7 +132,11 @@ internal fun ModelTestL1Screen(
                     Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
                     Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
                     Triple("No chat", run.noChatAtStart.toString(), AppColors.Orange),
-                    Triple("For testing", forTesting.toString(), AppColors.Blue)
+                    Triple("For testing", forTesting.toString(), AppColors.Blue),
+                    // Costs replaces the standalone "Total costs" header
+                    // row that used to live above the provider list — same
+                    // value, just hoisted into the top stats grid.
+                    Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.Blue)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     topStats.forEach { (label, _, color) ->
@@ -202,34 +206,7 @@ internal fun ModelTestL1Screen(
             // the per-row progress chrome for a calm final list.
             val allDone = run.total > 0 && (run.queuedCount + run.runningCount) == 0
             LazyColumn(modifier = Modifier.weight(1f)) {
-                // Total-costs header row: same layout as the per-
-                // provider rows below so the dollar amount aligns
-                // with each provider's cost column. The leading
-                // 20dp spacer keeps alignment when the per-provider
-                // rows are showing a status icon (run in flight);
-                // it collapses with the icon column being absent
-                // once allDone, but the right-edge cost stays
-                // aligned because both use the same width-1f label.
-                item(key = "__total_costs__") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (!allDone) Spacer(modifier = Modifier.width(20.dp))
-                        Text(
-                            "Total costs",
-                            fontSize = 13.sp, color = AppColors.TextTertiary,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp)
-                        )
-                        Text(
-                            formatCents(run.totalCost, decimals = 2),
-                            fontSize = 11.sp, color = AppColors.Blue,
-                            fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    HorizontalDivider(color = AppColors.DividerDark)
-                }
+                // Total cost moved into the top stats row.
                 items(sortedProviders, key = { it }) { pid ->
                     val items = run.itemsForProvider(pid)
                     val total = items.size
