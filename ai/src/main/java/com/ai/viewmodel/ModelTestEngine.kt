@@ -11,6 +11,7 @@ import com.ai.data.ModelTestRunState
 import com.ai.data.ModelTestRunStore
 import com.ai.data.ModelTestState
 import com.ai.data.PricingCache
+import com.ai.data.ProviderThrottle
 import com.ai.data.TestStatus
 import com.ai.data.analyze
 import com.ai.data.modelTestKey
@@ -19,6 +20,7 @@ import com.ai.data.withTracerTags
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -262,10 +264,19 @@ class ModelTestEngine internal constructor(
                     transition(key) { it.copy(status = TestStatus.RUNNING) }
                     val t0 = System.currentTimeMillis()
                     try {
-                        val response = withTraceCategory("Test all models") {
-                            appViewModel.repository.analyze(
-                                service, apiKey, AnalysisRepository.TEST_PROMPT, item.model
-                            )
+                        // acquireOrRequeue already holds the per-host
+                        // throttle permit — flag it so the OkHttp
+                        // interceptor skips its own acquire. Without
+                        // this the interceptor re-acquires on the same
+                        // per-host semaphore and three same-host probes
+                        // self-deadlock (each waits on a permit its own
+                        // coroutine holds).
+                        val response = withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTraceCategory("Test all models") {
+                                appViewModel.repository.analyze(
+                                    service, apiKey, AnalysisRepository.TEST_PROMPT, item.model
+                                )
+                            }
                         }
                         val durationMs = System.currentTimeMillis() - t0
                         val (inCost, outCost) = response.tokenUsage?.let { usage ->
