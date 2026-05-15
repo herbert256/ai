@@ -443,7 +443,15 @@ internal fun ColumnScope.GenerationPhase(
                     color = createColor, text = "Meta",
                     enabled = metaPrompts.isNotEmpty()
                 )
-                CompactButton(onClick = { close(); onOpenRerankPicker() }, color = createColor, text = "Rerank")
+                CompactButton(onClick = {
+                    // The rerank picker enumerates every configured
+                    // provider's models filtered to RERANK type; on
+                    // catalog-heavy setups that first composition can
+                    // take a noticeable beat. Toast on tap so the user
+                    // knows the click landed.
+                    android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
+                    close(); onOpenRerankPicker()
+                }, color = createColor, text = "Rerank")
                 CompactButton(
                     onClick = { close(); onOpenFanOutPicker() },
                     color = createColor, text = "Fan out",
