@@ -8,12 +8,12 @@
 
     <!-- Letter A -->
     <path
-        android:fillColor="#448AFF"
+        android:fillColor="#2962FF"
         android:pathData="M28,75 L38,35 L48,35 L58,75 L50,75 L48,67 L38,67 L36,75 Z M40,60 L46,60 L43,47 Z"/>
 
     <!-- Letter I -->
     <path
-        android:fillColor="#448AFF"
+        android:fillColor="#2962FF"
         android:pathData="M62,35 L70,35 L70,75 L62,75 Z"/>
 
     <!-- Neural network nodes - top (converging to letter A) -->
