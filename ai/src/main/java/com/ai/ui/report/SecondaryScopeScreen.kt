@@ -226,9 +226,11 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            // Translation language fan-out only applies to meta-category
-            // prompts. fan out runs always use the original.
-            if (isMetaCategory && languages.isNotEmpty()) {
+            // Translation language fan-out: meta and fan_out categories
+            // both surface the picker when the report has translation
+            // rows so the user can target the fan-out at a specific
+            // language instead of always falling back to the original.
+            if ((isMetaCategory || metaPrompt.category == "fan_out") && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
