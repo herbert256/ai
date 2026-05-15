@@ -2445,13 +2445,11 @@ fun ReportsScreen(
         if (isGenerating) {
             com.ai.ui.shared.HardcodedSubjectRow(uiState.genericPromptTitle)
         }
-        // Tight spacing into the action row on the result page —
-        // the TitleBar already pads itself 8dp at the bottom, so an
-        // extra full Spacer felt loose. 2dp keeps a visible seam
-        // without leaving the buttons stranded below the bar. The
-        // selection phase still has its own breathing room inside
-        // SelectionPhase.
-        Spacer(modifier = Modifier.height(if (isGenerating) 2.dp else 8.dp))
+        // Result page: 2dp keeps a visible seam between the bar and
+        // the action row. Selection phase has no HardcodedSubjectRow
+        // above it, so no Spacer at all — SelectionPhase brings its
+        // own padding.
+        if (isGenerating) Spacer(modifier = Modifier.height(2.dp))
 
         if (!isGenerating) {
             // Selection phase
