@@ -201,13 +201,25 @@ internal fun SecondaryResultsScreen(
         if (recentlySettled.isEmpty()) runningFanOutPairs
         else runningFanOutPairs + recentlySettled
     }
-    // Single disk pass per refreshTick. Previously three separate
+    // Throttled mirror of refreshTick — updates at most once every
+    // 500 ms via sample(). Every downstream produceState / hydrate
+    // re-keys on THIS tick instead of refreshTick directly, so a fan-
+    // icons burst that fires refreshTick ~20× per second doesn't
+    // cancel in-flight disk reads (which take longer than the burst
+    // interval). First emission is immediate so the page isn't blank.
+    @OptIn(FlowPreview::class)
+    val throttledTick by produceState(initialValue = refreshTick, reportId) {
+        androidx.compose.runtime.snapshotFlow { refreshTick }
+            .sample(500L)
+            .collect { value = it }
+    }
+    // Single disk pass per throttledTick. Previously three separate
     // produceStates each called SecondaryResultStorage.listForReport,
     // which re-parses every JSON file in the report's secondary dir
     // regardless of the requested kind (kind filtering is post-parse).
     // For an N-agent Fan out run that's 3 × N(N-1) re-parses every
     // 500 ms while batching. One read, three derived views.
-    val allRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, refreshTick) {
+    val allRows by produceState(initialValue = emptyList<SecondaryResult>(), reportId, throttledTick) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, kind = null)
         }
@@ -439,28 +451,15 @@ internal fun SecondaryResultsScreen(
             // disk; subsequent disk changes (via the existing
             // ReportViewModel runners) re-hydrate on each refresh tick.
             val runKey = com.ai.data.runKey(reportId, fanOutPrompt.id)
-            // Throttle hydration to ~3 fps. The old key-on-tick
-            // pattern re-launched (and cancelled) the in-flight
-            // hydrate every time refreshTick bumped — during a
-            // fan-icons burst the disk pass (1k+ JSON files) was
-            // perpetually cancelled, the L1 stats froze, and only
-            // when the burst settled did one hydrate finish and the
-            // count jump by 100+. snapshotFlow + sample() ensures
-            // at most one hydrate is dispatched per 300 ms window
-            // and the running hydrate is never cancelled mid-read.
-            @OptIn(FlowPreview::class)
-            LaunchedEffect(reportId, runKey) {
-                androidx.compose.runtime.snapshotFlow { refreshTick }
-                    .sample(300L)
-                    .collect {
-                        withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
-                    }
-            }
-            // Kick off the first hydrate immediately on entry — sample()
-            // only starts emitting after its first window elapses, so
-            // without this prime the screen would show stale data for
-            // the first 300 ms.
-            LaunchedEffect(reportId, runKey) {
+            // One hydrate per ~500 ms regardless of refreshTick rate.
+            // Re-keying on refreshTick (the old pattern) cancelled the
+            // in-flight 1k-file hydrate mid-read on every burst tick,
+            // so the L1 stats froze for the whole batch then jumped
+            // 100+ in one frame at the end. throttledTick (defined
+            // above) is the shared lag-once-per-window signal —
+            // allRows below sees the same throttle so we don't double
+            // up on disk reads.
+            LaunchedEffect(reportId, runKey, throttledTick) {
                 withContext(Dispatchers.IO) { fanOutEngine.hydrate(context, reportId) }
             }
             val actions = FanOutActions(
