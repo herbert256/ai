@@ -176,9 +176,6 @@ fun ModelInfoScreen(
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
-    var modelInfo by remember { mutableStateOf<ModelInfoData?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
     var aiDescription by remember { mutableStateOf<String?>(null) }
     var isAiLoading by remember { mutableStateOf(false) }
     var showAgentEdit by remember { mutableStateOf(false) }
@@ -269,80 +266,70 @@ fun ModelInfoScreen(
         return
     }
 
-    // Fetch model info from OpenRouter + HuggingFace
-    LaunchedEffect(provider, modelName) {
-        isLoading = true; errorMessage = null
-        try {
-            val loadedInfo = withContext(Dispatchers.IO) {
-                var orInfo: OpenRouterModelInfo? = null
-                var hfInfo: HuggingFaceModelInfo? = null
-
+    // OpenRouter catalog lookup — runs in parallel with the HF call
+    // below. Each card consuming OR data renders as soon as this
+    // arrives; the rest of the page doesn't wait. The page paints
+    // immediately on entry — cards that need this just stay hidden
+    // until orInfo becomes non-null.
+    val orInfo by produceState<OpenRouterModelInfo?>(initialValue = null, provider, modelName) {
+        if (openRouterApiKey.isBlank()) return@produceState
+        value = withContext(Dispatchers.IO) {
+            try {
+                val models = ModelInfoCache.getOpenRouterModels(openRouterApiKey)
                 // Provider APIs and OpenRouter disagree on punctuation —
                 // Anthropic ships "claude-opus-4-6" while OpenRouter
                 // catalogs it as "anthropic/claude-opus-4.6". Normalize
-                // both sides by treating '.' and '-' as equivalent so the
-                // lookup connects regardless of which form the model id
-                // uses.
-                fun norm(s: String): String = s.replace('.', '-').lowercase()
+                // both sides by treating '.' and '-' as equivalent.
+                fun norm(s: String) = s.replace('.', '-').lowercase()
                 val targetNorm = norm(modelName)
-
-                // OpenRouter lookup
-                if (openRouterApiKey.isNotBlank()) {
-                    try {
-                        val models = ModelInfoCache.getOpenRouterModels(openRouterApiKey)
-                        val orName = provider.openRouterName
-                        val prefixedTargetNorm = if (orName != null) norm("$orName/$modelName") else null
-                        orInfo = models.firstOrNull { norm(it.id) == prefixedTargetNorm }
-                            ?: models.firstOrNull { norm(it.id).endsWith("/$targetNorm") }
-                            ?: models.firstOrNull { norm(it.id) == targetNorm }
-                    } catch (_: Exception) {}
-                }
-
-                // HuggingFace lookup — cached for a week (HuggingFaceCache),
-                // including misses so we don't hammer HF with re-tries for
-                // models that simply don't have an HF mirror.
-                run {
-                    val cached = HuggingFaceCache.get(context, provider.id, modelName)
-                    if (cached != null) {
-                        hfInfo = cached.info
-                        return@run
-                    }
-                    if (huggingFaceApiKey.isBlank()) return@run
-                    // Every HF repo is "<owner>/<repo>" — a bare model name with no slash is
-                    // guaranteed to 404, so build the only path that has any chance of resolving.
-                    // Try both dash and dot variants since some repos use either form in
-                    // the version segment.
-                    val baseCandidate = if ("/" in modelName) modelName
-                        else (provider.openRouterName ?: provider.id).takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
-                    if (baseCandidate != null) {
-                        val variants = sequenceOf(baseCandidate, baseCandidate.replace('-', '.'), baseCandidate.replace('.', '-')).distinct()
-                        for (cand in variants) {
-                            try {
-                                val resp = ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
-                                if (resp.isSuccessful) { hfInfo = resp.body(); break }
-                            } catch (_: Exception) {}
-                        }
-                    }
-                    // Cache the outcome — Body or null — so the next visit
-                    // within the TTL window short-circuits without a call.
-                    HuggingFaceCache.put(context, provider.id, modelName, hfInfo)
-                }
-
-                ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
-            }
-            modelInfo = loadedInfo
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            // Honour structured cancellation (user backed out of the
-            // screen mid-load). The previous catch-all wrote the
-            // CancellationException's message into errorMessage and
-            // surfaced it as "JobCancellationException: …" the next
-            // time the screen opened with stale state.
-            throw e
-        } catch (e: Exception) {
-            errorMessage = e.message
-        } finally {
-            isLoading = false
+                val orName = provider.openRouterName
+                val prefixedTargetNorm = if (orName != null) norm("$orName/$modelName") else null
+                models.firstOrNull { norm(it.id) == prefixedTargetNorm }
+                    ?: models.firstOrNull { norm(it.id).endsWith("/$targetNorm") }
+                    ?: models.firstOrNull { norm(it.id) == targetNorm }
+            } catch (_: Exception) { null }
         }
+    }
+
+    // HuggingFace lookup — cached for a week (HuggingFaceCache), including
+    // misses so the next visit short-circuits without a network call. Runs
+    // in its own background coroutine so a DNS timeout on huggingface.co
+    // can't stall the rest of the page; the HF-dependent cards just
+    // appear when the call returns (or never, for a cached miss).
+    val hfInfo by produceState<HuggingFaceModelInfo?>(initialValue = null, provider, modelName) {
+        value = withContext(Dispatchers.IO) {
+            val cached = HuggingFaceCache.get(context, provider.id, modelName)
+            if (cached != null) return@withContext cached.info
+            if (huggingFaceApiKey.isBlank()) {
+                HuggingFaceCache.put(context, provider.id, modelName, null)
+                return@withContext null
+            }
+            val baseCandidate = if ("/" in modelName) modelName
+                else (provider.openRouterName ?: provider.id)
+                    .takeIf { it.isNotBlank() }?.let { "$it/$modelName" }
+            if (baseCandidate == null) {
+                HuggingFaceCache.put(context, provider.id, modelName, null)
+                return@withContext null
+            }
+            val variants = sequenceOf(baseCandidate, baseCandidate.replace('-', '.'), baseCandidate.replace('.', '-')).distinct()
+            var found: HuggingFaceModelInfo? = null
+            for (cand in variants) {
+                try {
+                    val resp = ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
+                    if (resp.isSuccessful) { found = resp.body(); break }
+                } catch (_: Exception) { /* swallow; cache the miss below */ }
+            }
+            HuggingFaceCache.put(context, provider.id, modelName, found)
+            found
+        }
+    }
+
+    // Combined view kept for compat with existing read sites (info?.
+    // huggingFaceInfo etc. throughout the LazyColumn). Recomposes as
+    // soon as either side arrives.
+    val modelInfo: ModelInfoData? = remember(orInfo, hfInfo) {
+        if (orInfo == null && hfInfo == null) null
+        else ModelInfoData(openRouterInfo = orInfo, huggingFaceInfo = hfInfo, hasPricing = orInfo?.pricing != null)
     }
 
     // AI description — opt-in. The "model_info" internal prompt + the
@@ -422,17 +409,13 @@ fun ModelInfoScreen(
             )
         }
 
-        when {
-            isLoading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator()
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Loading model info...", color = AppColors.TextTertiary)
-                }
-            }
-            errorMessage != null -> Text("Error: $errorMessage", color = AppColors.Red)
-            else -> {
-                val info = modelInfo
+        run {
+            // The page paints immediately — every card uses produceState
+            // (or in-memory aiSettings) so its data arrives in the
+            // background. Cards that need OR / HF info just stay hidden
+            // until their respective lookup returns. No global
+            // "Loading model info…" spinner gates the screen anymore.
+            val info = modelInfo
                 // Aggregated last-10 usages across chat, reports, and
                 // per-report secondaries (translate / meta / rerank /
                 // moderate). Empty list = card hidden.
@@ -1186,7 +1169,6 @@ fun ModelInfoScreen(
             }
         }
     }
-}
 
 @Composable
 private fun ModelInfoSection(
