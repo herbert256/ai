@@ -33,6 +33,7 @@ import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.horizontalSwipeNavigation
 
 /**
  * L3 of the Test-all-models drill-in: one model's test result —
@@ -103,7 +104,16 @@ internal fun ModelTestL3Screen(
         HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
         Spacer(Modifier.height(8.dp))
 
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth()
+                .horizontalSwipeNavigation(
+                    key1 = item.key,
+                    key2 = siblings,
+                    onSwipeLeft = { next?.let { onStepModel(it.model) } },
+                    onSwipeRight = { prev?.let { onStepModel(it.model) } }
+                )
+                .verticalScroll(rememberScrollState())
+        ) {
             Text("Provider: ${service?.id ?: providerId}", color = AppColors.TextSecondary, fontSize = 13.sp)
             Text("Model: $model", color = AppColors.TextSecondary, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))
@@ -151,21 +161,7 @@ internal fun ModelTestL3Screen(
             }
         }
 
-        // Prev / Next arrows.
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            Button(
-                onClick = { prev?.let { onStepModel(it.model) } },
-                enabled = prev != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Spacer(Modifier.padding(horizontal = 4.dp))
-            Button(
-                onClick = { next?.let { onStepModel(it.model) } },
-                enabled = next != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-        }
+        // Step between models via horizontal swipe on the content
+        // Column above — left advances, right backs up.
     }
 }
