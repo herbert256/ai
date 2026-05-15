@@ -523,10 +523,24 @@ class ModelTestEngine internal constructor(
                         //   - "is not available on" — SambaNova's HTTP
                         //     410 wording for retired/unprovisioned
                         //     model ids (DeepSeek-R1, Qwen3-32B, etc).
+                        //   - HTTP 404 — generic "endpoint / model id
+                        //     not found" from every provider. In a
+                        //     probe context the model id we requested
+                        //     simply doesn't exist anywhere reachable
+                        //     on this account, so it's functionally
+                        //     Inaccessible. Catches Google's retired
+                        //     gemini-robotics-* and Together's "Model
+                        //     not found, inaccessible, and/or not
+                        //     deployed" without per-provider patterns.
                         val errMsg = probe.errorMessage
+                        val isHttp404 = errMsg != null && (
+                            errMsg.contains("API error: 404", ignoreCase = true) ||
+                                errMsg.contains("\"code\":404", ignoreCase = true)
+                        )
                         val isTierGated = errMsg != null && (
                             errMsg.contains("non-serverless", ignoreCase = true) ||
-                                errMsg.contains("is not available on", ignoreCase = true)
+                                errMsg.contains("is not available on", ignoreCase = true) ||
+                                isHttp404
                         )
                         if (isTierGated) {
                             appViewModel.upsertInaccessibleModel(
