@@ -765,18 +765,17 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) {
-                // Larger glyph with negative y offset — the arrow lifts
-                // above the action-icon strip baseline for a more
-                // tappable target, while the Box's reserved height
-                // still matches the icon row so the bar stays tight.
+                // Big arrow needs a Box at least the glyph's intrinsic
+                // height; smaller Boxes clipped the upper / lower
+                // stroke of "←" and made it look like the arrow had
+                // disappeared entirely on some screens.
                 Box(
-                    modifier = Modifier.size(width = 50.dp, height = 32.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(width = 50.dp, height = 56.dp).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         "←", color = Color.White, fontSize = 48.sp,
-                        fontWeight = FontWeight.Black,
-                        modifier = Modifier.offset(y = (-10).dp)
+                        fontWeight = FontWeight.Black
                     )
                 }
             }
