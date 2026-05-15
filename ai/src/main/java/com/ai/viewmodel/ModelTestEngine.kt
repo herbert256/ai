@@ -351,6 +351,12 @@ class ModelTestEngine internal constructor(
                                 traceFilename = trace
                             )
                         }
+                        // A passing probe means the model is healthy
+                        // again — drop any stale >1h-429 cooldown so
+                        // future calls aren't gratuitously dimmed.
+                        if (response.isSuccess) {
+                            com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
+                        }
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
