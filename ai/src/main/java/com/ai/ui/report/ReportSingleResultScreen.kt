@@ -302,7 +302,7 @@ fun ReportSingleResultScreen(
 
     if (confirmReload) {
         com.ai.ui.shared.ReloadConfirmationDialog(
-            target = "${provider.id} / ${agent.model}",
+            target = "${provider.id} / ${com.ai.ui.shared.shortModelName(agent.model)}",
             onConfirm = {
                 confirmReload = false
                 onRegenerateAgent(reportId, currentAgentId)

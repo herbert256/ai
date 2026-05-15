@@ -307,5 +307,5 @@ internal fun resolveModelLabel(answererKey: String): String {
     if (parts.size != 2) return answererKey
     val (pid, model) = parts
     val canon = AppService.findById(pid)?.id ?: pid
-    return "$canon / $model"
+    return "$canon / ${com.ai.ui.shared.shortModelName(model)}"
 }

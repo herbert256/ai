@@ -592,7 +592,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     val showModerations = isOriginal && moderations.isNotEmpty()
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
     val agentsByAnchor: Map<Int, String> = data.agents.mapNotNull { a ->
-        a.anchorIndex?.let { it to "${a.providerDisplay} · ${a.model}" }
+        a.anchorIndex?.let { it to "${a.providerDisplay} · ${com.ai.ui.shared.shortModelName(a.model)}" }
     }.toMap()
 
     data class View(val id: String, val label: String, val emit: () -> Unit)
@@ -664,7 +664,7 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     data.agents.forEachIndexed { i, a ->
         val resultIdAttr = if (emitAnchors) a.anchorIndex?.let { " id='result-$it'" } ?: "" else ""
         sb.append("<div class='agent-result${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}'$resultIdAttr>")
-        sb.append("<div class='agent-header'>${esc(a.providerDisplay)} - ${esc(a.model)}</div>")
+        sb.append("<div class='agent-header'>${esc(a.providerDisplay)} - ${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         sb.append("<div class='report-content'>")
         if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
         if (a.responseText != null) sb.append("<div class='agent-response'>${processThinkSections(a.responseText, a.agentId)}</div>")
@@ -692,7 +692,7 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     data.agents.forEach { a ->
         sb.append("<div class='table-card'>")
         sb.append("<div class='card-header'>${esc(a.providerDisplay)}</div>")
-        sb.append("<div class='card-model'>${esc(a.model)}</div>")
+        sb.append("<div class='card-model'>${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         if (a.errorMessage != null) {
             sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
         } else if (a.responseText != null) {
@@ -731,7 +731,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
     sb.append("<div class='layout' data-layout='oneByOne'>")
     sb.append("<div class='agent-buttons'>")
     items.forEachIndexed { i, it ->
-        val label = "${it.providerDisplay} · ${it.model}"
+        val label = "${it.providerDisplay} · ${com.ai.ui.shared.shortModelName(it.model)}"
         sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-item='${escId(it.id)}' onclick=\"showItem(this,'${escId(it.id)}')\">${esc(label)}</button>")
     }
     sb.append("</div>")
@@ -753,7 +753,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
 
 private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
     sb.append("<div class='secondary-card'>")
-    sb.append("<div class='secondary-card-header'>${esc(item.providerDisplay)} · ${esc(item.model)} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
+    sb.append("<div class='secondary-card-header'>${esc(item.providerDisplay)} · ${esc(com.ai.ui.shared.shortModelName(item.model))} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
     } else if (!item.content.isNullOrBlank()) {
@@ -908,7 +908,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
             totalCalls += g.calls
             sb.append("<tr>")
             if (isByModel) {
-                sb.append("<td>${esc(g.provider ?: "")}</td><td>${esc(g.model ?: "")}</td>")
+                sb.append("<td>${esc(g.provider ?: "")}</td><td>${esc(com.ai.ui.shared.shortModelName(g.model ?: ""))}</td>")
             } else {
                 sb.append("<td>${esc(g.key)}</td>")
             }
@@ -944,7 +944,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         sorted.forEach { r ->
             tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
             val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
-            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(r.model)}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(com.ai.ui.shared.shortModelName(r.model))}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
         }
         if (deletedCents > 0.0) {
             sb.append("<tr><td>deleted</td><td></td><td></td><td></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")

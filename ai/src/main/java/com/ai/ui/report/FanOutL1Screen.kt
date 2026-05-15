@@ -302,7 +302,7 @@ internal fun FanOutL1Screen(
                         }
                     }
                     Text(
-                        "${cr.fanInPromptName} · ${cr.providerId} / ${cr.model}",
+                        "${cr.fanInPromptName} · ${cr.providerId} / ${com.ai.ui.shared.shortModelName(cr.model)}",
                         fontSize = 13.sp, color = Color.White,
                         modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -424,7 +424,7 @@ internal fun FanOutL1Screen(
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(
                             // Model name only — no provider prefix.
-                            ak.substringAfter('|'),
+                            com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )

@@ -532,7 +532,7 @@ private fun ReportsViewerScreenLoaded(
     // screen avoids showing stale data.
     if (confirmReload && selectedReportAgent != null && selectedProviderService != null) {
         com.ai.ui.shared.ReloadConfirmationDialog(
-            target = "${selectedProviderService.id} / ${selectedReportAgent.model}",
+            target = "${selectedProviderService.id} / ${com.ai.ui.shared.shortModelName(selectedReportAgent.model)}",
             onConfirm = {
                 confirmReload = false
                 onRegenerateAgent(report.id, selectedReportAgent.agentId)
@@ -548,7 +548,7 @@ private fun ReportsViewerScreenLoaded(
             title = { Text("Remove from report?") },
             text = {
                 Text(
-                    "Drop ${selectedProviderService.id} / ${selectedReportAgent.model} from this report. " +
+                    "Drop ${selectedProviderService.id} / ${com.ai.ui.shared.shortModelName(selectedReportAgent.model)} from this report. " +
                         "Removes the saved response and recomputes totals; can't be undone."
                 )
             },

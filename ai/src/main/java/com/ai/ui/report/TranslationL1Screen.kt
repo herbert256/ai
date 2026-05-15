@@ -259,7 +259,7 @@ internal fun TranslationL1Screen(
                         // conveys progress, and a finished run shouldn't
                         // read as a wall of check marks.
                         Text(
-                            row.modelKey.substringAfter('|'),
+                            com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(start = 8.dp)
