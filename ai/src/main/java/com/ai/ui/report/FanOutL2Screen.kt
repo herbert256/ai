@@ -132,6 +132,17 @@ internal fun FanOutL2Screen(
         report?.agents?.associate { it.agentId to resolveModelLabel("${it.provider}|${it.model}") }
             ?: emptyMap()
     }
+    // agentId → agent-level icon (the icon-gen result for that agent's
+    // original report response). Drives the big icon-list rendering
+    // in Fan icons L2.
+    val agentIcons: Map<String, String?> = remember(report) {
+        report?.agents?.associate { it.agentId to it.icon } ?: emptyMap()
+    }
+    // Active model's own agent-level icon, looked up by matching the
+    // (provider, model) key. Shown big at the top of the Initiator view.
+    val activeAgentIcon: String? = remember(report, answererKey) {
+        report?.agents?.firstOrNull { "${it.provider}|${it.model}" == answererKey }?.icon
+    }
 
     // Display order: Running / Queued first, then Errored, then
     // Done at the bottom — each group sorted by the row's model
@@ -191,6 +202,15 @@ internal fun FanOutL2Screen(
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
+
+        // In ICONS mode the screen is a focused icon overview — drop
+        // the action buttons (Create Report, New Fan In, Remove /
+        // Restart failed, One Page View, Icons), keep just "Switch
+        // role" rendered above this comment. Fan out's MAIN mode
+        // still shows them all.
+        if (isIconsMode) {
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -311,6 +331,7 @@ internal fun FanOutL2Screen(
             ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         }
+        } // end of MAIN-mode buttons block (paired with `if (isIconsMode)` above)
 
         if (rows.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -319,6 +340,80 @@ internal fun FanOutL2Screen(
                     else "No other model has responded to this one yet",
                     color = AppColors.TextTertiary, fontSize = 13.sp
                 )
+            }
+        } else if (isIconsMode) {
+            // Fan icons — focused icon list. Big emoji glyphs only;
+            // no labels, no status icons, no progress fills. Tapping
+            // a row opens the L3 Fan icons - pair detail.
+            val rowsTotalCost = rows.sumOf { it.totalCost }
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                if (role == "Initiator" && !activeAgentIcon.isNullOrBlank()) {
+                    item(key = "icon-initiator-header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                activeAgentIcon,
+                                fontSize = 56.sp,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                        HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
+                    }
+                }
+                items(rows, key = { it.key }) { p ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .clickable {
+                                onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
+                            },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (role == "Responder") {
+                            // Initiator's agent-level icon, then the
+                            // pair's responder icon (this model's reply
+                            // to that source).
+                            val initiatorIcon = agentIcons[p.sourceAgentId] ?: "⬜"
+                            Text(initiatorIcon, fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(p.icon ?: "⬜", fontSize = 40.sp)
+                        } else {
+                            // Initiator mode: this row's responder is
+                            // pair.icon (the answerer's reply icon).
+                            Text(p.icon ?: "⬜", fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        if (p.totalCost > 0.0) {
+                            Text(
+                                formatCents(p.totalCost), fontSize = 12.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+                if (rowsTotalCost > 0.0) {
+                    item(key = "l2-icons-total-footer") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f).padding(start = 8.dp)
+                            )
+                            Text(
+                                formatCents(rowsTotalCost), fontSize = 12.sp,
+                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                    }
+                }
             }
         } else {
             val rowsTotalCost = rows.sumOf { it.totalCost }

@@ -226,7 +226,12 @@ fun FanOutScreen(
             onLaunchFanIcons = onLaunchFanIcons,
             onShowFanIcons = onShowFanIcons,
             onShowResponses = onShowResponses,
-            onOpenModel = { ak -> nav = FanOutNav.L2(ak, "Responder") },
+            // Fan icons starts at the Initiator view (active model is
+            // the source) so the user sees their model's icon up top
+            // and a list of the icons every other model produced in
+            // reply. Fan out starts at Responder (the active model
+            // is the answerer of every row).
+            onOpenModel = { ak -> nav = FanOutNav.L2(ak, if (mode == FanOutMode.ICONS) "Initiator" else "Responder") },
             onOpenIcons = { nav = FanOutNav.L1Icons },
             onBack = onBack
         )
