@@ -346,7 +346,12 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    // No padding for the fan-out drill-in branch — FanOutScreen
+    // brings its own padding(start/end/top = 16.dp). Stacking the
+    // wrapper's padding on top would double the inset and push the
+    // top title bar 16dp lower than every other screen.
+    val outerPadding = if (isFanOutDrillIn) Modifier else Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).then(outerPadding)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
