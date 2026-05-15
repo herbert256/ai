@@ -1152,6 +1152,11 @@ fun ReportsScreen(
     // the unified Meta hub; type=chat goes through the scope screen
     // first, type=rerank/moderation skips it.
     var secondaryPickerMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    // Meta-only Run page shown between the Scope screen and the model
+    // picker. Carries an editable prompt body that lives just for this
+    // single run; nulled out after the user picks a model. Mirrors
+    // FanOutConfirmScreen's per-run prompt edit.
+    var metaRunScreenPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     var secondaryScopeMetaPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     var pendingSecondaryScope by rememberSaveable(stateSaver = SecondaryScopeSaver) { mutableStateOf<SecondaryScope>(SecondaryScope.AllReports) }
     var pendingLanguageScope by rememberSaveable(stateSaver = SecondaryLanguageScopeSaver) { mutableStateOf<SecondaryLanguageScope>(SecondaryLanguageScope.AllPresent) }
@@ -1792,7 +1797,8 @@ fun ReportsScreen(
                     pendingFanOutResponders = responders ?: emptySet()
                     fanOutConfirmMetaPrompt = scopeMetaPrompt
                 } else {
-                    secondaryPickerMetaPrompt = scopeMetaPrompt
+                    // Meta path: Scope → Run page (edit prompt) → model picker.
+                    metaRunScreenPrompt = scopeMetaPrompt
                 }
             },
             onBack = { secondaryScopeMetaPrompt = null },
@@ -1829,6 +1835,23 @@ fun ReportsScreen(
                 listKind = SecondaryKind.META
                 listFilterByName = mp.name
                 listIsFanIcons = false
+            }
+        )
+        return
+    }
+
+    // Meta Run page — full-screen prompt editor inserted between the
+    // Scope screen (or the Default-scope fast-path) and the model
+    // picker. The text the user lands on the picker with is whatever
+    // they leave the field at.
+    val metaRunMp = metaRunScreenPrompt
+    if (metaRunMp != null && currentReportId != null) {
+        MetaRunScreen(
+            metaPrompt = metaRunMp,
+            onCancel = { metaRunScreenPrompt = null },
+            onContinue = { edited ->
+                metaRunScreenPrompt = null
+                secondaryPickerMetaPrompt = edited
             }
         )
         return
@@ -2164,10 +2187,11 @@ fun ReportsScreen(
             // Skip SecondaryScopeScreen — run against every report
             // agent (AllReports) and every present language (AllPresent),
             // the same defaults the scope screen's Continue would have
-            // written for "All". Jump straight to the model picker.
+            // written for "All". Land on the Run page so the user can
+            // still tweak the prompt for this single run.
             pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            secondaryPickerMetaPrompt = mp
+            metaRunScreenPrompt = mp
         } else {
             secondaryScopeMetaPrompt = mp
         }
@@ -3451,9 +3475,63 @@ private fun SecondaryResultsListMount(
     }
 }
 
+/** Meta-flow Run page — full-screen prompt editor between the Scope
+ *  screen and the model picker. The InternalPrompt store is left
+ *  untouched; the edited body rides along on a copy passed to the
+ *  picker via [onContinue]. */
+@Composable
+private fun MetaRunScreen(
+    metaPrompt: InternalPrompt,
+    onCancel: () -> Unit,
+    onContinue: (InternalPrompt) -> Unit
+) {
+    BackHandler { onCancel() }
+    var editablePrompt by remember(metaPrompt.id) { mutableStateOf(metaPrompt.text) }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        TitleBar(
+            helpTopic = "report_meta_run",
+            title = "Run ${metaPrompt.name}",
+            onBackClick = onCancel
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Tweak the prompt for this run if you want; the saved Internal Prompt template stays untouched. Tap Continue to pick which model the meta runs on.",
+                fontSize = 13.sp, color = AppColors.TextSecondary
+            )
+            Text("Prompt (edit for this run)", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = editablePrompt,
+                onValueChange = { editablePrompt = it },
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedFieldColors(),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.White),
+                minLines = 8
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancel, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Cancel", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
+                enabled = editablePrompt.isNotBlank(),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Continue", maxLines = 1, softWrap = false) }
+        }
+    }
+}
+
 /** Extracted from [ReportsScreen] to dodge the JVM 64 KB
- *  per-method bytecode limit. Renders the fan-out confirm
- *  screen with initiator/responder checkbox cards. */
+ *  per-method bytecode limit. Renders the fan-out confirm screen —
+ *  call-count summary + an editable per-run prompt. Initiator /
+ *  responder model selection moved to [SecondaryScopeScreen]. */
 @Composable
 private fun FanOutConfirmScreen(
     fanOutMp: InternalPrompt,
