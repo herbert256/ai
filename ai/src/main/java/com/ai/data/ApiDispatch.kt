@@ -332,7 +332,15 @@ private suspend fun AnalysisRepository.chatOpenAi(
     )
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
-        return response.body()?.choices?.firstOrNull()?.message?.contentAsString() ?: throw Exception("No response content")
+        // Reasoning models on OpenAI-compatible chat sometimes return
+        // empty `content` with the answer in `reasoning_content` — mirror
+        // the streaming path's fallback (extractOpenAiContent) and the
+        // analyze() path's so a thinking model with a tight max_tokens
+        // doesn't surface as "No response content".
+        val msg = response.body()?.choices?.firstOrNull()?.message
+        return msg?.contentAsString()
+            ?: msg?.reasoning_content
+            ?: throw Exception("No response content")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
@@ -979,10 +987,17 @@ internal fun AppService.knownEndpointPaths(): List<String> = listOfNotNull(
 /** Read [OpenAiMessage.content] as a String regardless of whether it was a
  *  raw String or (after a future round-trip) a serialized list. Response
  *  bodies always come back with content as a JSON string, so this is safe. */
+/** OpenAI-compatible chat responses sometimes ship `content: ""`
+ *  alongside the real reply in `reasoning_content` — reasoning models
+ *  that exhausted `max_tokens` during thinking, or strict OpenAI-clone
+ *  servers that emit empty content when there's nothing to say. Treat
+ *  empty the same as null so the caller's `?:` chain falls through to
+ *  the `reasoning_content` fallback (mirrors the streaming
+ *  extractOpenAiContent which already uses takeIf { isNotEmpty }). */
 internal fun OpenAiMessage.contentAsString(): String? = when (val c = content) {
-    is String -> c
+    is String -> c.takeIf { it.isNotEmpty() }
     null -> null
-    else -> c.toString()
+    else -> c.toString().takeIf { it.isNotEmpty() }
 }
 
 // ============================================================================
