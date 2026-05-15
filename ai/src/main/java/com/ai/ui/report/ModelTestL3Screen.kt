@@ -88,12 +88,16 @@ internal fun ModelTestL3Screen(
         TitleBar(
             helpTopic = "test_all_models_l3",
             title = "Test all models - model",
-            subject = model,
             onBackClick = onBack,
             onInfo = service?.let { svc -> { actions.onNavigateToModelInfo(svc, model) } },
             onTrace = if (ApiTracer.isTracingEnabled && item.traceFilename != null) {
                 { actions.onNavigateToTraceFile(item.traceFilename!!) }
             } else null
+        )
+        com.ai.ui.shared.HardcodedSubjectRow(
+            text = com.ai.ui.shared.shortModelName(model),
+            providerService = service,
+            model = model
         )
         Spacer(Modifier.height(8.dp))
         HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
