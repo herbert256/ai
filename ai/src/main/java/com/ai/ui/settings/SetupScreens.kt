@@ -38,7 +38,6 @@ fun SetupScreen(
     BackHandler { onBackToSettings() }
     val context = LocalContext.current
     val hasApiKey = remember(aiSettings) { aiSettings.hasAnyApiKey() }
-    val hasActiveProvider = remember(aiSettings) { aiSettings.getActiveServices().isNotEmpty() }
     // Total models across active providers — matches the per-provider counts shown on the
     // Models sub-screen, which only lists active providers.
     val modelCount = remember(aiSettings) {
@@ -55,12 +54,6 @@ fun SetupScreen(
         (if (openRouterApiKey.isNotBlank()) 1 else 0) +
         (if (aaApiKey.isNotBlank()) 1 else 0)
     }
-    // Counts of installed on-device runtimes — surfaced as the badge
-    // on the matching SetupNavCard so the user can see at a glance
-    // whether anything is installed without drilling in.
-    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
-
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -88,20 +81,9 @@ fun SetupScreen(
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
-            run {
-                val localCount = liteRtCount + localLlmCount
-                SetupNavCard("\uD83D\uDCBB", "Local Models", "On-device LLMs and LiteRT text embedders", "$localCount",
-                    onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
-            }
-            run {
-                val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
-                SetupNavCard("\u23F3", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
-                    onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
-            }
-            SetupNavCard("\uD83D\uDEAB", "Blocked models", "Provider/model pairs flagged as blocked \u2014 dimmed in every model picker", "${aiSettings.blockedModels.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
-            SetupNavCard("\uD83D\uDCB8", "Test-excluded models", "Skipped by Test all models \u2014 auto-added when a probe costs > 5\u00A2", "${aiSettings.testExcludedModels.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
+            // Local Models / Model cooldowns / Blocked models /
+            // Test-excluded models all live one level deeper under
+            // "AI Models setup" \u2014 see ModelsSetupScreen.
         }
     }
 }
@@ -132,8 +114,10 @@ private fun SetupNavCard(icon: String, title: String, description: String, count
 
 // ===== Models Setup hub =====
 
-/** Sub-hub under AI Setup that groups the three model-related screens
- *  (Models, Model Types, Manual model types overrides). */
+/** Sub-hub under AI Setup that groups every model-related screen:
+ *  Models / Model Types / Manual model type overrides, plus the
+ *  on-device runtimes (Local Models) and the three model-state lists
+ *  (Cooldowns / Blocked / Test-excluded). */
 @Composable
 fun ModelsSetupScreen(
     aiSettings: Settings,
@@ -143,9 +127,14 @@ fun ModelsSetupScreen(
     onNavigate: (SettingsSubScreen) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
+    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     val modelCount = remember(aiSettings) {
         aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
     }
+    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
+    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
+    val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
     ) {
@@ -159,6 +148,14 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
             ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
+            ModelsSetupNavCard("💻", "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
+                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
+            ModelsSetupNavCard("⏳", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
+            ModelsSetupNavCard("🚫", "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
+            ModelsSetupNavCard("💸", "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
         }
     }
 }
