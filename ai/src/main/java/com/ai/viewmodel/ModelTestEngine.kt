@@ -5,6 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.ai.data.AgentParameters
 import com.ai.data.AnalysisRepository
 import com.ai.data.ApiCallCaps
+import com.ai.data.ModelType
+import com.ai.data.TokenUsage
+import com.ai.data.callRerankApi
+import com.ai.data.embedWithStatus
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.ModelTestKey
@@ -108,6 +112,12 @@ class ModelTestEngine internal constructor(
                 val key = modelTestKey(service.id, model)
                 if (key in items) continue
                 if (key in skipKeys) continue   // Test-excluded — skip entirely.
+                // Skip types we have no working probe for (image / tts /
+                // stt / moderation / classify / ocr). CHAT / RESPONSES /
+                // EMBEDDING / RERANK / unknown go through their native
+                // dispatch in runOne.
+                val type = aiSettings.getModelType(service, model)
+                if (type != null && type in NON_TESTABLE_TYPES) continue
                 items[key] = ModelTestState(
                     key = key,
                     providerId = service.id,
@@ -271,6 +281,17 @@ class ModelTestEngine internal constructor(
          *  sweep doesn't pay for it again. 5¢ — matches the user-
          *  facing wording on the AI Setup card. */
         const val COSTLY_PROBE_USD_THRESHOLD = 0.05
+
+        /** Model types the sweep does not probe — no dispatch path in
+         *  the app today. They're filtered out of the candidate list
+         *  in [startRun] and the count in [testableProviders] so they
+         *  don't show as "pending" or "failed". Types not in this set
+         *  (CHAT, RESPONSES, EMBEDDING, RERANK, UNKNOWN, null) all
+         *  have a working probe in [runOne]. */
+        private val NON_TESTABLE_TYPES: Set<String> = setOf(
+            ModelType.IMAGE, ModelType.TTS, ModelType.STT,
+            ModelType.MODERATION, ModelType.CLASSIFY, ModelType.OCR
+        )
     }
 
     /** Active providers with a non-blank API key, each paired with its
@@ -283,10 +304,13 @@ class ModelTestEngine internal constructor(
             .map { it to aiSettings.getProvider(it) }
             .filter { (_, config) -> config.apiKey.isNotBlank() }
             .map { (service, config) ->
-                // Subtract test-excluded so the count matches what the
-                // sweep will actually probe.
-                val n = config.models.count {
-                    it.isNotBlank() && !aiSettings.isTestExcluded(service.id, it)
+                // Subtract test-excluded + non-testable model types so
+                // the count matches what the sweep will actually probe.
+                val n = config.models.count { m ->
+                    if (m.isBlank()) return@count false
+                    if (aiSettings.isTestExcluded(service.id, m)) return@count false
+                    val t = aiSettings.getModelType(service, m)
+                    t == null || t !in NON_TESTABLE_TYPES
                 }
                 service to n
             }
@@ -336,7 +360,9 @@ class ModelTestEngine internal constructor(
             persist(context)
             return
         }
-        val apiKey = appViewModel.uiState.value.aiSettings.getApiKey(service)
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val apiKey = aiSettings.getApiKey(service)
+        val type = aiSettings.getModelType(service, item.model)
         ApiCallCaps.global.withPermit {
             ioCap.withPermit {
                 val host = providerHost(service)
@@ -362,19 +388,22 @@ class ModelTestEngine internal constructor(
                         // sleep-and-retry — the sleeping retry loop
                         // would pin this ioCap permit for tens of
                         // seconds and stall the whole sweep.
-                        val response = withContext(
+                        val probe = withContext(
                             ProviderThrottle.permitPreAcquired.asContextElement(true) +
                                 ProviderThrottle.suppressInlineRetry.asContextElement(true)
                         ) {
                             withTraceCategory("Test all models") {
-                                appViewModel.repository.analyze(
-                                    service, apiKey, AnalysisRepository.TEST_PROMPT, item.model,
-                                    params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
-                                )
+                                when (type) {
+                                    ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
+                                    ModelType.RERANK -> probeRerank(service, apiKey, item.model)
+                                    // CHAT, RESPONSES, UNKNOWN, null →
+                                    // the existing chat-completions probe.
+                                    else -> probeChat(service, apiKey, item.model)
+                                }
                             }
                         }
-                        val durationMs = System.currentTimeMillis() - t0
-                        val (inCost, outCost) = response.tokenUsage?.let { usage ->
+                        val durationMs = probe.durationMs.takeIf { it > 0 } ?: (System.currentTimeMillis() - t0)
+                        val (inCost, outCost) = probe.tokenUsage?.let { usage ->
                             PricingCache.computeInOutCost(
                                 usage, PricingCache.getPricing(context, service, item.model)
                             )
@@ -386,9 +415,9 @@ class ModelTestEngine internal constructor(
                         } else null
                         transition(key) {
                             it.copy(
-                                status = if (response.isSuccess) TestStatus.PASS else TestStatus.FAIL,
-                                errorMessage = response.error,
-                                responseText = response.analysis,
+                                status = if (probe.isSuccess) TestStatus.PASS else TestStatus.FAIL,
+                                errorMessage = probe.errorMessage,
+                                responseText = probe.responseText,
                                 durationMs = durationMs,
                                 inputCost = inCost,
                                 outputCost = outCost,
@@ -398,7 +427,7 @@ class ModelTestEngine internal constructor(
                         // A passing probe means the model is healthy
                         // again — drop any stale >1h-429 cooldown so
                         // future calls aren't gratuitously dimmed.
-                        if (response.isSuccess) {
+                        if (probe.isSuccess) {
                             com.ai.data.ModelCooldownStore.remove(item.providerId, item.model)
                         }
                     } catch (e: kotlinx.coroutines.CancellationException) {
@@ -419,6 +448,72 @@ class ModelTestEngine internal constructor(
                 }
             }
         }
+    }
+
+    /** Generic outcome of a per-(provider, model) probe — chat /
+     *  embedding / rerank all funnel into this shape so [runOne] can
+     *  apply the result uniformly. */
+    private data class ProbeResult(
+        val isSuccess: Boolean,
+        val errorMessage: String?,
+        val responseText: String?,
+        val durationMs: Long,
+        val tokenUsage: TokenUsage?
+    )
+
+    /** Chat probe — the original "Reply with exactly: OK" call, capped
+     *  at [AnalysisRepository.TEST_MAX_TOKENS] tokens so balance-gating
+     *  providers don't pre-auth the model's whole output window. */
+    private suspend fun probeChat(service: AppService, apiKey: String, model: String): ProbeResult {
+        val t0 = System.currentTimeMillis()
+        val r = appViewModel.repository.analyze(
+            service, apiKey, AnalysisRepository.TEST_PROMPT, model,
+            params = AgentParameters(maxTokens = AnalysisRepository.TEST_MAX_TOKENS)
+        )
+        return ProbeResult(
+            isSuccess = r.isSuccess,
+            errorMessage = r.error,
+            responseText = r.analysis,
+            durationMs = System.currentTimeMillis() - t0,
+            tokenUsage = r.tokenUsage
+        )
+    }
+
+    /** Embedding probe — calls /v1/embeddings with a single short
+     *  string. PASS = vector returned. Same dispatch path RAG and
+     *  Knowledge bases use, via the rich [embedWithStatus] sibling of
+     *  the silent [com.ai.data.embed] used by those features. */
+    private suspend fun probeEmbedding(service: AppService, apiKey: String, model: String): ProbeResult {
+        val r = appViewModel.repository.embedWithStatus(
+            service, apiKey, model, listOf(AnalysisRepository.TEST_PROMPT)
+        )
+        return ProbeResult(
+            isSuccess = r.isSuccess,
+            errorMessage = r.errorMessage,
+            responseText = r.vectors?.firstOrNull()?.let { "embedded — ${it.size} dimensions" },
+            durationMs = r.durationMs,
+            tokenUsage = r.tokenUsage
+        )
+    }
+
+    /** Rerank probe — calls the provider's native rerank endpoint
+     *  ([com.ai.data.callRerankApi]) with a trivial (query, [doc])
+     *  pair. PASS = non-empty results body. Providers without
+     *  `nativeRerankUrl` configured fail with an explanatory message;
+     *  add the URL to the provider definition (or a Manual Model
+     *  Types override) to enable. */
+    private suspend fun probeRerank(service: AppService, apiKey: String, model: String): ProbeResult {
+        val r = callRerankApi(
+            service, apiKey, model,
+            query = "test", documents = listOf("test document")
+        )
+        return ProbeResult(
+            isSuccess = r.errorMessage == null && !r.content.isNullOrBlank(),
+            errorMessage = r.errorMessage,
+            responseText = r.content,
+            durationMs = r.durationMs,
+            tokenUsage = null
+        )
     }
 
     // -----------------------------------------------------------------

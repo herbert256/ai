@@ -108,36 +108,109 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
     }
 }
 
+/** Rich outcome of an [embedWithStatus] call. The legacy [embed]
+ *  wrapper collapses this into `vectors` for callers that don't need
+ *  the error / status / usage details (RAG retrieval, KB indexing).
+ *  Callers that DO care — the "Test all models" probe, future
+ *  diagnostics, Model Info reachability checks — should use
+ *  [embedWithStatus] and inspect [errorMessage]. */
+data class EmbedResult(
+    val vectors: List<List<Double>>? = null,
+    val errorMessage: String? = null,
+    val httpStatusCode: Int? = null,
+    val tokenUsage: TokenUsage? = null,
+    val durationMs: Long = 0L
+) {
+    val isSuccess: Boolean get() = !vectors.isNullOrEmpty() && errorMessage == null
+}
+
 /**
  * Compute embeddings for a batch of input strings via the provider's
- * /v1/embeddings endpoint. OpenAI-compatible only — Anthropic and Google have
- * their own embedding APIs that we don't dispatch yet.
+ * /v1/embeddings endpoint. OpenAI-compatible only — Anthropic and Google
+ * have their own embedding APIs that we don't dispatch yet.
  *
- * Returns one vector per input string, or null on failure.
+ * Reports rich status: HTTP / payload errors land in [EmbedResult
+ * .errorMessage] with the response code; token usage feeds into the
+ * caller's cost accounting when present.
  */
+suspend fun AnalysisRepository.embedWithStatus(
+    service: AppService,
+    apiKey: String,
+    model: String,
+    texts: List<String>,
+    baseUrl: String = service.baseUrl
+): EmbedResult = withContext(Dispatchers.IO) {
+    val t0 = System.currentTimeMillis()
+    if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE) {
+        return@withContext EmbedResult(errorMessage = "Embed dispatch only supports OpenAI-compatible providers")
+    }
+    if (apiKey.isBlank()) {
+        return@withContext EmbedResult(errorMessage = "API key not configured for ${service.id}")
+    }
+    if (texts.isEmpty()) return@withContext EmbedResult(errorMessage = "No inputs")
+    AppLog.d("ApiDispatch", "embed ${service.id}/$model — ${texts.size} input(s)")
+    try {
+        val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+        val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
+        val url = buildChatUrl(baseUrl, embedPath, service.knownEndpointPaths())
+        val response = api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
+        val durationMs = System.currentTimeMillis() - t0
+        if (!response.isSuccessful) {
+            val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
+            return@withContext EmbedResult(
+                errorMessage = "API error: ${response.code()} ${response.message()} - $errBody",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        val body = response.body()
+        if (body?.error != null) {
+            return@withContext EmbedResult(
+                errorMessage = body.error.message ?: "Embed error",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        val data = body?.data
+        if (data.isNullOrEmpty()) {
+            return@withContext EmbedResult(
+                errorMessage = "No embedding vectors returned",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        // Sort by index defensively — most providers return in input order but the
+        // spec lets them reorder, and we need the alignment exact.
+        val sorted = data.sortedBy { it.index ?: 0 }
+        val vectors = sorted.map { it.embedding ?: emptyList() }
+        if (vectors.size != texts.size || vectors.any { it.isEmpty() }) {
+            return@withContext EmbedResult(
+                errorMessage = "Malformed embedding response (expected ${texts.size} vectors, got ${vectors.size})",
+                httpStatusCode = response.code(), durationMs = durationMs
+            )
+        }
+        EmbedResult(
+            vectors = vectors,
+            tokenUsage = body.usage?.toTokenUsage(service),
+            httpStatusCode = response.code(),
+            durationMs = durationMs
+        )
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        EmbedResult(
+            errorMessage = "Embed call failed: ${e.message ?: e.javaClass.simpleName}",
+            durationMs = System.currentTimeMillis() - t0
+        )
+    }
+}
+
+/** Back-compat wrapper. Returns null on any failure — preserves the
+ *  silent fast-path semantics RAG retrieval / KB indexing relied on
+ *  before [embedWithStatus] existed. */
 suspend fun AnalysisRepository.embed(
     service: AppService,
     apiKey: String,
     model: String,
     texts: List<String>
-): List<List<Double>>? = withContext(Dispatchers.IO) {
-    if (service.apiFormat != ApiFormat.OPENAI_COMPATIBLE || apiKey.isBlank() || texts.isEmpty()) {
-        return@withContext null
-    }
-    AppLog.d("ApiDispatch", "embed ${service.id}/$model — ${texts.size} input(s)")
-    try {
-        val api = ApiFactory.createOpenAiCompatibleApi(service.baseUrl)
-        val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
-        val url = buildChatUrl(service.baseUrl, embedPath, service.knownEndpointPaths())
-        val response = api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
-        if (!response.isSuccessful) return@withContext null
-        val data = response.body()?.data ?: return@withContext null
-        // Sort by index defensively — most providers return in input order but the
-        // spec lets them reorder, and we need the alignment exact.
-        val sorted = data.sortedBy { it.index ?: 0 }
-        sorted.map { it.embedding ?: emptyList() }.takeIf { it.size == texts.size }
-    } catch (_: Exception) { null }
-}
+): List<List<Double>>? = embedWithStatus(service, apiKey, model, texts).vectors
 
 // ============================================================================
 // Analyze implementations
