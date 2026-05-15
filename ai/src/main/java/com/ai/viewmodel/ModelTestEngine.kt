@@ -124,6 +124,9 @@ class ModelTestEngine internal constructor(
     /** Possible results of [resumeRun]. */
     enum class ResumeOutcome { NO_RUN, ALREADY_RUNNING, ALREADY_COMPLETE, RESUMED }
 
+    /** Possible results of [rerunErrors]. */
+    enum class RerunErrorsOutcome { NO_RUN, ALREADY_RUNNING, NO_ERRORS, RESTARTED }
+
     /** Re-dispatch a run whose coroutine is gone (process kill, crash,
      *  cancelled scope) but whose persisted state still shows
      *  unfinished models. The L1 "Check current test run" button calls
@@ -153,9 +156,35 @@ class ModelTestEngine internal constructor(
         return ResumeOutcome.RESUMED
     }
 
+    /** Re-probe every FAIL item from the current run — flips them back
+     *  to PENDING and dispatches just that subset. PASS results are
+     *  kept untouched (PENDING/RUNNING are too, in the unlikely event
+     *  some are still lingering from a process-killed prior run; use
+     *  [resumeRun] for those). At end-of-rerun the same
+     *  [syncTestRunSideEffects] hook fires, so Blocked-models +
+     *  Test-excluded stay consistent with the merged state. */
+    fun rerunErrors(context: Context): RerunErrorsOutcome {
+        if (runJob?.isActive == true) return RerunErrorsOutcome.ALREADY_RUNNING
+        val run = _run.value ?: return RerunErrorsOutcome.NO_RUN
+        val failed = run.items.values.filter { it.status == TestStatus.FAIL }
+        if (failed.isEmpty()) return RerunErrorsOutcome.NO_ERRORS
+
+        cancelItemJobs()
+        _throttledKeys.value = emptySet()
+        _run.update { r ->
+            r?.copy(items = r.items.mapValues { (_, st) ->
+                if (st.status == TestStatus.FAIL) st.copy(status = TestStatus.PENDING) else st
+            })
+        }
+        AppLog.i("ModelTest", "↻ rerunErrors ${failed.size} previously-failed models")
+        dispatch(context, failed.map { it.key })
+        return RerunErrorsOutcome.RESTARTED
+    }
+
     /** Launch the outer coroutine that runs per-item workers for
      *  [keys] against the current `_run`. Shared by [startRun] (fresh
-     *  list) and [resumeRun] (the unfinished items of a stale run). */
+     *  list), [resumeRun] (unfinished items) and [rerunErrors] (reset
+     *  FAILs). */
     private fun dispatch(context: Context, keys: List<ModelTestKey>) {
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {

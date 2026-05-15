@@ -272,6 +272,18 @@ internal fun ModelTestL1Screen(
             ) {
                 Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
             }
+            // Re-probe just the previously-errored models — shown only
+            // when there's an idle run with errors.
+            if (run != null && run.errorCount > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = { actions.onRerunErrors() },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                ) {
+                    Text("Rerun Errors again (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                }
+            }
         }
     }
 }

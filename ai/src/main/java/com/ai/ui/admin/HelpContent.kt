@@ -1667,6 +1667,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Test all models button", "Opens the provider picker, where you choose which providers to test before a fresh run starts. The run replaces the previous run's results and can be hundreds of API calls."),
             HelpCard("Cancel test button", "While a run is in flight the bottom button turns red — tap it to stop. Models that hadn't finished are marked as a \"Cancelled\" failure so the run stays a complete, consistent snapshot."),
             HelpCard("Check current test run button", "A run reloaded from disk after the app was killed can still show queued / running models even though nothing is actually working on them. Tap this to check: if the run is genuinely active it just says so, but if it had stalled it restarts the unfinished models (already-passed results are kept)."),
+            HelpCard("Rerun Errors again button", "Once a run is finished, an orange button appears with the error count. Tap it to re-probe just the FAILed models — passes are kept untouched. Useful after fixing the parser, raising max_tokens, sleeping off transient 429s, or pruning the catalog."),
             HelpCard("Persistence", "The last run is kept on disk and reloaded every time you open this screen, so you can leave and come back to review results. Starting a fresh run overwrites it; Housekeeping → Reset → Clear runtime data drops it."),
         )
     ),

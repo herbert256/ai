@@ -64,6 +64,7 @@ data class ModelTestActions(
     val onStartRun: (Set<String>) -> Unit = {},
     val onCancelRun: () -> Unit = {},
     val onCheckRun: () -> Unit = {},
+    val onRerunErrors: () -> Unit = {},
     val onNavigateToTraceFile: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 )
@@ -111,6 +112,15 @@ fun ModelTestScreen(
                 ModelTestEngine.ResumeOutcome.RESUMED -> "Test run had stalled — restarted the unfinished models"
                 ModelTestEngine.ResumeOutcome.ALREADY_COMPLETE -> "Test run already finished"
                 ModelTestEngine.ResumeOutcome.NO_RUN -> "No test run to check"
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        },
+        onRerunErrors = {
+            val msg = when (engine.rerunErrors(context)) {
+                ModelTestEngine.RerunErrorsOutcome.ALREADY_RUNNING -> "Test run is active — can't rerun yet"
+                ModelTestEngine.RerunErrorsOutcome.NO_RUN -> "No test run to rerun"
+                ModelTestEngine.RerunErrorsOutcome.NO_ERRORS -> "No errors to rerun"
+                ModelTestEngine.RerunErrorsOutcome.RESTARTED -> "Rerunning failed models"
             }
             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
         },
