@@ -204,10 +204,13 @@ class ModelTestEngine internal constructor(
      *  reason), every PASS removes its entry, untested models are left
      *  alone. One settings write.
      *
-     *  Models currently on a >1h-429 cooldown ([ModelCooldownStore])
-     *  are skipped entirely — they're owned by the cooldown list, not
-     *  the blocked list, and recover on their own, so a test run leaves
-     *  their blocked-list state untouched (neither added nor removed). */
+     *  A "Test all models" probe can itself land a model in the >1h-429
+     *  cooldown list ([ModelCooldownStore]) — the bench check inside
+     *  the rate-limit retry interceptor runs during the probe. Such
+     *  models are owned by the cooldown list, not the blocked list:
+     *  they are dropped from the blocked list (every tested model is)
+     *  and never re-added here, so a model in Model cooldowns is never
+     *  also in Blocked models. */
     private fun syncToBlockedModels() {
         val items = _run.value?.items?.values ?: return
         fun onCooldown(it: ModelTestState) =
@@ -220,8 +223,11 @@ class ModelTestEngine internal constructor(
                     it.errorMessage?.take(300) ?: "Test failed"
                 )
             }
+        // Every tested model is dropped from the blocked list first;
+        // only non-cooldown failures are re-added (via `failures`). So
+        // a model that just went on cooldown is removed from blocked.
         val testedKeys = items
-            .filter { (it.status == TestStatus.FAIL || it.status == TestStatus.PASS) && !onCooldown(it) }
+            .filter { it.status == TestStatus.FAIL || it.status == TestStatus.PASS }
             .map { it.key }
             .toSet()
         if (failures.isEmpty() && testedKeys.isEmpty()) return
