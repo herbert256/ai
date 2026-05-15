@@ -202,11 +202,18 @@ class ModelTestEngine internal constructor(
     /** Fold the just-finished run into [com.ai.model.Settings.blockedModels]:
      *  every FAIL becomes a blocked entry (its error message is the
      *  reason), every PASS removes its entry, untested models are left
-     *  alone. One settings write. */
+     *  alone. One settings write.
+     *
+     *  Models currently on a >1h-429 cooldown ([ModelCooldownStore])
+     *  are skipped entirely — they're owned by the cooldown list, not
+     *  the blocked list, and recover on their own, so a test run leaves
+     *  their blocked-list state untouched (neither added nor removed). */
     private fun syncToBlockedModels() {
         val items = _run.value?.items?.values ?: return
+        fun onCooldown(it: ModelTestState) =
+            com.ai.data.ModelCooldownStore.isUnavailable(it.providerId, it.model)
         val failures = items
-            .filter { it.status == TestStatus.FAIL }
+            .filter { it.status == TestStatus.FAIL && !onCooldown(it) }
             .map {
                 com.ai.model.BlockedModel(
                     it.providerId, it.model,
@@ -214,7 +221,7 @@ class ModelTestEngine internal constructor(
                 )
             }
         val testedKeys = items
-            .filter { it.status == TestStatus.FAIL || it.status == TestStatus.PASS }
+            .filter { (it.status == TestStatus.FAIL || it.status == TestStatus.PASS) && !onCooldown(it) }
             .map { it.key }
             .toSet()
         if (failures.isEmpty() && testedKeys.isEmpty()) return
