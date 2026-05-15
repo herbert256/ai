@@ -68,6 +68,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Extract API cost", "When ON, the dispatcher reads the cost figure straight off the response body — OpenRouter ships per-call cost in its usage object; most others don't. When OFF, cost is computed locally from token counts × the layered ModelPricing rate (provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter cross-provider → Helicone → DEFAULT).")
         )
     ),
+    "provider_card_throttle" to HelpContent(
+        title = "Throttle & retry",
+        cards = listOf(
+            HelpCard("How the override works", "Every field is a per-provider override of the global default (Settings → Per-provider throttling / 429 / 529 error handling). Leave a field blank to inherit the global value. Useful when one provider has a stricter API tier than the rest, or is more sensitive to bursts."),
+            HelpCard("Max calls per minute", "Sliding-window cap enforced by the OkHttp ProviderThrottleInterceptor on this provider's baseUrl host plus any aux hosts. A 61st call inside a 60-second window blocks until the oldest call exits the window. Blank = use the global value."),
+            HelpCard("Max concurrent calls", "Semaphore cap on simultaneous in-flight calls to this provider. Stacks on top of the per-minute rate limit. Lower this if the provider 429s under fan-out / report bursts that the global cap allows."),
+            HelpCard("Max retries on 429", "How many times a 429 response is re-attempted inline before the call is reported as failed. The Retry-After header wins over the wait-between value below when the provider sends one."),
+            HelpCard("Wait between 429 retries (ms)", "Base back-off between the 429 retries above. The retry interceptor applies a small jitter on top so two coroutines hitting the same provider don't re-fire at the exact same millisecond."),
+            HelpCard("Max retries on 529 / Wait between 529 retries (ms)", "Same shape as the 429 fields but for 529 'overloaded' responses — Anthropic's signal that the model itself (not the rate limiter) couldn't keep up. Treated separately because 529 usually clears in 1-2 seconds whereas 429 may need much longer.")
+        )
+    ),
     "provider_card_features" to HelpContent(
         title = "Features",
         cards = listOf(
