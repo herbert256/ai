@@ -125,15 +125,7 @@ internal fun FanOutL1Screen(
             onReload = { confirmRerunComplete = true },
             onDelete = { confirmDelete = true }
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Status counts + cost — pinned at the top of the page so
         // they stay put as the model list scrolls; kept visible even

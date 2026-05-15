@@ -148,15 +148,7 @@ internal fun TranslationL1Screen(
             onTrace = if (ApiTracer.isTracingEnabled) actions.onNavigateToTraceList else null,
             onDelete = { confirmDelete = true }
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Stats panel — pinned at the top, kept visible even once the
         // whole run is done. Translations expose no throttled set, so

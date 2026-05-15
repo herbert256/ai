@@ -399,15 +399,7 @@ fun ModelInfoScreen(
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null
         )
-        if (!foldSubject) {
-            Text(
-                text = modelName,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(modelName)
 
         run {
             // The page paints immediately — every card uses produceState
@@ -1276,15 +1268,8 @@ private fun ModelRawInfoScreen(
                 { com.ai.ui.shared.shareText(context, body, "Model info — ${provider?.displayName ?: title}") }
             }
         )
-        if (provider != null && !foldSubject) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                provider.displayName,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
+        if (provider != null) {
+            com.ai.ui.shared.HardcodedSubjectRow(provider.displayName)
         }
         if (provider != null) {
             calledUrl?.let { url ->

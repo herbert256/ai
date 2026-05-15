@@ -88,15 +88,7 @@ fun ApiTestScreen(
                 subject = selectedProvider.id,
                 onBackClick = { showModelDialog = false }
             )
-            if (!foldSubject) {
-                Text(
-                    text = selectedProvider.id,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-                )
-            }
+            com.ai.ui.shared.HardcodedSubjectRow(selectedProvider.id)
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -158,15 +150,7 @@ fun ApiTestScreen(
                 subject = selectedProvider.id,
                 onBackClick = { showEndpointDialog = false }
             )
-            if (!foldSubject) {
-                Text(
-                    text = selectedProvider.id,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-                )
-            }
+            com.ai.ui.shared.HardcodedSubjectRow(selectedProvider.id)
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Column(

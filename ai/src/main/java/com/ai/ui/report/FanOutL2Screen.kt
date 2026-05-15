@@ -179,15 +179,7 @@ internal fun FanOutL2Screen(
             onDelete = { confirmModelDelete = true },
             onInfo = AppService.findById(activePid)?.let { svc -> { actions.onNavigateToModelInfo(svc, activeMdl) } }
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Row 1: role label + Switch role button.
         Row(
@@ -625,15 +617,7 @@ internal fun FanOutL2OnePageScreen(
             subject = subject,
             onBackClick = onBack
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
         // Active role + Switch role — mirrors the L2 list screen so
         // the one-page view can flip Initiator ⇄ Responder in place.
         Row(

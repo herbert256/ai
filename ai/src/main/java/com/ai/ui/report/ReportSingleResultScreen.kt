@@ -188,9 +188,12 @@ fun ReportSingleResultScreen(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
+        // No outer page padding; horizontal 16dp + top = 4.dp keep
+        // this aligned with HardcodedSubjectRow. The agent label is
+        // wrapped in a clickable modifier to route taps to Model Info.
         if (!foldSubject) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(

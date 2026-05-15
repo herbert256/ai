@@ -90,15 +90,7 @@ internal fun TranslationL2Screen(
                 { actions.onNavigateToModelInfo(providerService, modelName) }
             } else null
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = modelLabel,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(modelLabel)
 
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {

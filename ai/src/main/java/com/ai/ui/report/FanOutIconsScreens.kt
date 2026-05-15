@@ -90,15 +90,7 @@ internal fun FanOutL1IconsScreen(
             subject = subject,
             onBackClick = onBack
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (groups.isEmpty()) {
@@ -194,15 +186,7 @@ internal fun FanOutL2IconsScreen(
             subject = subject,
             onBackClick = onBack
         )
-        if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-            Text(
-                text = subject,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,

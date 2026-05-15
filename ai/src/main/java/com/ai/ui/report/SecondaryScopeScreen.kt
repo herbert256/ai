@@ -99,15 +99,7 @@ internal fun SecondaryScopeScreen(
             subject = kindLabel,
             onBackClick = onBack
         )
-        if (!foldSubject) {
-            Text(
-                text = kindLabel,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(kindLabel)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {

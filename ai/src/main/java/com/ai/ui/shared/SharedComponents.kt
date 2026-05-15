@@ -526,7 +526,6 @@ fun TitleBar(
                 LocalReportTitle.current?.takeIf { it.isNotBlank() }
               else null
         val subjectNonBlank = !resolvedSubject.isNullOrBlank()
-        val barFontSize = titleStyle.fontSize * 1.25f
         val reportIconTap = LocalNavigateToCurrentReport.current
         // HARDCODED screen-title mode gives the leftmost report emoji
         // 2.0× sizing — the per-report glyph carries the whole visual
@@ -538,6 +537,10 @@ fun TitleBar(
         // title's baseline instead of stretching below it.
         val isHardcoded = mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         val reportIconScale = if (isHardcoded) 2.0f else 1f
+        // HARDCODED mode bar title gets a modest extra bump (1.35×
+        // instead of 1.25×) so it stands out against the green subject
+        // sub-header. ~30sp on a phone vs the body-text 22sp.
+        val barTitleSizeFactor = if (isHardcoded) 1.35f else 1.25f
         // HARDCODED mode always pairs the title bar with a green
         // subject row below it (each consumer screen renders one).
         // Drop the bottom padding to 0 in that mode — the consumer's
@@ -546,13 +549,18 @@ fun TitleBar(
         // Other modes fold the subject into the bar itself and keep
         // the standard 8 dp breathing room before body content.
         val barBottomPadding = if (isHardcoded) 0.dp else 8.dp
+        val barFontSize = titleStyle.fontSize * barTitleSizeFactor
         Row(
             modifier = modifier.fillMaxWidth().padding(bottom = barBottomPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (resolvedReportIcon != null) {
+                // In HARDCODED mode the icon hugs the screen's 16dp page
+                // padding a little tighter and rises a bit higher so the
+                // bar block reads as a single tall header tile, not as
+                // a centred row.
                 Box(
-                    modifier = if (isHardcoded) Modifier.offset(y = (-10).dp) else Modifier
+                    modifier = if (isHardcoded) Modifier.offset(x = (-2).dp, y = (-14).dp) else Modifier
                 ) {
                     TitleBarIcon(resolvedReportIcon, Color.Unspecified,
                         onClick = reportIconTap ?: {},
@@ -607,6 +615,31 @@ fun TitleBar(
             }
         }
     }
+}
+
+/**
+ * Green subject sub-header that pairs with [TitleBar]'s HARDCODED mode.
+ * Self-gates on [LocalSubjectToTitleBarMode] so callers can drop it in
+ * unconditionally — non-HARDCODED modes return without rendering.
+ *
+ * Single padding contract (`top = 4.dp`, no bottom) — matches the AI
+ * Report reference. Callers keep whatever trailing Spacer they already
+ * had for the gap between the subject and the screen body; this helper
+ * only owns the gap between the title bar and the green subject so
+ * that y-position is consistent across every HARDCODED screen.
+ */
+@Composable
+fun HardcodedSubjectRow(text: String?) {
+    if (text.isNullOrBlank()) return
+    if (LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) return
+    Text(
+        text = text,
+        fontSize = 18.sp, color = AppColors.Green,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+    )
 }
 
 /** Action strip rendered on the right of every [TitleBar]. Help and

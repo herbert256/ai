@@ -353,15 +353,7 @@ fun ProviderModelSettingsScreen(
             subject = service.id,
             onBackClick = onBack
         )
-        if (!foldSubject) {
-            Text(
-                text = service.id,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(service.id)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -882,15 +874,7 @@ fun ProviderSettingsScreen(
             onBackClick = onBackToSettings,
             onInfo = { onNavigateToHelpTopic(com.ai.ui.admin.providerHelpTopicId(service.id)) }
         )
-        if (!foldSubject) {
-            Text(
-                text = service.id,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(service.id)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

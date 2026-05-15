@@ -366,15 +366,7 @@ internal fun SecondaryResultsScreen(
                     { pickerConfirmDelete = true }
                 } else null
             )
-            if (!foldSubject) {
-                Text(
-                    text = baseTitle,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-                )
-            }
+            com.ai.ui.shared.HardcodedSubjectRow(baseTitle)
             Spacer(modifier = Modifier.height(8.dp))
         }
 
@@ -1067,17 +1059,7 @@ private fun ColumnScope.FanOutDrillInView(
                 }
             )
         }
-        if (!foldSubject) {
-            Text(
-                text = sourceLabel,
-                fontSize = 18.sp,
-                color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(sourceLabel)
         Spacer(modifier = Modifier.height(4.dp))
         // Source response (top) + answerer response (bottom). Top
         // wraps to its content but is capped at half the available
@@ -1263,6 +1245,10 @@ private fun ColumnScope.FanOutDrillInView(
                 { onNavigateToTraceFile(l2Trace) }
             } else null
         )
+        // Bespoke row instead of HardcodedSubjectRow — adds a click
+        // hit-target that opens the active (provider, model) in
+        // Model Info. top = 4.dp matches HardcodedSubjectRow so the
+        // y-position lines up with every other HARDCODED screen.
         if (!foldSubject) {
             Text(
                 text = l2Subject,
@@ -1272,7 +1258,7 @@ private fun ColumnScope.FanOutDrillInView(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
-                    .padding(top = 0.dp)
+                    .padding(top = 4.dp)
                     .modelInfoClickable(activeProviderService, activeMdl)
             )
         }
@@ -2187,6 +2173,10 @@ private fun OnePageView(
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null
         )
+        // Bespoke row instead of HardcodedSubjectRow — adds a click
+        // hit-target that opens the active (provider, model) in
+        // Model Info. top = 4.dp matches HardcodedSubjectRow so the
+        // y-position lines up with every other HARDCODED screen.
         if (!foldSubject) {
             Text(
                 text = modelLabel,
@@ -2194,7 +2184,7 @@ private fun OnePageView(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.fillMaxWidth()
-                    .padding(top = 0.dp)
+                    .padding(top = 4.dp)
                     .modelInfoClickable(activeProviderService, activeMdl)
             )
         }
@@ -2411,15 +2401,7 @@ internal fun SecondaryResultDetailScreen(
                 { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
             }
         )
-        if (!foldSubject) {
-            Text(
-                text = title,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-            )
-        }
+        com.ai.ui.shared.HardcodedSubjectRow(title)
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {

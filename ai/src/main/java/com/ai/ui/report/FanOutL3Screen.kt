@@ -190,9 +190,13 @@ internal fun FanOutL3Screen(
                 onReload = { actions.onRerunPair(run.key, pair.key) },
                 onDelete = { confirmDelete = true }
             )
+            // Bespoke row instead of the shared HardcodedSubjectRow —
+            // this screen also surfaces the role next to the answerer
+            // label. top = 4.dp matches HardcodedSubjectRow so the y-
+            // position lines up with every other HARDCODED screen.
             if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(

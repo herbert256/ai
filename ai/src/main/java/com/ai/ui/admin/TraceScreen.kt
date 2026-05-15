@@ -231,15 +231,7 @@ fun TraceListScreen(
                 onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null
             )
-            if (!foldSubject && subHeader.isNotBlank()) {
-                Text(
-                    text = subHeader,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 0.dp)
-                )
-            }
+            com.ai.ui.shared.HardcodedSubjectRow(subHeader)
 
             // Category / Provider / Hostname / Model selectors share
             // a single row. Each slot is only emitted when there's

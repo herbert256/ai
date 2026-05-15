@@ -2439,23 +2439,11 @@ fun ReportsScreen(
             )
         }
         // Dynamic per-report sub-header — renders below the static
-        // page title for the result phase so the user can see this
-        // particular report's title without it eating the menu bar.
-        // Subject-to-title-bar mode hoists this title into the bar
-        // above instead (see the TitleBar `title =` block).
-        if (isGenerating && !foldSubject) {
-            val reportTitle = uiState.genericPromptTitle
-            if (reportTitle.isNotBlank()) {
-                Text(
-                    text = reportTitle,
-                    fontSize = 18.sp,
-                    color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                )
-            }
+        // page title for the result phase. HardcodedSubjectRow
+        // self-gates on the HARDCODED mode and applies the shared
+        // padding contract.
+        if (isGenerating) {
+            com.ai.ui.shared.HardcodedSubjectRow(uiState.genericPromptTitle)
         }
         // Tight spacing into the action row on the result page —
         // the TitleBar already pads itself 8dp at the bottom, so an
