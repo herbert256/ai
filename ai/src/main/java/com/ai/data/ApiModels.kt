@@ -50,7 +50,17 @@ class FlexibleCostDeserializer : JsonDeserializer<Double?> {
 data class OpenAiMessage(
     val role: String,
     val content: Any?,
-    val reasoning_content: String? = null
+    /** Hidden chain-of-thought, as emitted by reasoning models on most
+     *  OpenAI-compatible providers (SiliconFlow, Moonshot, Z.AI,
+     *  DeepInfra, …). Falls into the parser's content-fallback chain
+     *  when [content] is empty (reasoner exhausted max_tokens on
+     *  thinking). */
+    val reasoning_content: String? = null,
+    /** OpenRouter's parallel field — exact same role as
+     *  [reasoning_content], different name. Some providers ship one,
+     *  some the other, a few ship both. The parser falls back to
+     *  whichever is non-empty. */
+    val reasoning: String? = null
 )
 
 data class OpenAiRequest(
@@ -622,7 +632,7 @@ data class GeminiModel(
 
 data class OpenAiStreamChunk(val id: String?, val choices: List<StreamChoice>?, val created: Long?)
 data class StreamChoice(val index: Int?, val delta: StreamDelta?, val finish_reason: String?)
-data class StreamDelta(val role: String? = null, val content: String? = null, val reasoning_content: String? = null)
+data class StreamDelta(val role: String? = null, val content: String? = null, val reasoning_content: String? = null, val reasoning: String? = null)
 
 data class ClaudeStreamEvent(
     val type: String,

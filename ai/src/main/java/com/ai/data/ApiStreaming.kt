@@ -160,7 +160,9 @@ private fun extractOpenAiContent(eventType: String?, data: String): String? {
     return try {
         val chunk = gson.fromJson(data, OpenAiStreamChunk::class.java)
         val delta = chunk?.choices?.firstOrNull()?.delta
-        delta?.content?.takeIf { it.isNotEmpty() } ?: delta?.reasoning_content?.takeIf { it.isNotEmpty() }
+        delta?.content?.takeIf { it.isNotEmpty() }
+            ?: delta?.reasoning_content?.takeIf { it.isNotEmpty() }
+            ?: delta?.reasoning?.takeIf { it.isNotEmpty() }
     } catch (_: Exception) { null }
 }
 

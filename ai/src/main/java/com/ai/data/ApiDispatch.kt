@@ -333,13 +333,15 @@ private suspend fun AnalysisRepository.chatOpenAi(
     val response = api.chat(chatUrl, "Bearer $apiKey", request)
     if (response.isSuccessful) {
         // Reasoning models on OpenAI-compatible chat sometimes return
-        // empty `content` with the answer in `reasoning_content` — mirror
-        // the streaming path's fallback (extractOpenAiContent) and the
+        // empty `content` with the answer in `reasoning_content`
+        // (SiliconFlow, Z.AI, Moonshot, DeepInfra) or `reasoning`
+        // (OpenRouter) — mirror the streaming path's fallback and the
         // analyze() path's so a thinking model with a tight max_tokens
         // doesn't surface as "No response content".
         val msg = response.body()?.choices?.firstOrNull()?.message
         return msg?.contentAsString()
             ?: msg?.reasoning_content
+            ?: msg?.reasoning
             ?: throw Exception("No response content")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -904,8 +906,10 @@ private fun AnalysisRepository.parseOpenAiAnalysisResponse(service: AppService, 
         val content = body?.choices?.let { choices ->
             choices.firstOrNull()?.message?.contentAsString()
                 ?: choices.firstOrNull()?.message?.reasoning_content
+                ?: choices.firstOrNull()?.message?.reasoning
                 ?: choices.firstNotNullOfOrNull { it.message.contentAsString() }
                 ?: choices.firstNotNullOfOrNull { it.message.reasoning_content }
+                ?: choices.firstNotNullOfOrNull { it.message.reasoning }
         }
         val rawUsageJson = formatUsageJson(body?.usage)
         val usage = body?.usage?.toTokenUsage(service)
