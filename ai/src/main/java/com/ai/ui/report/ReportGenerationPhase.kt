@@ -332,25 +332,25 @@ internal fun ColumnScope.GenerationPhase(
             IconButton(
                 onClick = onPrevReport,
                 enabled = hasPrevReport,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowLeft,
                     contentDescription = "Previous AI report",
                     tint = if (hasPrevReport) AppColors.Blue else AppColors.TextDisabled,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(48.dp)
                 )
             }
             IconButton(
                 onClick = onNextReport,
                 enabled = hasNextReport,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowRight,
                     contentDescription = "Next AI report",
                     tint = if (hasNextReport) AppColors.Blue else AppColors.TextDisabled,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(48.dp)
                 )
             }
         }
