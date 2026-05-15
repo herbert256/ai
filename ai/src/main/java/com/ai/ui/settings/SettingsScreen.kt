@@ -1122,8 +1122,7 @@ private fun MaximalApiCallsSubScreen(
 }
 
 /** Visual / layout preferences that don't affect the network layer.
- *  Five cards: Model name layout, Title bar layout, Icon bar
- *  position, Show < Back, Show AI Knowledge card on home page. */
+ *  Two cards: Model name layout, Show AI Knowledge card on home page. */
 @Composable
 private fun UiTweaksSubScreen(
     generalSettings: GeneralSettings,
@@ -1132,16 +1131,14 @@ private fun UiTweaksSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
-    var subjectToTitleBarMode by remember { mutableStateOf(generalSettings.subjectToTitleBarMode) }
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
-        subjectToTitleBarMode = subjectToTitleBarMode,
         showKnowledgeCard = showKnowledgeCard
     )
 
-    LaunchedEffect(modelNameLayout, subjectToTitleBarMode, showKnowledgeCard) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1172,28 +1169,6 @@ private fun UiTweaksSubScreen(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL,
                         label = "Provider and model name",
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
-                    )
-                }
-            }
-            SettingCard(
-                "Title bar layout",
-                "Detail screens have a fixed label and a dynamic subject. Pick which one (or both) goes in the title bar."
-            ) {
-                Column {
-                    RadioRow(
-                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED,
-                        label = "Hardcoded screen title",
-                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED }
-                    )
-                    RadioRow(
-                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT,
-                        label = "Dynamic subject name",
-                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT }
-                    )
-                    RadioRow(
-                        selected = subjectToTitleBarMode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH,
-                        label = "Both",
-                        onClick = { subjectToTitleBarMode = com.ai.viewmodel.SubjectToTitleBarMode.BOTH }
                     )
                 }
             }

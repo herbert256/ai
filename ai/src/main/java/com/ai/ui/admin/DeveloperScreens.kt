@@ -80,7 +80,6 @@ fun ApiTestScreen(
             else availableModels.filter { it.lowercase().contains(search.lowercase()) }
         }
         BackHandler { showModelDialog = false }
-        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_model",
@@ -142,7 +141,6 @@ fun ApiTestScreen(
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
-        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_endpoint",

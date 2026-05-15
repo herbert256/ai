@@ -242,7 +242,6 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     })
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("modelNameLayout", g.modelNameLayout.name)
-    addProperty("subjectToTitleBarMode", g.subjectToTitleBarMode.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
 }
@@ -262,16 +261,12 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
     }
-    val subjectMode = str("subjectToTitleBarMode")?.let {
-        runCatching { com.ai.viewmodel.SubjectToTitleBarMode.valueOf(it) }.getOrNull()
-    }
     return current.copy(
         userName = str("userName") ?: current.userName,
         defaultEmail = str("defaultEmail") ?: current.defaultEmail,
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         modelNameLayout = layout ?: current.modelNameLayout,
-        subjectToTitleBarMode = subjectMode ?: current.subjectToTitleBarMode,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard
     )

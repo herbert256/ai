@@ -194,25 +194,23 @@ internal fun FanOutL3Screen(
             // this screen also surfaces the role next to the answerer
             // label. top = 4.dp matches HardcodedSubjectRow so the y-
             // position lines up with every other HARDCODED screen.
-            if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = answererLabel,
-                        fontSize = 18.sp, color = AppColors.Green,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = role,
-                        fontSize = 13.sp, color = AppColors.TextSecondary,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 8.dp)
-                    )
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = answererLabel,
+                    fontSize = 18.sp, color = AppColors.Green,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = role,
+                    fontSize = 13.sp, color = AppColors.TextSecondary,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
             }
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)

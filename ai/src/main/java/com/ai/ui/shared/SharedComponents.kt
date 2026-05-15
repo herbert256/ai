@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -14,12 +15,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.R
 
 /** Returns a state that increments every time the host's
  *  [androidx.lifecycle.Lifecycle] reaches [Lifecycle.State.RESUMED].
@@ -131,16 +134,6 @@ val LocalModelNameLayout = compositionLocalOf {
 val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, String) -> Unit> {
     { _, _ -> }
 }
-
-/** Tri-state: how detail screens that have both a fixed label and a
- *  dynamic subject (Model Info, Trace detail, KB, Translation run,
- *  Agent result, …) compose their title. HARDCODED keeps the legacy
- *  two-row layout (fixed label in the bar, green subject below).
- *  SUBJECT folds the subject into the bar. BOTH puts both
- *  ("<fixed> / <subject>") in the bar. The green sub-header shows
- *  only in HARDCODED. Provided once by AppNavHost from
- *  GeneralSettings.subjectToTitleBarMode. */
-val LocalSubjectToTitleBarMode = compositionLocalOf { com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED }
 
 /** Provided by AppNavHost so the title-bar Help icon can navigate
  *  to a help page without prop-drilling a callback. The argument is
@@ -387,39 +380,29 @@ fun NonTestableBadge(isNonTestable: Boolean) {
 }
 
 /**
- * Generic title bar used across all screens.
- * Left: optional back button. Right: a strip of six action icons —
- * Home, Reload, Info, Delete, Trace, Help (left → right). Home and
- * Help are always enabled and route through their CompositionLocals;
- * the four middle icons gray out (alpha 0.4f, taps absorbed) when
- * their callback is null.
+ * Generic title bar — three-section anatomy. Left: AI logo (→ Hub)
+ * + ❓ Help (→ screen's help topic). Centre (only when a per-report
+ * emoji is in scope): the dynamic report icon, centred between the
+ * left button group and the right title. Right: the hardcoded screen
+ * title, top-aligned so the label sits high on the row.
  *
- * The < button does NOT call [onBackClick] directly — it invokes the
- * host activity's back-press dispatcher, so any [BackHandler] a
- * screen registers (overlay open, drill-in level, edit-cancel) wins
- * just as it does for the system / gesture back. To keep the visible
- * back button working when no other handler is enabled, TitleBar
- * registers its own `BackHandler { onBackClick() }` as the
- * lowest-priority fallback (it composes after any outer
- * BackHandler that was registered earlier in the screen body, but
- * BEFORE any inner BackHandlers tied to nested state). Without this
- * routing the < arrow popped past inner state — e.g. on the Fan out
- * drill-in's L2 it skipped L1 and exited the screen entirely.
+ * The visible back arrow lives on [BottomIconBar], not here. This
+ * function still registers a [BackHandler] when [onBackClick] is
+ * non-null so the system / gesture back routes through whatever the
+ * screen passed — overlay close, drill-in pop, edit-cancel, etc.
+ *
+ * Every action callback (chat / info / copy / share / reload / delete
+ * / trace) is captured into [LocalBottomIconState]; the global
+ * [BottomIconBar] paints them at the screen bottom.
  */
 @Composable
 fun TitleBar(
     title: String? = null,
-    /** Optional dynamic subject — model id, KB name, agent name, …
-     *  When [LocalSubjectToTitleBarMode] is SUBJECT or BOTH, the bar
-     *  uses [subject] in its title slot:
-     *  - SUBJECT: replace [title] with [subject] (falls back to [title]
-     *    when [subject] is null/blank).
-     *  - BOTH: render [subject] left-aligned and [title] right-aligned
-     *    in the title slot, no separator (also falls back to a single
-     *    centred [title] when [subject] is null/blank).
-     *  HARDCODED ignores [subject] entirely — the subject still renders
-     *  as the green sub-header below the bar at each consumer site. */
-    subject: String? = null,
+    /** Legacy slot — every caller draws its own green subject row via
+     *  [HardcodedSubjectRow] now, so this parameter is accepted-but-
+     *  unused while the call-site sweep finishes. New callers should
+     *  not pass it. */
+    @Suppress("UNUSED_PARAMETER") subject: String? = null,
     onBackClick: (() -> Unit)? = null,
     centered: Boolean = false,
     helpTopic: String? = null,
@@ -441,38 +424,21 @@ fun TitleBar(
      *  in-action-row Export button is gone. Null → icon hidden. */
     onShare: (() -> Unit)? = null,
     /** Resolved per-report emoji (e.g. 📊). When non-null the icon
-     *  renders as the absolute leftmost element of the bar — before
-     *  the back arrow — on every report-scoped screen. Tap navigates
-     *  back to the main report (via [LocalNavigateToCurrentReport])
-     *  when one is provided; otherwise the icon is decorative.
-     *  Suppresses the 📝 memo icon in the action strip since the
-     *  leftmost report icon serves the same "back to report" role.
-     *  Callsites should pass `report.icon ?: "📝"` so the slot is
-     *  filled while icon-gen is in flight or after it errored. */
+     *  renders centred between the left button group and the right
+     *  title on every report-scoped screen. Tap navigates back to the
+     *  main report (via [LocalNavigateToCurrentReport]) when one is
+     *  provided; otherwise the icon is decorative. Callsites should
+     *  pass `report.icon ?: "📝"` so the slot is filled while
+     *  icon-gen is in flight or after it errored. */
     reportIcon: String? = null,
-    /** Applied to the bar's outer Row. Default no-op preserves the
-     *  existing convention (most screens wrap the bar in a parent
-     *  Column with `.padding(16.dp)` and pay zero pad here).
-     *  Screens that DON'T outer-pad — e.g. those whose body content
-     *  needs to flow edge-to-edge under the bar — pass
-     *  `Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)`
-     *  here so the bar still gets the same top breathing room as
-     *  the standard pattern. */
+    /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
-    // Register BackHandler so the system / gesture back fires
-    // onBackClick when the screen asks for back-handling. Visible "<
-    // Back" affordances live only in the BottomIconBar now — the top
-    // bar never renders a back button — but a screen that passes
-    // onBackClick still wants the system back to flow through it.
     if (onBackClick != null) {
         androidx.activity.compose.BackHandler { onBackClick() }
     }
     val navigateHome = LocalNavigateHome.current
-    // Explicit reportIcon param wins when non-null; otherwise inherit
-    // from LocalReportIcon (provided by ReportsScreen at every inline
-    // overlay so pickers / viewer / etc. see it without having to be
-    // refactored to thread it through their parameters).
+    val navigateHelp = LocalNavigateToHelp.current
     val resolvedReportIcon = reportIcon ?: LocalReportIcon.current
     if (centered) {
         Box(
@@ -484,154 +450,94 @@ fun TitleBar(
                 modifier = Modifier.clickable { navigateHome() }
             )
         }
-    } else {
-        // Non-centered TitleBar: the top bar renders title + leftmost
-        // per-report icon only. Every action callback (and the back
-        // arrow) is published into LocalBottomIconState so the global
-        // BottomIconBar paints the action strip pinned to the screen
-        // bottom. SideEffect on every recomposition keeps the published
-        // state fresh; DisposableEffect clears it on screen exit (with
-        // an identity check so a racing nav transition doesn't clobber
-        // the next screen's just-published state).
-        val state = LocalBottomIconState.current
-        val captured = TitleBarIcons(
-            helpTopic = helpTopic,
-            onBack = onBackClick,
-            onChat = onChat,
-            onInfo = onInfo,
-            onCopy = onCopy,
-            onShare = onShare,
-            onReload = onReload,
-            onDelete = onDelete,
-            onTrace = onTrace,
-            // The leftmost top-bar icon already carries the back-to-
-            // report tap target, so the bottom strip's 📝 memo would be
-            // visually redundant. Suppress it unconditionally.
-            onMemo = null
-        )
-        if (state != null) {
-            SideEffect { state.value = captured }
-            DisposableEffect(Unit) {
-                onDispose { if (state.value === captured) state.value = null }
-            }
+        return
+    }
+    // Publish action callbacks into LocalBottomIconState; the global
+    // BottomIconBar at AppNavHost scope paints the strip. SideEffect
+    // re-publishes on every recomposition; DisposableEffect clears on
+    // screen exit with an identity check so a racing nav doesn't
+    // clobber the next screen's just-published state.
+    val state = LocalBottomIconState.current
+    val captured = TitleBarIcons(
+        helpTopic = helpTopic,
+        onBack = onBackClick,
+        onChat = onChat,
+        onInfo = onInfo,
+        onCopy = onCopy,
+        onShare = onShare,
+        onReload = onReload,
+        onDelete = onDelete,
+        onTrace = onTrace,
+        onMemo = null
+    )
+    if (state != null) {
+        SideEffect { state.value = captured }
+        DisposableEffect(Unit) {
+            onDispose { if (state.value === captured) state.value = null }
         }
-        val titleStyle = MaterialTheme.typography.titleLarge
-        val mode = LocalSubjectToTitleBarMode.current
-        // BOTH-mode subject fallback: when the caller didn't pass a
-        // per-screen subject, borrow the active Report's title so the
-        // bar still reads "<report> <screen>" instead of just the
-        // screen's fixed title. Only kicks in when BOTH is active.
-        val resolvedSubject = subject?.takeIf { it.isNotBlank() }
-            ?: if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH)
-                LocalReportTitle.current?.takeIf { it.isNotBlank() }
-              else null
-        val subjectNonBlank = !resolvedSubject.isNullOrBlank()
-        val reportIconTap = LocalNavigateToCurrentReport.current
-        // HARDCODED screen-title mode gives the leftmost report emoji
-        // 2.0× sizing — the per-report glyph carries the whole visual
-        // identity of the page when the title slot is a fixed screen
-        // title, so it earns the extra real estate. It also sits
-        // pulled up a few dp so its baseline rises above the
-        // surrounding row, freeing vertical room for the title text
-        // and leaving the bottom edge of the icon flush with the
-        // title's baseline instead of stretching below it.
-        val isHardcoded = mode == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
-        val reportIconScale = if (isHardcoded) 2.0f else 1f
-        // HARDCODED mode bar title gets a modest extra bump (1.35×
-        // instead of 1.25×) so it stands out against the green subject
-        // sub-header. ~30sp on a phone vs the body-text 22sp.
-        val barTitleSizeFactor = if (isHardcoded) 1.35f else 1.25f
-        // HARDCODED mode always pairs the title bar with a green
-        // subject row below it (each consumer screen renders one).
-        // Drop the bottom padding to 0 in that mode — the consumer's
-        // subject row also has its top padding zeroed so the title
-        // row and the subject row read as one bonded header block.
-        // Other modes fold the subject into the bar itself and keep
-        // the standard 8 dp breathing room before body content.
-        val barBottomPadding = if (isHardcoded) 0.dp else 8.dp
-        val barFontSize = titleStyle.fontSize * barTitleSizeFactor
-        Row(
-            modifier = modifier.fillMaxWidth().padding(bottom = barBottomPadding),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (resolvedReportIcon != null) {
-                // In HARDCODED mode the icon hugs the screen's 16dp page
-                // padding a little tighter and rises a bit higher so the
-                // bar block reads as a single tall header tile, not as
-                // a centred row.
-                Box(
-                    modifier = if (isHardcoded) Modifier.offset(x = (-2).dp, y = (-14).dp) else Modifier
-                ) {
-                    TitleBarIcon(resolvedReportIcon, Color.Unspecified,
-                        onClick = reportIconTap ?: {},
-                        width = 22.dp, scale = reportIconScale)
-                }
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            if (mode == com.ai.viewmodel.SubjectToTitleBarMode.BOTH && subjectNonBlank && title != null) {
-                Text(
-                    text = resolvedSubject!!, style = titleStyle, color = Color.White,
-                    fontSize = barFontSize, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Start,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title, style = titleStyle, color = Color.White,
-                    fontSize = barFontSize, fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.End,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            } else {
-                val effective = if (mode == com.ai.viewmodel.SubjectToTitleBarMode.SUBJECT && subjectNonBlank) resolvedSubject!! else title
-                if (effective != null) {
-                    Text(
-                        text = effective, style = titleStyle, color = Color.White,
-                        fontSize = barFontSize, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.End,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-            }
+    }
+    val titleStyle = MaterialTheme.typography.titleLarge
+    val barFontSize = titleStyle.fontSize * 1.35f
+    val reportIconTap = LocalNavigateToCurrentReport.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        AiLogoButton(onClick = navigateHome)
+        Spacer(modifier = Modifier.width(8.dp))
+        HelpButton(onClick = { navigateHelp(helpTopic) })
+        Spacer(modifier = Modifier.weight(1f))
+        if (resolvedReportIcon != null) {
+            TitleBarIcon(
+                resolvedReportIcon, Color.Unspecified,
+                onClick = reportIconTap ?: {},
+                width = 22.dp, scale = 2.0f
+            )
+            Spacer(modifier = Modifier.weight(1f))
         }
-        // HARDCODED fallback: when the consumer didn't supply a
-        // subject (or it was blank), but a per-report icon IS in scope
-        // and a report title is available, paint the report title as
-        // the green sub-header below the bar. The consumer screens
-        // that DO supply a subject still render their own inline
-        // green text below this — this fallback only fills the gap
-        // when nothing else would surface there.
-        if (isHardcoded && resolvedReportIcon != null && subject.isNullOrBlank()) {
-            LocalReportTitle.current?.takeIf { it.isNotBlank() }?.let { fallbackSubject ->
-                Text(
-                    text = fallbackSubject,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        if (title != null) {
+            Text(
+                text = title, style = titleStyle, color = Color.White,
+                fontSize = barFontSize, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End,
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }
 
+@Composable
+private fun AiLogoButton(onClick: () -> Unit) {
+    Image(
+        painter = painterResource(R.drawable.ic_launcher_foreground),
+        contentDescription = "Home",
+        modifier = Modifier.size(40.dp).clickable(onClick = onClick)
+    )
+}
+
+@Composable
+private fun HelpButton(onClick: () -> Unit) {
+    Text(
+        text = "❓",
+        fontSize = 22.sp,
+        color = AppColors.Blue,
+        modifier = Modifier.padding(top = 4.dp).clickable(onClick = onClick)
+    )
+}
+
 /**
- * Green subject sub-header that pairs with [TitleBar]'s HARDCODED mode.
- * Self-gates on [LocalSubjectToTitleBarMode] so callers can drop it in
- * unconditionally — non-HARDCODED modes return without rendering.
- *
- * Single padding contract (`top = 4.dp`, no bottom) — matches the AI
- * Report reference. Callers keep whatever trailing Spacer they already
- * had for the gap between the subject and the screen body; this helper
+ * Green subject sub-header rendered just below [TitleBar]. Self-gates
+ * on blank text so callers can drop it in unconditionally. Single
+ * padding contract (`top = 4.dp`, no bottom) — matches the AI Report
+ * reference. Callers keep whatever trailing Spacer they already had
+ * for the gap between the subject and the screen body; this helper
  * only owns the gap between the title bar and the green subject so
- * that y-position is consistent across every HARDCODED screen.
+ * that y-position is consistent across every screen.
  */
 @Composable
 fun HardcodedSubjectRow(text: String?) {
     if (text.isNullOrBlank()) return
-    if (LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) return
     Text(
         text = text,
         fontSize = 18.sp, color = AppColors.Green,
@@ -642,15 +548,12 @@ fun HardcodedSubjectRow(text: String?) {
     )
 }
 
-/** Action strip rendered on the right of every [TitleBar]. Help and
- *  Home are always shown (Help is the rightmost slot — the global
- *  "what does this screen do?" anchor — with Home one over from it);
- *  the conditional slots (Reload / Chat / Info / Delete / Trace /
- *  Memo) only render when their callback is non-null — null means
- *  the icon is omitted entirely so the strip stays tight. */
+/** Action strip rendered on the right of [BottomIconBar]. Home / Help
+ *  live in the top bar, so they're absent here. Every slot is
+ *  conditional — null means the icon is omitted entirely so the strip
+ *  stays tight. */
 @Composable
 private fun TitleBarActionStrip(
-    onHome: () -> Unit,
     onReload: (() -> Unit)?,
     onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
@@ -658,86 +561,30 @@ private fun TitleBarActionStrip(
     onShare: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
-    onHelp: () -> Unit,
     onMemo: (() -> Unit)?,
     scale: Float = 1f,
-    /** When true, every icon's slot width shrinks by 6dp (clamped at
-     *  16dp minimum) so the strip looks compact instead of airy at
-     *  the larger 1.5× icon scale. The glyph itself still scales —
-     *  only the surrounding tap-target slop is reduced. */
-    compactSpacing: Boolean = false,
     /** Extra horizontal gap inserted between every adjacent icon —
-     *  on top of the per-pair Spacers already coded into the strip.
-     *  Default 0.dp keeps the dense top-bar layout; the bottom-bar
-     *  uses ~6dp so the icons read as separate tap targets instead
-     *  of one chunk. */
+     *  on top of the per-pair Spacers already coded into the strip. */
     extraSpacing: Dp = 0.dp
 ) {
-    fun w(slot: Dp): Dp = if (compactSpacing) (slot - 6.dp).coerceAtLeast(16.dp) else slot
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(extraSpacing)
     ) {
-        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = w(28.dp), scale = scale)
-        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = w(28.dp), scale = scale)
-        // 📋 Copy — slots into the "act on this content" cluster
-        // alongside 💬 and ℹ️. Hidden when the screen has nothing
-        // copyable (callsites pass a null callback in that case).
-        if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = w(28.dp), scale = scale)
-        // 📤 Share — fires the Android share sheet with the same body
-        // the Copy icon writes to the clipboard. Sits next to 📋 so
-        // the two outbound-content actions cluster together.
-        if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = w(28.dp), scale = scale)
-        // 🔄 sits immediately to the left of 🗑 — the reload-vs-
-        // discard pair lives together so a user reaching for one
-        // doesn't accidentally hit the other from across the strip.
-        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = w(28.dp), scale = scale)
-        // 🗑 reads narrow on the leading edge, so a 28dp slot leaves
-        // a visible gap before it; tighten to 22dp to bring it
-        // closer to the neighbour on its left.
-        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = w(22.dp), scale = scale)
-        // Visual gap between 🗑 Delete and 🐞 Trace — the two 22dp
-        // slots butt flush, leaving the destructive trash icon
-        // touching the diagnostic bug icon as one chunk. Only fires
-        // when both are shown.
+        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
+        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
+        if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
+        if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
+        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
+        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace != null) {
             Spacer(modifier = Modifier.width(2.dp * scale))
         }
-        // Trace's 🐞 glyph reads narrower than its trailing space in
-        // a 28dp slot, leaving a visible gap before the next icon.
-        // Tighten to 22dp so it sits closer to its right neighbour
-        // (Help) without getting cramped.
-        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = w(22.dp), scale = scale)
-        // Safety gap: when 🐞 is hidden, 🗑 lands directly next to
-        // 📝 (Memo) or 🏠 (Home). Fat-finger-prevention spacer so the
-        // destructive trash icon doesn't sit flush against a
-        // navigation icon. 2dp matches the Trash↔Trace gap above.
+        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace == null) {
             Spacer(modifier = Modifier.width(2.dp * scale))
         }
-        // Visual gap between 🐞 Trace and 🏠 Home — the user asked
-        // for the pairing specifically. The two 22dp slots butt flush
-        // and the emojis read as one chunk despite the colour
-        // difference. Only fires when 📝 Memo is absent (otherwise
-        // Memo sits between them and the gap doesn't apply).
-        if (onTrace != null && onMemo == null) {
-            Spacer(modifier = Modifier.width(4.dp * scale))
-        }
-        // 📝 Memo — "back to the current AI Report's result page".
-        // Sits to the left of Home / Help; only renders when
-        // [LocalNavigateToCurrentReport] is non-null, i.e. the user
-        // is on a screen that's deeper than the result page itself.
-        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = w(28.dp), scale = scale)
-        // 🏠 Home — tightened to 22dp so the gap between it and the
-        // rightmost ❓ Help icon shrinks; both glyphs read narrower
-        // than the standard 28dp slot.
-        TitleBarIcon("🏠", AppColors.Blue, onHome, width = w(22.dp), scale = scale)
-        // Help glyph reads narrower than the other emojis, so a
-        // standard 28dp slot leaves visible gaps on either side.
-        // Tightening further to 14dp pulls it snug against Home on
-        // the left. Help is the rightmost slot — the global "what
-        // does this screen do?" anchor.
-        TitleBarIcon("❓", AppColors.Blue, onHelp, width = w(14.dp), scale = scale)
+        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = 28.dp, scale = scale)
     }
 }
 
@@ -761,22 +608,14 @@ private fun TitleBarIcon(
 }
 
 /** Fixed-position bottom bar that mirrors the active TitleBar's
- *  action icons + back arrow. Always present (every nav destination
- *  except the Hub) — AppNavHost renders one instance and feeds it the
- *  icons published by whichever TitleBar is currently composed. Falls
- *  back to a dim "no icons" bar during the brief sub-frame between
- *  two screens' nav transitions. */
+ *  action icons + back arrow. Home + Help live in the top bar; this
+ *  strip carries the per-screen actions only (chat / info / copy /
+ *  share / reload / delete / trace / memo + the ← back arrow on the
+ *  left). Icons render at a 1.25× scale by default, narrowing
+ *  adaptively when the strip would otherwise overflow on a narrow
+ *  screen. */
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
-    val navigateHome = LocalNavigateHome.current
-    val navigateHelp = LocalNavigateToHelp.current
-    // Estimate the strip's intrinsic width at scale = 1 so we can
-    // adapt the rendered scale to the available width. Mirrors the
-    // hard-coded slot widths inside TitleBarActionStrip. If the
-    // estimate is too generous we just stay at the design scale;
-    // if it's too tight we shrink the strip down (clamped at 0.9×)
-    // so the rightmost ❓ Help icon doesn't fall off the right edge
-    // on screens with a fat action strip (Model response, etc.).
     val onBack = icons?.onBack
     val onChat = icons?.onChat
     val onInfo = icons?.onInfo
@@ -786,7 +625,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onDelete = icons?.onDelete
     val onTrace = icons?.onTrace
     val onMemo = icons?.onMemo
-    val extraGap = 2 // matches extraSpacing param below
+    val extraGap = 2
     var stripBase = 0
     var slotCount = 0
     fun slot(w: Int) { stripBase += w; slotCount++ }
@@ -799,56 +638,37 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     if (onDelete != null && onTrace != null) stripBase += 2
     if (onTrace != null) slot(22)
     if (onDelete != null && onTrace == null) stripBase += 2
-    if (onTrace != null && onMemo == null) stripBase += 4
     if (onMemo != null) slot(28)
-    slot(22) // home (always)
-    slot(14) // help (always)
-    val stripIntrinsic = stripBase + (slotCount - 1).coerceAtLeast(0) * extraGap
+    val stripIntrinsic = (stripBase + (slotCount - 1).coerceAtLeast(0) * extraGap).coerceAtLeast(1)
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp)
     ) {
-        val backW = if (onBack != null) 36 else 0
+        val backW = if (onBack != null) 45 else 0
         val backGap = if (onBack != null) 4 else 0
         val available = maxWidth.value
         val desired = (available - backW - backGap) / stripIntrinsic
-        val scale = desired.coerceIn(0.9f, 1.5f)
+        // Floor at 1.0× so the strip never shrinks below the previous
+        // top-bar size; ceiling at 1.875× = 1.5× × 1.25× preserves the
+        // original headroom multiplier on roomy screens.
+        val scale = desired.coerceIn(1.0f, 1.875f)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Back glyph centered in a tight 36dp box so the slot
-            // doesn't waste horizontal space. Previously a 56dp
-            // CenterStart box left ~30dp of empty space to the right
-            // of the ← that the rest of the strip couldn't use. The
-            // weight(1f) Spacer below pushes the action strip flush
-            // to the right edge — adaptive scaling above ensures the
-            // strip is narrow enough to fit there without clipping
-            // the ❓ Help icon off the screen.
             if (onBack != null) {
                 Box(
-                    modifier = Modifier.size(width = 36.dp, height = 48.dp).clickable(onClick = onBack),
+                    modifier = Modifier.size(width = 45.dp, height = 60.dp).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Bolder + slightly taller than the previous
-                    // unicode ← at 32sp / regular weight: FontWeight
-                    // Black + 40sp gives a heavier stroke that reads
-                    // as a "proper" back arrow against the strip's
-                    // emoji icons on its right. A small upward offset
-                    // counters the glyph sitting visually low inside
-                    // its line box (descender slack at the bottom).
                     Text(
-                        "←", color = Color.White, fontSize = 40.sp,
+                        "←", color = Color.White, fontSize = 50.sp,
                         fontWeight = FontWeight.Black,
-                        modifier = Modifier.offset(y = (-12).dp)
+                        modifier = Modifier.offset(y = (-15).dp)
                     )
                 }
             }
             Spacer(modifier = Modifier.weight(1f))
-            // Right side: same TitleBarActionStrip the top bar would
-            // render, with the same Home / Help wiring and per-icon
-            // null-check rules.
             TitleBarActionStrip(
-                onHome = navigateHome,
                 onReload = onReload,
                 onChat = onChat,
                 onInfo = onInfo,
@@ -856,10 +676,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onShare = onShare,
                 onDelete = onDelete,
                 onTrace = onTrace,
-                onHelp = { navigateHelp(icons?.helpTopic) },
                 onMemo = onMemo,
                 scale = scale,
-                compactSpacing = false,
                 extraSpacing = extraGap.dp
             )
         }

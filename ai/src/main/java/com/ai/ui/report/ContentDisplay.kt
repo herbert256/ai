@@ -588,7 +588,6 @@ private fun OnePageReportView(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val titleText = report.title.ifBlank { "Report" }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
@@ -603,15 +602,13 @@ private fun OnePageReportView(
         // needs its own horizontal 16dp inset. top = 4.dp matches the
         // HardcodedSubjectRow contract so the y-position lines up with
         // every other HARDCODED screen.
-        if (!foldSubject) {
-            Text(
-                text = titleText,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-            )
-        }
+        Text(
+            text = titleText,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+        )
         LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
         val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
         LazyColumn(

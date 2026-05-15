@@ -28,15 +28,6 @@ import kotlinx.coroutines.withContext
  *  multiple providers and want to disambiguate at a glance. */
 enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
 
-/** How a detail screen's title bar combines its static label with its
- *  dynamic subject (model id, KB name, agent name, …).
- *  HARDCODED: title bar shows only the static label; the subject
- *  renders below as the green sub-header (legacy default).
- *  SUBJECT: title bar shows the subject; green sub-header hidden.
- *  BOTH: title bar shows "<static label> / <subject>"; green sub-header
- *  hidden. */
-enum class SubjectToTitleBarMode { HARDCODED, SUBJECT, BOTH }
-
 data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
@@ -61,13 +52,6 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
-    /** Compact-header mode (tri-state). HARDCODED keeps the legacy
-     *  layout: fixed label in the title bar + green dynamic-subject
-     *  sub-header below. SUBJECT folds the subject into the title bar
-     *  and drops the green line. BOTH puts both ("<fixed> / <subject>")
-     *  in the title bar and drops the green line. Provided via
-     *  LocalSubjectToTitleBarMode. */
-    val subjectToTitleBarMode: SubjectToTitleBarMode = SubjectToTitleBarMode.BOTH,
     /** Master switch for the per-report icon-gen feature. When true
      *  (default) every new report kicks off a background LLM call that
      *  generates a fitting emoji, the icon-row appears on the result

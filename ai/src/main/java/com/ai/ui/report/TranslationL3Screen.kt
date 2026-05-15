@@ -184,15 +184,13 @@ internal fun TranslationL3Screen(
             )
             // No outer page padding on this screen; horizontal 16dp + the
             // shared top = 4.dp keep this aligned with HardcodedSubjectRow.
-            if (com.ai.ui.shared.LocalSubjectToTitleBarMode.current == com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED) {
-                Text(
-                    text = titleLang,
-                    fontSize = 18.sp, color = AppColors.Green,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-                )
-            }
+            Text(
+                text = titleLang,
+                fontSize = 18.sp, color = AppColors.Green,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+            )
             if (item.costDollars > 0.0) {
                 Text(
                     "Cost: ${formatCents(item.costDollars)} ¢",

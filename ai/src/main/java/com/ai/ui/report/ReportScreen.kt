@@ -2378,7 +2378,6 @@ fun ReportsScreen(
     }
 
     // Main UI
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         // Static page title in the menu bar by default; the dynamic
         // prompt title surfaces as a green sub-header inside the body.

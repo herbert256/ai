@@ -41,7 +41,6 @@ internal fun TranslationCompareScreen(
 ) {
     BackHandler { onBack() }
     val context = androidx.compose.ui.platform.LocalContext.current
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "translation_compare",
@@ -58,15 +57,13 @@ internal fun TranslationCompareScreen(
         )
         // No outer page padding on this screen; horizontal 16dp + the
         // shared top = 4.dp keep this aligned with HardcodedSubjectRow.
-        if (!foldSubject) {
-            Text(
-                text = title,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
-            )
-        }
+        Text(
+            text = title,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)
+        )
 
         // Top pane — original.
         Column(

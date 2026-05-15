@@ -215,7 +215,6 @@ fun TraceListScreen(
         val pageItems = traceFiles.subList(startIndex.coerceAtMost(traceFiles.size), (startIndex + pageSize).coerceAtMost(traceFiles.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
-        val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
         Column(modifier = Modifier.fillMaxSize()) {
             val subHeader = when {
                 reportId != null -> "Report scope"

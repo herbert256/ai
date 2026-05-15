@@ -345,7 +345,6 @@ internal fun SecondaryResultsScreen(
         }
     }
     var pickerConfirmDelete by remember { mutableStateOf(false) }
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
@@ -750,7 +749,6 @@ private fun ColumnScope.FanOutDrillInView(
     // source-agent label) in-bar and the matching inline green
     // sub-header is suppressed. HARDCODED keeps the legacy layout:
     // static "Fan out" in the bar, big green subject below.
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     // Load the parent report once so L1 / L2 can label rows by the
     // agents' provider/model and L3 can pull source.responseBody.
     val report by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
@@ -1249,19 +1247,17 @@ private fun ColumnScope.FanOutDrillInView(
         // hit-target that opens the active (provider, model) in
         // Model Info. top = 4.dp matches HardcodedSubjectRow so the
         // y-position lines up with every other HARDCODED screen.
-        if (!foldSubject) {
-            Text(
-                text = l2Subject,
-                fontSize = 18.sp,
-                color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-                    .padding(top = 4.dp)
-                    .modelInfoClickable(activeProviderService, activeMdl)
-            )
-        }
+        Text(
+            text = l2Subject,
+            fontSize = 18.sp,
+            color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+                .padding(top = 4.dp)
+                .modelInfoClickable(activeProviderService, activeMdl)
+        )
         // Row 1: role label + Switch role button.
         Row(verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(top = 4.dp)) {
@@ -1664,7 +1660,7 @@ private fun ColumnScope.FanOutDrillInView(
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
     )
-    if (!foldSubject && l1SubHeader.isNotBlank()) {
+    if (l1SubHeader.isNotBlank()) {
         Text(
             text = l1SubHeader,
             fontSize = 18.sp,
@@ -2089,7 +2085,6 @@ private fun OnePageView(
     val context = LocalContext.current
     val provName = AppService.findById(activePid)?.id ?: activePid
     val activeProviderService = AppService.findById(activePid)
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
@@ -2177,17 +2172,15 @@ private fun OnePageView(
         // hit-target that opens the active (provider, model) in
         // Model Info. top = 4.dp matches HardcodedSubjectRow so the
         // y-position lines up with every other HARDCODED screen.
-        if (!foldSubject) {
-            Text(
-                text = modelLabel,
-                fontSize = 18.sp, color = AppColors.Green,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-                    .padding(top = 4.dp)
-                    .modelInfoClickable(activeProviderService, activeMdl)
-            )
-        }
+        Text(
+            text = modelLabel,
+            fontSize = 18.sp, color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+                .padding(top = 4.dp)
+                .modelInfoClickable(activeProviderService, activeMdl)
+        )
         // Role label + Switch role button — same shape as the L2
         // list page, hoisted up so the user can toggle without
         // backing out to the list view.
@@ -2382,7 +2375,6 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(

@@ -388,7 +388,6 @@ fun ModelInfoScreen(
         }
     }
 
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             helpTopic = "model_info",
@@ -1246,7 +1245,6 @@ private fun ModelRawInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val annotated = remember(body) { colorizeJson(body) }
-    val foldSubject = com.ai.ui.shared.LocalSubjectToTitleBarMode.current != com.ai.viewmodel.SubjectToTitleBarMode.HARDCODED
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
