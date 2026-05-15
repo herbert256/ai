@@ -750,7 +750,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // Bottom padding lifts the bar a touch above the gesture
         // pill — without it the strip sat dead flush against the
         // physical edge once the system-bars inset was dropped.
-        modifier = modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 12.dp)
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 8.dp, bottom = 12.dp)
     ) {
         val backW = if (onBack != null) 45 else 0
         val backGap = if (onBack != null) 4 else 0
