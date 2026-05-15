@@ -723,6 +723,8 @@ fun AppLogDetailScreen(
                 .horizontalSwipeNavigation(
                     key1 = currentFilename,
                     key2 = files,
+                    atFirst = !hasPrev,
+                    atLast = !hasNext,
                     onSwipeLeft = { if (hasNext) currentFilename = files[currentIndex + 1] },
                     onSwipeRight = { if (hasPrev) currentFilename = files[currentIndex - 1] }
                 )

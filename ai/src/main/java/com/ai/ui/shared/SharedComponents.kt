@@ -36,25 +36,36 @@ import com.ai.R
  *
  *  [key1] / [key2] feed [pointerInput]'s keys so the lambdas always
  *  close over fresh state when the current item or its surrounding
- *  list changes. Bound checks are the caller's responsibility — the
- *  callbacks should no-op at list ends (the buttons they replace
- *  were disabled there). */
+ *  list changes. When [atFirst] / [atLast] is true the matching
+ *  edge swipe shows a "First page reached" / "Last page reached"
+ *  toast instead of calling the lambda — same shape as the
+ *  Import-result toasts so the user gets feedback that the gesture
+ *  registered. */
 fun Modifier.horizontalSwipeNavigation(
     key1: Any?,
     key2: Any? = Unit,
     thresholdDp: Dp = 60.dp,
+    atFirst: Boolean = false,
+    atLast: Boolean = false,
     onSwipeLeft: () -> Unit,
     onSwipeRight: () -> Unit,
 ): Modifier = this.composed {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val thresholdPx = with(LocalDensity.current) { thresholdDp.toPx() }
-    pointerInput(key1, key2) {
+    pointerInput(key1, key2, atFirst, atLast) {
         var totalDrag = 0f
         detectHorizontalDragGestures(
             onDragStart = { totalDrag = 0f },
             onDragEnd = {
                 when {
-                    totalDrag > thresholdPx -> onSwipeRight()
-                    totalDrag < -thresholdPx -> onSwipeLeft()
+                    totalDrag > thresholdPx -> {
+                        if (atFirst) android.widget.Toast.makeText(context, "First page reached", android.widget.Toast.LENGTH_SHORT).show()
+                        else onSwipeRight()
+                    }
+                    totalDrag < -thresholdPx -> {
+                        if (atLast) android.widget.Toast.makeText(context, "Last page reached", android.widget.Toast.LENGTH_SHORT).show()
+                        else onSwipeLeft()
+                    }
                 }
             },
             onDragCancel = { totalDrag = 0f }

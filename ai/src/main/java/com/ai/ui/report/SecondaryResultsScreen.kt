@@ -1087,6 +1087,8 @@ private fun ColumnScope.FanOutDrillInView(
                 .horizontalSwipeNavigation(
                     key1 = currentPairKey,
                     key2 = l2Rows,
+                    atFirst = currentIdx <= 0,
+                    atLast = currentIdx < 0 || currentIdx >= l2Rows.size - 1,
                     onSwipeLeft = {
                         if (currentIdx in 0 until l2Rows.size - 1) gotoPair(l2Rows.getOrNull(currentIdx + 1))
                     },

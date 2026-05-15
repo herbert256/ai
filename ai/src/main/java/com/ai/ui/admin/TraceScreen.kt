@@ -891,6 +891,8 @@ fun TraceDetailScreen(
         Box(modifier = Modifier.weight(1f).horizontalSwipeNavigation(
             key1 = currentFilename,
             key2 = traceFiles,
+            atFirst = !hasPrev,
+            atLast = !hasNext,
             onSwipeLeft = {
                 if (hasNext) { currentFilename = traceFiles[currentIndex + 1]; currentView = TraceContentView.RSP_DATA; currentMode = TraceContentMode.PARSED }
             },

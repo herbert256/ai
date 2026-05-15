@@ -109,6 +109,8 @@ internal fun ModelTestL3Screen(
                 .horizontalSwipeNavigation(
                     key1 = item.key,
                     key2 = siblings,
+                    atFirst = prev == null,
+                    atLast = next == null,
                     onSwipeLeft = { next?.let { onStepModel(it.model) } },
                     onSwipeRight = { prev?.let { onStepModel(it.model) } }
                 )

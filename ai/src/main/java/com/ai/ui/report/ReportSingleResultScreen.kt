@@ -207,6 +207,8 @@ fun ReportSingleResultScreen(
             .horizontalSwipeNavigation(
                 key1 = currentAgentId,
                 key2 = orderedAgents,
+                atFirst = agentIdx <= 0,
+                atLast = agentIdx < 0 || agentIdx >= orderedAgents.size - 1,
                 onSwipeLeft = {
                     orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
                 },

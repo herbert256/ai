@@ -73,6 +73,8 @@ fun ChatHistoryScreen(
                         .horizontalSwipeNavigation(
                             key1 = currentPage,
                             key2 = totalPages,
+                            atFirst = currentPage <= 0,
+                            atLast = currentPage >= totalPages - 1,
                             onSwipeLeft = { if (currentPage < totalPages - 1) currentPage += 1 },
                             onSwipeRight = { if (currentPage > 0) currentPage -= 1 }
                         )
