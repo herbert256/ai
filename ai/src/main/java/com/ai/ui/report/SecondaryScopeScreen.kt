@@ -94,7 +94,7 @@ internal fun SecondaryScopeScreen(
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_scope",
             title = if (metaPrompt.category == "fan_out") "Fan Out - scope" else "Scope",

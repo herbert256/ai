@@ -55,7 +55,7 @@ internal fun ModelTestL3Screen(
     val service = AppService.findById(providerId)
 
     if (item == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "test_all_models_l3",
                 title = "Test all models - model",
@@ -85,7 +85,7 @@ internal fun ModelTestL3Screen(
     val prev = if (curIdx > 0) siblings[curIdx - 1] else null
     val next = if (curIdx in 0 until siblings.size - 1) siblings[curIdx + 1] else null
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l3",
             title = "Test all models - model",

@@ -64,7 +64,7 @@ fun KnowledgeListScreen(
         value = withContext(Dispatchers.IO) { KnowledgeStore.listKnowledgeBases(context) }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "knowledge_list", title = "AI Knowledge", onBackClick = onBack)
         Text("Attach PDFs, text files, markdown, or web pages here. Knowledge bases can be linked to a Report or a Chat to inject relevant excerpts before each call.",
             fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -173,7 +173,7 @@ fun NewKnowledgeBaseScreen(
     var selected by remember { mutableStateOf(options.firstOrNull()) }
     var pickerOpen by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "knowledge_new", title = "New knowledge base", onBackClick = onBack)
 
         OutlinedTextField(
@@ -345,7 +345,7 @@ fun KnowledgeDetailScreen(
     }
 
     val kbForTitle = kb
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "knowledge_detail",
             title = "Knowledge base",

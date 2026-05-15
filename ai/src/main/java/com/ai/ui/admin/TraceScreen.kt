@@ -203,7 +203,7 @@ fun TraceListScreen(
         return
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val rowHeight = 52
         val overhead = 130
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
@@ -449,7 +449,7 @@ private fun TraceModelPickerOverlay(
 ) {
     BackHandler { onBack() }
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "trace_pick_model", title = "Pick model", onBackClick = onBack)
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }

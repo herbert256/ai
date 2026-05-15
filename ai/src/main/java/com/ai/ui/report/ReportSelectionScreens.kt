@@ -61,7 +61,7 @@ internal fun ReportSelectAgentScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", onBackClick = onBack)
 
         OutlinedTextField(
@@ -223,7 +223,7 @@ internal fun ReportSelectModelsScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_model", title = titleText, onBackClick = onBack)
 
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -424,7 +424,7 @@ internal fun ReportSelectFlockScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", onBackClick = onBack)
 
         OutlinedTextField(
@@ -545,7 +545,7 @@ internal fun ReportSelectSwarmScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", onBackClick = onBack)
 
         OutlinedTextField(
@@ -679,7 +679,7 @@ internal fun ReportSelectInternalPromptScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // Reuse the closest existing helpTopic per category so the help
         // icon points at something meaningful even though this screen
         // is shared across the three picker entry points.
@@ -777,7 +777,7 @@ internal fun ReportActionPickerScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = helpTopic, title = titleText, onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             options.forEach { opt ->
@@ -846,7 +846,7 @@ internal fun ReportOneTimePromptScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val helpId = when (category) {
             "meta" -> "report_meta"
             "fan_out" -> "secondary_fan_out"
@@ -956,7 +956,7 @@ internal fun ReportSelectFromReportScreen(
             reports.filter { it.title.lowercase().contains(q) || it.prompt.lowercase().contains(q) }
         }
     }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", onBackClick = onBack)
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -1064,7 +1064,7 @@ private fun SwarmInfoScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_swarm_info",
             title = "Swarm",
@@ -1105,7 +1105,7 @@ private fun FlockInfoScreen(
     val agents = aiSettings.getAgentsForFlock(flock)
     val flockParamNames = aiSettings.getParametersByIds(flock.paramsIds).map { it.name }
     val flockSystemPromptName = flock.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_flock_info",
             title = "Flock",

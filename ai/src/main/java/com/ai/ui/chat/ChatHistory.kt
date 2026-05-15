@@ -45,7 +45,7 @@ fun ChatHistoryScreen(
     var currentPage by rememberSaveable { mutableStateOf(0) }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_history", title = "Chat History", onBackClick = onNavigateBack)
 
@@ -213,7 +213,7 @@ fun ChatSearchScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_search", title = "Search Chats", onBackClick = onNavigateBack)
 

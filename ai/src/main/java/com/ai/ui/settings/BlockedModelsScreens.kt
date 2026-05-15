@@ -104,7 +104,7 @@ fun BlockedModelEditScreen(
     val hasModel = providerId.isNotBlank() && model.isNotBlank()
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "blocked_model_edit",

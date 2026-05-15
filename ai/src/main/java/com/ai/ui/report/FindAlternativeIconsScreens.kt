@@ -51,7 +51,7 @@ fun ModelSelectionScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
 
         // +Add chip row — same layout as SelectionPhase but fewer
@@ -166,7 +166,7 @@ fun AlternativeIconsScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack)
 
         // Stable order: by provider id, then model id — so re-renders

@@ -166,7 +166,7 @@ fun InternalPromptEditScreen(
     var agentMenuOpen by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         val singular = categoryDisplayName(fixedCategory).removeSuffix("s")
         TitleBar(

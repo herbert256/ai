@@ -179,7 +179,7 @@ fun DualChatSetupScreen(
     val canStart = model1Provider != null && model1Name.isNotBlank() && model2Provider != null && model2Name.isNotBlank() && subject.isNotBlank() && (interactionCount.toIntOrNull() ?: 0) > 0
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", onBackClick = onNavigateBack)
 
@@ -461,7 +461,7 @@ fun DualChatSessionScreen(
     var showInfoPicker by remember { mutableStateOf(false) }
     val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "dual_chat_session",

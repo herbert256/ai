@@ -137,7 +137,7 @@ internal fun TranslationL1Screen(
     // gets a full-width bar; the rest are proportional to it.
     val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "translation_run_l1",
             title = "Translation",

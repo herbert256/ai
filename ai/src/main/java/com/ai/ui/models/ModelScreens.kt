@@ -388,7 +388,7 @@ fun ModelInfoScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "model_info",
             title = "Model Info",
@@ -1245,7 +1245,7 @@ private fun ModelRawInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val annotated = remember(body) { colorizeJson(body) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
             // detail layout). The convention from the home-help icon

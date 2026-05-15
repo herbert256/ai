@@ -56,7 +56,7 @@ fun ExamplePromptEditScreen(
     val titleError = if (title.isBlank()) "Title is required" else null
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "example_prompt_edit",

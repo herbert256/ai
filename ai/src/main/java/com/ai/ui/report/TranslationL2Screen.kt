@@ -79,7 +79,7 @@ internal fun TranslationL2Screen(
     val cost = rows.sumOf { it.costDollars }
     val allDone = total > 0 && done == total
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "translation_run_l2",
             title = "Translation - model",

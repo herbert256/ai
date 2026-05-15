@@ -69,7 +69,7 @@ internal fun ModelTestL1Screen(
     fun benched(p: String, m: String): Boolean =
         (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l1",
             title = "Test all models",

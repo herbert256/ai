@@ -66,7 +66,7 @@ internal fun ModelTestSelectScreen(
         providers.sortedBy { it.first.id.lowercase() }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_select",
             title = "Test all models",

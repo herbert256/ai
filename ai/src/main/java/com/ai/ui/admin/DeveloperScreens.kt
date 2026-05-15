@@ -80,7 +80,7 @@ fun ApiTestScreen(
             else availableModels.filter { it.lowercase().contains(search.lowercase()) }
         }
         BackHandler { showModelDialog = false }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_model",
                 title = "Select Model",
@@ -141,7 +141,7 @@ fun ApiTestScreen(
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_endpoint",
                 title = "Select Endpoint",
@@ -181,7 +181,7 @@ fun ApiTestScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "developer_test", title = "API Test", onBackClick = onBackClick)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -303,7 +303,7 @@ fun EditApiRequestScreen(
     }
     var editableJson by remember { mutableStateOf(initialJson) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick,
             onCopy = editableJson.takeIf { it.isNotBlank() }?.let {

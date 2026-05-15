@@ -44,7 +44,7 @@ fun ExamplePromptPickerScreen(
     }
     val sorted = remember(filtered) { filtered.sortedBy { it.title.lowercase(java.util.Locale.ROOT) } }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "example_prompt_picker", title = "Pick an example prompt", onBackClick = onNavigateBack)
 
         OutlinedTextField(

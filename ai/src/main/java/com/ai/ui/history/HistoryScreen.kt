@@ -61,7 +61,7 @@ fun HistoryScreenNav(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val rowHeight = 56
         val overhead = if (searchExpanded) 280 else 150
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
@@ -73,7 +73,7 @@ fun HistoryScreenNav(
         val pageItems = filteredReports.subList(startIndex.coerceAtMost(filteredReports.size), (startIndex + pageSize).coerceAtMost(filteredReports.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "history",
                 title = "History", onBackClick = onNavigateBack,

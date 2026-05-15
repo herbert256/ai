@@ -162,7 +162,7 @@ internal fun ModelCooldownEditScreen(
     val canSave = providerId.isNotBlank() && model.trim().isNotBlank() && hours != null && hours > 0
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "model_cooldowns",

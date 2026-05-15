@@ -68,7 +68,7 @@ fun LocalSemanticSearchScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val tfTop = latestTrace
         TitleBar(
             helpTopic = "search_local_semantic", title = "Local semantic search", onBackClick = onBack,

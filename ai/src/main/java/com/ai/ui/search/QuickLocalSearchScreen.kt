@@ -48,7 +48,7 @@ fun QuickLocalSearchScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "search_quick", title = "Quick local search", onBackClick = onBack)
 
         OutlinedTextField(

@@ -2379,7 +2379,7 @@ fun ReportsScreen(
     }
 
     // Main UI
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // Static page title in the menu bar by default; the dynamic
         // prompt title surfaces as a green sub-header inside the body.
         // SUBJECT folds the prompt title into the bar; BOTH renders
@@ -2602,7 +2602,7 @@ private fun ReportIconDetailScreen(
     val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
     val running = icon == null && errorMessage == null
     val modelLabel = iconModel ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_icon_detail",
             title = "Icon",
@@ -2794,7 +2794,7 @@ private fun AgentIconDetailScreen(
         }
         else -> null
     }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "agent_icon_detail",
             title = "Agent icon",
@@ -3120,7 +3120,7 @@ private fun InternalPromptIconDetailScreen(
 ) {
     BackHandler { onBack() }
     val running = entry == null
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = helpTopic,
             title = title,
@@ -3221,7 +3221,7 @@ private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Uni
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }
     val report = reportState.value
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_icons_grid", title = "Icons", onBackClick = onBack)
         val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
             a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }
@@ -3447,7 +3447,7 @@ private fun MetaRunScreen(
 ) {
     BackHandler { onCancel() }
     var editablePrompt by remember(metaPrompt.id) { mutableStateOf(metaPrompt.text) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_meta_run",
             title = "Run ${metaPrompt.name}",
@@ -3523,7 +3523,7 @@ private fun FanOutConfirmScreen(
     fun agentLabel(a: com.ai.data.ReportAgent): String =
         a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
     BackHandler { onCancel() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_fan_out_confirm",
             title = "Fan Out - run",

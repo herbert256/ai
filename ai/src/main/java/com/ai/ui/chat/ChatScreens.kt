@@ -95,7 +95,7 @@ fun ChatParametersScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", onBackClick = onNavigateBack)
         Text(com.ai.ui.shared.modelLabel(provider.id, model, separator = " / "),
@@ -630,7 +630,7 @@ fun ChatSessionScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
         TitleBar(
