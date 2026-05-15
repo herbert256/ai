@@ -546,7 +546,7 @@ fun HardcodedSubjectRow(text: String?) {
     if (text.isNullOrBlank()) return
     Text(
         text = text,
-        fontSize = 22.sp, color = AppColors.Green,
+        fontSize = 26.sp, color = AppColors.Green,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
