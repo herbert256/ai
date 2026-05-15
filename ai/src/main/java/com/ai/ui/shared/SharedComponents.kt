@@ -489,15 +489,14 @@ fun TitleBar(
         )
         HelpButton(
             onClick = { navigateHelp(helpTopic) },
-            modifier = Modifier.offset(y = (-10).dp)
+            modifier = Modifier.offset(x = (-12).dp, y = (-10).dp)
         )
         if (resolvedReportIcon != null) {
-            Spacer(modifier = Modifier.width(8.dp))
             Box(modifier = Modifier.offset(y = (-10).dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
-                    width = 28.dp, scale = 1.75f
+                    width = 32.dp, scale = 2.0f
                 )
             }
         }
