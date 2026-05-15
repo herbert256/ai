@@ -140,7 +140,7 @@ data class GeneralSettings(
      *  [com.ai.data.ApiCallCaps.global] before going through the
      *  per-kind / per-host caps. Surfaced in Settings → Network
      *  settings → Maximal API calls. */
-    val maxConcurrentApiCalls: Int = 30,
+    val maxConcurrentApiCalls: Int = 50,
     /** Cap on concurrent primary report-gen calls (per-agent calls
      *  fired during a new-report run). Replaces the legacy
      *  hardcoded `REPORT_CONCURRENCY_LIMIT = 4`. */
@@ -163,7 +163,7 @@ data class GeneralSettings(
      *  (Housekeeping → Test). Read directly by
      *  [com.ai.viewmodel.ModelTestEngine] to size its in-flight
      *  semaphore — not mirrored into [com.ai.data.NetworkSettings]. */
-    val maxTestApiCalls: Int = 8,
+    val maxTestApiCalls: Int = 40,
     /** Maximum number of in-line retries the OkHttp client performs on
      *  a 429 response from a single provider host. Defaults to 3 —
      *  three retries × the backoff below = ~3 s of in-line waiting.

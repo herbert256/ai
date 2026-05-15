@@ -1054,7 +1054,7 @@ private fun MaximalApiCallsSubScreen(
         ) {
             SettingCard(
                 "Concurrent API calls at the same time",
-                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 30."
+                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 50."
             ) {
                 OutlinedTextField(
                     value = apiText,
@@ -1114,7 +1114,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Test all models API calls",
-                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 8."
+                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 40."
             ) {
                 OutlinedTextField(
                     value = testText,
