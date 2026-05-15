@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.local.LlmRuntime
 import com.ai.data.local.LocalEmbedder
 import com.ai.data.local.LocalLlm
 import com.ai.ui.shared.AppColors
@@ -180,7 +181,8 @@ fun LocalLlmsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var installed by remember { mutableStateOf(LocalLlm.availableLlms(context)) }
+    var installed by remember { mutableStateOf(LocalLlm.installedTaskFiles(context)) }
+    var runtimeInstalled by remember { mutableStateOf(LlmRuntime.isInstalled(context)) }
     var status by remember { mutableStateOf<String?>(null) }
     var working by remember { mutableStateOf(false) }
 
@@ -192,7 +194,7 @@ fun LocalLlmsScreen(
             val name = withContext(Dispatchers.IO) { importTaskModel(context, uri) }
             working = false
             if (name != null) {
-                installed = LocalLlm.availableLlms(context)
+                installed = LocalLlm.installedTaskFiles(context)
                 status = "Imported $name"
             } else status = "Could not import model"
         }
@@ -209,11 +211,61 @@ fun LocalLlmsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                "On-device LLMs via MediaPipe Tasks GenAI. Most useful models (Gemma, Phi, Llama) require accepting a licence on the model's web page before download — open one of the links below in a browser, accept the terms, download the .task file (typically 0.5 - 2.5 GB), then come back and tap \"Add LLM from file\" to import it.",
+                "On-device LLMs via MediaPipe Tasks GenAI. The native runtime isn't bundled with the app — install it once below before importing any model. Most worthwhile models (Gemma, Phi, Llama) require accepting a licence on the model's web page before download.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
 
-            Text("Download links", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+            Text("LLM runtime", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+            Button(
+                onClick = {
+                    if (runtimeInstalled) {
+                        status = "Runtime is already installed."
+                        return@Button
+                    }
+                    working = true
+                    status = "Downloading runtime…"
+                    scope.launch {
+                        val ok = withContext(Dispatchers.IO) {
+                            LlmRuntime.download(context) { soFar, total ->
+                                val pct = if (total > 0) " ${(soFar * 100 / total)}%" else ""
+                                scope.launch(Dispatchers.Main) {
+                                    status = "Downloading runtime…$pct"
+                                }
+                            }
+                        }
+                        working = false
+                        if (ok) {
+                            LlmRuntime.ensureLoaded(context)
+                            runtimeInstalled = LlmRuntime.isInstalled(context)
+                            status = "Runtime installed"
+                        } else status = "Runtime download failed."
+                    }
+                },
+                enabled = !working && !runtimeInstalled,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) {
+                Text(
+                    if (runtimeInstalled) "LLM runtime ✓"
+                    else "Download LLM runtime (~${LlmRuntime.DOWNLOAD_SIZE_MB_HINT} MB)",
+                    maxLines = 1, softWrap = false
+                )
+            }
+            Text(
+                "One-time download of the MediaPipe inference engine native library. Lands in app storage; not in the APK so first-launch installs stay small.",
+                fontSize = 11.sp, color = AppColors.TextTertiary
+            )
+            if (runtimeInstalled) {
+                TextButton(onClick = {
+                    if (LlmRuntime.delete(context)) {
+                        runtimeInstalled = false
+                        status = "Runtime file removed (restart the app to free in-memory copy)."
+                    } else status = "Could not remove runtime."
+                }) { Text("Remove runtime", color = AppColors.Red, fontSize = 12.sp) }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Model download links", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             LocalLlm.recommendedLinks.forEach { link ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Button(
@@ -248,6 +300,12 @@ fun LocalLlmsScreen(
             if (installed.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text("Installed", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
+                if (!runtimeInstalled) {
+                    Text(
+                        "Models below are imported but not usable until the runtime is downloaded.",
+                        fontSize = 11.sp, color = AppColors.Red
+                    )
+                }
                 installed.forEach { name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -259,7 +317,7 @@ fun LocalLlmsScreen(
                         TextButton(onClick = {
                             LocalLlm.release(name)
                             File(LocalLlm.localLlmsDir(context), "$name.task").delete()
-                            installed = LocalLlm.availableLlms(context)
+                            installed = LocalLlm.installedTaskFiles(context)
                             status = "Removed $name"
                         }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
                     }

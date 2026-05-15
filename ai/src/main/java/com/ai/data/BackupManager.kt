@@ -104,18 +104,20 @@ object BackupManager {
     )
 
     /** Top-level filesDir subdirs we never copy into a backup zip and never
-     *  delete during a restore wipe. Both hold user-supplied on-device model
+     *  delete during a restore wipe. They hold user-supplied on-device model
      *  bundles — Gemma / Phi / Llama .task files (hundreds of MB to several
      *  GB each) under local_llms/, MediaPipe TextEmbedder .tflite files
-     *  (~50–500 MB each) under local_models/. They're sourced via SAF or
-     *  direct hand-off from Kaggle / HuggingFace, so:
+     *  (~50–500 MB each) under local_models/ — plus the MediaPipe LLM
+     *  inference native runtime (.so, ~26 MB) under native/. All three are
+     *  user-installed via the AI Setup → Local LLMs / Local LiteRT
+     *  screens, so:
      *    - Excluding from backup keeps zip sizes sane and avoids shipping
      *      potentially gigabytes of redistributable-but-user-installed
-     *      model weights.
+     *      model weights, plus a binary that's tied to the device ABI.
      *    - Preserving across the restore wipe means a user who has local
-     *      models installed on the target device doesn't lose them when
-     *      restoring an unrelated settings/data backup. */
-    internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "applog")
+     *      models or the runtime installed on the target device doesn't
+     *      lose them when restoring an unrelated settings/data backup. */
+    internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models", "native", "applog")
 
     /** Top-level cacheDir filename prefixes to skip during backup AND
      *  during the cacheDir wipe on restore. These are in-flight temp

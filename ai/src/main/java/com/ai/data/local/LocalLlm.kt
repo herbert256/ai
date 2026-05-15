@@ -32,11 +32,22 @@ object LocalLlm {
     fun localLlmsDir(context: Context): File =
         File(context.filesDir, LOCAL_LLMS_DIR).also { if (!it.exists()) it.mkdirs() }
 
-    fun availableLlms(context: Context): List<String> =
+    /** Every `.task` bundle on disk, regardless of whether the
+     *  [LlmRuntime] native library has been downloaded yet. Used by
+     *  the Local LLMs management screen so the user can see / remove
+     *  imports even before the runtime is installed. */
+    fun installedTaskFiles(context: Context): List<String> =
         localLlmsDir(context).listFiles { f -> f.extension.equals("task", ignoreCase = true) }
             ?.map { it.nameWithoutExtension }
             ?.sorted()
             .orEmpty()
+
+    /** Models that are usable right now: a `.task` exists **and** the
+     *  native runtime is installed. Drives the Local provider's model
+     *  list across chat / report flows so we never hand the user a
+     *  picker entry that would explode on first generate(). */
+    fun availableLlms(context: Context): List<String> =
+        if (LlmRuntime.isInstalled(context)) installedTaskFiles(context) else emptyList()
 
     fun llmFile(context: Context, modelName: String): File? {
         val f = File(localLlmsDir(context), "$modelName.task")
@@ -87,6 +98,16 @@ object LocalLlm {
     )
 
     private fun getEngine(context: Context, modelName: String): LlmInference {
+        // Load the on-disk native runtime before touching any
+        // MediaPipe type — LlmInference.LlmInferenceOptions's static
+        // init calls System.loadLibrary("llm_inference_engine_jni"),
+        // which only succeeds because LlmRuntime.ensureLoaded already
+        // mapped the .so into the process via System.load. The .so
+        // doesn't ship in the APK; users install it from the Local
+        // LLMs screen.
+        if (!LlmRuntime.ensureLoaded(context)) {
+            throw IllegalStateException("LLM runtime not installed — visit Setup → Local LLMs to download it.")
+        }
         // Use computeIfAbsent (atomic) instead of getOrPut (lambda may
         // run on multiple threads, leaking the losing instance — each
         // LlmInference holds hundreds of MB of native memory).

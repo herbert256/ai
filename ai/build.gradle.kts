@@ -124,6 +124,15 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            // The MediaPipe LLM Inference native library is 26 MB on
+            // arm64-v8a — biggest single artifact in the APK and only
+            // needed when the user actually runs a local .task model.
+            // Strip it; LlmRuntime downloads it on demand from Google
+            // Maven into <filesDir>/native/, and LocalLlm pre-loads
+            // it via System.load before touching any MediaPipe type.
+            excludes += "**/libllm_inference_engine_jni.so"
+        }
     }
 }
 
