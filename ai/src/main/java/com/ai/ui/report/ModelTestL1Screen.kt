@@ -298,40 +298,40 @@ internal fun ModelTestL1Screen(
         // opens the provider picker).
         val running = run != null && (run.queuedCount + run.runningCount) > 0
         Spacer(modifier = Modifier.height(8.dp))
-        if (running) {
-            Button(
-                onClick = { actions.onCheckRun() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) {
-                Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = { actions.onCancelRun() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-            ) {
-                Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
-        } else {
-            Button(
-                onClick = onOpenSelect,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) {
-                Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
-            }
-            // Re-probe just the previously-errored models — shown only
-            // when there's an idle run with errors.
-            if (run != null && run.errorCount > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (running) {
                 Button(
-                    onClick = { actions.onRerunErrors() },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    onClick = { actions.onCheckRun() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                 ) {
-                    Text("Rerun Errors again (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                    Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                }
+                Button(
+                    onClick = { actions.onCancelRun() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                ) {
+                    Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                }
+            } else {
+                Button(
+                    onClick = onOpenSelect,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                ) {
+                    Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                }
+                // Re-probe just the previously-errored models — shown only
+                // when there's an idle run with errors.
+                if (run != null && run.errorCount > 0) {
+                    Button(
+                        onClick = { actions.onRerunErrors() },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    ) {
+                        Text("Rerun Errors (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
+                    }
                 }
             }
         }
