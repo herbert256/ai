@@ -553,11 +553,24 @@ fun TitleBar(
         }
         Spacer(modifier = Modifier.weight(1f))
         if (title != null) {
+            // Long titles shrink rather than truncate: start at the
+            // normal bar size, drop ~5 % per layout pass whenever the
+            // measured text overflows the available width, with a
+            // floor at half the base size so the label never becomes
+            // illegible. Resets when the title text changes.
+            val minFontSize = (barFontSize.value * 0.55f).sp
+            var titleFontSize by remember(title) { mutableStateOf(barFontSize) }
             Text(
                 text = title, style = titleStyle, color = Color.White,
-                fontSize = barFontSize, fontWeight = FontWeight.Bold,
+                fontSize = titleFontSize, fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.End,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                maxLines = 1, softWrap = false,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
+                onTextLayout = { result ->
+                    if (result.didOverflowWidth && titleFontSize.value > minFontSize.value) {
+                        titleFontSize = (titleFontSize.value * 0.95f).coerceAtLeast(minFontSize.value).sp
+                    }
+                },
                 modifier = Modifier.align(Alignment.Top).padding(top = 4.dp)
             )
         }
