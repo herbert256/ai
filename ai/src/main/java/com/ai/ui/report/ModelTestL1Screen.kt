@@ -235,12 +235,21 @@ internal fun ModelTestL1Screen(
             }
         }
 
-        // Bottom button — "Cancel test" (red) while a run is in
-        // flight, "Test all models" (blue, opens the provider picker)
-        // otherwise.
+        // Bottom buttons — while a run looks in flight: "Check current
+        // test run" (re-dispatches it if the coroutine actually died)
+        // + "Cancel test" (red). Otherwise "Test all models" (blue,
+        // opens the provider picker).
         val running = run != null && (run.queuedCount + run.runningCount) > 0
         Spacer(modifier = Modifier.height(8.dp))
         if (running) {
+            Button(
+                onClick = { actions.onCheckRun() },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            ) {
+                Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = { actions.onCancelRun() },
                 modifier = Modifier.fillMaxWidth(),

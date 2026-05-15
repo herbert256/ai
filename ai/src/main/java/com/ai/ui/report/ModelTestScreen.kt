@@ -1,5 +1,6 @@
 package com.ai.ui.report
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +63,7 @@ private val modelTestNavSaver: Saver<ModelTestNav, Any> = Saver(
 data class ModelTestActions(
     val onStartRun: (Set<String>) -> Unit = {},
     val onCancelRun: () -> Unit = {},
+    val onCheckRun: () -> Unit = {},
     val onNavigateToTraceFile: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
 )
@@ -103,6 +105,15 @@ fun ModelTestScreen(
     val actions = ModelTestActions(
         onStartRun = { ids -> engine.startRun(context, ids) },
         onCancelRun = { engine.cancel(context) },
+        onCheckRun = {
+            val msg = when (engine.resumeRun(context)) {
+                ModelTestEngine.ResumeOutcome.ALREADY_RUNNING -> "Test run is active — still running"
+                ModelTestEngine.ResumeOutcome.RESUMED -> "Test run had stalled — restarted the unfinished models"
+                ModelTestEngine.ResumeOutcome.ALREADY_COMPLETE -> "Test run already finished"
+                ModelTestEngine.ResumeOutcome.NO_RUN -> "No test run to check"
+            }
+            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+        },
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToModelInfo = onNavigateToModelInfo
     )
