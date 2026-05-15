@@ -1,0 +1,5 @@
+[
+  { "providerId": "OpenAI",     "model": "o1-pro" },
+  { "providerId": "OpenAI",     "model": "o1-pro-2025-03-19" },
+  { "providerId": "Perplexity", "model": "sonar-deep-research" }
+]

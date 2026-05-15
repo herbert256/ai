@@ -872,6 +872,32 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms", it)
         }
 
+        // Mirror of the prompts.json / examples.json delta-merge for
+        // excluded.json: append any (provider, model) test-excluded
+        // pair not yet present so APK upgrades that ship a curated
+        // "never probe these" list surface them automatically.
+        AppLog.d(tag, "→ excluded.json delta-merge")
+        val tExcluded = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.TestExcludedSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled excluded.json entries: ${bundled.size}")
+            if (bundled.isNotEmpty()) {
+                val before = ai.testExcludedModels.size
+                val merged = com.ai.data.TestExcludedSeed.ensureAllPresent(ai.testExcludedModels, bundled)
+                val added = merged.size - before
+                if (added != 0) {
+                    ai = ai.copy(testExcludedModels = merged)
+                    settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new test-excluded entries")
+                }
+                AppLog.d(tag, "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms", it)
+        }
+
         AppLog.d(tag, "bootstrap total ${System.currentTimeMillis() - bootStart}ms")
         return gs to ai
     }
