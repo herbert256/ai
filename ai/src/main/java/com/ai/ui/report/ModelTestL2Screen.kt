@@ -111,7 +111,7 @@ internal fun ModelTestL2Screen(
                             p.model,
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            modifier = Modifier.weight(1f).padding(start = 16.dp)
                         )
                         if (p.totalCost > 0.0) {
                             Text(
