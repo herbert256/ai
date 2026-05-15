@@ -71,10 +71,10 @@ internal fun ModelTestL2Screen(
         TitleBar(
             helpTopic = "test_all_models_l2",
             title = "Test all models - provider",
-            subject = subject,
             onBackClick = onBack,
             onInfo = service?.let { svc -> { actions.onNavigateToModelInfo(svc, svc.defaultModel) } }
         )
+        com.ai.ui.shared.HardcodedSubjectRow(subject)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (rows.isEmpty()) {
