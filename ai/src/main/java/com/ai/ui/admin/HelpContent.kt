@@ -1796,12 +1796,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reset_application" to HelpContent(
         title = "Reset application",
         cards = listOf(
-            HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets; the Refresh-all chain runs (catalogs → provider tests → model lists → default-agents flock). The app force-restarts on success so every singleton picks up the fresh state."),
-            HelpCard("Confirmation gate", "Type-RESET dialog: the Reset button stays disabled until you literally type RESET (CASE-sensitive, trimmed). Extra friction because the operation is essentially irreversible and runs the full Refresh chain afterwards."),
+            HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets."),
+            HelpCard("Confirmation gate", "A plain Reset / Cancel dialog gates the action — no type-to-confirm. Tap Reset to run."),
             HelpCard("What survives", "API keys (per-provider + 3 external). That's it."),
             HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / knowledge bases / embeddings / prompt history / usage statistics, pricing and model-list caches, every Local LLM and LiteRT model."),
-            HelpCard("After it runs", "RestartAppDialog appears — tap to relaunch. The first launch after reset takes longer than usual because Refresh-all runs end-to-end (catalogs first, then per-provider tests, then default-agents flock creation)."),
-            HelpCard("Pitfalls", "Confirmation is CASE-sensitive — \"reset\" won't enable the button. The busy-spinner dialog covers the whole Refresh chain; let it run rather than killing the app."),
+            HelpCard("After it runs", "A four-button banner appears at the top of the page: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys. Pick one — the in-memory state isn't fresh until you restart (directly or via one of the Refresh paths)."),
         )
     ),
     "statistics" to HelpContent(

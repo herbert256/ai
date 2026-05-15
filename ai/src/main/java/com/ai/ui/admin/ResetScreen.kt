@@ -281,7 +281,6 @@ fun ResetApplicationScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     var showConfirm by remember { mutableStateOf(false) }
-    var confirmText by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     // Non-null after a successful reset → renders the 4-button action
     // banner at the top of the page (no modal). The on-disk state is
@@ -301,7 +300,7 @@ fun ResetApplicationScreen(
 
     if (showConfirm) {
         AlertDialog(
-            onDismissRequest = { showConfirm = false; confirmText = "" },
+            onDismissRequest = { showConfirm = false },
             title = { Text("Reset application?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -310,21 +309,12 @@ fun ResetApplicationScreen(
                         "Lost: agents, flocks, swarms, parameters, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports, chats, traces, knowledge bases, embeddings, prompt history, usage stats, pricing/model-list caches, Local LLM and LiteRT models.",
                         fontSize = 12.sp, color = AppColors.TextTertiary
                     )
-                    Text("Type RESET to confirm:", fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = confirmText,
-                        onValueChange = { confirmText = it },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = AppColors.outlinedFieldColors()
-                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showConfirm = false
-                        confirmText = ""
                         busy = true
                         onResetApplication { success, message ->
                             busy = false
@@ -332,12 +322,12 @@ fun ResetApplicationScreen(
                             else Toast.makeText(context, message, Toast.LENGTH_LONG).show()
                         }
                     },
-                    enabled = confirmText.trim() == "RESET" && !busy,
+                    enabled = !busy,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Reset", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false; confirmText = "" }) {
+                TextButton(onClick = { showConfirm = false }) {
                     Text("Cancel", maxLines = 1, softWrap = false)
                 }
             }
@@ -379,7 +369,7 @@ fun ResetApplicationScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. A type-to-confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
+                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. A confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             Button(
