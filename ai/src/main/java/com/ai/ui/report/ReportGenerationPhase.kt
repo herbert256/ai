@@ -1187,7 +1187,7 @@ internal fun ColumnScope.GenerationPhase(
         // Report.icon / Report.iconErrorMessage.
         run {
             val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-                it.category == "icons" && it.name == "icon"
+                it.category == "icons" && it.name == "main_icon"
             }
             val iconAgent = iconPrompt?.let { p ->
                 aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }

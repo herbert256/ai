@@ -4298,7 +4298,7 @@ private fun ReportIconOrLanguageDetailOverlay(
         return true
     }
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "icon"
+        it.category == "icons" && it.name == "main_icon"
     } ?: return false
     val iconAgent = aiSettings.agents.firstOrNull {
         it.name.equals(iconPrompt.agent, ignoreCase = true)

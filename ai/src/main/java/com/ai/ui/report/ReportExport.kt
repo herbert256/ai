@@ -365,7 +365,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     // looks up the tier the cost was billed against.
     val ai = com.ai.model.SettingsHolder.current
     val iconPrompt = ai?.internalPrompts?.firstOrNull {
-        it.category == "icons" && it.name == "icon"
+        it.category == "icons" && it.name == "main_icon"
     }
     val iconAgent = iconPrompt?.let { p ->
         ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }

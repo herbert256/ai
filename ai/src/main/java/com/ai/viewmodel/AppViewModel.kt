@@ -803,9 +803,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // post-rename names — covered here so a fresh install
                 // that somehow shipped them under "internal" still gets
                 // re-categorised.
-                "meta_icon", "report_icon_2", "report_icon_3",
+                "meta_icon", "main_icon", "report_icon_2", "report_icon_3",
                 "fan_out_icon_2", "fan_out_icon_3",
-                "icon_alt", "meta_icon_alt", "report_icon_alt",
+                "icon_alt", "main_icon_alt", "meta_icon_alt", "report_icon_alt",
                 "fan_out_icon_alt", "language_icon_alt", "translation_icon_alt"
             )
             val migrated = ai.internalPrompts.map { p ->
@@ -835,6 +835,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             data class Rename(val newName: String, val newCategory: String? = null)
             val rename = mapOf(
                 "prompt_icon" to Rename("meta_icon"),
+                "icon" to Rename("main_icon"),
+                "icon_alt" to Rename("main_icon_alt"),
                 "language_icon" to Rename("language", newCategory = "internal"),
                 "report_icon_chat" to Rename("report_icon_2"),
                 "report_icon_3th" to Rename("report_icon_3"),

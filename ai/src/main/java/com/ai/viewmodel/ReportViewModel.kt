@@ -435,7 +435,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // icon values stay intact.
         if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "icon"
+            it.category == "icons" && it.name == "main_icon"
         } ?: return
         // Case-insensitive match so a user who has the agent registered
         // as "DeepSeek" still resolves the bundled prompt's
@@ -1196,7 +1196,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // picked models don't return the same obvious emoji the base
         // `icon` prompt already produced.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "icon_alt"
+            it.category == "icons" && it.name == "main_icon_alt"
         } ?: return
         // Dedupe by "provider:model" so picking the same pair via two
         // different sources (e.g. an agent + a direct +Model) only

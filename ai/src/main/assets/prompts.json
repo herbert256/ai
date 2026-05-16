@@ -64,7 +64,7 @@
     "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
   },
   {
-    "name": "icon",
+    "name": "main_icon",
     "title": "Find a fitting title for a report",
     "reference": false,
     "category": "icons",
@@ -160,7 +160,7 @@
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
-    "name": "icon_alt",
+    "name": "main_icon_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a report title",
     "reference": false,
     "category": "icons",
