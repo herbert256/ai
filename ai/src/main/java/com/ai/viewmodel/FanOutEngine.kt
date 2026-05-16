@@ -866,7 +866,7 @@ class FanOutEngine internal constructor(
         pick: Pair<AppService, String>
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.runFanInPrompt(context, run.reportId, fanInPrompt, pick)
+        val job = reportViewModel.runFanInPrompt(context, run.reportId, fanInPrompt, pick, run.sourceLanguage)
         // Re-hydrate after the call completes to surface the new combined-report row.
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
@@ -885,7 +885,7 @@ class FanOutEngine internal constructor(
         pick: Pair<AppService, String>
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.runModelFanInPrompt(context, run.reportId, fanInPrompt, pick, providerId, model)
+        val job = reportViewModel.runModelFanInPrompt(context, run.reportId, fanInPrompt, pick, providerId, model, run.sourceLanguage)
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
         }

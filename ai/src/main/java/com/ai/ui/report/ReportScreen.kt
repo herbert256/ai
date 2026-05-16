@@ -358,11 +358,11 @@ fun ReportsScreenNav(
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
             reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
         },
-        onRunFanIn = { reportId, metaPrompt, pick ->
-            reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick)
+        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage ->
+            reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage)
         },
-        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl ->
-            reportViewModel.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl)
+        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage ->
+            reportViewModel.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -377,11 +377,11 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.runLocalRerank(context, reportId, modelName)
         },
-        onRunRerank = { reportId, pick ->
-            reportViewModel.runRerank(context, reportId, pick)
+        onRunRerank = { reportId, pick, languageScope ->
+            reportViewModel.runRerank(context, reportId, pick, languageScope)
         },
-        onRunModeration = { reportId, pick ->
-            reportViewModel.runModeration(context, reportId, pick)
+        onRunModeration = { reportId, pick, languageScope ->
+            reportViewModel.runModeration(context, reportId, pick, languageScope)
         },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
@@ -717,18 +717,18 @@ fun ReportsScreen(
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?) -> Unit = { _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?) -> Unit = { _, _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
      *  model, active provider id (the L2 page's), active model name. */
-    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String) -> Unit = { _, _, _, _, _ -> },
+    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?) -> Unit = { _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
-    onRunRerank: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
-    onRunModeration: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
+    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
+    onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -1027,6 +1027,12 @@ fun ReportsScreen(
     // Fan_in run model picker. Triggered from the fan out detail
     // screen's "Combine reports and all fan out responses" button.
     var fanInPickerPrompt by rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
+    // Source language inherited from the parent fan-out (null =
+    // Original). Captured at trigger time so the picker → onRunFanIn
+    // chain can forward it to runFanInPrompt without re-reading the
+    // engine. Shared by the plain and model-scoped fan-in flows; the
+    // model-scoped flow stashes its own copy via the same setter.
+    var fanInPickerSourceLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     // First step of the fan_in flow: pick which fan_in prompt
     // to run. Once chosen we hand off to fanInPickerPrompt above.
     var showFanInPromptPicker by rememberSaveable { mutableStateOf(false) }
@@ -1521,13 +1527,25 @@ fun ReportsScreen(
                     // metaRunScreenPrompt being non-null so the higher
                     // step takes precedence while the scope state remains
                     // available for Android-back to unwind to.
-                    if (scopeMetaPrompt.category == "fan_out") {
-                        // Run page picks initiators / responders, edits the
-                        // prompt, then confirms.
-                        fanOutConfirmMetaPrompt = scopeMetaPrompt
-                    } else {
-                        // Meta path: Scope → Run page (edit prompt) → model picker.
-                        metaRunScreenPrompt = scopeMetaPrompt
+                    when (scopeMetaPrompt.category) {
+                        "fan_out" -> {
+                            // Run page picks initiators / responders, edits
+                            // the prompt, then confirms.
+                            fanOutConfirmMetaPrompt = scopeMetaPrompt
+                        }
+                        "rerank" -> {
+                            // Rerank has no editable prompt and no per-row
+                            // scope — jump straight to the model picker;
+                            // pendingLanguageScope is read at confirm.
+                            showRerankPicker = true
+                        }
+                        "moderation" -> {
+                            showModerationPicker = true
+                        }
+                        else -> {
+                            // Meta path: Scope → Run page (edit prompt) → model picker.
+                            metaRunScreenPrompt = scopeMetaPrompt
+                        }
                     }
                 },
                 onBack = { secondaryScopeMetaPrompt = null },
@@ -1678,10 +1696,14 @@ fun ReportsScreen(
             recentEntries = recentReportPairs,
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { pick ->
-                onRunFanIn(rid, fanInPicker, pick)
+                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage)
                 fanInPickerPrompt = null
+                fanInPickerSourceLanguage = null
             },
-            onBack = { fanInPickerPrompt = null },
+            onBack = {
+                fanInPickerPrompt = null
+                fanInPickerSourceLanguage = null
+            },
             onNavigateHome = onNavigateHome
         )
         return
@@ -1737,15 +1759,17 @@ fun ReportsScreen(
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { pick ->
-                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl)
+                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage)
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
+                    fanInPickerSourceLanguage = null
                 },
                 onBack = {
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
+                    fanInPickerSourceLanguage = null
                 },
                 onNavigateHome = onNavigateHome
             )
@@ -1819,8 +1843,12 @@ fun ReportsScreen(
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { pick ->
+                    val ls = pendingLanguageScope
                     showRerankPicker = false
-                    onRunRerank(rid, pick)
+                    secondaryScopeMetaPrompt = null
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                    onRunRerank(rid, pick, ls)
                 },
                 onBack = { showRerankPicker = false },
                 onNavigateHome = onNavigateHome,
@@ -1843,8 +1871,12 @@ fun ReportsScreen(
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
                 onConfirm = { pick ->
+                    val ls = pendingLanguageScope
                     showModerationPicker = false
-                    onRunModeration(rid, pick)
+                    secondaryScopeMetaPrompt = null
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                    onRunModeration(rid, pick, ls)
                 },
                 onBack = { showModerationPicker = false },
                 onNavigateHome = onNavigateHome,
@@ -1958,6 +1990,7 @@ fun ReportsScreen(
             showFanInPromptPicker = showFanInPromptPicker,
             onShowFanInPromptPickerChange = { showFanInPromptPicker = it },
             onFanInPickerPromptChange = { fanInPickerPrompt = it },
+            onFanInPickerSourceLanguageChange = { fanInPickerSourceLanguage = it },
             onModelFanInActiveChange = { pid, mdl ->
                 modelFanInActivePid = pid
                 modelFanInActiveMdl = mdl
@@ -2176,8 +2209,26 @@ fun ReportsScreen(
         onTranslate = { showTranslateLanguagePicker = true },
         onOpenMetaPicker = { showMetaPicker = true },
         onOpenFanOutPicker = { showFanOutPicker = true },
-        onOpenRerankPicker = { showRerankPicker = true },
-        onOpenModerationPicker = { showModerationPicker = true },
+        onOpenRerankPicker = {
+            // Route through the scope screen so the user can pick a
+            // language when the report has translations. The scope
+            // screen detects category=rerank and hides the per-row
+            // scope card; on Continue it sets showRerankPicker.
+            secondaryScopeMetaPrompt = com.ai.model.InternalPrompt(
+                id = "__rerank_scope__",
+                name = "Rerank",
+                category = "rerank",
+                text = ""
+            )
+        },
+        onOpenModerationPicker = {
+            secondaryScopeMetaPrompt = com.ai.model.InternalPrompt(
+                id = "__moderation_scope__",
+                name = "Moderation",
+                category = "moderation",
+                text = ""
+            )
+        },
         onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
         onViewReports = {
             selectedAgentForViewer = null; viewerSection = null
@@ -3749,6 +3800,10 @@ private fun SecondaryResultsListMount(
     showFanInPromptPicker: Boolean,
     onShowFanInPromptPickerChange: (Boolean) -> Unit,
     onFanInPickerPromptChange: (InternalPrompt?) -> Unit,
+    /** Captured from the parent fan-out run's [FanOutRunState.sourceLanguage]
+     *  so the downstream picker can forward the language to runFanInPrompt
+     *  / runModelFanInPrompt. Null when the fan-out ran on the original. */
+    onFanInPickerSourceLanguageChange: (String?) -> Unit,
     onModelFanInActiveChange: (String?, String?) -> Unit,
     onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     onCloseList: () -> Unit,
@@ -3782,6 +3837,16 @@ private fun SecondaryResultsListMount(
             it.category == "fan_out" && it.name == listFilterByName
         }
     } else null
+    // Parent fan-out's source language (null = Original). Read from
+    // the engine's hydrated state so the language survives report
+    // re-open. Forwarded to the parent at every fan-in trigger so
+    // runFanInPrompt / runModelFanInPrompt fire in the same language
+    // as the fan-out being combined.
+    val parentSourceLanguage: String? = remember(reportId, fanOutPrompt?.id, fanOutEngine) {
+        val mp = fanOutPrompt ?: return@remember null
+        val eng = fanOutEngine ?: return@remember null
+        eng.runByKey(com.ai.data.runKey(reportId, mp.id))?.sourceLanguage
+    }
     if (showFanInPromptPicker && fanInList.isNotEmpty()) {
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
@@ -3829,11 +3894,13 @@ private fun SecondaryResultsListMount(
             fanOutPrompt = fanOutPrompt,
             onRunFanIn = if (fanInList.isNotEmpty()) {
                 {
+                    onFanInPickerSourceLanguageChange(parentSourceLanguage)
                     if (fanInList.size == 1) onFanInPickerPromptChange(fanInList.first())
                     else onShowFanInPromptPickerChange(true)
                 }
             } else null,
             onRunModelFanIn = { activePid, activeMdl ->
+                onFanInPickerSourceLanguageChange(parentSourceLanguage)
                 onModelFanInActiveChange(activePid, activeMdl)
                 if (fanInModelList.size == 1) onModelFanInPickerPromptChange(fanInModelList.first())
             },

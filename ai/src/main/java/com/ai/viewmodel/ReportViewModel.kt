@@ -3080,7 +3080,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun runRerank(
         context: Context,
         reportId: String,
-        pick: Pair<AppService, String>
+        pick: Pair<AppService, String>,
+        /** Honoured only as a single language: rerank is one call against
+         *  one set of bodies. AllPresent or a Selected set whose first
+         *  non-empty entry is "" means "rank the original bodies"; a
+         *  non-empty entry means "rank the translated bodies for that
+         *  language". Multi-language Selected just picks the first. */
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
         val (provider, model) = pick
         AppLog.i("Rerank", "→ start report=$reportId via ${provider.id}/$model")
@@ -3100,14 +3106,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successfulCount == 0) return@withTracerTags
-                    val resultsBlock = buildResultsBlock(report)
+                    val sourceLanguage: String? = (languageScope as? SecondaryLanguageScope.Selected)
+                        ?.languages?.firstOrNull()?.takeIf { it.isNotEmpty() }
+                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                    val (questionForPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, sourceLanguage, includeIds = null)
+                    val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
+                    val titleForPrompt = langCtx?.title ?: (report.title ?: "")
                     val resolvedPrompt = resolveSecondaryPrompt(
-                        rerankPrompt.text, question = report.prompt, results = resultsBlock,
-                        count = successfulCount, title = report.title
+                        rerankPrompt.text, question = questionForPrompt, results = resultsBlock,
+                        count = successfulCount, title = titleForPrompt
                     )
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.RERANK, rerankPrompt,
-                        provider, model, resolvedPrompt, aiSettings, report
+                        provider, model, resolvedPrompt, aiSettings, report,
+                        targetLanguage = sourceLanguage,
+                        targetLanguageNative = langCtx?.native
                     )
                 }
             } finally {
@@ -3130,7 +3143,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun runModeration(
         context: Context,
         reportId: String,
-        pick: Pair<AppService, String>
+        pick: Pair<AppService, String>,
+        /** Same single-language semantics as rerank. When set, the
+         *  moderation API receives translated bodies (fallback per-
+         *  agent to the original) and the persisted row is tagged
+         *  with the language so it appears under that section. */
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
     ): Job? {
         val (provider, model) = pick
         AppLog.i("Moderation", "→ start report=$reportId via ${provider.id}/$model")
@@ -3156,9 +3174,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successfulCount == 0) return@withTracerTags
+                    val sourceLanguage: String? = (languageScope as? SecondaryLanguageScope.Selected)
+                        ?.languages?.firstOrNull()?.takeIf { it.isNotEmpty() }
+                    val native = sourceLanguage?.let { lang ->
+                        val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+                        lookupLanguageTranslations(report, secondaries, lang)?.native
+                    }
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.MODERATION, moderationPrompt,
-                        provider, model, resolvedPrompt = "", aiSettings = aiSettings, report = report
+                        provider, model, resolvedPrompt = "", aiSettings = aiSettings, report = report,
+                        targetLanguage = sourceLanguage,
+                        targetLanguageNative = native
                     )
                 }
             } finally {
@@ -4168,7 +4194,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         reportId: String,
         metaPrompt: com.ai.model.InternalPrompt,
-        pick: Pair<AppService, String>
+        pick: Pair<AppService, String>,
+        /** English-name source language inherited from the parent
+         *  fan-out (null = Original). When non-null, every @-token the
+         *  fan-in template substitutes — @QUESTION@, @TITLE@, and the
+         *  per-source @REPORT@ body — comes from the matching
+         *  translation rows. The persisted combined-report is also
+         *  tagged with the language so it groups under that section
+         *  in the report list. */
+        sourceLanguage: String? = null
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -4221,6 +4255,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
                     }
                     val consumed = HashSet<String>()
+                    // Translation context for the parent fan-out's
+                    // language. Null when sourceLanguage is null
+                    // (Original); otherwise carries the translated
+                    // prompt/title/native + per-agent translated body
+                    // map. Built once per call from the secondaries we
+                    // already listed for the fan-out lookup.
+                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                    val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
                     val perReport: List<Pair<String, List<String>>> = successful.map { source ->
                         val fanOutResponses = successful.mapNotNull other@{ other ->
                             if (other.agentId == source.agentId) return@other null
@@ -4237,7 +4279,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val c = row.content
                             if (c.isNullOrBlank()) null else c.trim()
                         }
-                        (source.responseBody?.trim().orEmpty()) to fanOutResponses
+                        // Each @REPORT@ slot: translated body when
+                        // available, original otherwise. Without this,
+                        // a Dutch fan-in feeds the picked model the
+                        // Dutch @RESPONSES@ but English @REPORT@ — the
+                        // assistant typically replies in English and
+                        // the row ends up mismatched against its tag.
+                        val sourceBody = langCtx?.bodiesByAgentId?.get(source.agentId)
+                            ?: source.responseBody?.trim().orEmpty()
+                        sourceBody to fanOutResponses
                     }
                     if (perReport.all { it.second.isEmpty() }) {
                         val (provider, model) = pick
@@ -4256,16 +4306,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     }
                     val resolved = resolveFanInPrompt(
                         template = metaPrompt.text,
-                        question = report.prompt,
+                        question = langCtx?.prompt ?: report.prompt,
                         count = perReport.size,
                         fanOutCount = (perReport.size - 1).coerceAtLeast(0),
                         perReport = perReport,
-                        title = report.title
+                        title = langCtx?.title ?: report.title
                     )
                     val (provider, model) = pick
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.META, metaPrompt,
                         provider, model, resolved, aiSettings, report,
+                        targetLanguage = sourceLanguage,
+                        targetLanguageNative = langCtx?.native,
                         fanInOf = metaPrompt.id
                     )
                 }
@@ -4297,7 +4349,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         metaPrompt: com.ai.model.InternalPrompt,
         pick: Pair<AppService, String>,
         activeProviderId: String,
-        activeModel: String
+        activeModel: String,
+        /** Inherited from the parent fan-out; same semantics as
+         *  [runFanInPrompt]. Drives the substituted text for
+         *  @QUESTION@, @TITLE@, @INITIATOR@, and the source-body
+         *  half of every @RESPONDER_PAIRS@ entry. */
+        sourceLanguage: String? = null
     ): Job? {
         AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -4327,7 +4384,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             && !it.responseBody.isNullOrBlank()
                     }
                     val activeAgentIds = activeAgents.map { it.agentId }.toHashSet()
-                    val initiatorBody = activeAgents.firstOrNull()?.responseBody?.trim().orEmpty()
+                    // Translation context inherited from the parent
+                    // fan-out. When set, @INITIATOR@ and the source-
+                    // body half of every @RESPONDER_PAIRS@ entry come
+                    // from the per-agent translation rows.
+                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                    val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
+                    val initiatorBody = activeAgents.firstOrNull()?.let { agent ->
+                        langCtx?.bodiesByAgentId?.get(agent.agentId)
+                            ?: agent.responseBody?.trim().orEmpty()
+                    }.orEmpty()
 
                     // Per-pair fan-out rows on this report.
                     val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
@@ -4361,7 +4427,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         .mapNotNull { (srcAgentId, bucket) ->
                             if (srcAgentId.isBlank()) return@mapNotNull null
                             val source = report.agents.firstOrNull { it.agentId == srcAgentId } ?: return@mapNotNull null
-                            val srcBody = source.responseBody?.trim().orEmpty()
+                            val srcBody = langCtx?.bodiesByAgentId?.get(source.agentId)
+                                ?: source.responseBody?.trim().orEmpty()
                             val resp = bucket.lastOrNull()?.content?.trim().orEmpty()
                             if (srcBody.isBlank() || resp.isBlank()) null else srcBody to resp
                         }
@@ -4391,8 +4458,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                     val resolved = com.ai.data.resolveModelFanInPrompt(
                         template = metaPrompt.text,
-                        question = report.prompt,
-                        title = report.title,
+                        question = langCtx?.prompt ?: report.prompt,
+                        title = langCtx?.title ?: report.title,
                         initiatorBody = initiatorBody,
                         responders = responders,
                         responderPairs = responderPairs
@@ -4402,7 +4469,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // are persisted from the start (executeSecondaryTask
                     // doesn't take scopeProviderId / scopeModel — we
                     // pass the staged row in via existingPlaceholder).
-                    val agentName = "${provider.id} / ${shortModelName(model)}"
+                    // Language tag goes here too so the row groups
+                    // under the right language section.
+                    val langSuffix = sourceLanguage?.let { " [$it]" } ?: ""
+                    val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
                     val placeholder = SecondaryResultStorage.create(
                         context, reportId, SecondaryKind.META, provider.id, model, agentName
                     ) {
@@ -4411,13 +4481,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             metaPromptName = metaPrompt.name,
                             fanInOf = metaPrompt.id,
                             scopeProviderId = activeProviderId,
-                            scopeModel = activeModel
+                            scopeModel = activeModel,
+                            targetLanguage = sourceLanguage,
+                            targetLanguageNative = langCtx?.native
                         )
                     }
 
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.META, metaPrompt,
                         provider, model, resolved, aiSettings, report,
+                        targetLanguage = sourceLanguage,
+                        targetLanguageNative = langCtx?.native,
                         fanInOf = metaPrompt.id,
                         existingPlaceholder = placeholder
                     )
@@ -4617,9 +4691,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // Phase 1: seed-language meta run (the only META rows
                 // produced by this invocation).
                 val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, seedLang.first, includeIds)
+                // @TITLE@: prefer the per-language TITLE translation
+                // row when one exists; fall back to the original title.
+                // Without this, a Dutch seed run would send Dutch
+                // QUESTION + RESULTS but an English title — the model
+                // tends to mirror the title's language in its reply.
+                val seedTitle = lookupLanguageTranslations(report, allSecondaries, seedLang.first)?.title
+                    ?: (report.title ?: "")
                 val resolvedPrompt = resolveSecondaryPrompt(
                     metaPrompt.text, question = translatedPrompt, results = resultsBlock,
-                    count = successfulCount, title = report.title
+                    count = successfulCount, title = seedTitle
                 )
                 // Pre-create placeholders so we know each row's id up
                 // front — needed for phase 2's cross-translate items
@@ -4746,9 +4827,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // JSON content is rendered as a flagged-categories table by the
         // detail screen.
         if (kind == SecondaryKind.MODERATION) {
+            // When the caller picked a target language on the scope
+            // screen, classify the TRANSLATED bodies instead of the
+            // originals — otherwise a "Run moderation in Dutch" click
+            // still moderates the English text. Falls back to the
+            // original body per-agent when a translation row is
+            // missing so a partial set still classifies coherently.
+            val translatedBodies: Map<String, String>? = targetLanguage?.let { lang ->
+                val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+                lookupLanguageTranslations(report, secondaries, lang)?.bodiesByAgentId
+            }
             val responses = report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .map { it.responseBody!! }
+                .map { agent -> translatedBodies?.get(agent.agentId) ?: agent.responseBody!! }
             val (_, r) = com.ai.data.callModerationApi(provider, apiKey, model, responses)
             // Persist Mistral's reported token usage + per-token cost
             // so the result row shows cents like the other meta runs.

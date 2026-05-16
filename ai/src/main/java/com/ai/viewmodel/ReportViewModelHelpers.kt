@@ -201,3 +201,51 @@ internal fun buildLanguageInputs(
     }
     return translatedPrompt to sb.toString()
 }
+
+/** Bundle of translated inputs for one target language, ready to
+ *  substitute into @QUESTION@ / @TITLE@ / @REPORT@ / @RESPONSE@ /
+ *  body slots. Reused by meta @TITLE@, rerank, moderation, and both
+ *  flavours of fan-in — they all need the same per-language lookup
+ *  but different slicings of it (results block vs per-agent map).
+ *
+ *  Each field falls back to the original on a missing translation
+ *  row so a partial translation set still produces a coherent run.
+ *  The [native] companion is whatever the translation rows recorded
+ *  (e.g. "Nederlands" for "Dutch") — null when no row carried it. */
+internal data class LangCtx(
+    val prompt: String,
+    val title: String,
+    val native: String?,
+    val bodiesByAgentId: Map<String, String>
+)
+
+/** Build a [LangCtx] for [language]. Returns null when [language]
+ *  is null or blank (the "Original / no translation" path — callers
+ *  branch on null to keep their original-text behaviour). */
+internal fun lookupLanguageTranslations(
+    report: Report,
+    secondaries: List<SecondaryResult>,
+    language: String?
+): LangCtx? {
+    if (language.isNullOrBlank()) return null
+    val translates = secondaries.filter {
+        it.kind == SecondaryKind.TRANSLATE &&
+            it.targetLanguage == language &&
+            !it.content.isNullOrBlank()
+    }
+    val byTarget = translates.associateBy {
+        (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
+    }
+    val prompt = byTarget["PROMPT:prompt"]?.content ?: report.prompt
+    val title = byTarget["TITLE:title"]?.content ?: (report.title ?: "")
+    val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
+    val bodies = report.agents
+        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .associate { agent ->
+            agent.agentId to (
+                byTarget["AGENT:${agent.agentId}"]?.content?.trim()
+                    ?: agent.responseBody?.trim().orEmpty()
+                )
+        }
+    return LangCtx(prompt, title, native, bodies)
+}

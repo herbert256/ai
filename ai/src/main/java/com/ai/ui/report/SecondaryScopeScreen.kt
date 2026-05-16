@@ -46,6 +46,14 @@ internal fun SecondaryScopeScreen(
     BackHandler { onBack() }
     val kindLabel = metaPrompt.name
     val isMetaCategory = metaPrompt.category == "meta"
+    // Rerank and moderation always operate on the full set of agents
+    // — there's no per-row scope concept (a rerank ranks them all; a
+    // moderation classifies them all). The screen still surfaces the
+    // language picker for these categories so the user can pick a
+    // translation to operate on, but it hides the scope-subset card.
+    val isRerank = metaPrompt.category == "rerank"
+    val isModeration = metaPrompt.category == "moderation"
+    val isLanguageOnly = isRerank || isModeration
     // fan_out prompts also pick a subset of report-models as
     // "sources" (the answerer set is always the full successful list).
     // Top-Ranked / Manual scope therefore make sense for both meta and
@@ -90,12 +98,14 @@ internal fun SecondaryScopeScreen(
     val pickedLanguages = remember { mutableStateMapOf<String, Boolean>().apply {
         languages.forEach { (lang, _) -> put(lang, true) }
     } }
-    // Fan-out is single-language: it runs against one (source body,
-    // prompt) pair at a time. Empty string = Original; otherwise an
-    // English-name key from `languages`. Independent of the meta-mode
-    // multi-select state above so the two UIs don't share `remember`.
+    // Fan-out / rerank / moderation are single-language: they each
+    // operate on one (source body, prompt) set at a time. Empty
+    // string = Original; otherwise an English-name key from
+    // `languages`. Independent of the meta-mode multi-select state
+    // above so the two UIs don't share `remember`.
     val isFanOut = metaPrompt.category == "fan_out"
-    var fanOutPickedLanguage by remember(isFanOut) { mutableStateOf("") }
+    val isSingleLanguage = isFanOut || isLanguageOnly
+    var fanOutPickedLanguage by remember(isSingleLanguage) { mutableStateOf("") }
     // Initiator / responder model pickers used to live on this
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
@@ -124,11 +134,11 @@ internal fun SecondaryScopeScreen(
                 }
                 val langScope = when {
                     languages.isEmpty() -> SecondaryLanguageScope.AllPresent
-                    isFanOut -> {
-                        // Fan-out is always exactly one language; the
-                        // engine reads the single entry of Selected to
-                        // pick which body/prompt to feed each pair.
-                        // Empty string = Original (untranslated).
+                    isSingleLanguage -> {
+                        // Fan-out / rerank / moderation each take
+                        // exactly one language; the runners read the
+                        // single entry of Selected. Empty string =
+                        // Original (untranslated).
                         SecondaryLanguageScope.Selected(setOf(fanOutPickedLanguage))
                     }
                     allLanguages -> SecondaryLanguageScope.AllPresent
@@ -150,37 +160,52 @@ internal fun SecondaryScopeScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            Text(
-                "Choose which model results to feed into ${kindLabel}.",
-                fontSize = 12.sp, color = AppColors.TextTertiary
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            // Rerank and moderation always operate on every successful
+            // agent — there's no per-row scope to pick. Skip the
+            // explainer + the All/TopRanked/Manual card entirely so the
+            // user lands directly on the language picker below.
+            if (!isLanguageOnly) {
+                Text(
+                    "Choose which model results to feed into ${kindLabel}.",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
+                Spacer(modifier = Modifier.height(12.dp))
 
-            ScopeOption(
-                selected = scopeMode == ScopeMode.ALL,
-                label = "All model reports",
-                sublabel = "Use every successful result from this report ($totalReports)",
-                onSelect = { scopeMode = ScopeMode.ALL }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Top-Ranked scope makes sense for chat / fan out prompts
-            // (both pick a subset of report-models as input). Rerank
-            // and moderation runs always operate on the full set.
-            if (supportsSubsetScope && reranks.isNotEmpty()) {
                 ScopeOption(
-                    selected = scopeMode == ScopeMode.TOP_RANKED,
-                    label = "Only top ranked reports",
-                    sublabel = "Restrict the input to the top-N entries of a rerank",
-                    onSelect = { scopeMode = ScopeMode.TOP_RANKED }
+                    selected = scopeMode == ScopeMode.ALL,
+                    label = "All model reports",
+                    sublabel = "Use every successful result from this report ($totalReports)",
+                    onSelect = { scopeMode = ScopeMode.ALL }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                // Top-Ranked scope makes sense for chat / fan out prompts
+                // (both pick a subset of report-models as input). Rerank
+                // and moderation runs always operate on the full set.
+                if (supportsSubsetScope && reranks.isNotEmpty()) {
+                    ScopeOption(
+                        selected = scopeMode == ScopeMode.TOP_RANKED,
+                        label = "Only top ranked reports",
+                        sublabel = "Restrict the input to the top-N entries of a rerank",
+                        onSelect = { scopeMode = ScopeMode.TOP_RANKED }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                ScopeOption(
+                    selected = scopeMode == ScopeMode.MANUAL,
+                    label = "Manual select models",
+                    sublabel = "Tick exactly which model results to include",
+                    onSelect = { scopeMode = ScopeMode.MANUAL }
+                )
+            } else if (languages.isEmpty()) {
+                // No translations on this report — there is literally
+                // nothing to pick on this screen. Tell the user so the
+                // empty body isn't confusing; the Continue button at
+                // the top advances to the model picker.
+                Text(
+                    "No translations on this report. Continue to pick a model for $kindLabel.",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
             }
-            ScopeOption(
-                selected = scopeMode == ScopeMode.MANUAL,
-                label = "Manual select models",
-                sublabel = "Tick exactly which model results to include",
-                onSelect = { scopeMode = ScopeMode.MANUAL }
-            )
 
             if (scopeMode == ScopeMode.TOP_RANKED) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -274,25 +299,27 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            // Translation language picker: meta and fan_out surface it
-            // when the report has translation rows so the user can
-            // target the run at specific languages instead of always
-            // falling back to the original. Meta allows multi-select;
-            // fan_out is single-select (one run = one source language).
-            if ((isMetaCategory || isFanOut) && languages.isNotEmpty()) {
+            // Translation language picker: meta, fan_out, rerank, and
+            // moderation each surface it when the report has translation
+            // rows so the user can target the run at a specific
+            // language instead of always falling back to the original.
+            // Meta allows multi-select; fan_out / rerank / moderation
+            // are single-select (one run = one source language).
+            if ((isMetaCategory || isSingleLanguage) && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
-                if (isFanOut) {
-                    // Single-language: fan-out runs N×(M-1) pairs
-                    // against one source language at a time. Original
-                    // first, then each translation.
+                if (isSingleLanguage) {
+                    // Single-language: pick which source bodies / prompt
+                    // feed the run. Original first, then each translation.
+                    val hint = when {
+                        isFanOut -> "Fan-out runs on one language at a time. Pick which source bodies to feed each pair."
+                        isRerank -> "Rerank scores one language's bodies. Pick which set to rank."
+                        else -> "Moderation classifies one language's bodies. Pick which set to classify."
+                    }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                "Fan-out runs on one language at a time. Pick which source bodies to feed each pair.",
-                                fontSize = 11.sp, color = AppColors.TextTertiary
-                            )
+                            Text(hint, fontSize = 11.sp, color = AppColors.TextTertiary)
                             Row(
                                 modifier = Modifier.fillMaxWidth().clickable { fanOutPickedLanguage = "" },
                                 verticalAlignment = Alignment.CenterVertically
