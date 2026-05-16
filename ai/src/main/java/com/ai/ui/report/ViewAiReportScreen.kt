@@ -420,7 +420,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -457,7 +457,7 @@ internal fun ViewAiReportScreen(
     // prompt-icon cache is cold or the master toggle is off). The
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
-    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, onBack) {
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
