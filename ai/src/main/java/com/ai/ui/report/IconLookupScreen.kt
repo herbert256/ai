@@ -47,7 +47,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "icon_lookup",
+            helpTopic = ctx.helpTopic,
             title = "Icon lookup",
             onBackClick = ctx.onBack,
             onChat = ctx.onContinueChat,
@@ -159,6 +159,12 @@ fun IconLookupScreen(ctx: IconLookupContext) {
  *  for the five entry points). All fields are read-only — the screen
  *  is purely a renderer + callback dispatcher. */
 data class IconLookupContext(
+    /** Help topic id wired into the title bar's ladybug — one per
+     *  scope so the user lands on the page that explains *their*
+     *  flow. One of: `icon_lookup_main`, `icon_lookup_agent`,
+     *  `icon_lookup_meta`, `icon_lookup_translation`,
+     *  `icon_lookup_language`, `icon_lookup_pair`. */
+    val helpTopic: String,
     /** Green subject row under the title — the bundled prompt name
      *  that produced the displayed emoji (e.g. `main`, `report_2`,
      *  `meta_alt`). Falls back to the source-default name when the

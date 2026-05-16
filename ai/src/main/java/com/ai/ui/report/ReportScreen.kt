@@ -3310,6 +3310,7 @@ private fun AgentIconDetailOverlay(
         LocalNavigateToCurrentReport provides onClose
     ) {
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_agent",
             subject = subject,
             provider = provider,
             model = agent.model,
@@ -3456,6 +3457,7 @@ private fun PairIconDetailOverlay(
         LocalNavigateToCurrentReport provides onClose
     ) {
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_pair",
             subject = subject,
             provider = provider,
             model = pair.model,
@@ -3514,6 +3516,7 @@ private fun MetaIconDetailOverlay(
             categories = listOf("icon_meta", "icon_meta_alt")
         )
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_meta",
             subject = entry?.promptName ?: "meta",
             provider = provider,
             model = entry?.model.orEmpty(),
@@ -3571,6 +3574,7 @@ private fun TranslationIconDetailOverlay(
             categories = listOf("icon_translation", "icon_translation_alt")
         )
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_translation",
             subject = entry?.promptName ?: "translation",
             provider = provider,
             model = entry?.model.orEmpty(),
@@ -4120,6 +4124,7 @@ private fun RenderLanguageDetailOverlay(
         val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
             ?: aiSettings.getEffectiveModelForAgent(languageAgent)
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_language",
             subject = ctxData.first ?: "language",
             provider = provider,
             model = modelId,
@@ -4236,6 +4241,7 @@ private fun ReportIconOrLanguageDetailOverlay(
         val modelId = reportIconModel?.split("/", limit = 2)?.getOrNull(1)
             ?: aiSettings.getEffectiveModelForAgent(iconAgent)
         IconLookupScreen(IconLookupContext(
+            helpTopic = "icon_lookup_main",
             subject = promptUsed ?: "main",
             provider = provider,
             model = modelId,

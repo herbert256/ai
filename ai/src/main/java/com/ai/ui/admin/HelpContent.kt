@@ -292,21 +292,85 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reorder cards (long-press + drag)", "Long-press any tile (~500 ms — short tap still opens its destination) until the device gives a small haptic, then drag it onto the tile you want it to swap with and release. The new order persists globally — \"Costs first\" on one report means Costs first on every report. Tiles never seen before (a new Meta prompt, a Computed kind that hadn't shown up yet) append at the end of the grid; drag them where you want once and they stay there.")
         )
     ),
-    "icon_lookup" to HelpContent(
-        title = "Icon lookup",
+    // Per-scope Icon-lookup help — one topic for each of the six
+    // adapters (main / agent / meta / translation / language /
+    // fan-out pair). IconLookupContext.helpTopic carries the right
+    // id so the title-bar 🐞 always lands on the page that
+    // describes *this* flow. Every page shares the same six
+    // "what the screen shows" cards (Subject / Title-bar / Model /
+    // API interaction / Emoji / Find-alt / Cost / Trace) but the
+    // first card and the cost-attribution card are scope-specific.
+    "icon_lookup_main" to HelpContent(
+        title = "Icon lookup — main report icon",
         cards = listOf(
-            HelpCard("Overview", "Unified detail view for every icon scope — the main report icon, per-agent icons, meta-prompt icons (one per Compare / Summarize / etc.), translation-row icons (per target language), and the report's detected-language icon. Reached by tapping any of those icon cells on the report's result / manage / API screens. One layout, one help page — what changes per scope is just the data behind the cards."),
-            HelpCard("Subject (green row)", "The bundled prompt name that produced the currently-displayed emoji — e.g. `main`, `report`, `report_2`, `report_3`, `meta`, `translation`, `language`. After picking a candidate from Find-alternative-icons the subject flips to the `_alt` variant of that name (`main_alt` / `meta_alt` / `report_alt` / `language_alt` / `translation_alt`). Legacy rows whose `iconPromptUsed` field is null fall back to the source-default name (e.g. `main` for the report icon)."),
-            HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat with the call's prompt+response — non-null only on flows that have a meaningful continuation, currently the report-level and language scopes). ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
-            HelpCard("Model card", "Provider / model / pricing tier / cumulative cost. The cost is the SUM of every icon call ever fired on this scope: the initial generation plus every Find-alternative-icons candidate, whether picked or not. Per-call cost is bumped on the relevant storage row (Report / ReportAgent / SecondaryResult / InternalPromptIconCache entry) the moment each call returns its token usage."),
-            HelpCard("API interaction card", "Plain monospace dump of the raw `[user] … [assistant] …` exchange the model saw. NO markdown — the returned emoji shows inline at text size, byte-for-byte the model output. One-shot prompts produce a 2-message exchange; chat-continuation tiers (agent tier-1, future fan-out tier-1) produce a 4-message exchange (`[user] report.prompt → [assistant] agent.response → [user] chat-tier prompt → [assistant] emoji`)."),
-            HelpCard("Emoji below the card", "The resolved single-glyph emoji rendered big + centred. ⏳ while pending, ❌ on error (the error reason appears in a card below)."),
-            HelpCard("Find alternative icons", "Bottom button — opens the model picker. Pick a set of (provider, model) pairs, tap Find Icons; each one runs the bundled `<base>_alt` variant of the scope's prompt. The `_alt` prompt is composed at runtime as `alt.text + \"\\n\\n\" + base.text` (alt nudge first so the model reads the 'pick something distinct' constraint before the template body) — so the alt template only needs the nudge ('Do not repeat 📝 / 💬 / ✅' for most flows; 'Do not use a country flag emoji' for language/translation). Results land on the Alternative icons live list — tap a returned emoji to commit it as the new displayed value."),
-            HelpCard("View alternative icons", "When a fan-out is already in flight or completed for this scope, the button label flips to View alternative icons and skips the picker — jumps straight to the live list. Per-scope candidates live on their own slot, so the five flows don't share state."),
-            HelpCard("Cost attribution", "Every Find-alt call's cost is added to the same row on Report-Manage that owns the icon you tapped on (Report.iconInputCost for `main`; ReportAgent.iconInputCost for `report`; SecondaryResult.inputCost for `meta` / `translation`; Report.languageIconInputCost for `language`). On the Report → API cost table the call also surfaces as a per-call row labelled `icon_<prompt>` (e.g. `icon_meta_alt`). The By-type view collapses every `icon_*` row into a single `icons` group."),
-            HelpCard("Trace category", "Every icon-related API call is tagged with `icon_<prompt-name>` in the trace `category` field — `icon_main` / `icon_meta` / `icon_report_2` / `icon_fan_out` / `icon_language_alt` / etc. Lets you filter the API Traces screen to exactly the icon flow you're investigating."),
-            HelpCard("Persistence", "Main / agent / language / fan-out icons live on the Report / ReportAgent / SecondaryResult rows (deleted with the report). Meta + translation icons live in `<filesDir>/internal_prompt_icons.json` — keyed `(prompt.name, prompt.title)` for meta, `(\"translation_icon\", language)` for translation — captured by Backup & Restore and dropped by Housekeeping → Reset → Clear all configuration."),
-            HelpCard("Fan-out pair icons", "Optional — only present once you've tapped *Run Fan Icons* on the L1 of a Fan Out drill-in. The per-pair 3-tier chain (`fan_out_2` chat-continuation / `fan_out` one-shot / `fan_out_3` fixed-agent) populates `SecondaryResult.icon`. On Fan Out → L2 (MAIN) the icon replaces the leading ✅ — long-press it to open this screen. On Fan Out → L3 (MAIN) the icon shows big + centred under the green answerer label — tap it to open this screen. Subject reads `fan_out_2` / `fan_out` / `fan_out_3` per the winning tier; Find-alt picks flip the subject to `fan_out_alt` and the cost lands on the pair's `iconInputCost` / `iconOutputCost` (visible in the Cost line + the L2/L3 row totals).")
+            HelpCard("Overview", "Detail view for the main report icon — the emoji shown next to the report title. Reached by tapping the 📝 icon on the report's result screen. Produced by the bundled `icons/main` one-shot prompt with `@PROMPT@` substituted to the report's prompt text."),
+            HelpCard("Subject (green row)", "Always `main` (or `main_alt` after a Find-alt pick). Legacy rows whose `iconPromptUsed` is null fall back to `main`."),
+            HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat with the prompt + emoji). ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
+            HelpCard("Model / API interaction / Emoji cards", "Standard layout — the same shape for every Icon-lookup scope: provider + model + cumulative cost, plain `[user] … [assistant] …` 2-message transcript, big centred glyph (⏳ pending, ❌ on error)."),
+            HelpCard("Find alternative icons", "Runs the bundled `icons/main_alt` variant across user-picked (provider, model) pairs. Composed at runtime as `alt.text + \"\\n\\n\" + base.text` — alt nudge first so the model reads the 'pick something distinct' constraint before the template body. Pick a returned emoji to commit it on the report."),
+            HelpCard("Cost attribution", "Initial call + every alt attempt is bumped on `Report.iconInputCost / iconOutputCost`. On the Report → API cost table the alt calls surface as per-call `icon_main_alt` rows; the initial generation as `icon_main`. By-type collapses every `icon_*` row into one `icons` group."),
+            HelpCard("Trace category", "`icon_main` for the initial generation, `icon_main_alt` for every Find-alt call.")
+        )
+    ),
+    "icon_lookup_agent" to HelpContent(
+        title = "Icon lookup — per-agent icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for one agent's per-model icon (one icon per agent on a report). Reached by tapping the agent's emoji cell on the result / manage screen. Produced by the bundled 3-tier chain `report_2` (chat-continuation) → `report` (one-shot) → `report_3` (fixed-agent fallback). The first tier that returns a usable emoji wins."),
+            HelpCard("Subject (green row)", "The bundled prompt name that won — `report_2`, `report`, or `report_3`. After a Find-alt pick the subject flips to `report_alt`. Legacy rows fall back to deriving the name from `iconWinningTier`."),
+            HelpCard("Title-bar icons", "ℹ️ Model info / 📋 Copy / 📤 Share / 🐞 trace. Continue-in-chat is intentionally NOT wired here — the agent's response already lives on the result screen's row, not here."),
+            HelpCard("API interaction card", "Tier-aware — tier 1 (`report_2`) shows the 4-message chat-continuation exchange (`[user] report.prompt → [assistant] agent.response → [user] icon prompt → [assistant] emoji`). Tier 2 and 3 show a 2-message one-shot exchange with the relevant template substituted."),
+            HelpCard("Find alternative icons", "Runs the bundled `icons/report_alt` variant across picked models — composed as `alt.text + \"\\n\\n\" + report.text`. Pick lands on `ReportAgent.icon` for this agent only."),
+            HelpCard("Cost attribution", "Bumped on `ReportAgent.iconInputCost / iconOutputCost`. Per-call audit rows are `icon_report` / `icon_report_2` / `icon_report_3` / `icon_report_alt`."),
+            HelpCard("Trace category", "`icon_report` (tier 2), `icon_report_2` (tier 1), `icon_report_3` (tier 3), `icon_report_alt` (Find-alt).")
+        )
+    ),
+    "icon_lookup_meta" to HelpContent(
+        title = "Icon lookup — meta-prompt icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for the cached icon on a Meta-prompt row (Compare / Summarize / Critique / Rerank / Moderation / fan-in / fan-out summary). Reached by tapping the emoji on a Meta row. The icon is keyed `(prompt.name, prompt.title)` on the cross-report `InternalPromptIconCache`, so every report that uses the same prompt sees the same icon."),
+            HelpCard("Subject (green row)", "The cached `promptName` field on the cache entry — defaults to `meta`. Find-alt picks flip it to `meta_alt`."),
+            HelpCard("Title-bar icons", "ℹ️ is NOT wired (the cache entry doesn't track a specific model). 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_meta` / `icon_meta_alt` trace for the cache's stored model — cross-report (the cache itself is cross-report)."),
+            HelpCard("API interaction card", "2-message one-shot exchange: the resolved `icons/meta` prompt with `@NAME@ @TITLE@` substituted, then the returned emoji."),
+            HelpCard("Find alternative icons", "Runs `icons/meta_alt` (composed as `alt.text + \"\\n\\n\" + meta.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = meta_alt`."),
+            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative `inputCost / outputCost`. Per-row attribution: when the prompt has a matching SecondaryResult on the current report, the call also bumps that SR's `inputCost / outputCost` so the Report → Manage row total includes the alt spend. Per-call audit rows are `icon_meta` / `icon_meta_alt`."),
+            HelpCard("Trace category", "`icon_meta` (initial), `icon_meta_alt` (Find-alt).")
+        )
+    ),
+    "icon_lookup_translation" to HelpContent(
+        title = "Icon lookup — translation row icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for the cached icon on a per-target-language translation row (one per language the report has been translated into). Reached by tapping the emoji on a Translate row. Keyed `(\"translation_icon\", language)` on the cross-report `InternalPromptIconCache`."),
+            HelpCard("Subject (green row)", "`translation` (or `translation_alt` after a Find-alt pick)."),
+            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_translation` / `icon_translation_alt` trace for the cache's stored model — cross-report."),
+            HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/translation` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
+            HelpCard("Find alternative icons", "Runs `icons/translation_alt` (composed as `alt.text + \"\\n\\n\" + translation.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = translation_alt`."),
+            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative cost; per-row attribution into the first TRANSLATE SR for the language. Per-call audit rows are `icon_translation` / `icon_translation_alt`."),
+            HelpCard("Trace category", "`icon_translation` (initial), `icon_translation_alt` (Find-alt). The `_alt` variant is for picking a different country / language emoji.")
+        )
+    ),
+    "icon_lookup_language" to HelpContent(
+        title = "Icon lookup — detected-language icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for the report's detected-language icon — the emoji rendered next to a translated report header. Produced by the 2-step `language-detect` → `language` flow: detect first (returns the language NAME), then run the bundled `icons/language` prompt with `@LANGUAGE@` substituted to that name."),
+            HelpCard("Subject (green row)", "`language` (or `language_alt` after a Find-alt pick). Legacy rows fall back to `language`."),
+            HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat about the language). ℹ️ Model info / 📋 / 📤 / 🐞."),
+            HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/language` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
+            HelpCard("Find alternative icons", "Runs `icons/language_alt` (composed as `alt.text + \"\\n\\n\" + language.text`) across picked models. Pick commits onto `Report.languageIcon`."),
+            HelpCard("Cost attribution", "Bumped on `Report.languageIconInputCost / languageIconOutputCost`. Per-call audit rows are `icon_language` / `icon_language_alt`."),
+            HelpCard("Trace category", "`icon_language` (initial), `icon_language_alt` (Find-alt). The `_alt` nudge says 'do not use a country flag emoji' — picks a more abstract glyph.")
+        )
+    ),
+    "icon_lookup_pair" to HelpContent(
+        title = "Icon lookup — fan-out pair icon",
+        cards = listOf(
+            HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single (source × responder) cell in a fan-out run. Optional — only present once you've tapped *Run Fan Icons* on the L1 of a Fan Out drill-in. Produced by the per-pair 3-tier chain `fan_out_2` (chat-continuation, 6 messages) → `fan_out` (one-shot) → `fan_out_3` (fixed-agent fallback)."),
+            HelpCard("Subject (green row)", "The bundled prompt name that won — `fan_out_2`, `fan_out`, or `fan_out_3`. After a Find-alt pick the subject flips to `fan_out_alt`."),
+            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the tier-aware transcript. 🐞 looks up the most recent `icon_fan_out*` trace for the pair's model under this report."),
+            HelpCard("API interaction card", "Tier-aware. Tier 1 shows the 6-message chat-continuation transcript (`[user] report.prompt → [assistant] source.response → [user] meta.prompt → [assistant] pair.response → [user] icon prompt → [assistant] emoji`) matching `runFanOutTier1`. Tiers 2/3 show a 2-message one-shot exchange with the relevant template substituted."),
+            HelpCard("Find alternative icons", "Runs `icons/fan_out_alt` (composed as `alt.text + \"\\n\\n\" + fan_out.text`) across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
+            HelpCard("Cost attribution", "Bumped on the pair's `SecondaryResult.iconInputCost / iconOutputCost` (visible in the Cost line here and in the L2/L3 row totals). On Report → Manage the cost rolls up into the fan-out summary row's 🎨 fan-icons sibling. Per-call audit rows are `icon_fan_out` / `icon_fan_out_2` / `icon_fan_out_3` / `icon_fan_out_alt`, all attributed to the pair's SR."),
+            HelpCard("Trace category", "`icon_fan_out_2` (tier 1), `icon_fan_out` (tier 2), `icon_fan_out_3` (tier 3), `icon_fan_out_alt` (Find-alt)."),
+            HelpCard("How to reach this screen", "Fan Out → L2 (MAIN mode) — tap the pair's icon on its row (the icon replaces the leading ✅ when present). Fan Out → L3 (MAIN mode) — tap the small icon in the answerer pane's header row (just before the model name).")
         )
     ),
     "find_icons_selection" to HelpContent(
