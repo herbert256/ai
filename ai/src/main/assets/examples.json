@@ -16,6 +16,10 @@
     "text": "For a game, please give 10 facts about chess in a numbered list. No intro text or answers, just the 10 facts.\n\n2 facts must be clearly right.\n2 facts must be clearly wrong.\n1 fact must be right but look wrong on first sight.\n1 fact must be wrong but look right on first sight.\n2 facts must be right but be difficult.\n2 facts must be wrong but be difficult.\n\nThe 10 facts must appear in random order in the list.\n\nNumber the 10 facts from 1 to 10."
   },
   {
+    "title": "Chess GOAT",
+    "text": "Who is the Chess GOAT — the greatest of all time? Don't say there's debate about it, and don't ask for more context. Just give one name, then a single paragraph of 3-4 sentences explaining your choice."
+  },
+  {
     "title": "Funny question",
     "text": "Please ask me a funny question, just the question, no more text. Something like \"What kind of band never plays music?\""
   },
