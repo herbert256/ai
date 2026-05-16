@@ -2548,6 +2548,18 @@ fun ReportsScreen(
         // prompt title surfaces as a green sub-header inside the body.
         val promptTitle = uiState.genericPromptTitle
         val barTitle = "Report - manage"
+        // Wire the title bar's report-icon tap to open the View
+        // screen (same destination as the title tap and the ℹ️
+        // icon). TitleBar reads LocalNavigateToCurrentReport for
+        // that tap; on overlays it points back to Manage, so on
+        // Manage itself we point it forward to View.
+        CompositionLocalProvider(
+            LocalNavigateToCurrentReport provides (
+                if (isGenerating && currentReportId != null) {
+                    { showViewReportScreen = true }
+                } else null
+            )
+        ) {
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,
@@ -2593,6 +2605,7 @@ fun ReportsScreen(
                 { showExport = true }
             } else null
         )
+        }
         if (showRegenerateConfirm && currentReportId != null) {
             val rid = currentReportId
             val agentCount = models.size
