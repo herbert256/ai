@@ -1858,32 +1858,38 @@ fun ReportsScreen(
         }
         val sd = scopeDataState.value
         if (sd == null) return
-        SecondaryScopeScreen(
-            metaPrompt = scopeMetaPrompt,
-            agents = sd.agents,
-            reranks = sd.reranks,
-            languages = sd.languages,
-            totalReports = sd.totalReports,
-            onContinue = { chosenScope, chosenLangScope ->
-                pendingSecondaryScope = chosenScope
-                pendingLanguageScope = chosenLangScope
-                // Forward without clearing secondaryScopeMetaPrompt;
-                // the scope render guards on fanOutConfirmMetaPrompt /
-                // metaRunScreenPrompt being non-null so the higher
-                // step takes precedence while the scope state remains
-                // available for Android-back to unwind to.
-                if (scopeMetaPrompt.category == "fan_out") {
-                    // Run page picks initiators / responders, edits the
-                    // prompt, then confirms.
-                    fanOutConfirmMetaPrompt = scopeMetaPrompt
-                } else {
-                    // Meta path: Scope → Run page (edit prompt) → model picker.
-                    metaRunScreenPrompt = scopeMetaPrompt
-                }
-            },
-            onBack = { secondaryScopeMetaPrompt = null },
-            onNavigateHome = onNavigateHome
-        )
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { secondaryScopeMetaPrompt = null }
+        ) {
+            SecondaryScopeScreen(
+                metaPrompt = scopeMetaPrompt,
+                agents = sd.agents,
+                reranks = sd.reranks,
+                languages = sd.languages,
+                totalReports = sd.totalReports,
+                onContinue = { chosenScope, chosenLangScope ->
+                    pendingSecondaryScope = chosenScope
+                    pendingLanguageScope = chosenLangScope
+                    // Forward without clearing secondaryScopeMetaPrompt;
+                    // the scope render guards on fanOutConfirmMetaPrompt /
+                    // metaRunScreenPrompt being non-null so the higher
+                    // step takes precedence while the scope state remains
+                    // available for Android-back to unwind to.
+                    if (scopeMetaPrompt.category == "fan_out") {
+                        // Run page picks initiators / responders, edits the
+                        // prompt, then confirms.
+                        fanOutConfirmMetaPrompt = scopeMetaPrompt
+                    } else {
+                        // Meta path: Scope → Run page (edit prompt) → model picker.
+                        metaRunScreenPrompt = scopeMetaPrompt
+                    }
+                },
+                onBack = { secondaryScopeMetaPrompt = null },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
 
@@ -1894,34 +1900,44 @@ fun ReportsScreen(
     // has room to breathe.
     val fanOutMp = fanOutConfirmMetaPrompt
     if (fanOutMp != null && currentReportId != null) {
-        FanOutConfirmScreen(
-            fanOutMp = fanOutMp,
-            reportId = currentReportId,
-            context = context,
-            // Back from Run → unwind to Scope (state still set);
-            // back from there → Picker; back from there → main.
-            onCancel = { fanOutConfirmMetaPrompt = null },
-            onRun = { mp, initiators, responders ->
-                // Commit clears the whole fan-out stack so the user
-                // doesn't pop back into Scope/Picker after the run
-                // kicked off.
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
                 fanOutConfirmMetaPrompt = null
                 secondaryScopeMetaPrompt = null
                 showFanOutPicker = false
-                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                onRunFanOut(
-                    currentReportId, mp,
-                    com.ai.data.SecondaryScope.Manual(initiators),
-                    responders
-                )
-                // Land on the Fan Out L1 page so the user watches the
-                // run progress instead of the report screen.
-                listKind = SecondaryKind.META
-                listFilterByName = mp.name
-                listIsFanIcons = false
             }
-        )
+        ) {
+            FanOutConfirmScreen(
+                fanOutMp = fanOutMp,
+                reportId = currentReportId,
+                context = context,
+                // Back from Run → unwind to Scope (state still set);
+                // back from there → Picker; back from there → main.
+                onCancel = { fanOutConfirmMetaPrompt = null },
+                onRun = { mp, initiators, responders ->
+                    // Commit clears the whole fan-out stack so the user
+                    // doesn't pop back into Scope/Picker after the run
+                    // kicked off.
+                    fanOutConfirmMetaPrompt = null
+                    secondaryScopeMetaPrompt = null
+                    showFanOutPicker = false
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                    onRunFanOut(
+                        currentReportId, mp,
+                        com.ai.data.SecondaryScope.Manual(initiators),
+                        responders
+                    )
+                    // Land on the Fan Out L1 page so the user watches the
+                    // run progress instead of the report screen.
+                    listKind = SecondaryKind.META
+                    listFilterByName = mp.name
+                    listIsFanIcons = false
+                }
+            )
+        }
         return
     }
 
@@ -1931,14 +1947,23 @@ fun ReportsScreen(
     // they leave the field at.
     val metaRunMp = metaRunScreenPrompt
     if (metaRunMp != null && currentReportId != null) {
-        MetaRunScreen(
-            metaPrompt = metaRunMp,
-            onCancel = { metaRunScreenPrompt = null },
-            onContinue = { edited ->
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
                 metaRunScreenPrompt = null
-                secondaryPickerMetaPrompt = edited
+                secondaryScopeMetaPrompt = null
             }
-        )
+        ) {
+            MetaRunScreen(
+                metaPrompt = metaRunMp,
+                onCancel = { metaRunScreenPrompt = null },
+                onContinue = { edited ->
+                    metaRunScreenPrompt = null
+                    secondaryPickerMetaPrompt = edited
+                }
+            )
+        }
         return
     }
 
@@ -1947,31 +1972,40 @@ fun ReportsScreen(
     val pickerMetaPrompt = secondaryPickerMetaPrompt
     if (pickerMetaPrompt != null && currentReportId != null) {
         val rid = currentReportId
-        ReportSelectModelsScreen(
-            aiSettings = aiSettings,
-            // Single-pick: tap fires the meta run for one model and pops
-            // back. Users wanting two runs just open the picker twice.
-            titleText = "${pickerMetaPrompt.name} — pick model",
-            recentEntries = recentReportPairs,
-            onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-            onConfirm = { pick ->
-                onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
-                // Clear the WHOLE meta-creation stack — picker + scope —
-                // so the user lands back on the report once the run
-                // kicks off. Without clearing `secondaryScopeMetaPrompt`
-                // the scope-screen guard re-fires on recompose and the
-                // user gets bounced back to Scope (the layered state
-                // that makes Android back unwind step-by-step also has
-                // to be torn down on the forward commit path). Mirrors
-                // the fan-out commit handler.
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
                 secondaryPickerMetaPrompt = null
                 secondaryScopeMetaPrompt = null
-                pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-                pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            },
-            onBack = { secondaryPickerMetaPrompt = null },
-            onNavigateHome = onNavigateHome
-        )
+            }
+        ) {
+            ReportSelectModelsScreen(
+                aiSettings = aiSettings,
+                // Single-pick: tap fires the meta run for one model and pops
+                // back. Users wanting two runs just open the picker twice.
+                titleText = "${pickerMetaPrompt.name} — pick model",
+                recentEntries = recentReportPairs,
+                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
+                onConfirm = { pick ->
+                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                    // Clear the WHOLE meta-creation stack — picker + scope —
+                    // so the user lands back on the report once the run
+                    // kicks off. Without clearing `secondaryScopeMetaPrompt`
+                    // the scope-screen guard re-fires on recompose and the
+                    // user gets bounced back to Scope (the layered state
+                    // that makes Android back unwind step-by-step also has
+                    // to be torn down on the forward commit path). Mirrors
+                    // the fan-out commit handler.
+                    secondaryPickerMetaPrompt = null
+                    secondaryScopeMetaPrompt = null
+                    pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+                    pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                },
+                onBack = { secondaryPickerMetaPrompt = null },
+                onNavigateHome = onNavigateHome
+            )
+        }
         return
     }
 
