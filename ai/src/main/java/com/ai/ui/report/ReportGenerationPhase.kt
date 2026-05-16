@@ -50,6 +50,13 @@ data class AgentIconRow(val icon: String?, val cost: Double)
 internal data class EveryItem(
     val label: String,
     val prompt: com.ai.model.InternalPrompt? = null,
+    /** Target language (English name, e.g. "Dutch") when the row
+     *  this item represents was produced by a translation pass.
+     *  Drives the [ViewAiReportScreen] meta tile's icon to the
+     *  cached `translation_icon` emoji for that language instead
+     *  of the prompt's own per-prompt emoji. Null on rows that
+     *  aren't translation-scoped. */
+    val targetLanguage: String? = null,
     val open: () -> Unit
 )
 
@@ -76,6 +83,7 @@ internal fun buildEveryItems(
             EveryItem(
                 label = row.metaPromptName ?: "Meta",
                 prompt = row.metaPromptName?.let { promptByName[it] },
+                targetLanguage = row.targetLanguage?.takeIf { it.isNotBlank() },
                 open = { onOpenSecondaryRun(row.id) }
             )
         }

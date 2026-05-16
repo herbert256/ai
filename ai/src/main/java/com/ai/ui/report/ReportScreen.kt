@@ -1388,6 +1388,7 @@ fun ReportsScreen(
                 useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
                 // Each handler launches its destination without
                 // tearing down `showViewReportScreen` — the View

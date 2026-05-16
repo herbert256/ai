@@ -94,6 +94,11 @@ internal fun ViewAiReportScreen(
      *  cached emoji yet. Same one-shot generation path the result
      *  list's per-row emoji uses. */
     onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Cold-cache trigger for the per-language `translation_icon`
+     *  emoji. Fired when a meta tile represents a translated meta
+     *  row whose [EveryItem.targetLanguage] has no cached emoji.
+     *  Same generation path the result-list translation row uses. */
+    onMissingTranslationIcon: (String) -> Unit = { _ -> },
     /** True when ANY persisted moderation row on this report has
      *  AT LEAST one fired category. Flips the moderation tile's
      *  accent to red (flag set somewhere) vs the default green
@@ -143,11 +148,26 @@ internal fun ViewAiReportScreen(
     val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
-            val cached = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
-                val emoji = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                if (emoji == null) onMissingPromptIcon(prompt)
-                emoji
-            } else null
+            val lang = item.targetLanguage
+            val cached = when {
+                // Translation pass — use the per-language
+                // `translation_icon` emoji instead of the prompt's
+                // own. Cold cache kicks off generation via
+                // onMissingTranslationIcon (same path the result
+                // list's translation row uses).
+                useInternalPromptsIcons && !lang.isNullOrBlank() -> {
+                    val emoji = com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                    if (emoji == null) onMissingTranslationIcon(lang)
+                    emoji
+                }
+                // Standard meta path — per-prompt emoji.
+                useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank() -> {
+                    val emoji = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                    if (emoji == null) onMissingPromptIcon(prompt)
+                    emoji
+                }
+                else -> null
+            }
             ViewTile(item.label, cached ?: "🧠", AppColors.Purple) {
                 item.open()
             }
