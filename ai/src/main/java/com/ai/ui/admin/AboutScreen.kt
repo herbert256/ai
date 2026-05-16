@@ -1,12 +1,16 @@
 package com.ai.ui.admin
 
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,8 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.BuildConfig
@@ -38,6 +44,7 @@ fun AboutScreen(
     onOpenTechnicalDocs: () -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "about",
@@ -66,11 +73,38 @@ fun AboutScreen(
                 "Built ${BuildConfig.BUILD_TIMESTAMP}",
                 fontSize = 13.sp, color = AppColors.TextTertiary
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            // Source-repository link — opens the system browser.
+            // Rendered as plain underlined text rather than a chip
+            // so it sits unobtrusively under the build stamp.
+            Text(
+                "github.com/herbert256/ai",
+                fontSize = 13.sp, color = AppColors.Blue,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/herbert256/ai")))
+                }
+            )
             Spacer(modifier = Modifier.height(28.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxSize()) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 HubCard(icon = "📖", title = "Manual", onClick = onOpenManual)
                 HubCard(icon = "🛠️", title = "Technical documentation", onClick = onOpenTechnicalDocs)
             }
+            Spacer(modifier = Modifier.height(24.dp))
+            // Copyright footer pinned at the bottom of the About
+            // page; mirrors the home-help Copyright card wording so
+            // both surfaces agree.
+            Text(
+                "Copyright © Herbert Jebbink.",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository.",
+                fontSize = 11.sp, color = AppColors.TextTertiary
+            )
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

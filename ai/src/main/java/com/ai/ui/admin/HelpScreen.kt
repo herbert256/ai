@@ -28,7 +28,16 @@ fun HelpScreen(
      *  by the home page's Info-providers table; per-topic cards
      *  don't currently navigate but the hook is here for future
      *  cross-links. */
-    onNavigateToTopic: (String) -> Unit = {}
+    onNavigateToTopic: (String) -> Unit = {},
+    /** Pop back to the bare Help home (the topic-less landing
+     *  page). Wired by AppNavHost to `NavRoutes.HELP`. Surfaced on
+     *  the per-topic footer so a user reading any topic page can
+     *  jump back to the top-level help without using Android-back. */
+    onNavigateToHelpHome: () -> Unit = {},
+    /** Open the About screen — surfaced in the per-screen footer
+     *  alongside the Help-home link. Defaults to a no-op so
+     *  legacy callers compile. */
+    onNavigateToAbout: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val topic = topicId?.takeIf { it.isNotBlank() }?.let { HELP_TOPICS[it] }
@@ -49,14 +58,50 @@ fun HelpScreen(
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
             } else {
-                CompactOverview(onNavigateToTopic)
+                CompactOverview(onNavigateToTopic, onNavigateToAbout)
+            }
+            // Footer pinned to every help page: a back-to-Help-home
+            // link (per-topic pages only) plus an About link. The
+            // home page renders only the About link inside its
+            // CompactOverview Copyright card; we add nothing extra
+            // here for that case.
+            if (topic != null) {
+                HelpFooter(
+                    onNavigateToHelpHome = onNavigateToHelpHome,
+                    onNavigateToAbout = onNavigateToAbout
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CompactOverview(onNavigateToTopic: (String) -> Unit = {}) {
+private fun HelpFooter(onNavigateToHelpHome: () -> Unit, onNavigateToAbout: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("←", fontSize = 14.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("ℹ️", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+                Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactOverview(
+    onNavigateToTopic: (String) -> Unit = {},
+    onNavigateToAbout: () -> Unit = {}
+) {
     HelpSection(
         "Welcome",
         "This app runs AI reports, chats, and dual chats against ${AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
@@ -82,6 +127,18 @@ private fun CompactOverview(onNavigateToTopic: (String) -> Unit = {}) {
         "Copyright",
         "Copyright © Herbert Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
     )
+    // About link on the home help page — per-topic pages get this
+    // plus a Help-home link via HelpFooter; the home page only
+    // surfaces About (it IS the help home).
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() }.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("ℹ️", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+            Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+        }
+    }
 }
 
 @Composable

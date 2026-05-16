@@ -1041,7 +1041,9 @@ fun AppNavHost(
         composable(NavRoutes.HELP) {
             HelpScreen(
                 onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
+                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                onNavigateToHelpHome = { /* already on Help home */ },
+                onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }
         composable(NavRoutes.DOCUMENTATION) {
@@ -1073,7 +1075,9 @@ fun AppNavHost(
             } catch (_: Exception) { "" }
             HelpScreen(
                 topicId = topicId, onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
+                onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                onNavigateToHelpHome = { navController.navigate(NavRoutes.HELP) },
+                onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }
         composable(NavRoutes.TRACE_LIST) {
