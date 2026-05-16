@@ -5015,7 +5015,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // ===== Translate =====
 
     enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
-    enum class TranslationKind { PROMPT, AGENT_RESPONSE, META }
+    enum class TranslationKind { TITLE, PROMPT, AGENT_RESPONSE, META }
 
     /** One row on the translation progress screen. [sourceText] is what
      *  gets fed to the model; [translatedText] is filled in on DONE.
@@ -5120,11 +5120,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
 
-            // Build the work list. Order: prompt → agent responses (in
-            // success order) → summaries → compares. Reranks and
-            // moderation results are skipped (structured JSON, no
-            // human-language content to translate).
+            // Build the work list. Order: title → prompt → agent
+            // responses (in success order) → summaries → compares.
+            // Reranks and moderation results are skipped (structured
+            // JSON, no human-language content to translate). The title
+            // is only included when non-blank — a blank title has
+            // nothing meaningful to translate.
             val items = mutableListOf<TranslationItem>()
+            if (sourceReport.title.isNotBlank()) {
+                items += TranslationItem(
+                    id = "title",
+                    label = "Report title",
+                    kind = TranslationKind.TITLE,
+                    sourceText = sourceReport.title
+                )
+            }
             items += TranslationItem(
                 id = "prompt",
                 label = "Report prompt",
@@ -5172,6 +5182,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val itemsWithIds = items.map { it.copy(persistedRowId = java.util.UUID.randomUUID().toString()) }
             itemsWithIds.forEach { item ->
                 val (srcKind, srcTargetId) = when (item.kind) {
+                    TranslationKind.TITLE -> "TITLE" to "title"
                     TranslationKind.PROMPT -> "PROMPT" to "prompt"
                     TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
                     TranslationKind.META -> "META" to (item.target ?: "")
@@ -5676,6 +5687,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ?.let { it.first to it.second } ?: (null to null)
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
         val (srcKind, srcTargetId) = when (item.kind) {
+            TranslationKind.TITLE -> "TITLE" to "title"
             TranslationKind.PROMPT -> "PROMPT" to "prompt"
             TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
             TranslationKind.META -> "META" to (item.target ?: "")
@@ -5822,11 +5834,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .toSet()
             val filtered = cur.items.filterNot { item ->
                 val srcKind = when (item.kind) {
+                    TranslationKind.TITLE -> "TITLE"
                     TranslationKind.PROMPT -> "PROMPT"
                     TranslationKind.AGENT_RESPONSE -> "AGENT"
                     TranslationKind.META -> "META"
                 }
-                val srcId = if (item.kind == TranslationKind.PROMPT) "prompt" else (item.target ?: "")
+                val srcId = when (item.kind) {
+                    TranslationKind.TITLE -> "title"
+                    TranslationKind.PROMPT -> "prompt"
+                    else -> item.target ?: ""
+                }
                 item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in failedTargetKeys
             }
             runs + (runId to cur.copy(
@@ -5862,11 +5879,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .toSet()
             val filtered = cur.items.filterNot { item ->
                 val srcKind = when (item.kind) {
+                    TranslationKind.TITLE -> "TITLE"
                     TranslationKind.PROMPT -> "PROMPT"
                     TranslationKind.AGENT_RESPONSE -> "AGENT"
                     TranslationKind.META -> "META"
                 }
-                val srcId = if (item.kind == TranslationKind.PROMPT) "prompt" else (item.target ?: "")
+                val srcId = when (item.kind) {
+                    TranslationKind.TITLE -> "title"
+                    TranslationKind.PROMPT -> "prompt"
+                    else -> item.target ?: ""
+                }
                 item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in benchedTargetKeys
             }
             runs + (runId to cur.copy(
@@ -5904,6 +5926,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val report = ReportStorage.getReport(context, sourceReportId) ?: return@launch
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
         val pairs = buildList<Pair<String, String>> {
+            if (report.title.isNotBlank()) add("title" to "TITLE")
             add("prompt" to "PROMPT")
             report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -5965,6 +5988,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         .filter { it.id !in deleteSet }
         .mapNotNull { row ->
             val kind = when (row.translateSourceKind) {
+                "TITLE" -> TranslationKind.TITLE
                 "PROMPT" -> TranslationKind.PROMPT
                 "AGENT" -> TranslationKind.AGENT_RESPONSE
                 "META" -> TranslationKind.META
@@ -5972,6 +5996,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val targetId = row.translateSourceTargetId.orEmpty()
             val (itemId, label) = when (kind) {
+                TranslationKind.TITLE -> "title" to "Report title"
                 TranslationKind.PROMPT -> "prompt" to "Report prompt"
                 TranslationKind.AGENT_RESPONSE -> {
                     val ag = report.agents.firstOrNull { it.agentId == targetId }
@@ -5994,7 +6019,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             TranslationItem(
                 id = itemId, label = label, kind = kind,
                 sourceText = "",
-                target = targetId.takeIf { kind != TranslationKind.PROMPT },
+                target = targetId.takeIf { kind != TranslationKind.PROMPT && kind != TranslationKind.TITLE },
                 status = status,
                 translatedText = row.content,
                 errorMessage = row.errorMessage,
@@ -6112,6 +6137,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // translate from a non-Original source language.
             val sourceOverride = sourceTextOverrides?.get(kind to targetId)
             when (kind) {
+                "TITLE" -> TranslationItem(
+                    id = "title", label = "Report title",
+                    kind = TranslationKind.TITLE,
+                    sourceText = sourceOverride ?: report.title,
+                    persistedRowId = rowId
+                )
                 "PROMPT" -> TranslationItem(
                     id = "prompt", label = "Report prompt",
                     kind = TranslationKind.PROMPT,
@@ -6220,6 +6251,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // distinct model set.
         val assignments: List<Pair<TranslationItem, ModelCtx>> = items.mapIndexed { idx, item ->
             val targetKey = when (item.kind) {
+                TranslationKind.TITLE -> "TITLE" to "title"
                 TranslationKind.PROMPT -> "PROMPT" to "prompt"
                 TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
                 TranslationKind.META -> "META" to (item.target ?: "")

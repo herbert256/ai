@@ -118,6 +118,8 @@ internal fun TranslationL3Screen(
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId)
             when (item.kind) {
+                ReportViewModel.TranslationKind.TITLE ->
+                    TranslationSourceInfo(report?.title, null, null, null)
                 ReportViewModel.TranslationKind.PROMPT ->
                     TranslationSourceInfo(report?.prompt, null, null, null)
                 ReportViewModel.TranslationKind.AGENT_RESPONSE -> {
@@ -136,6 +138,7 @@ internal fun TranslationL3Screen(
     val sourceContent = source.content?.takeIf { it.isNotBlank() } ?: item.sourceText.takeIf { it.isNotBlank() }
     val sourceLabel = source.model?.takeIf { it.isNotBlank() }
         ?: when (item.kind) {
+            ReportViewModel.TranslationKind.TITLE -> "Title"
             ReportViewModel.TranslationKind.PROMPT -> "Prompt"
             ReportViewModel.TranslationKind.META -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
             ReportViewModel.TranslationKind.AGENT_RESPONSE -> "Source"

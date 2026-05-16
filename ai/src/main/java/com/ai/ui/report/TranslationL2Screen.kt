@@ -173,6 +173,7 @@ internal fun TranslationL2Screen(
 /** Broad category label for a translation item's source kind — the
  *  ~70dp column on each L2 row. */
 internal fun translationKindLabel(kind: ReportViewModel.TranslationKind): String = when (kind) {
+    ReportViewModel.TranslationKind.TITLE -> "title"
     ReportViewModel.TranslationKind.PROMPT -> "prompt"
     ReportViewModel.TranslationKind.AGENT_RESPONSE -> "report"
     ReportViewModel.TranslationKind.META -> "meta"
