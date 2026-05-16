@@ -210,9 +210,17 @@ private fun PickerStyleSwitch(
 }
 
 /** Group TRANSLATE secondaries by language and produce the picker
- *  list. "Original" is always first. */
-internal fun buildLangTabs(translates: List<SecondaryResult>): List<LangTab> {
-    val out = mutableListOf(LangTab(LangTab.ORIGINAL_KEY, "Original", null))
+ *  list. "Original" is included only when [includeOriginal] is true —
+ *  set it to false on screens where the displayed content has no
+ *  original-language version (e.g. a French-seed META detail with no
+ *  Original-language sibling) so the picker doesn't surface a tab
+ *  that resolves to "(no content)". */
+internal fun buildLangTabs(
+    translates: List<SecondaryResult>,
+    includeOriginal: Boolean = true
+): List<LangTab> {
+    val out = mutableListOf<LangTab>()
+    if (includeOriginal) out += LangTab(LangTab.ORIGINAL_KEY, "Original", null)
     val seen = LinkedHashMap<String, String?>()
     translates.forEach { t ->
         val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: return@forEach
@@ -331,8 +339,17 @@ private fun ReportsViewerScreenLoaded(
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
             if (initialSection == "prompt") {
+                // Only show language tabs that actually have a prompt
+                // translation. Original is always available — the
+                // source prompt is what the report was started from.
+                val promptLangTabs = remember(translates) {
+                    buildLangTabs(translates.filter { it.translateSourceKind == "PROMPT" })
+                }
+                LaunchedEffect(promptLangTabs) {
+                    if (promptLangTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+                }
                 LanguagePickerRow(
-                    langTabs, selectedLangKey,
+                    promptLangTabs, selectedLangKey,
                     onSelect = { selectedLangKey = it },
                     useIcons = true,
                     originalIcon = report.languageIcon
@@ -452,8 +469,18 @@ private fun ReportsViewerScreenLoaded(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
+        // Only show language tabs that actually have at least one
+        // agent-response translation. Original is always present —
+        // each successful agent's responseBody is the original-language
+        // body.
+        val agentLangTabs = remember(translates) {
+            buildLangTabs(translates.filter { it.translateSourceKind == "AGENT" })
+        }
+        LaunchedEffect(agentLangTabs) {
+            if (agentLangTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+        }
         LanguagePickerRow(
-            langTabs, selectedLangKey,
+            agentLangTabs, selectedLangKey,
             onSelect = { selectedLangKey = it },
             useIcons = true,
             originalIcon = report.languageIcon

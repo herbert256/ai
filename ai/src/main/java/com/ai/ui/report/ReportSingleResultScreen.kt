@@ -147,7 +147,16 @@ fun ReportSingleResultScreen(
         }
     }
     val translates = translatesState.value
-    val langTabs = remember(translates) { buildLangTabs(translates) }
+    // Only show language tabs that actually carry a translation of
+    // THIS agent — the report-wide TRANSLATE list may include prompt
+    // / meta / other-agent rows whose languages don't necessarily
+    // have a sibling for this particular agent. Original always
+    // applies (the agent's responseBody is the original-language body).
+    val langTabs = remember(translates, currentAgentId) {
+        buildLangTabs(translates.filter {
+            it.translateSourceKind == "AGENT" && it.translateSourceTargetId == currentAgentId
+        })
+    }
     var selectedLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
     LaunchedEffect(langTabs) {
         if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY

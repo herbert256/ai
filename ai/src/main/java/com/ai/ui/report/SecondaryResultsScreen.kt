@@ -278,7 +278,28 @@ internal fun SecondaryResultsScreen(
         allRows.filter { it.kind == SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
     }
     val showLanguagePicker = kind == SecondaryKind.META && translates.isNotEmpty()
-    val languages = remember(translates) { buildLangTabs(translates) }
+    // Restrict language tabs to languages that have actual content for
+    // the meta rows currently on this picker — either a cross-
+    // translate TRANSLATE row pointing at one of them, or the seed-
+    // language version of one of them. Original is gated on at least
+    // one displayed meta having no targetLanguage.
+    val languages = remember(translates, results) {
+        val displayedIds = results.map { it.id }.toSet()
+        val mine = translates.filter {
+            it.translateSourceKind == "META" && it.translateSourceTargetId in displayedIds
+        }
+        val seedTabs = results.mapNotNull { meta ->
+            meta.targetLanguage?.takeIf { it.isNotBlank() }?.let { lang ->
+                meta.copy(
+                    kind = SecondaryKind.TRANSLATE,
+                    targetLanguage = lang,
+                    targetLanguageNative = meta.targetLanguageNative ?: lang
+                )
+            }
+        }
+        val hasOriginal = results.any { it.targetLanguage.isNullOrBlank() }
+        buildLangTabs(mine + seedTabs, includeOriginal = hasOriginal)
+    }
     var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
     LaunchedEffect(languages) {
         if (languages.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
@@ -2347,7 +2368,29 @@ internal fun SecondaryResultDetailScreen(
         }
     }
     val translates = translatesState.value
-    val langTabs = remember(translates) { buildLangTabs(translates) }
+    // Only show language tabs where THIS meta actually has content —
+    // either the seed-language row itself (result.targetLanguage) or
+    // a cross-translate TRANSLATE row pointing back at it. Include
+    // Original only when this meta was run in Original (otherwise
+    // the Original tab would resolve to "(no content)").
+    val langTabs = remember(translates, result.id, result.targetLanguage) {
+        val mineTranslates = translates.filter {
+            it.translateSourceKind == "META" && it.translateSourceTargetId == result.id
+        }
+        // Synthesise a fake TRANSLATE row tagged with the result's own
+        // language so buildLangTabs surfaces a tab for the seed
+        // language even when no one cross-translated INTO this same
+        // language.
+        val seedTab: SecondaryResult? = result.targetLanguage?.takeIf { it.isNotBlank() }?.let { lang ->
+            result.copy(
+                kind = SecondaryKind.TRANSLATE,
+                targetLanguage = lang,
+                targetLanguageNative = result.targetLanguageNative ?: lang
+            )
+        }
+        val combined = if (seedTab != null) mineTranslates + seedTab else mineTranslates
+        buildLangTabs(combined, includeOriginal = result.targetLanguage.isNullOrBlank())
+    }
     // Default the picker to the tab matching the result's own
     // language so opening a French-seed META highlights "French"
     // immediately rather than defaulting to Original (which would
