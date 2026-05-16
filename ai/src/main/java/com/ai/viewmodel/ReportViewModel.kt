@@ -799,10 +799,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String? = null
     ) {
         if (prompt.name.isBlank()) return
-        // Find-alternative-icons composes the base prompt's text with
-        // the `_alt` variant's text (blank line between) so the alt
-        // template only needs to carry the "give me a different
-        // emoji" nudge — no need to duplicate the base wording.
+        // Find-alternative-icons composes the `_alt` variant's text
+        // FIRST, then a blank line, then the base prompt's text —
+        // the alt carries the "give me a different emoji" nudge up
+        // front so the model reads the constraint before the
+        // template body, and the base doesn't need to duplicate
+        // the nudge wording.
         val basePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name.equals("meta", ignoreCase = true)
         } ?: run {
@@ -817,7 +819,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
+        val resolved = (altPrompt.text + "\n\n" + basePrompt.text)
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
         val key = internalPromptIconKey(prompt)
@@ -992,8 +994,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     // ── Per-fan-out-pair icon Find-alt ──────────────────────────
     // Mirrors startAgentIconFanOut for fan-out pairs. Composes the
-    // bundled `fan_out` (one-shot template) with `fan_out_alt` (the
-    // nudge), substitutes @QUESTION@ / @SOURCE_RESPONSE@ /
+    // bundled `fan_out_alt` (the nudge) FIRST, then `fan_out` (the
+    // one-shot template), substitutes @QUESTION@ / @SOURCE_RESPONSE@ /
     // @META_PROMPT@ / @RESPONSE@, fires one call per picked
     // (provider, model), attributes cost to the pair's SR + the
     // report's iconCalls audit log, and commits the picked emoji
@@ -1035,7 +1037,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val metaPrompt = pair.metaPromptId?.let { mid ->
                 aiSettings.internalPrompts.firstOrNull { it.id == mid }
             }
-            val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
+            val resolved = (altPrompt.text + "\n\n" + basePrompt.text)
                 .replace("@QUESTION@", report.prompt)
                 .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
                 .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
@@ -1303,7 +1305,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = (basePrompt.text + "\n\n" + altPrompt.text).replace("@LANGUAGE@", language)
+        val resolved = (altPrompt.text + "\n\n" + basePrompt.text).replace("@LANGUAGE@", language)
         val key = translationIconKey(language)
         // Resolve the SecondaryResult that owns the per-row alt-cost
         // attribution for this (report, language) pair — the first
@@ -1491,7 +1493,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // fires one API call.
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = (basePrompt.text + "\n\n" + altPrompt.text).replace("@PROMPT@", promptText)
+        val resolved = (altPrompt.text + "\n\n" + basePrompt.text).replace("@PROMPT@", promptText)
         // Pre-populate Running rows so the Alternative icons screen
         // shows ⏳ for every pair the moment the screen opens, before
         // any throttle permit is acquired.
@@ -1785,7 +1787,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val reportPrompt = report.prompt
             val agentResponse = ra.responseBody.orEmpty()
-            val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
+            val resolved = (altPrompt.text + "\n\n" + basePrompt.text)
                 .replace("@PROMPT@", reportPrompt)
                 .replace("@RESPONSE@", agentResponse)
             unique.forEach { item ->

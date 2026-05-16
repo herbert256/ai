@@ -939,13 +939,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Earlier builds shipped each alt prompt as a full copy of its
         // base + the "pick something distinct" / "no country flag"
         // nudge appended at the end. The runtime now composes the
-        // base prompt's text + a blank line + the alt at call time,
-        // so the bundled alt only needs to carry the nudge. Rewrite
-        // any persisted row that still carries the OLD long-form
-        // default verbatim to the short nudge-only text. A user's
-        // manual edit (text != old default) is left untouched.
-        // Idempotent: once the row holds the short text the match
-        // misses on subsequent launches.
+        // alt prompt's text + a blank line + the base at call time
+        // (alt first so the constraint reads before the template
+        // body), so the bundled alt only needs to carry the nudge.
+        // Rewrite any persisted row that still carries the OLD
+        // long-form default verbatim to the short nudge-only text.
+        // A user's manual edit (text != old default) is left
+        // untouched. Idempotent: once the row holds the short text
+        // the match misses on subsequent launches.
         run {
             val nudgeGeneric = "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
             val nudgeNoFlag = "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
