@@ -157,7 +157,6 @@ internal fun ViewAiReportScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
-            SectionLabel("Documents")
             TileFlow(docTiles)
 
             if (computedTiles.isNotEmpty()) {
