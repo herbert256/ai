@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.ai.BuildConfig
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import java.io.File
@@ -141,18 +142,18 @@ fun UpdateFromCloudScreen(
                 color = AppColors.TextSecondary, fontSize = 13.sp
             )
 
-            // Drive status hint. Soft — picker works with any provider,
-            // but the user explicitly asked for Drive so we surface the
-            // package check.
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Google Drive app", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        if (driveInstalled) "✓ installed" else "✗ not installed",
-                        color = if (driveInstalled) AppColors.Green else AppColors.Orange,
-                        fontSize = 13.sp
-                    )
-                    if (!driveInstalled) {
+            // Drive status hint — only surfaced when Drive is MISSING.
+            // The card is purely a "you might want this" nudge; once
+            // Drive is on the device there's nothing actionable to
+            // say, so we hide it to keep the screen tight.
+            if (!driveInstalled) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Google Drive app", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "✗ not installed",
+                            color = AppColors.Orange, fontSize = 13.sp
+                        )
                         Text(
                             "Drive isn't required — the picker can browse any storage. " +
                                 "Install Drive if you want to pull from a Drive-synced folder.",
@@ -196,6 +197,10 @@ fun UpdateFromCloudScreen(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(
+                        "Built ${BuildConfig.BUILD_TIMESTAMP}",
+                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                    )
                 }
             }
 
