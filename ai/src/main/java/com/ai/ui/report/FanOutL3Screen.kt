@@ -202,22 +202,6 @@ internal fun FanOutL3Screen(
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
-            // Big centred pair icon — only when the optional Fan
-            // Icons sweep has produced one and we're in MAIN mode
-            // (the ICONS-mode L3 is itself an icon-focused view, so
-            // a second copy would just be noise). Tap → opens the
-            // unified Icon-lookup screen for this pair (6th adapter).
-            if (!pair.icon.isNullOrBlank() && mode == FanOutMode.MAIN) {
-                Spacer(Modifier.height(8.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { actions.onOpenPairIconLookup(pair.id) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(pair.icon!!, fontSize = 64.sp, color = Color.White)
-                }
-            }
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
@@ -288,10 +272,21 @@ internal fun FanOutL3Screen(
             Column(Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!pair.icon.isNullOrBlank()) {
+                        // Tap → opens the unified Icon-lookup screen
+                        // for this pair (6th adapter). Only wired in
+                        // MAIN mode — ICONS-mode L3 is itself an
+                        // icon-focused view.
+                        val iconModifier = Modifier
+                            .background(MaterialTheme.colorScheme.background)
+                            .padding(end = 6.dp)
+                            .let { base ->
+                                if (mode == FanOutMode.MAIN) {
+                                    base.clickable { actions.onOpenPairIconLookup(pair.id) }
+                                } else base
+                            }
                         Text(
                             pair.icon, fontSize = 16.sp,
-                            modifier = Modifier.background(MaterialTheme.colorScheme.background)
-                                .padding(end = 6.dp)
+                            modifier = iconModifier
                         )
                     }
                     Text(
