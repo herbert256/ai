@@ -1343,6 +1343,7 @@ fun ReportsScreen(
             iconFanOutByReport = iconFanOutByReport,
             languageIconCallbacks = languageIconCallbacks,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo,
             onChat = uiState.genericPromptText.takeIf { it.isNotBlank() }?.let { p -> { onChatWithReportPrompt(p) } },
             onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
             onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
@@ -2793,6 +2794,10 @@ private fun ReportIconDetailScreen(
      *  the chat icon; tap opens a fresh chat seeded by the caller
      *  (typically with the report's prompt text). */
     onChat: (() -> Unit)? = null,
+    /** Optional ℹ️ Model Info handler. When non-null the title bar
+     *  shows the info icon; tap navigates to Model Info for the
+     *  (provider, model) that produced the displayed icon. */
+    onInfo: (() -> Unit)? = null,
     /** Fires either the picker overlay (no active fan-out) or jumps
      *  straight to the live "Alternative icons" list (active /
      *  completed fan-out — see [hasActiveFanOut]). */
@@ -2814,7 +2819,8 @@ private fun ReportIconDetailScreen(
             title = title,
             onBackClick = onBack,
             onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } },
-            onChat = onChat
+            onChat = onChat,
+            onInfo = onInfo
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -3952,6 +3958,7 @@ private fun RenderLanguageDetailOverlay(
     iconRefreshTick: Int,
     hasActiveFanOut: Boolean,
     onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
     onChat: (() -> Unit)?,
     onFindAlternativeIcons: () -> Unit,
     onBack: () -> Unit,
@@ -3987,6 +3994,7 @@ private fun RenderLanguageDetailOverlay(
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onBack
     ) {
+        val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
         ReportIconDetailScreen(
             aiSettings = aiSettings,
             iconPrompt = languagePrompt,
@@ -4001,6 +4009,7 @@ private fun RenderLanguageDetailOverlay(
             traceFile = snapshot.traceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onChat = onChat,
+            onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
             onFindAlternativeIcons = onFindAlternativeIcons,
             hasActiveFanOut = hasActiveFanOut,
             onBack = onBack
@@ -4041,6 +4050,7 @@ private fun ReportIconOrLanguageDetailOverlay(
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     languageIconCallbacks: LanguageIconCallbacks,
     onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
     onChat: (() -> Unit)?,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
@@ -4057,6 +4067,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             iconRefreshTick = iconRefreshTick,
             hasActiveFanOut = hasLangFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo,
             onChat = onChat,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
             onBack = onClose
@@ -4075,6 +4086,7 @@ private fun ReportIconOrLanguageDetailOverlay(
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onClose
     ) {
+        val infoTarget = resolveInfoTarget(reportIconModel, iconAgent, aiSettings)
         ReportIconDetailScreen(
             aiSettings = aiSettings,
             iconPrompt = iconPrompt,
@@ -4087,6 +4099,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             traceFile = reportIconTraceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onChat = onChat,
+            onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             hasActiveFanOut = hasActiveFanOut,
             onBack = onClose
@@ -4145,4 +4158,24 @@ private fun AlternativeIconsOverlayHost(
         onRestartReopenPicker = onRestartReopenPicker,
         onClose = onClose,
     )
+}
+
+/** Resolve the (provider, model) pair Model Info should open for an
+ *  icon detail screen. [iconModel] (format "providerId/modelId") wins
+ *  when the user picked an alt-icon; otherwise falls back to the
+ *  bundled-agent default. Returns null when nothing resolves so the
+ *  caller can hide the ℹ️ icon. */
+private fun resolveInfoTarget(
+    iconModel: String?,
+    iconAgent: Agent,
+    aiSettings: Settings,
+): Pair<AppService, String>? {
+    iconModel?.split("/", limit = 2)?.let { parts ->
+        if (parts.size == 2) {
+            val prov = AppService.findById(parts[0])
+            if (prov != null) return prov to parts[1]
+        }
+    }
+    val model = aiSettings.getEffectiveModelForAgent(iconAgent)
+    return iconAgent.provider to model
 }
