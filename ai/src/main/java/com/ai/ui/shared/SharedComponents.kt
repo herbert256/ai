@@ -718,7 +718,11 @@ private fun TitleBarActionStrip(
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
-        if (onTranslationCompare != null) TitleBarIcon("↔", Color.Unspecified, onTranslationCompare, width = 28.dp, scale = scale)
+        // 🌐 globe: the screen is rendering a translation. Tapping
+        // opens the side-by-side original ↔ translated compare view.
+        // The callback is only ever non-null on translated screens,
+        // so the icon's presence already implies translation content.
+        if (onTranslationCompare != null) TitleBarIcon("🌐", Color.Unspecified, onTranslationCompare, width = 28.dp, scale = scale)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace != null) {
             Spacer(modifier = Modifier.width(2.dp * scale))
