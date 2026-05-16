@@ -374,7 +374,7 @@ private fun TileCard(tile: ViewTile) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Single emoji → bigger (36 sp). Paired emojis →
-                // smaller (24 sp) so both fit the same tile real
+                // smaller (30 sp) so both fit the same tile real
                 // estate as a single icon. Spacing kept tight so the
                 // pair reads as one composite glyph.
                 if (tile.secondaryEmoji != null) {
@@ -382,8 +382,8 @@ private fun TileCard(tile: ViewTile) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(tile.emoji, fontSize = 24.sp)
-                        Text(tile.secondaryEmoji, fontSize = 24.sp)
+                        Text(tile.emoji, fontSize = 30.sp)
+                        Text(tile.secondaryEmoji, fontSize = 30.sp)
                     }
                 } else {
                     Text(tile.emoji, fontSize = 36.sp)
