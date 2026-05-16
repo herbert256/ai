@@ -141,36 +141,38 @@ internal fun ViewAiReportScreen(
     // into a specific result instead of going through an
     // aggregated "Meta (N)" tile and a follow-up picker. Each
     // tile's label = the meta prompt name; tap opens that row's
-    // detail directly. The tile's emoji is the cached per-prompt
-    // icon (the same one rendered next to the meta name on the
-    // result list), falling back to 🧠 while the cache is cold or
-    // when the user has turned the master icon toggle off.
+    // detail directly.
+    //
+    // Emoji rendering:
+    //   - Primary = cached per-prompt emoji (falls back to 🧠 while
+    //     the prompt-icon cache is cold or the master toggle is off).
+    //   - Secondary (translated rows only) = the per-language
+    //     `translation_icon` emoji, rendered NEXT TO the primary
+    //     rather than replacing it — the meta's own icon stays
+    //     visible so the user can still tell which kind of meta it
+    //     is at a glance. Both icons render smaller when paired so
+    //     they fit the same tile real estate as a single icon.
     val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             val lang = item.targetLanguage
-            val cached = when {
-                // Translation pass — use the per-language
-                // `translation_icon` emoji instead of the prompt's
-                // own. Cold cache kicks off generation via
-                // onMissingTranslationIcon (same path the result
-                // list's translation row uses).
-                useInternalPromptsIcons && !lang.isNullOrBlank() -> {
-                    val emoji = com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                    if (emoji == null) onMissingTranslationIcon(lang)
-                    emoji
-                }
-                // Standard meta path — per-prompt emoji.
-                useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank() -> {
-                    val emoji = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                    if (emoji == null) onMissingPromptIcon(prompt)
-                    emoji
-                }
-                else -> null
-            }
-            ViewTile(item.label, cached ?: "🧠", AppColors.Purple) {
-                item.open()
-            }
+            val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                if (e == null) onMissingPromptIcon(prompt)
+                e
+            } else null
+            val translationEmoji = if (useInternalPromptsIcons && !lang.isNullOrBlank()) {
+                val e = com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                if (e == null) onMissingTranslationIcon(lang)
+                e
+            } else null
+            ViewTile(
+                label = item.label,
+                emoji = promptEmoji ?: "🧠",
+                accent = AppColors.Purple,
+                secondaryEmoji = translationEmoji,
+                onClick = { item.open() }
+            )
         }
     }
 
@@ -271,6 +273,11 @@ private data class ViewTile(
     val emoji: String,
     val accent: Color,
     val count: Int = 0,
+    /** Optional second emoji shown next to [emoji] (used by meta
+     *  tiles that represent a translated row — the meta prompt's
+     *  own icon on the left, the translation's per-language icon
+     *  on the right). Null on every other tile. */
+    val secondaryEmoji: String? = null,
     val onClick: () -> Unit
 )
 
@@ -366,7 +373,21 @@ private fun TileCard(tile: ViewTile) {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(tile.emoji, fontSize = 36.sp)
+                // Single emoji → bigger (36 sp). Paired emojis →
+                // smaller (24 sp) so both fit the same tile real
+                // estate as a single icon. Spacing kept tight so the
+                // pair reads as one composite glyph.
+                if (tile.secondaryEmoji != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(tile.emoji, fontSize = 24.sp)
+                        Text(tile.secondaryEmoji, fontSize = 24.sp)
+                    }
+                } else {
+                    Text(tile.emoji, fontSize = 36.sp)
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     tile.label, color = Color.White, fontSize = 14.sp,
