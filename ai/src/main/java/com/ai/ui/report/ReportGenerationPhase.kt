@@ -41,12 +41,17 @@ import kotlinx.coroutines.withContext
 data class AgentIconRow(val icon: String?, val cost: Double)
 
 /** One item in a conditional "View" group (Meta / Rerank / Fan-out /
- *  Fan-in / Fan-in-model / Translate). Carries its on-screen label
- *  and the lambda that opens that item's detail. Used by both the
- *  legacy GenerationPhase "View" Row 2 and the new
- *  [ViewAiReportScreen] tile grid — same shape so both call sites
- *  share [buildEveryItems]. */
-internal data class EveryItem(val label: String, val open: () -> Unit)
+ *  Fan-in / Fan-in-model / Translate). Carries its on-screen label,
+ *  the lambda that opens that item's detail, and the source
+ *  [com.ai.model.InternalPrompt] when one is available (meta-style
+ *  rows). The InternalPrompt drives the [ViewAiReportScreen] meta
+ *  tile's dynamic icon — its cached per-prompt emoji replaces the
+ *  static 🧠 fallback. */
+internal data class EveryItem(
+    val label: String,
+    val prompt: com.ai.model.InternalPrompt? = null,
+    val open: () -> Unit
+)
 
 /** Group [secondaryRuns] into the six conditional kinds the View
  *  surface offers. Returns a map keyed by `"meta"` / `"rerank"` /
@@ -61,12 +66,19 @@ internal fun buildEveryItems(
     onOpenTranslationRun: (String) -> Unit
 ): Map<String, List<EveryItem>> {
     val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
+    val promptByName = aiSettings.internalPrompts.associateBy { it.name }
     fun categoryOf(row: com.ai.data.SecondaryResult): String? =
         row.metaPromptName?.let { nameToCat[it] }
 
     val meta = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
-        .map { row -> EveryItem(row.metaPromptName ?: "Meta") { onOpenSecondaryRun(row.id) } }
+        .map { row ->
+            EveryItem(
+                label = row.metaPromptName ?: "Meta",
+                prompt = row.metaPromptName?.let { promptByName[it] },
+                open = { onOpenSecondaryRun(row.id) }
+            )
+        }
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
         .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }

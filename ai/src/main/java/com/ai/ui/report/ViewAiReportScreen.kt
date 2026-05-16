@@ -76,6 +76,22 @@ internal fun ViewAiReportScreen(
     reportIcon: String?,
     perModelIconGenEnabled: Boolean,
     everyItems: Map<String, List<EveryItem>>,
+    /** Internal prompts the report can run — used to resolve a
+     *  meta row's [com.ai.model.InternalPrompt] from its name so the
+     *  tile can render the cached per-prompt emoji instead of the
+     *  static 🧠 fallback. */
+    internalPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** Master toggle from GeneralSettings — when off, every meta
+     *  tile keeps the static 🧠 even if a cached emoji exists. */
+    useInternalPromptsIcons: Boolean = false,
+    /** Re-key for the cache lookup — bumped whenever an
+     *  internal-prompt icon-gen call lands, so the tile recomposes
+     *  with the freshly-cached emoji without a manual subscribe. */
+    iconRefreshTick: Int = 0,
+    /** Cold-cache trigger — fired when a meta tile's prompt has no
+     *  cached emoji yet. Same one-shot generation path the result
+     *  list's per-row emoji uses. */
+    onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     onViewPrompt: () -> Unit,
     onViewCosts: () -> Unit,
     onViewReports: () -> Unit,
@@ -109,10 +125,19 @@ internal fun ViewAiReportScreen(
     // into a specific result instead of going through an
     // aggregated "Meta (N)" tile and a follow-up picker. Each
     // tile's label = the meta prompt name; tap opens that row's
-    // detail directly.
-    val metaTiles = remember(everyItems, onBack) {
+    // detail directly. The tile's emoji is the cached per-prompt
+    // icon (the same one rendered next to the meta name on the
+    // result list), falling back to 🧠 while the cache is cold or
+    // when the user has turned the master icon toggle off.
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, onBack) {
         everyItems["meta"].orEmpty().map { item ->
-            ViewTile(item.label, "🧠", AppColors.Purple) {
+            val prompt = item.prompt
+            val cached = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+                val emoji = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                if (emoji == null) onMissingPromptIcon(prompt)
+                emoji
+            } else null
+            ViewTile(item.label, cached ?: "🧠", AppColors.Purple) {
                 item.open(); onBack()
             }
         }

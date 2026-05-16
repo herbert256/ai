@@ -1361,6 +1361,10 @@ fun ReportsScreen(
                 reportIcon = effectiveReportIcon,
                 perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
                 everyItems = viewEveryItems,
+                internalPrompts = aiSettings.internalPrompts,
+                useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
+                iconRefreshTick = uiState.iconRefreshTick,
+                onMissingPromptIcon = promptIconCallbacks.onKickoff,
                 onViewPrompt = {
                     showViewReportScreen = false
                     selectedAgentForViewer = null
