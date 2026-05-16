@@ -337,6 +337,7 @@ private fun ReportsViewerScreenLoaded(
         val promptTranslateRow = translationRowByTarget["PROMPT:prompt"]
         if (showPromptCompare && initialSection == "prompt" && promptTranslateRow != null && !report.prompt.isNullOrBlank() && !promptTranslateRow.content.isNullOrBlank()) {
             val translatedLabel = promptTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+            val tf = promptTranslateRow.traceFile
             TranslationCompareScreen(
                 title = "Translation — Prompt",
                 originalLabel = "Original",
@@ -344,7 +345,8 @@ private fun ReportsViewerScreenLoaded(
                 translatedLabel = translatedLabel,
                 translatedContent = promptTranslateRow.content,
                 onBack = { showPromptCompare = false },
-                onNavigateHome = onNavigateHome
+                onNavigateHome = onNavigateHome,
+                onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } }
             )
             return
         }
@@ -501,6 +503,7 @@ private fun ReportsViewerScreenLoaded(
     if (showAgentCompare && selectedReportAgent != null && agentTranslateRow != null && !selectedReportAgent.responseBody.isNullOrBlank() && !agentTranslateRow.content.isNullOrBlank()) {
         val translatedLabel = agentTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
         val titleLabel = selectedAgentLabel?.let { "Translation — $it" } ?: "Translation"
+        val tf = agentTranslateRow.traceFile
         TranslationCompareScreen(
             title = titleLabel,
             originalLabel = "Original",
@@ -508,7 +511,8 @@ private fun ReportsViewerScreenLoaded(
             translatedLabel = translatedLabel,
             translatedContent = agentTranslateRow.content!!,
             onBack = { showAgentCompare = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
         return
     }

@@ -2578,6 +2578,7 @@ internal fun SecondaryResultDetailScreen(
     var showTranslationCompare by remember { mutableStateOf(false) }
 
     if (showTranslationCompare && sourceContent != null && result.content != null) {
+        val tf = result.traceFile
         TranslationCompareScreen(
             title = "Translation info — $title — ${com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")}",
             originalLabel = "Original",
@@ -2585,7 +2586,12 @@ internal fun SecondaryResultDetailScreen(
             translatedLabel = "Translation",
             translatedContent = result.content,
             onBack = { showTranslationCompare = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
+            onDelete = {
+                onDelete()
+                showTranslationCompare = false
+            }
         )
         return
     }
@@ -2600,6 +2606,7 @@ internal fun SecondaryResultDetailScreen(
     if (showLiveTranslationCompare && liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
         val sourceLangLabel = result.targetLanguage?.takeIf { it.isNotBlank() } ?: "Original"
         val translatedLangLabel = liveTranslateActive.targetLanguage?.takeIf { it.isNotBlank() } ?: activeLangName ?: "Translation"
+        val tf = liveTranslateActive.traceFile
         TranslationCompareScreen(
             title = "Translation — $title",
             originalLabel = sourceLangLabel,
@@ -2607,7 +2614,12 @@ internal fun SecondaryResultDetailScreen(
             translatedLabel = translatedLangLabel,
             translatedContent = liveTranslateActive.content,
             onBack = { showLiveTranslationCompare = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
+            onDelete = {
+                onDeleteRowById(liveTranslateActive.id)
+                showLiveTranslationCompare = false
+            }
         )
         return
     }

@@ -37,7 +37,16 @@ internal fun TranslationCompareScreen(
     translatedLabel: String,
     translatedContent: String,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** 🐞 jump to the trace file that produced this translation. Null
+     *  → icon hidden (older call sites that haven't been wired yet,
+     *  or trace files purged / tracing disabled at the time). */
+    onTrace: (() -> Unit)? = null,
+    /** 🗑 delete this TRANSLATE secondary and pop back. Null → icon
+     *  hidden. Call sites that own the SecondaryResult id supply
+     *  this; transient panes (e.g. the API trace preview) leave it
+     *  null. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -53,6 +62,8 @@ internal fun TranslationCompareScreen(
             onShare = translatedContent.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "Translation — $title") }
             },
+            onTrace = onTrace,
+            onDelete = onDelete,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         com.ai.ui.shared.HardcodedSubjectRow(title, horizontalPadding = 16.dp)

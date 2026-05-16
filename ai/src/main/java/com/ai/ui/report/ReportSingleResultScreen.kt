@@ -222,6 +222,7 @@ fun ReportSingleResultScreen(
     val liveAgentTranslate = activeAgentTranslateRow
     if (showLiveTranslationCompare && liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
         val translatedLangLabel = liveAgentTranslate.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+        val tf = liveAgentTranslate.traceFile
         TranslationCompareScreen(
             title = "Translation — ${com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " / ")}",
             originalLabel = "Original",
@@ -229,7 +230,12 @@ fun ReportSingleResultScreen(
             translatedLabel = translatedLangLabel,
             translatedContent = liveAgentTranslate.content!!,
             onBack = { showLiveTranslationCompare = false },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
+            onDelete = {
+                onDeleteRowById(liveAgentTranslate.id)
+                showLiveTranslationCompare = false
+            }
         )
         return
     }
