@@ -1123,7 +1123,15 @@ fun ReportsScreen(
     var models by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(initialModels) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showRegenerateConfirm by remember { mutableStateOf(false) }
-    var showInfoPicker by rememberSaveable { mutableStateOf(false) }
+    // [ViewAiReportScreen] — opened from the result page's bottom-bar
+    // ℹ️ icon. Replaces the model-info AlertDialog that used to live
+    // on that slot (now removed). Surfaces every "look at this report"
+    // sub-view (Prompt / Costs / Reports / HTML / Log / Icons +
+    // conditional Meta / Rerank / Fan-out / Fan-in / Fan-in-model /
+    // Translate) as a tile grid; tapping a tile routes through the
+    // same handlers the old Row 2 "View" buttons fired, so every
+    // destination is unchanged.
+    var showViewReportScreen by rememberSaveable { mutableStateOf(false) }
     // Action-row pickers — hoisted up here so they render as proper
     // full-screen overlays. When they lived inside GenerationPhase the
     // parent TitleBar + ActionRow had already painted above them, so
@@ -1317,6 +1325,72 @@ fun ReportsScreen(
                 reportId = currentReportId,
                 onOpenAgent = { agentId -> singleResultAgentId = agentId },
                 onBack = { showIconsView = false }
+            )
+        }
+        return
+    }
+    if (showViewReportScreen && currentReportId != null) {
+        // Build the conditional Computed-section item map from the
+        // same secondaryRuns + aiSettings inputs the legacy View row
+        // used. The lambdas mirror the [GenerationPhaseHandlers]
+        // wiring lower in this file (lines ~2500+); routing the user
+        // through the same destinations means every full-screen view
+        // stays bit-identical to the old behaviour.
+        val viewEveryItems = remember(secondaryRuns, aiSettings) {
+            buildEveryItems(
+                secondaryRuns, aiSettings,
+                onOpenSecondaryRun = { id -> openMetaResultId = id },
+                onViewSecondaryName = { name, kind ->
+                    listKind = kind; listFilterByName = name; listIsFanIcons = false
+                },
+                onOpenTranslationRun = { runId -> openTranslationRunId = runId }
+            )
+        }
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { showViewReportScreen = false }
+        ) {
+            ViewAiReportScreen(
+                promptTitle = uiState.genericPromptTitle,
+                reportIcon = effectiveReportIcon,
+                perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
+                everyItems = viewEveryItems,
+                onViewPrompt = {
+                    showViewReportScreen = false
+                    selectedAgentForViewer = null
+                    viewerSection = "prompt"
+                    showViewer = true
+                },
+                onViewCosts = {
+                    showViewReportScreen = false
+                    selectedAgentForViewer = null
+                    viewerSection = "costs"
+                    showViewer = true
+                },
+                onViewReports = {
+                    showViewReportScreen = false
+                    selectedAgentForViewer = null
+                    viewerSection = null
+                    showViewer = true
+                },
+                onOpenHtmlPreview = {
+                    showViewReportScreen = false
+                    htmlPreviewDetail = ReportExportDetail.COMPLETE
+                },
+                onViewLog = {
+                    showViewReportScreen = false
+                    val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    val filename = "applog_" +
+                        day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
+                    onNavigateToAppLog(filename, "#$currentReportId")
+                },
+                onViewIcons = {
+                    showViewReportScreen = false
+                    showIconsView = true
+                },
+                onBack = { showViewReportScreen = false }
             )
         }
         return
@@ -2219,31 +2293,9 @@ fun ReportsScreen(
         return
     }
 
-    if (showInfoPicker) {
-        val unique = remember(models) { models.distinctBy { it.deduplicationKey } }
-        AlertDialog(
-            onDismissRequest = { showInfoPicker = false },
-            title = { Text("Model info") },
-            text = {
-                Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState())) {
-                    unique.forEach { rm ->
-                        Text(
-                            "${rm.provider.id} — ${rm.model}",
-                            fontSize = 14.sp, color = Color.White,
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                showInfoPicker = false
-                                onNavigateToModelInfo(rm.provider, rm.model)
-                            }.padding(vertical = 12.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showInfoPicker = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
-            }
-        )
-    }
+    // (Old "Model info" AlertDialog removed — the ℹ️ slot now opens
+    // [ViewAiReportScreen] instead. Per-model info is still reachable
+    // via the model picker / Model Info screen as before.)
 
     // Share dialog
     if (showDeleteConfirm && currentReportId != null) {
@@ -2413,8 +2465,11 @@ fun ReportsScreen(
             onDelete = if (isGenerating && currentReportId != null) {
                 { showDeleteConfirm = true }
             } else null,
-            onInfo = if (isGenerating && models.isNotEmpty()) {
-                { showInfoPicker = true }
+            // ℹ️ opens the new [ViewAiReportScreen] tile-grid launcher
+            // for every sub-view this report exposes. Replaces the old
+            // model-info picker AlertDialog (now removed).
+            onInfo = if (isGenerating && currentReportId != null) {
+                { showViewReportScreen = true }
             } else null,
             // 💬: start a fresh chat seeded with the report's prompt.
             // Wired only on the results page (isGenerating == true) and

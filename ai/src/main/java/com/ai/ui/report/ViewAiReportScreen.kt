@@ -1,0 +1,323 @@
+package com.ai.ui.report
+
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.ai.data.SecondaryKind
+import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.HardcodedSubjectRow
+import com.ai.ui.shared.TitleBar
+
+/**
+ * First-version "View AI Report" page — the home for every "look at
+ * this report" affordance that used to live under the cramped
+ * Row 1 "View" CompactButton. Reached from the bottom-bar ℹ️ icon
+ * on the result screen.
+ *
+ * Layout: two tile sections rendered side-by-side via
+ * [LazyVerticalGrid] (adaptive cells, ~150 dp min). The Documents
+ * section always renders the always-on views (Prompt / Costs /
+ * Reports / HTML / Log + Icons when the per-model icon chain is
+ * enabled). The Computed section renders one tile per conditional
+ * kind that has at least one row, with a small count badge.
+ *
+ * Tap behaviour:
+ *  - A Documents tile fires its handler then pops the screen.
+ *  - A Computed tile with exactly one item opens that item directly.
+ *  - A Computed tile with ≥ 2 items toggles an inline list below
+ *    the grid; tapping an item opens its detail.
+ *
+ * All destinations are the existing full-screen Composables wired
+ * to the same handlers the old "View" Row 2 buttons fired — the
+ * tile grid is purely a launcher. Reverting to the old UI is a
+ * one-line re-add of the [CompactButton] in [GenerationPhase].
+ */
+@Composable
+internal fun ViewAiReportScreen(
+    promptTitle: String,
+    reportIcon: String?,
+    perModelIconGenEnabled: Boolean,
+    everyItems: Map<String, List<EveryItem>>,
+    onViewPrompt: () -> Unit,
+    onViewCosts: () -> Unit,
+    onViewReports: () -> Unit,
+    onOpenHtmlPreview: () -> Unit,
+    onViewLog: () -> Unit,
+    onViewIcons: () -> Unit,
+    onBack: () -> Unit
+) {
+    // Inline expansion target — which Computed kind's items list is
+    // open below the grid. Null = nothing expanded. rememberSaveable
+    // so a rotation doesn't snap the list shut mid-read.
+    var expandedKind by rememberSaveable { mutableStateOf<String?>(null) }
+
+    // Documents tiles — fixed set, Icons only when the per-model
+    // icon chain is enabled in Settings.
+    val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons) {
+        buildList {
+            add(ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt(); onBack() })
+            add(ViewTile("Reports", "📊", AppColors.Blue) { onViewReports(); onBack() })
+            add(ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts(); onBack() })
+            add(ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview(); onBack() })
+            add(ViewTile("Log", "📜", AppColors.Brown) { onViewLog(); onBack() })
+            if (perModelIconGenEnabled) {
+                add(ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons(); onBack() })
+            }
+        }
+    }
+
+    // Computed kinds — only the ones with ≥ 1 row. Each tile knows
+    // its key so a ≥ 2-item tap can flip [expandedKind].
+    data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
+    val computedTiles = remember(everyItems) {
+        val specs = listOf(
+            ComputedSpec("meta", "Meta", "🧠", AppColors.Purple),
+            ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
+            ComputedSpec("fan_out", "Fan-out", "🌀", AppColors.Indigo),
+            ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
+            ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
+            ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
+        )
+        specs.mapNotNull { s ->
+            val items = everyItems[s.key].orEmpty()
+            if (items.isEmpty()) null
+            else ComputedTile(
+                key = s.key,
+                items = items,
+                tile = ViewTile(s.label, s.emoji, s.color, count = items.size) {
+                    when (items.size) {
+                        1 -> { items[0].open(); onBack() }
+                        else -> { expandedKind = if (expandedKind == s.key) null else s.key }
+                    }
+                }
+            )
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "view_ai_report",
+            title = "View AI Report",
+            reportIcon = reportIcon,
+            onBackClick = onBack
+        )
+        HardcodedSubjectRow(promptTitle)
+
+        // Body in a single LazyColumn so the tile grid + the optional
+        // inline expansion can scroll together as one surface.
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
+                SectionLabel("Documents")
+            }
+            item { TileGrid(docTiles) }
+
+            if (computedTiles.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    SectionLabel("Computed")
+                }
+                item {
+                    TileGrid(computedTiles.map { it.tile })
+                }
+                // Inline expansion — full-width card listing each item
+                // for the active kind. Anchored under the grid so the
+                // user keeps the rest of the layout in view.
+                val open = expandedKind
+                if (open != null) {
+                    val active = computedTiles.firstOrNull { it.key == open }
+                    if (active != null && active.items.size >= 2) {
+                        item {
+                            ExpandedKindCard(
+                                title = active.tile.label,
+                                items = active.items,
+                                onItemClick = { item ->
+                                    expandedKind = null
+                                    item.open()
+                                    onBack()
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            item { Spacer(modifier = Modifier.height(12.dp)) }
+        }
+    }
+}
+
+/** Visual descriptor for one launcher tile. */
+private data class ViewTile(
+    val label: String,
+    val emoji: String,
+    val accent: Color,
+    val count: Int = 0,
+    val onClick: () -> Unit
+)
+
+/** Constructor descriptor for the Computed section's six possible
+ *  kinds. Kept separate from [ViewTile] so the binding step can
+ *  attach the `items` list + the lambda once. */
+private data class ComputedSpec(
+    val key: String,
+    val label: String,
+    val emoji: String,
+    val color: Color
+)
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        color = AppColors.Blue,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold
+    )
+}
+
+@Composable
+private fun TileGrid(tiles: List<ViewTile>) {
+    // Render the row of tiles as an adaptive grid. Capped row height by
+    // aspect ratio so every tile is the same square; the LazyColumn
+    // container handles scrolling. Use a nested non-lazy grid (chunked
+    // rows) because nesting LazyVerticalGrid inside LazyColumn requires
+    // a fixed height. Two columns on a phone, three on wider screens
+    // via Adaptive.
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 150.dp),
+        modifier = Modifier.fillMaxWidth()
+            .height(((tiles.size + 1) / 2 * 170).dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        items(tiles, key = { it.label }) { tile -> TileCard(tile) }
+    }
+}
+
+@Composable
+private fun TileCard(tile: ViewTile) {
+    val accent = tile.accent
+    Card(
+        modifier = Modifier.fillMaxWidth().aspectRatio(1.05f).clickable(onClick = tile.onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        border = BorderStroke(1.dp, accent.copy(alpha = 0.55f))
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(
+            Brush.verticalGradient(
+                colors = listOf(
+                    accent.copy(alpha = 0.55f),
+                    accent.copy(alpha = 0.18f)
+                )
+            )
+        )) {
+            // Count badge — top-right, only when N > 0.
+            if (tile.count > 0) {
+                Box(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
+                        .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        tile.count.toString(),
+                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            Column(
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(tile.emoji, fontSize = 36.sp)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    tile.label, color = Color.White, fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpandedKindCard(
+    title: String,
+    items: List<EveryItem>,
+    onItemClick: (EveryItem) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                title, color = AppColors.Blue,
+                fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            items.forEachIndexed { idx, item ->
+                if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onItemClick(item) }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        item.label, color = Color.White, fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text("›", color = AppColors.TextTertiary, fontSize = 18.sp)
+                }
+            }
+        }
+    }
+}

@@ -40,6 +40,69 @@ import kotlinx.coroutines.withContext
  *  screen rebuilds this map on every iconRefreshTick bump. */
 data class AgentIconRow(val icon: String?, val cost: Double)
 
+/** One item in a conditional "View" group (Meta / Rerank / Fan-out /
+ *  Fan-in / Fan-in-model / Translate). Carries its on-screen label
+ *  and the lambda that opens that item's detail. Used by both the
+ *  legacy GenerationPhase "View" Row 2 and the new
+ *  [ViewAiReportScreen] tile grid — same shape so both call sites
+ *  share [buildEveryItems]. */
+internal data class EveryItem(val label: String, val open: () -> Unit)
+
+/** Group [secondaryRuns] into the six conditional kinds the View
+ *  surface offers. Returns a map keyed by `"meta"` / `"rerank"` /
+ *  `"fan_out"` / `"fan_in"` / `"fan-in-model"` / `"translate"`.
+ *  Empty lists for kinds with no rows so callers can hide that
+ *  tile / button entirely. */
+internal fun buildEveryItems(
+    secondaryRuns: List<com.ai.data.SecondaryResult>,
+    aiSettings: com.ai.model.Settings,
+    onOpenSecondaryRun: (String) -> Unit,
+    onViewSecondaryName: (String, SecondaryKind) -> Unit,
+    onOpenTranslationRun: (String) -> Unit
+): Map<String, List<EveryItem>> {
+    val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
+    fun categoryOf(row: com.ai.data.SecondaryResult): String? =
+        row.metaPromptName?.let { nameToCat[it] }
+
+    val meta = secondaryRuns
+        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
+        .map { row -> EveryItem(row.metaPromptName ?: "Meta") { onOpenSecondaryRun(row.id) } }
+    val rerank = secondaryRuns
+        .filter { it.kind == SecondaryKind.RERANK }
+        .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }
+    val fanIn = secondaryRuns
+        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
+        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { onOpenSecondaryRun(row.id) } }
+    val fanInModel = secondaryRuns
+        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
+        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { onOpenSecondaryRun(row.id) } }
+    // Fan-out: one item per distinct prompt name. Tap opens the
+    // SecondaryResultsScreen with nameFilter set; the screen
+    // auto-renders the L2 fan-out drill-in.
+    val fanOut = secondaryRuns
+        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
+        .mapNotNull { it.metaPromptName }
+        .distinct()
+        .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
+    // Translate: one item per translationRunId.
+    val translate = secondaryRuns
+        .filter { it.kind == SecondaryKind.TRANSLATE }
+        .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
+        .map { (runId, rows) ->
+            val first = rows.first()
+            val label = first.targetLanguageNative ?: first.targetLanguage ?: "(language)"
+            EveryItem(label) { onOpenTranslationRun(runId) }
+        }
+    return mapOf(
+        "meta" to meta,
+        "rerank" to rerank,
+        "fan_out" to fanOut,
+        "fan_in" to fanIn,
+        "fan-in-model" to fanInModel,
+        "translate" to translate
+    )
+}
+
 /** Post-generation half of the Reports result page. Owns the
  *  two-row action bar, the pending-changes banner, and the
  *  scrollable result list (agent rows, secondary rows, fan-out
@@ -248,54 +311,15 @@ internal fun ColumnScope.GenerationPhase(
 
     // Per-kind / per-category item lists driving the View row's
     // "every:" buttons + Row 3 picker. Each item knows how to open
-    // its detail directly.
-    data class EveryItem(val label: String, val open: () -> Unit)
+    // its detail directly. Builder hoisted to top-level so the new
+    // [ViewAiReportScreen] shares the same grouping logic.
+    // (Fan-icons are surfaced as a sibling list row off each
+    //  fanOutSummary — see the items(fanOutSummaries) block —
+    //  not as a View-row group, since the fan-out pair rows that
+    //  carry the icons never enter `secondaryRuns`.)
     val everyItems = remember(secondaryRuns, aiSettings) {
-        val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
-        fun categoryOf(row: com.ai.data.SecondaryResult): String? =
-            row.metaPromptName?.let { nameToCat[it] }
-
-        val meta = secondaryRuns
-            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
-            .map { row -> EveryItem(row.metaPromptName ?: "Meta") { onOpenSecondaryRun(row.id) } }
-        val rerank = secondaryRuns
-            .filter { it.kind == SecondaryKind.RERANK }
-            .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }
-        val fanIn = secondaryRuns
-            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
-            .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { onOpenSecondaryRun(row.id) } }
-        val fanInModel = secondaryRuns
-            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
-            .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { onOpenSecondaryRun(row.id) } }
-        // Fan-out: one item per distinct prompt name. Tap opens the
-        // SecondaryResultsScreen with nameFilter set; the screen
-        // auto-renders the L2 fan-out drill-in.
-        val fanOut = secondaryRuns
-            .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
-            .mapNotNull { it.metaPromptName }
-            .distinct()
-            .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
-        // (Fan-icons are surfaced as a sibling list row off each
-        //  fanOutSummary — see the items(fanOutSummaries) block —
-        //  not as a View-row group, since the fan-out pair rows that
-        //  carry the icons never enter `secondaryRuns`.)
-        // Translate: one item per translationRunId.
-        val translate = secondaryRuns
-            .filter { it.kind == SecondaryKind.TRANSLATE }
-            .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
-            .map { (runId, rows) ->
-                val first = rows.first()
-                val label = first.targetLanguageNative ?: first.targetLanguage ?: "(language)"
-                EveryItem(label) { onOpenTranslationRun(runId) }
-            }
-        mapOf(
-            "meta" to meta,
-            "rerank" to rerank,
-            "fan_out" to fanOut,
-            "fan_in" to fanIn,
-            "fan-in-model" to fanInModel,
-            "translate" to translate
-        )
+        buildEveryItems(secondaryRuns, aiSettings,
+            onOpenSecondaryRun, onViewSecondaryName, onOpenTranslationRun)
     }
 
     // ----- Row 1 -----
@@ -310,7 +334,11 @@ internal fun ColumnScope.GenerationPhase(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        CompactButton(onClick = { toggleBar("view") }, color = rowOneColor("view", viewColor), text = "View")
+        // "View" Row 1 button removed — the same set of sub-views is now
+        // reachable via the bottom-bar ℹ️ icon (see [ViewAiReportScreen]).
+        // The "view" -> { ... } Row 2 case below is also gone for the same
+        // reason; the legacy handlers + GenerationPhaseHandlers fields
+        // stay in place so re-adding the button is a one-line revert.
         CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
         CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
         CompactButton(onClick = { toggleBar("action") }, color = rowOneColor("action", actionColor), text = "Action")
@@ -357,71 +385,11 @@ internal fun ColumnScope.GenerationPhase(
     }
 
     // ----- Row 2 (contextual) -----
+    // "view" -> { ... } case removed — the sub-buttons it exposed now
+    // live on [ViewAiReportScreen], reached from the bottom-bar ℹ️.
+    // `everyItems` + `activeEveryKind` are still read by ViewAiReportScreen
+    // via the shared builder; the Row 3 expansion lived only here.
     when (activeBar) {
-        "view" -> {
-            Spacer(modifier = Modifier.height(4.dp))
-            // Per-kind tap: 1 item → open that item's detail directly;
-            // 2+ items → toggle Row 3 listing one button per item.
-            // Buttons for kinds with 0 items are omitted entirely, so
-            // the row only shows what the user can actually open.
-            fun onEveryClick(key: String) {
-                val items = everyItems[key].orEmpty()
-                when (items.size) {
-                    0 -> { /* unreachable: button not rendered */ }
-                    1 -> { close(); items[0].open() }
-                    else -> { activeEveryKind = if (activeEveryKind == key) null else key }
-                }
-            }
-            ActionRow {
-                CompactButton(onClick = { close(); onViewPrompt() }, color = viewColor, text = "Prompt")
-                CompactButton(onClick = { close(); onViewCosts() }, color = viewColor, text = "Costs")
-                CompactButton(onClick = { close(); onViewReports() }, color = viewColor, text = "Reports")
-                CompactButton(onClick = { close(); onOpenHtmlPreview() }, color = viewColor, text = "HTML")
-                CompactButton(onClick = { close(); onViewLog() }, color = viewColor, text = "Log")
-                // Icons grid — only surfaced when the user enabled the
-                // per-agent icon chain in Settings. The chain populates
-                // each agent.icon; the overlay just renders them in a
-                // big font. With the toggle off there's nothing to show.
-                if (uiState.generalSettings.perModelIconGenEnabled) {
-                    CompactButton(onClick = { close(); onViewIcons() }, color = viewColor, text = "Icons")
-                }
-                // Conditional per-kind buttons. Order matches the user's
-                // mental list (Meta / Rerank / Fan-out / Fan-in /
-                // Fan-in-model / Translate); FlowRow wraps as needed.
-                if (everyItems["meta"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("meta") }, color = viewColor, text = "Meta")
-                }
-                if (everyItems["rerank"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("rerank") }, color = viewColor, text = "Rerank")
-                }
-                if (everyItems["fan_out"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("fan_out") }, color = viewColor, text = "Fan-out")
-                }
-                if (everyItems["fan_in"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("fan_in") }, color = viewColor, text = "Fan-in")
-                }
-                if (everyItems["fan-in-model"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("fan-in-model") }, color = viewColor, text = "Fan-in-model")
-                }
-                if (everyItems["translate"].orEmpty().isNotEmpty()) {
-                    CompactButton(onClick = { onEveryClick("translate") }, color = viewColor, text = "Translate")
-                }
-            }
-            // ----- Row 3: per-item buttons for the active kind -----
-            val row3Items = activeEveryKind?.let { everyItems[it].orEmpty() }
-            if (row3Items != null && row3Items.size >= 2) {
-                Spacer(modifier = Modifier.height(2.dp))
-                ActionRow {
-                    row3Items.forEach { item ->
-                        CompactButton(
-                            onClick = { close(); item.open() },
-                            color = viewColor,
-                            text = item.label
-                        )
-                    }
-                }
-            }
-        }
         "edit" -> {
             Spacer(modifier = Modifier.height(4.dp))
             ActionRow {

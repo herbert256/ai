@@ -251,6 +251,15 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )
     ),
+    "view_ai_report" to HelpContent(
+        title = "View AI Report",
+        cards = listOf(
+            HelpCard("Overview", "Tile-grid launcher reached from the result screen's bottom-bar ℹ️ icon. Replaces the old Row 1 \"View\" CompactButton — every sub-view it used to expose lives here as a card, with breathing room."),
+            HelpCard("Documents", "Always-on tiles: Prompt opens the resolved prompt text · Reports shows the per-agent response list · Costs is the per-call cost table · HTML is the in-app HTML preview · Log opens the App Log Viewer pre-filtered to this report. Icons (the per-model emoji grid) only appears when Settings → Generate per model icons is on."),
+            HelpCard("Computed", "One tile per kind that this report has at least one row of: Meta · Rerank · Fan-out · Fan-in · Fan-in-model · Translate. A small badge in the top-right of each tile shows the count. Tapping a tile with exactly one item opens that item directly; tapping a tile with two or more items expands an inline list below the grid — tap a row to open its detail."),
+            HelpCard("Destinations", "Every tile routes to the existing full-screen view (no UI was rewritten); the launcher just changes how you reach it. Back from the destination returns to the report, the same as before.")
+        )
+    ),
     "report_icon_detail" to HelpContent(
         title = "Icon",
         cards = listOf(
