@@ -2769,15 +2769,19 @@ private fun ReportIconDetailScreen(
     icon: String?,
     errorMessage: String?,
     cost: Double,
+    /** Title-bar label. Defaults to "Icon" for the report-icon flow;
+     *  language flow passes "Language icon". */
+    title: String = "Icon",
     /** When non-null, the report has had its icon replaced via "Find
      *  alternative icons" — show this label instead of the bundled
      *  pinned agent's model. */
     iconModel: String?,
     /** When non-null, the Response card renders [rawResponse] verbatim
-     *  first then the resolved [icon] at large size below. Wired by
-     *  the language detail (where the model's reply is structured
-     *  text the user wants to see). For the report-icon flow null,
-     *  so the card behaves as before (just the icon). */
+     *  (no big icon inside the card) and the parsed [icon] is rendered
+     *  separately centred below the card. Wired by the language
+     *  detail (where the model's reply is structured text the user
+     *  wants to see). For the report-icon flow null, so the card
+     *  behaves as before (icon rendered inside it). */
     rawResponse: String? = null,
     /** Trace filename of the API call that produced [icon]. When
      *  non-null the title bar shows 🐞 that opens the trace detail
@@ -2802,7 +2806,7 @@ private fun ReportIconDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_icon_detail",
-            title = "Icon",
+            title = title,
             onBackClick = onBack,
             onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } }
         )
@@ -2846,20 +2850,26 @@ private fun ReportIconDetailScreen(
                             fontSize = 13.sp, color = AppColors.Red, lineHeight = 18.sp)
                         running -> Text("(running…)",
                             fontSize = 13.sp, color = AppColors.TextTertiary)
-                        rawResponse != null -> {
-                            // Language flow: show raw model reply verbatim,
-                            // then the parsed icon at large size below.
-                            Text(rawResponse, fontSize = 13.sp, color = Color.White,
-                                fontFamily = FontFamily.Monospace, lineHeight = 18.sp)
-                            if (icon != null) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(icon, fontSize = 72.sp, color = Color.White)
-                            }
-                        }
+                        rawResponse != null -> Text(rawResponse,
+                            fontSize = 13.sp, color = Color.White,
+                            fontFamily = FontFamily.Monospace, lineHeight = 18.sp)
                         icon != null -> Text(icon, fontSize = 72.sp, color = Color.White)
                         else -> Text("(no response)",
                             fontSize = 13.sp, color = AppColors.TextTertiary)
                     }
+                }
+            }
+
+            // When a raw response is shown above, render the parsed
+            // icon centred below the card (language flow). For the
+            // report-icon flow the icon sits inside the Response card
+            // since there's no raw text to separate it from.
+            if (rawResponse != null && icon != null && !running) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(icon, fontSize = 96.sp, color = Color.White)
                 }
             }
 
@@ -3978,6 +3988,7 @@ private fun RenderLanguageDetailOverlay(
             icon = snapshot.icon,
             errorMessage = snapshot.error,
             cost = snapshot.cost,
+            title = "Language icon",
             iconModel = snapshot.model,
             rawResponse = snapshot.rawResponse,
             traceFile = snapshot.traceFile,
