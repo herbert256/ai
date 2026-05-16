@@ -355,8 +355,8 @@ fun ReportsScreenNav(
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translateMissingItems(context, reportId, items, target, targetNative)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds ->
-            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
+            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
         },
         onRunFanIn = { reportId, metaPrompt, pick ->
             reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick)
@@ -716,7 +716,7 @@ fun ReportsScreen(
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?) -> Unit = { _, _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?) -> Unit = { _, _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
      *  model, active provider id (the L2 page's), active model name. */
@@ -1561,6 +1561,15 @@ fun ReportsScreen(
                 // back from there → Picker; back from there → main.
                 onCancel = { fanOutConfirmMetaPrompt = null },
                 onRun = { mp, initiators, responders ->
+                    // Pull the single fan-out language from the scope
+                    // step's Selected set — empty string = Original
+                    // (untranslated). AllPresent collapses to null
+                    // for the legacy / no-translation path.
+                    val sourceLanguage: String? = when (val ls = pendingLanguageScope) {
+                        is com.ai.data.SecondaryLanguageScope.Selected ->
+                            ls.languages.firstOrNull()?.takeIf { it.isNotEmpty() }
+                        com.ai.data.SecondaryLanguageScope.AllPresent -> null
+                    }
                     // Commit clears the whole fan-out stack so the user
                     // doesn't pop back into Scope/Picker after the run
                     // kicked off.
@@ -1572,7 +1581,8 @@ fun ReportsScreen(
                     onRunFanOut(
                         currentReportId, mp,
                         com.ai.data.SecondaryScope.Manual(initiators),
-                        responders
+                        responders,
+                        sourceLanguage
                     )
                     // Land on the Fan Out L1 page so the user watches the
                     // run progress instead of the report screen.

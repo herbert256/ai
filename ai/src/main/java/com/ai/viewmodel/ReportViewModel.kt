@@ -3190,7 +3190,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  so picking 2 responders × 3 initiators yields exactly the
          *  6-minus-self pairs the user expects, instead of always
          *  fanning out every successful agent on the answerer side. */
-        responderAgentIds: Set<String>? = null
+        responderAgentIds: Set<String>? = null,
+        /** English-language name (e.g. "Dutch") to draw the per-pair
+         *  source body + prompt from. Null = run on the original
+         *  untranslated text — the historical default. When non-null,
+         *  each source agent's TRANSLATE row for that language supplies
+         *  the body fed into @RESPONSE@; missing translations fall back
+         *  to the original body for that one pair. The placeholder is
+         *  tagged with targetLanguage so the L1 list groups the run
+         *  under the chosen language. Fan-out is single-language by
+         *  construction; the scope screen enforces this. */
+        sourceLanguage: String? = null
     ): Job? {
         // Dedupe against an already-running fan out for this
         // (report, metaPrompt) — a UI double-tap on the launch
@@ -3235,6 +3245,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val answerers = if (responderAgentIds == null) successful
                         else successful.filter { it.agentId in responderAgentIds }
                     if (answerers.isEmpty()) return@withTracerTags
+                    // Translation lookup. Build (translatedBodyByAgent,
+                    // translatedPrompt, native) once per run. Missing
+                    // per-agent translations fall back to the original
+                    // body for that one pair — keeps the run useful
+                    // even when the translation set is partial.
+                    data class LangCtx(val native: String?, val prompt: String, val bodies: Map<String, String>)
+                    val langCtx: LangCtx? = sourceLanguage?.let { lang ->
+                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                        val translates = allSecondaries.filter {
+                            it.kind == SecondaryKind.TRANSLATE &&
+                                it.targetLanguage == lang &&
+                                !it.content.isNullOrBlank()
+                        }
+                        val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
+                        val translatedPrompt = translates.firstOrNull {
+                            it.translateSourceKind == "PROMPT" && it.translateSourceTargetId == "prompt"
+                        }?.content ?: report.prompt
+                        val bodies = translates
+                            .filter { it.translateSourceKind == "AGENT" && !it.translateSourceTargetId.isNullOrBlank() }
+                            .associate { it.translateSourceTargetId!! to (it.content ?: "") }
+                        LangCtx(native, translatedPrompt, bodies)
+                    }
+                    val langSuffix = sourceLanguage?.let { " [$it]" } ?: ""
                     // Pre-create every (answerer, source) placeholder
                     // up-front so the Report Result screen's fan out
                     // summary row and the fan out detail screen's L1/L2
@@ -3249,7 +3282,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
                             if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}"
+                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
                             ) {
@@ -3257,7 +3290,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     metaPromptId = metaPrompt.id,
                                     metaPromptName = metaPrompt.name,
                                     fanOutSourceAgentId = source.agentId,
-                                    runId = runId
+                                    runId = runId,
+                                    targetLanguage = sourceLanguage,
+                                    targetLanguageNative = langCtx?.native
                                 )
                             }
                             pending.add(PendingPair(answerer, source, placeholder))
@@ -3373,17 +3408,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         val pairStart = System.currentTimeMillis()
                                         AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                         try {
+                                            val questionForPair = langCtx?.prompt ?: report.prompt
+                                            val bodyForPair = langCtx?.bodies?.get(item.source.agentId)
+                                                ?: (item.source.responseBody ?: "")
                                             val resolvedBase = resolveSecondaryPrompt(
                                                 metaPrompt.text,
-                                                question = report.prompt,
+                                                question = questionForPair,
                                                 results = "",
                                                 count = sources.size,
                                                 title = report.title
                                             )
-                                            val resolved = resolvedBase.replace("@RESPONSE@", item.source.responseBody ?: "")
+                                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
                                             executeSecondaryTask(
                                                 context, reportId, SecondaryKind.META, metaPrompt,
                                                 provider, item.answerer.model, resolved, aiSettings, report,
+                                                targetLanguage = sourceLanguage,
+                                                targetLanguageNative = langCtx?.native,
                                                 fanOutSourceAgentId = item.source.agentId,
                                                 existingPlaceholder = item.placeholder
                                             )
@@ -3456,6 +3496,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     val sourceCount = successful.size
+                    // All placeholders in one rerun batch share a
+                    // single language by construction (fan-out is
+                    // single-language). Lift the translation lookup
+                    // once so we don't re-list secondaries per pair.
+                    val rerunLang = placeholders.firstNotNullOfOrNull { it.targetLanguage }
+                    data class LangCtx(val native: String?, val prompt: String, val bodies: Map<String, String>)
+                    val rerunLangCtx: LangCtx? = rerunLang?.let { lang ->
+                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+                        val translates = allSecondaries.filter {
+                            it.kind == SecondaryKind.TRANSLATE &&
+                                it.targetLanguage == lang &&
+                                !it.content.isNullOrBlank()
+                        }
+                        val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
+                        val translatedPrompt = translates.firstOrNull {
+                            it.translateSourceKind == "PROMPT" && it.translateSourceTargetId == "prompt"
+                        }?.content ?: report.prompt
+                        val bodies = translates
+                            .filter { it.translateSourceKind == "AGENT" && !it.translateSourceTargetId.isNullOrBlank() }
+                            .associate { it.translateSourceTargetId!! to (it.content ?: "") }
+                        LangCtx(native, translatedPrompt, bodies)
+                    }
                     // Per-pair pre-acquire mirrors runFanOutPrompt so the
                     // queued / running flip on the UI lines up with the
                     // permit being held. See that function for the full
@@ -3514,17 +3576,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         val rerunStart = System.currentTimeMillis()
                                         AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                         try {
+                                            val questionForPair = rerunLangCtx?.prompt ?: report.prompt
+                                            val bodyForPair = rerunLangCtx?.bodies?.get(source.agentId)
+                                                ?: (source.responseBody ?: "")
                                             val resolvedBase = resolveSecondaryPrompt(
                                                 metaPrompt.text,
-                                                question = report.prompt,
+                                                question = questionForPair,
                                                 results = "",
                                                 count = sourceCount,
                                                 title = report.title
                                             )
-                                            val resolved = resolvedBase.replace("@RESPONSE@", source.responseBody ?: "")
+                                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
                                             executeSecondaryTask(
                                                 context, reportId, SecondaryKind.META, metaPrompt,
                                                 provider, ph.model, resolved, aiSettings, report,
+                                                targetLanguage = ph.targetLanguage,
+                                                targetLanguageNative = ph.targetLanguageNative,
                                                 fanOutSourceAgentId = source.agentId,
                                                 existingPlaceholder = ph
                                             )

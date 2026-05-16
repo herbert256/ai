@@ -169,6 +169,9 @@ class FanOutEngine internal constructor(
             // (every row in a run shares the same scope encoding).
             val scopeEncoded = rows.firstOrNull { !it.secondaryScope.isNullOrBlank() }?.secondaryScope
             val scope = SecondaryScope.decodeOrAllReports(scopeEncoded)
+            // Same trick for the source language so rerunComplete
+            // re-fires against the same translation.
+            val sourceLanguage = rows.firstNotNullOfOrNull { it.targetLanguage }
 
             // Combined-report rows attached to this run. We match by
             // metaPromptName since fan-in rows don't carry the fan-out
@@ -184,7 +187,8 @@ class FanOutEngine internal constructor(
                 scope = scope,
                 responderIds = null,    // not persisted; lost across hydration
                 pairs = pairs,
-                combinedReports = combinedRows
+                combinedReports = combinedRows,
+                sourceLanguage = sourceLanguage
             )
         }
 
@@ -703,7 +707,7 @@ class FanOutEngine internal constructor(
             // Re-fire via the legacy launch path so an in-flight
             // launch via runFanOutPrompt and our rerun share the
             // same fanOutJobs dedupe key.
-            reportViewModel.runFanOutPrompt(context, run.reportId, run.metaPrompt, run.scope, run.responderIds)
+            reportViewModel.runFanOutPrompt(context, run.reportId, run.metaPrompt, run.scope, run.responderIds, run.sourceLanguage)
         }
 
     /** Drop every pair row in the run + the run itself. Combined-

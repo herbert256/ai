@@ -90,6 +90,12 @@ internal fun SecondaryScopeScreen(
     val pickedLanguages = remember { mutableStateMapOf<String, Boolean>().apply {
         languages.forEach { (lang, _) -> put(lang, true) }
     } }
+    // Fan-out is single-language: it runs against one (source body,
+    // prompt) pair at a time. Empty string = Original; otherwise an
+    // English-name key from `languages`. Independent of the meta-mode
+    // multi-select state above so the two UIs don't share `remember`.
+    val isFanOut = metaPrompt.category == "fan_out"
+    var fanOutPickedLanguage by remember(isFanOut) { mutableStateOf("") }
     // Initiator / responder model pickers used to live on this
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
@@ -116,14 +122,24 @@ internal fun SecondaryScopeScreen(
                         manualPicked.filterValues { it }.keys.toSet()
                     )
                 }
-                val langScope = if (allLanguages || languages.isEmpty()) SecondaryLanguageScope.AllPresent
-                else {
-                    // The set holds English-name keys for translations
-                    // and "" (the empty string) for the original — see
-                    // SecondaryLanguageScope.Selected's doc comment.
-                    val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
-                    if (pickedOriginal) picked.add("")
-                    SecondaryLanguageScope.Selected(picked)
+                val langScope = when {
+                    languages.isEmpty() -> SecondaryLanguageScope.AllPresent
+                    isFanOut -> {
+                        // Fan-out is always exactly one language; the
+                        // engine reads the single entry of Selected to
+                        // pick which body/prompt to feed each pair.
+                        // Empty string = Original (untranslated).
+                        SecondaryLanguageScope.Selected(setOf(fanOutPickedLanguage))
+                    }
+                    allLanguages -> SecondaryLanguageScope.AllPresent
+                    else -> {
+                        // The set holds English-name keys for translations
+                        // and "" (the empty string) for the original — see
+                        // SecondaryLanguageScope.Selected's doc comment.
+                        val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
+                        if (pickedOriginal) picked.add("")
+                        SecondaryLanguageScope.Selected(picked)
+                    }
                 }
                 onContinue(scope, langScope)
             },
@@ -258,52 +274,87 @@ internal fun SecondaryScopeScreen(
                 }
             }
 
-            // Translation language fan-out: meta and fan_out categories
-            // both surface the picker when the report has translation
-            // rows so the user can target the fan-out at a specific
-            // language instead of always falling back to the original.
-            if ((isMetaCategory || metaPrompt.category == "fan_out") && languages.isNotEmpty()) {
+            // Translation language picker: meta and fan_out surface it
+            // when the report has translation rows so the user can
+            // target the run at specific languages instead of always
+            // falling back to the original. Meta allows multi-select;
+            // fan_out is single-select (one run = one source language).
+            if ((isMetaCategory || isFanOut) && languages.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(20.dp))
                 Text("Languages", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(8.dp))
-                ScopeOption(
-                    selected = allLanguages,
-                    label = "All languages",
-                    sublabel = "Original plus every translation present (${languages.size} translated)",
-                    onSelect = { allLanguages = true }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ScopeOption(
-                    selected = !allLanguages,
-                    label = "Select languages",
-                    sublabel = "Pick which translation languages to include alongside the original",
-                    onSelect = { allLanguages = false }
-                )
-                if (!allLanguages) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                if (isFanOut) {
+                    // Single-language: fan-out runs N×(M-1) pairs
+                    // against one source language at a time. Original
+                    // first, then each translation.
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            // Original (untranslated) source — first row.
-                            // Tick = include in the run, untick = run only
-                            // on the chosen translations.
+                            Text(
+                                "Fan-out runs on one language at a time. Pick which source bodies to feed each pair.",
+                                fontSize = 11.sp, color = AppColors.TextTertiary
+                            )
                             Row(
-                                modifier = Modifier.fillMaxWidth().clickable { pickedOriginal = !pickedOriginal },
+                                modifier = Modifier.fillMaxWidth().clickable { fanOutPickedLanguage = "" },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(checked = pickedOriginal, onCheckedChange = { pickedOriginal = it })
+                                RadioButton(selected = fanOutPickedLanguage == "", onClick = { fanOutPickedLanguage = "" })
                                 Text("Original", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             languages.forEach { (lang, native) ->
-                                val checked = pickedLanguages[lang] ?: false
+                                val selected = fanOutPickedLanguage == lang
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().clickable { pickedLanguages[lang] = !checked },
+                                    modifier = Modifier.fillMaxWidth().clickable { fanOutPickedLanguage = lang },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Checkbox(checked = checked, onCheckedChange = { pickedLanguages[lang] = it })
+                                    RadioButton(selected = selected, onClick = { fanOutPickedLanguage = lang })
                                     val label = native?.takeIf { it.isNotBlank() && it != lang }?.let { "$lang · $it" } ?: lang
                                     Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    ScopeOption(
+                        selected = allLanguages,
+                        label = "All languages",
+                        sublabel = "Original plus every translation present (${languages.size} translated)",
+                        onSelect = { allLanguages = true }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ScopeOption(
+                        selected = !allLanguages,
+                        label = "Select languages",
+                        sublabel = "Pick which translation languages to include alongside the original",
+                        onSelect = { allLanguages = false }
+                    )
+                    if (!allLanguages) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // Original (untranslated) source — first row.
+                                // Tick = include in the run, untick = run only
+                                // on the chosen translations.
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clickable { pickedOriginal = !pickedOriginal },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(checked = pickedOriginal, onCheckedChange = { pickedOriginal = it })
+                                    Text("Original", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                                languages.forEach { (lang, native) ->
+                                    val checked = pickedLanguages[lang] ?: false
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().clickable { pickedLanguages[lang] = !checked },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Checkbox(checked = checked, onCheckedChange = { pickedLanguages[lang] = it })
+                                        val label = native?.takeIf { it.isNotBlank() && it != lang }?.let { "$lang · $it" } ?: lang
+                                        Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
                                 }
                             }
                         }

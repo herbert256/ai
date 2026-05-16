@@ -180,7 +180,12 @@ data class FanOutRunState(
      *  runner stops queueing new pairs; in-flight pairs are
      *  cancelled (their per-pair coroutine sees the cancel and
      *  bails before save). */
-    val cancelled: Boolean = false
+    val cancelled: Boolean = false,
+    /** English-name source language picked on the scope screen
+     *  ("Dutch") — null = Original (untranslated). Replayed by
+     *  rerunComplete so the new batch fires against the same
+     *  translated bodies + prompt as the original run. */
+    val sourceLanguage: String? = null
 ) {
     val totalPairs: Int get() = pairs.size
     val doneCount: Int get() = pairs.values.count { it.status == PairStatus.DONE }
