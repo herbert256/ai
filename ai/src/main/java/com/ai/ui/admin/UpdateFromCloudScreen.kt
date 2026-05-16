@@ -28,10 +28,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -77,6 +80,16 @@ fun UpdateFromCloudScreen(
 
     var apkUriString by remember { mutableStateOf(prefs.getString(KEY_URI, null)) }
     var lastStatus by remember { mutableStateOf<String?>(null) }
+    // 5-second polling tick — drives the Source-file card to
+    // re-query the DocumentsProvider so a freshly-synced APK
+    // surfaces its new mtime without the user touching anything.
+    var sourceTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5_000L)
+            sourceTick++
+        }
+    }
 
     val driveInstalled = remember { isPackageInstalled(context, DRIVE_PKG) }
     val installedVersion = remember { thisAppVersion(context) }
@@ -173,7 +186,7 @@ fun UpdateFromCloudScreen(
                     if (uriStr == null) {
                         Text("(none picked yet)", color = AppColors.TextTertiary, fontSize = 13.sp)
                     } else {
-                        val info = remember(uriStr) { queryDocumentInfo(context, Uri.parse(uriStr)) }
+                        val info = remember(uriStr, sourceTick) { queryDocumentInfo(context, Uri.parse(uriStr)) }
                         if (info == null) {
                             Text(
                                 "(source no longer accessible — re-pick required)",
