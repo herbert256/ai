@@ -847,6 +847,7 @@ fun ReportsScreen(
     )
     val secondaryCounts = runtime.secondaryCounts
     val secondaryRuns = runtime.secondaryRuns
+    val translateRows = runtime.translateRows
     val translationRunSummaries = runtime.translationRunSummaries
     val fanOutSummaries = runtime.fanOutSummaries
     val secondaryTotals = runtime.secondaryTotals
@@ -1096,6 +1097,7 @@ fun ReportsScreen(
             openTranslationRunId = openTranslationRunId,
             listKind = listKind,
             secondaryRuns = secondaryRuns,
+            translateRows = translateRows,
             aiSettings = aiSettings,
             uiState = uiState,
             promptIconCallbacks = promptIconCallbacks,
@@ -2243,6 +2245,7 @@ fun ReportsScreen(
         secondaryCounts = secondaryCounts,
         costsFromDeletedItems = costsFromDeletedItems,
         secondaryRuns = secondaryRuns,
+        translateRows = translateRows,
         secondaryTotals = secondaryTotals,
         translationRuns = translationRuns,
         translationRunSummaries = translationRunSummaries,
@@ -2282,6 +2285,12 @@ fun ReportsScreen(
 private data class ReportRuntimeState(
     val secondaryCounts: SecondaryResultStorage.Counts,
     val secondaryRuns: List<com.ai.data.SecondaryResult>,
+    /** Raw TRANSLATE rows on this report. secondaryRuns
+     *  intentionally excludes them, but buildEveryItems' meta
+     *  availability fold (cross-translate, back-translate) needs
+     *  to see them — without this list every meta tile would
+     *  stay grayed even after a back-translation completes. */
+    val translateRows: List<com.ai.data.SecondaryResult>,
     val translationRunSummaries: List<TranslationRunSummary>,
     val fanOutSummaries: List<FanOutRunSummary>,
     val secondaryTotals: SecondaryTotals,
@@ -2319,6 +2328,7 @@ private fun rememberReportRuntimeState(
 ): ReportRuntimeState {
     var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0)) }
     var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
+    var translateRows by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
     var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
     var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
     var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
@@ -2413,6 +2423,7 @@ private fun rememberReportRuntimeState(
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
+            translateRows = emptyList()
             translationRunSummaries = emptyList()
             fanOutSummaries = emptyList()
             secondaryTotals = SecondaryTotals.ZERO
@@ -2429,9 +2440,8 @@ private fun rememberReportRuntimeState(
                     .filter { it.kind != SecondaryKind.TRANSLATE }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
-                translationRunSummaries = buildTranslationRunSummaries(
-                    all.filter { it.kind == SecondaryKind.TRANSLATE }
-                )
+                translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
+                translationRunSummaries = buildTranslationRunSummaries(translateRows)
                 fanOutSummaries = buildFanOutSummaries(
                     all.filter { it.fanOutSourceAgentId != null }
                 )
@@ -2474,6 +2484,7 @@ private fun rememberReportRuntimeState(
     return ReportRuntimeState(
         secondaryCounts = secondaryCounts,
         secondaryRuns = secondaryRuns,
+        translateRows = translateRows,
         translationRunSummaries = translationRunSummaries,
         fanOutSummaries = fanOutSummaries,
         secondaryTotals = secondaryTotals,
@@ -2628,6 +2639,7 @@ private fun ReportPrimaryOverlays(
     openTranslationRunId: String?,
     listKind: SecondaryKind?,
     secondaryRuns: List<com.ai.data.SecondaryResult>,
+    translateRows: List<com.ai.data.SecondaryResult>,
     aiSettings: Settings,
     uiState: UiState,
     promptIconCallbacks: InternalPromptIconCallbacks,
@@ -2710,7 +2722,7 @@ private fun ReportPrimaryOverlays(
         && openTranslationRunId == null
         && listKind == null
     ) {
-        val viewEveryItems = remember(secondaryRuns, aiSettings, reportLanguageName) {
+        val viewEveryItems = remember(secondaryRuns, translateRows, aiSettings, reportLanguageName) {
             buildEveryItems(
                 secondaryRuns, aiSettings,
                 onOpenSecondaryRun = { id, lang ->
@@ -2722,7 +2734,8 @@ private fun ReportPrimaryOverlays(
                     onListTargetChange(kind, name, false)
                 },
                 onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) },
-                reportLanguageName = reportLanguageName
+                reportLanguageName = reportLanguageName,
+                translates = translateRows
             )
         }
         val moderationFlagged = remember(secondaryRuns) {

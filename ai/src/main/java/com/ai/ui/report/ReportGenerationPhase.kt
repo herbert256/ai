@@ -91,7 +91,13 @@ internal fun buildEveryItems(
      *  whose `targetLanguage` matches — counts as Original ("")
      *  for the per-tile availability check. Lets a back-translation
      *  populate the Original tab so the meta tile un-grays. */
-    reportLanguageName: String? = null
+    reportLanguageName: String? = null,
+    /** TRANSLATE rows on this report. Callers must pass them in
+     *  separately because [secondaryRuns] excludes TRANSLATE at the
+     *  runtime layer. Used to compute cross-translate / back-
+     *  translate availability for each meta tile so the tile
+     *  un-grays once translations exist. */
+    translates: List<com.ai.data.SecondaryResult> = emptyList()
 ): Map<String, List<EveryItem>> {
     val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
     val promptByName = aiSettings.internalPrompts.associateBy { it.name }
@@ -109,11 +115,10 @@ internal fun buildEveryItems(
     // Per-meta-id cross-translate set, used to compute each meta
     // EveryItem's availableLanguages. Key = META id, value = set of
     // languages with a non-blank META TRANSLATE row pointing at it.
-    val translateByMetaId: Map<String, Set<String>> = secondaryRuns
+    val translateByMetaId: Map<String, Set<String>> = translates
         .asSequence()
         .filter {
-            it.kind == SecondaryKind.TRANSLATE &&
-                it.translateSourceKind == "META" &&
+            it.translateSourceKind == "META" &&
                 !it.translateSourceTargetId.isNullOrBlank() &&
                 !it.content.isNullOrBlank() &&
                 !it.targetLanguage.isNullOrBlank()
@@ -280,6 +285,11 @@ internal fun ColumnScope.GenerationPhase(
      *  as a dedicated row above the Total footer when non-zero. */
     costsFromDeletedItems: Double = 0.0,
     secondaryRuns: List<com.ai.data.SecondaryResult> = emptyList(),
+    /** Raw TRANSLATE rows on this report — passed separately
+     *  because secondaryRuns excludes TRANSLATE at the runtime
+     *  layer. Threaded into buildEveryItems so meta tiles fold
+     *  cross-translate / back-translate availability correctly. */
+    translateRows: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
@@ -427,13 +437,14 @@ internal fun ColumnScope.GenerationPhase(
     //  fanOutSummary — see the items(fanOutSummaries) block —
     //  not as a View-row group, since the fan-out pair rows that
     //  carry the icons never enter `secondaryRuns`.)
-    val everyItems = remember(secondaryRuns, aiSettings) {
+    val everyItems = remember(secondaryRuns, translateRows, aiSettings) {
         // Report - Manage path doesn't lock languages — discard the
         // trailing String? from buildEveryItems' new signature.
         buildEveryItems(secondaryRuns, aiSettings,
             onOpenSecondaryRun = { id, _ -> onOpenSecondaryRun(id) },
             onViewSecondaryName = { name, kind, _ -> onViewSecondaryName(name, kind) },
-            onOpenTranslationRun = onOpenTranslationRun)
+            onOpenTranslationRun = onOpenTranslationRun,
+            translates = translateRows)
     }
 
     // ----- Row 1 -----
