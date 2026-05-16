@@ -906,7 +906,7 @@ private fun ListTileColumn(items: List<IdentifiedTile>) {
                     else -> null
                 }
                 val clickMod = if (effectiveClick != null) Modifier.clickable(onClick = effectiveClick) else Modifier
-                val dimMod = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
+                val dimMod = if (tile.enabled) Modifier else Modifier.alpha(0.22f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .then(dimMod)
@@ -992,7 +992,7 @@ private fun TileCard(tile: ViewTile) {
         else -> null
     }
     val clickModifier = if (effectiveClick != null) Modifier.clickable(onClick = effectiveClick) else Modifier
-    val dimModifier = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
+    val dimModifier = if (tile.enabled) Modifier else Modifier.alpha(0.22f)
     Card(
         modifier = Modifier.fillMaxWidth().aspectRatio(1.05f).then(dimModifier).then(clickModifier),
         shape = RoundedCornerShape(16.dp),
@@ -1062,7 +1062,7 @@ private fun ExpandedKindCard(
                 if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
                 val itemEnabled = item.availableLanguages?.contains(currentLanguage) ?: true
                 val clickMod = if (itemEnabled) Modifier.clickable { onItemClick(item) } else Modifier
-                val dimMod = if (itemEnabled) Modifier else Modifier.alpha(0.4f)
+                val dimMod = if (itemEnabled) Modifier else Modifier.alpha(0.22f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .then(dimMod)
