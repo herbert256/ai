@@ -1104,6 +1104,12 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit) {
     val data = rememberReportCostData(report)
     val tColor = AppColors.Blue
     var popup by remember { mutableStateOf<CostPopup?>(null) }
+    // Filter dropdowns for the two non-cost columns. "All" leaves the
+    // list unfiltered. Filters compose (Type AND Model must match);
+    // the values list is rebuilt from the visible rows so a Type pick
+    // narrows the Model options to those still present, and vice-versa.
+    var typeFilter by rememberSaveable { mutableStateOf("All") }
+    var modelFilter by rememberSaveable { mutableStateOf("All") }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "cost_view",
@@ -1116,31 +1122,116 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit) {
             if (data == null || data.rows.isEmpty()) {
                 Text("(no API calls recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
             } else {
-                CostRowSection(
-                    label = "All API calls",
-                    rows = data.rows,
-                    columnLabels = listOf("Type", "Model", "Cost"),
-                    columnWeights = listOf(1f, 2f, 1f),
-                    keyExtractors = listOf(
-                        { (it as CostRow).type },
-                        { com.ai.ui.shared.shortModelName((it as CostRow).model) },
-                        { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
-                    ),
-                    renderCells = { r ->
-                        listOf(
-                            CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
-                            CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
-                            CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
-                        )
-                    },
-                    onRowTap = { r -> popup = CostPopup.Call(r) },
-                    defaultSortColumn = 2,
-                    defaultSortDescending = true,
-                )
+                val allRows = data.rows
+                val typeOptions = remember(allRows) {
+                    listOf("All") + allRows.map { it.type }.distinct().sorted()
+                }
+                val modelOptions = remember(allRows, typeFilter) {
+                    val pool = if (typeFilter == "All") allRows else allRows.filter { it.type == typeFilter }
+                    listOf("All") + pool.map { com.ai.ui.shared.shortModelName(it.model) }.distinct().sorted()
+                }
+                // Reset model filter if a Type change made it stale.
+                LaunchedEffect(typeFilter) {
+                    if (modelFilter !in modelOptions) modelFilter = "All"
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterDropdown(
+                        label = "Type",
+                        selected = typeFilter,
+                        options = typeOptions,
+                        onSelect = { typeFilter = it },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterDropdown(
+                        label = "Model",
+                        selected = modelFilter,
+                        options = modelOptions,
+                        onSelect = { modelFilter = it },
+                        modifier = Modifier.weight(2f)
+                    )
+                }
+                val filtered = remember(allRows, typeFilter, modelFilter) {
+                    allRows.filter { r ->
+                        (typeFilter == "All" || r.type == typeFilter) &&
+                            (modelFilter == "All" || com.ai.ui.shared.shortModelName(r.model) == modelFilter)
+                    }
+                }
+                if (filtered.isEmpty()) {
+                    Text("(no calls match the filter)", color = AppColors.TextTertiary, fontSize = 14.sp)
+                } else {
+                    CostRowSection(
+                        label = "All API calls",
+                        rows = filtered,
+                        columnLabels = listOf("Type", "Model", "Cost"),
+                        columnWeights = listOf(1f, 2f, 1f),
+                        keyExtractors = listOf(
+                            { (it as CostRow).type },
+                            { com.ai.ui.shared.shortModelName((it as CostRow).model) },
+                            { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
+                        ),
+                        renderCells = { r ->
+                            listOf(
+                                CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
+                                CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
+                                CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
+                            )
+                        },
+                        onRowTap = { r -> popup = CostPopup.Call(r) },
+                        defaultSortColumn = 2,
+                        defaultSortDescending = true,
+                    )
+                }
             }
         }
     }
     popup?.let { p -> CostDetailDialog(p, onDismiss = { popup = null }) }
+}
+
+@Composable
+private fun FilterDropdown(
+    label: String,
+    selected: String,
+    options: List<String>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var open by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { open = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+        ) {
+            Text(
+                "$label: $selected",
+                modifier = Modifier.weight(1f),
+                fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(" ▾", fontSize = 12.sp, color = AppColors.TextTertiary)
+        }
+        DropdownMenu(
+            expanded = open, onDismissRequest = { open = false }
+        ) {
+            options.forEach { opt ->
+                val isSel = opt == selected
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            opt,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSel) AppColors.Blue else Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = { onSelect(opt); open = false }
+                )
+            }
+        }
+    }
 }
 
 /** One row in the per-call detail list — hoisted to top-level
