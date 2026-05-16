@@ -784,7 +784,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         prompt: InternalPrompt,
         models: List<ReportModel>,
-        aiSettings: Settings
+        aiSettings: Settings,
+        /** Report whose SecondaryResult the alt is launched from.
+         *  Used to attribute per-call cost into [Report.iconCalls]
+         *  (so the cost-table per-call breakdown shows the alt
+         *  rows) AND to bump the SR's own cost so the row on
+         *  Report-Manage reflects the alt spend. The SR is the
+         *  first row on the report whose metaPromptName / metaPromptId
+         *  matches [prompt]. Null skips both — keeps legacy
+         *  call-sites compiling. */
+        reportId: String? = null
     ) {
         if (prompt.name.isBlank()) return
         // Find-alternative-icons composes the base prompt's text with
@@ -809,6 +818,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
         val key = internalPromptIconKey(prompt)
+        // Resolve the SR that owns the per-row attribution for this
+        // (report, prompt) pair — the first SR whose metaPromptName /
+        // metaPromptId matches. Null when there's no matching row on
+        // this report (e.g., the user is finding alt icons for a
+        // prompt that hasn't been run on this report yet) or when
+        // reportId wasn't supplied.
+        val attributedSecondaryId: String? = reportId?.let { rid ->
+            SecondaryResultStorage.listForReport(context, rid)
+                .firstOrNull { sr ->
+                    (sr.metaPromptId != null && sr.metaPromptId == prompt.id) ||
+                    (!sr.metaPromptName.isNullOrBlank() && sr.metaPromptName == prompt.name)
+                }
+                ?.id
+        }
 
         // Pre-populate Running rows so the Alternative icons screen
         // shows ⏳ for every pair the moment it opens.
@@ -846,6 +869,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 appViewModel.settingsPrefs.updateUsageStatsAsync(
                                     item.provider, item.model, inT, outT, kind = "icon"
                                 )
+                                // Per-report attribution: bump the SR's
+                                // own cost (so its Report-Manage row
+                                // includes the alt spend) AND append
+                                // an IconCallRecord (so the cost
+                                // table's per-call breakdown shows a
+                                // `meta_alt` row).
+                                if (reportId != null) {
+                                    if (attributedSecondaryId != null) {
+                                        SecondaryResultStorage.bumpResultInputOutputCost(
+                                            context, reportId, attributedSecondaryId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    }
+                                    ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                        agentId = "", tier = 0,
+                                        provider = item.provider.id, model = item.model,
+                                        pricingTier = pricing.source,
+                                        inputTokens = inT, outputTokens = outT,
+                                        inputCost = inC, outputCost = outC,
+                                        success = response.error == null,
+                                        type = "meta_alt",
+                                        attributedToSecondaryId = attributedSecondaryId
+                                    ))
+                                }
                             }
                             // Capture promptText + responseText so a
                             // subsequent pickInternalPromptIcon can
@@ -1047,7 +1095,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context,
         language: String,
         models: List<ReportModel>,
-        aiSettings: Settings
+        aiSettings: Settings,
+        /** Report whose first TRANSLATE row for [language] gets the
+         *  alt-call cost attributed to it (so the row's cost cell on
+         *  Report-Manage reflects the alt spend) AND records each
+         *  call in [Report.iconCalls] (so the cost table shows a
+         *  per-call `translation_alt` row). Null = legacy call-site
+         *  (no per-report attribution). */
+        reportId: String? = null
     ) {
         if (language.isBlank()) return
         // Find-alternative-icons composes `translation` (the base
@@ -1069,6 +1124,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (unique.isEmpty()) return
         val resolved = (basePrompt.text + "\n\n" + altPrompt.text).replace("@LANGUAGE@", language)
         val key = translationIconKey(language)
+        // Resolve the SecondaryResult that owns the per-row alt-cost
+        // attribution for this (report, language) pair — the first
+        // TRANSLATE row for that language, as the user picked. Null
+        // when no TRANSLATE row exists yet on this report (legacy
+        // call paths) or when reportId wasn't supplied.
+        val attributedSecondaryId: String? = reportId?.let { rid ->
+            SecondaryResultStorage.listForReport(context, rid, SecondaryKind.TRANSLATE)
+                .firstOrNull { it.targetLanguage == language }
+                ?.id
+        }
 
         appViewModel.updateInternalPromptIconFanOut(key) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
@@ -1104,6 +1169,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 appViewModel.settingsPrefs.updateUsageStatsAsync(
                                     item.provider, item.model, inT, outT, kind = "icon"
                                 )
+                                // Per-report attribution: bump the first
+                                // TRANSLATE SR for this language so its
+                                // Report-Manage row reflects the alt
+                                // spend, AND append an IconCallRecord
+                                // so the cost-table per-call breakdown
+                                // shows a `translation_alt` row.
+                                if (reportId != null) {
+                                    if (attributedSecondaryId != null) {
+                                        SecondaryResultStorage.bumpResultInputOutputCost(
+                                            context, reportId, attributedSecondaryId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    }
+                                    ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                        agentId = "", tier = 0,
+                                        provider = item.provider.id, model = item.model,
+                                        pricingTier = pricing.source,
+                                        inputTokens = inT, outputTokens = outT,
+                                        inputCost = inC, outputCost = outC,
+                                        success = response.error == null,
+                                        type = "translation_alt",
+                                        attributedToSecondaryId = attributedSecondaryId
+                                    ))
+                                }
                             }
                             appViewModel.setInternalPromptIconCallTexts(
                                 key, item.provider.id, item.model,
@@ -1267,6 +1357,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC
                                         )
+                                        // Per-call audit row for the
+                                        // cost table. iconRow above
+                                        // subtracts the sum of these
+                                        // to avoid double-counting.
+                                        ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                            agentId = "", tier = 0,
+                                            provider = item.provider.id, model = item.model,
+                                            pricingTier = pricing.source,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            success = response.error == null,
+                                            type = "main_alt"
+                                        ))
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null && emoji.isNotEmpty()) {
@@ -1402,6 +1505,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC
                                         )
+                                        ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                            agentId = "", tier = 0,
+                                            provider = item.provider.id, model = item.model,
+                                            pricingTier = pricing.source,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            success = response.error == null,
+                                            type = "language_alt"
+                                        ))
                                     }
                                     if (response.error == null && emoji.isNotEmpty()) {
                                         appViewModel.updateLanguageIconFanOut(reportId) { list ->
@@ -1530,6 +1642,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC
                                         )
+                                        // Per-call audit row labelled
+                                        // `report_alt`. agentId is set
+                                        // so the existing classifier
+                                        // would map this to
+                                        // "report-icons" — but `type`
+                                        // overrides, surfacing the
+                                        // call as its own labelled row
+                                        // alongside the per-tier chain
+                                        // entries for the same agent.
+                                        ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                            agentId = agentId, tier = 0,
+                                            provider = item.provider.id, model = item.model,
+                                            pricingTier = pricing.source,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            success = response.error == null,
+                                            type = "report_alt"
+                                        ))
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null) {

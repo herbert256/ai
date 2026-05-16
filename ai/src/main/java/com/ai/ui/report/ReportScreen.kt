@@ -309,7 +309,10 @@ fun ReportsScreenNav(
                 reportViewModel.kickOffInternalPromptIcon(context, prompt, aiSettings)
             },
             onStartFanOut = { prompt, picks ->
-                reportViewModel.startInternalPromptIconFanOut(context, prompt, picks, aiSettings)
+                reportViewModel.startInternalPromptIconFanOut(
+                    context, prompt, picks, aiSettings,
+                    reportId = uiState.currentReportId
+                )
             },
             onPick = { prompt, cand ->
                 reportViewModel.pickInternalPromptIcon(context, prompt, cand, aiSettings)
@@ -324,7 +327,10 @@ fun ReportsScreenNav(
                 reportViewModel.kickOffTranslationIcon(context, language, aiSettings)
             },
             onStartFanOut = { language, picks ->
-                reportViewModel.startTranslationIconFanOut(context, language, picks, aiSettings)
+                reportViewModel.startTranslationIconFanOut(
+                    context, language, picks, aiSettings,
+                    reportId = uiState.currentReportId
+                )
             },
             onPick = { language, cand ->
                 reportViewModel.pickTranslationIcon(context, language, cand, aiSettings)

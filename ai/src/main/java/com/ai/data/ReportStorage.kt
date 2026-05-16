@@ -72,7 +72,23 @@ data class IconCallRecord(
     val outputCost: Double,
     val durationMs: Long? = null,
     val success: Boolean,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    /** When non-null, overrides the agentId-based classifier used by
+     *  the cost table. Find-alternative-icons fan-out calls set this
+     *  to the bundled `_alt` prompt name (`main_alt`, `meta_alt`,
+     *  `report_alt`, `language_alt`, `translation_alt`) so each
+     *  alt call surfaces as its own per-call row labelled by prompt
+     *  name. Null for the legacy 3-tier per-agent / per-pair records
+     *  — those keep using the existing agentId classifier. */
+    val type: String? = null,
+    /** When non-null, the cost on this record is attributed to a
+     *  specific [SecondaryResult] on the same report. Used by
+     *  meta_alt (the user's tapped secondary-result row) and
+     *  translation_alt (the first TRANSLATE row of the language) so
+     *  the cost table can subtract the attributed portion from the
+     *  SR's own cost row — avoiding double-counting once the per-
+     *  call alt rows are added below it. */
+    val attributedToSecondaryId: String? = null
 )
 
 enum class ReportType { CLASSIC, TABLE }

@@ -876,10 +876,37 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val outCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
         CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
+    // Find-alternative-icons fan-out cost subtraction. Every alt
+    // call is recorded as its own IconCallRecord with `type` set to
+    // the bundled `_alt` prompt name AND its cost is also added to
+    // the aggregate row that owns the icon (Report.iconInputCost for
+    // main_alt, Report.languageIconInputCost for language_alt,
+    // SecondaryResult.inputCost for meta_alt / translation_alt). The
+    // per-call rows below would double-count if we didn't strip
+    // that alt portion out of the aggregate rows here. Sums are in
+    // *cents* to match the CostRow inputs.
+    val altByType: Map<String, Pair<Double, Double>> = report.iconCalls
+        .filter { !it.type.isNullOrBlank() }
+        .groupBy { it.type!! }
+        .mapValues { (_, list) ->
+            list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
+        }
+    val altBySecondary: Map<String, Pair<Double, Double>> = report.iconCalls
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .groupBy { it.attributedToSecondaryId!! }
+        .mapValues { (_, list) ->
+            list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
+        }
+    val mainAltInCents = altByType["main_alt"]?.first ?: 0.0
+    val mainAltOutCents = altByType["main_alt"]?.second ?: 0.0
+    val languageAltInCents = altByType["language_alt"]?.first ?: 0.0
+    val languageAltOutCents = altByType["language_alt"]?.second ?: 0.0
+
     // Icon-gen call surfaces as its own row so the cost table totals
     // match the report total. Hidden when icon-gen wasn't run or the
     // call didn't return token usage. The pinned agent on
-    // internal/icon supplies the (provider, model) pair.
+    // internal/icon supplies the (provider, model) pair. Subtracts
+    // the main_alt portion so per-call alt rows below don't double.
     val iconRow: CostRow? = if (report.iconInputCost > 0.0 || report.iconOutputCost > 0.0) {
         val ai = com.ai.model.SettingsHolder.current
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
@@ -899,8 +926,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             durationMs = null,
             inputTokens = report.iconInputTokens,
             outputTokens = report.iconOutputTokens,
-            inputCents = report.iconInputCost * 100,
-            outputCents = report.iconOutputCost * 100
+            inputCents = (report.iconInputCost * 100) - mainAltInCents,
+            outputCents = (report.iconOutputCost * 100) - mainAltOutCents
         )
     } else null
     // Two-call language flow surfaces as two rows. The first call
@@ -955,8 +982,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             durationMs = null,
             inputTokens = report.languageIconInputTokens,
             outputTokens = report.languageIconOutputTokens,
-            inputCents = report.languageIconInputCost * 100,
-            outputCents = report.languageIconOutputCost * 100
+            inputCents = (report.languageIconInputCost * 100) - languageAltInCents,
+            outputCents = (report.languageIconOutputCost * 100) - languageAltOutCents
         )
     } else null
     // report.iconCalls holds two distinct tier-by-tier chains — one
@@ -974,8 +1001,13 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val reportAgentIds = report.agents.map { it.agentId }.toSet()
     val iconCallRows = report.iconCalls.map { c ->
         val providerEnum = AppService.findById(c.provider)
+        // `c.type` (set by Find-alt fan-out launchers to the
+        // bundled `_alt` prompt name) overrides the legacy
+        // agentId-based classifier used by the per-tier chain.
+        val resolvedType = c.type
+            ?: if (c.agentId in reportAgentIds) "report-icons" else "fan-icons"
         CostRow(
-            type = if (c.agentId in reportAgentIds) "report-icons" else "fan-icons",
+            type = resolvedType,
             providerDisplay = providerEnum?.id ?: c.provider,
             model = c.model,
             tier = c.pricingTier,
@@ -993,8 +1025,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val providerEnum = AppService.findById(s.providerId)
         val providerDisplay = providerEnum?.id ?: s.providerId
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, s.model) }
-        val inCents = (s.inputCost ?: 0.0) * 100
-        val outCents = (s.outputCost ?: 0.0) * 100
+        // Subtract any Find-alt cost attributed to this SR — that
+        // portion already appears as a `<prompt>_alt` per-call row
+        // below. Without the subtraction the alt cost would be
+        // counted twice (once here on the SR row, once in the
+        // per-call row).
+        val srAlt = altBySecondary[s.id]
+        val inCents = ((s.inputCost ?: 0.0) * 100) - (srAlt?.first ?: 0.0)
+        val outCents = ((s.outputCost ?: 0.0) * 100) - (srAlt?.second ?: 0.0)
         // Cost-table "Type" column: prefer the user-given Meta prompt
         // name so a "Compare" row reads "compare", a "Critique" row
         // reads "critique", etc. Rerank / moderation / translate keep
@@ -1328,6 +1366,15 @@ private fun costTypeColor(type: String): Color = when (type) {
     "fan-in" -> AppColors.Green
     "language" -> AppColors.Yellow
     "language-icon" -> AppColors.Brown
+    // Find-alternative-icons fan-out per-call rows. Each shares the
+    // hue of its "owning" entity so a glance at the cost table
+    // groups initial-gen + alt visually.
+    "main_alt" -> AppColors.TextSecondary
+    "meta_alt" -> AppColors.Indigo
+    "report_alt" -> AppColors.TextSecondary
+    "fan_out_alt" -> AppColors.Indigo
+    "language_alt" -> AppColors.Yellow
+    "translation_alt" -> AppColors.Brown
     else -> AppColors.TextSecondary
 }
 

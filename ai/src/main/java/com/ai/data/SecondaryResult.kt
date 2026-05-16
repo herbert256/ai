@@ -351,6 +351,47 @@ object SecondaryResultStorage {
         return true
     }
 
+    /** Atomically bumps the row's main [SecondaryResult.inputCost] /
+     *  [SecondaryResult.outputCost] / token counters by the supplied
+     *  amounts. Used by the Find-alternative-icons fan-out for
+     *  meta-prompt + translation icons so the alt-call spend lands
+     *  on the SR's own cost cell on the Report-Manage cost table
+     *  (the per-row attribution requested for these flows; the
+     *  cost-table subtracts the attributed alt portion when building
+     *  the per-call rows below it to avoid double-counting). No-op
+     *  when the row is gone (user deleted it mid-fan-out). */
+    fun bumpResultInputOutputCost(
+        context: Context, reportId: String, resultId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            // tokenUsage carries the row's main input/output tokens
+            // for display; we update both that and the (inputCost,
+            // outputCost) USD fields the cost table reads from.
+            // totalTokens is a derived property — set inputTokens +
+            // outputTokens here and let it recompute.
+            val curTu = current.tokenUsage ?: TokenUsage(0, 0)
+            val newTu = curTu.copy(
+                inputTokens = curTu.inputTokens + inputTokens,
+                outputTokens = curTu.outputTokens + outputTokens
+            )
+            val updated = current.copy(
+                tokenUsage = newTu,
+                inputCost = (current.inputCost ?: 0.0) + inputCost,
+                outputCost = (current.outputCost ?: 0.0) + outputCost
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     /** Atomically bumps the per-pair icon-chain cost counters on the
      *  [resultId] row under [reportId]. No-op when the row is gone
      *  (user deleted the pair mid-chain) so a late-arriving tier
