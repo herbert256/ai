@@ -1344,7 +1344,11 @@ fun ReportsScreen(
             languageIconCallbacks = languageIconCallbacks,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
-            onChat = uiState.genericPromptText.takeIf { it.isNotBlank() }?.let { p -> { onChatWithReportPrompt(p) } },
+            continueChat = ContinueChatCallbacks(
+                onCurrent = onContinueWithCurrent,
+                onAgentPicker = onContinueWithAgentPicker,
+                onOnTheFly = onContinueWithOnTheFly,
+            ),
             onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
             onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
             onClose = { showIconDetail = false; targetLanguageIcon = false }
@@ -2767,6 +2771,10 @@ private fun ReportIconDetailScreen(
     aiSettings: Settings,
     iconPrompt: InternalPrompt,
     iconAgent: Agent,
+    /** Used by the in-screen "Continue in chat" picker to dispatch
+     *  to the parent's three continue handlers with the right
+     *  (reportId, agentId) pair. Null hides the chat icon. */
+    reportId: String?,
     promptText: String,
     icon: String?,
     errorMessage: String?,
@@ -2790,10 +2798,11 @@ private fun ReportIconDetailScreen(
      *  via [onNavigateToTraceFile]. */
     traceFile: String? = null,
     onNavigateToTraceFile: (String) -> Unit = { _ -> },
-    /** Optional 💬 chat handler. When non-null the title bar shows
-     *  the chat icon; tap opens a fresh chat seeded by the caller
-     *  (typically with the report's prompt text). */
-    onChat: (() -> Unit)? = null,
+    /** Bundle of the three "Continue in chat" callbacks. When
+     *  non-null the title bar shows the 💬 icon; tap opens an
+     *  inline [ContinueInChatPickerScreen] overlay; picking a row
+     *  fires the matching callback with (reportId, iconAgent.id). */
+    continueChat: ContinueChatCallbacks? = null,
     /** Optional ℹ️ Model Info handler. When non-null the title bar
      *  shows the info icon; tap navigates to Model Info for the
      *  (provider, model) that produced the displayed icon. */
@@ -2813,13 +2822,24 @@ private fun ReportIconDetailScreen(
     val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
     val running = icon == null && errorMessage == null
     val modelLabel = iconModel ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
+    var showContinuePicker by rememberSaveable { mutableStateOf(false) }
+    if (showContinuePicker && reportId != null && continueChat != null) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = { showContinuePicker = false; continueChat.onCurrent(reportId, iconAgent.id) },
+            onPickAgentPicker = { showContinuePicker = false; continueChat.onAgentPicker(reportId, iconAgent.id) },
+            onPickOnTheFly = { showContinuePicker = false; continueChat.onOnTheFly(reportId, iconAgent.id) },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = { showContinuePicker = false }
+        )
+        return
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_icon_detail",
             title = title,
             onBackClick = onBack,
             onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } },
-            onChat = onChat,
+            onChat = if (continueChat != null && reportId != null) ({ showContinuePicker = true }) else null,
             onInfo = onInfo
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -3959,7 +3979,7 @@ private fun RenderLanguageDetailOverlay(
     hasActiveFanOut: Boolean,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
-    onChat: (() -> Unit)?,
+    continueChat: ContinueChatCallbacks?,
     onFindAlternativeIcons: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -3999,6 +4019,7 @@ private fun RenderLanguageDetailOverlay(
             aiSettings = aiSettings,
             iconPrompt = languagePrompt,
             iconAgent = languageAgent,
+            reportId = reportId,
             promptText = promptText,
             icon = snapshot.icon,
             errorMessage = snapshot.error,
@@ -4008,7 +4029,7 @@ private fun RenderLanguageDetailOverlay(
             rawResponse = snapshot.rawResponse,
             traceFile = snapshot.traceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onChat = onChat,
+            continueChat = continueChat,
             onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
             onFindAlternativeIcons = onFindAlternativeIcons,
             hasActiveFanOut = hasActiveFanOut,
@@ -4016,6 +4037,16 @@ private fun RenderLanguageDetailOverlay(
         )
     }
 }
+
+/** Bundle of the three "Continue in chat" navigation callbacks
+ *  ReportsScreen already exposes individually. Bundled into one
+ *  slot so the icon detail screens can plumb them through their
+ *  helper chain without inflating per-method bytecode. */
+data class ContinueChatCallbacks(
+    val onCurrent: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+    val onAgentPicker: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+    val onOnTheFly: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+)
 
 /** Bundle of the four language-icon fan-out parameters — passed as
  *  one slot through to the icon routers so the per-method bytecode
@@ -4051,7 +4082,7 @@ private fun ReportIconOrLanguageDetailOverlay(
     languageIconCallbacks: LanguageIconCallbacks,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
-    onChat: (() -> Unit)?,
+    continueChat: ContinueChatCallbacks?,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
     onClose: () -> Unit,
@@ -4068,7 +4099,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             hasActiveFanOut = hasLangFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
-            onChat = onChat,
+            continueChat = continueChat,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
             onBack = onClose
         )
@@ -4091,6 +4122,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             aiSettings = aiSettings,
             iconPrompt = iconPrompt,
             iconAgent = iconAgent,
+            reportId = reportId,
             promptText = promptText,
             icon = reportIcon,
             errorMessage = reportIconError,
@@ -4098,7 +4130,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             iconModel = reportIconModel,
             traceFile = reportIconTraceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onChat = onChat,
+            continueChat = continueChat,
             onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             hasActiveFanOut = hasActiveFanOut,
