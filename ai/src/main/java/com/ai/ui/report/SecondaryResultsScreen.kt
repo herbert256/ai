@@ -2333,7 +2333,61 @@ internal fun SecondaryResultDetailScreen(
                 .minByOrNull { kotlin.math.abs(it.timestamp - result.timestamp) }?.filename
         }
     }
-    val traceFilename = traceFilenameState.value
+    val baseTraceFilename = traceFilenameState.value
+
+    // Load TRANSLATE secondaries for this report — drives the language
+    // icon picker for chat-type META rows (same UX as View → Prompt /
+    // Model response). When the user selects a non-original language
+    // the picker overlay swaps content, trace, copy/share onto the
+    // matching TRANSLATE row.
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), result.reportId) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, result.reportId, SecondaryKind.TRANSLATE)
+                .filter { !it.content.isNullOrBlank() }
+        }
+    }
+    val translates = translatesState.value
+    val langTabs = remember(translates) { buildLangTabs(translates) }
+    // Default the picker to the tab matching the result's own
+    // language so opening a French-seed META highlights "French"
+    // immediately rather than defaulting to Original (which would
+    // render "(no content)" for a seed-only meta).
+    var selectedLangKey by rememberSaveable(result.id) {
+        val target = result.targetLanguage
+        mutableStateOf(
+            if (target.isNullOrBlank()) LangTab.ORIGINAL_KEY
+            else target.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+        )
+    }
+    LaunchedEffect(langTabs) {
+        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    }
+    val activeLangName: String? = if (selectedLangKey == LangTab.ORIGINAL_KEY) null
+        else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName
+    // For META kinds: when the picked language differs from the
+    // result's own language, find the TRANSLATE row that targets this
+    // meta in the picked language. Non-META kinds (RERANK / MODERATION)
+    // have no language variants — pass-through.
+    val activeTranslateRow: SecondaryResult? = remember(translates, selectedLangKey, result.id, activeLangName) {
+        if (result.kind != SecondaryKind.META) null
+        else if (activeLangName == result.targetLanguage) null
+        else translates.firstOrNull {
+            it.translateSourceKind == "META" &&
+                it.translateSourceTargetId == result.id &&
+                it.targetLanguage == activeLangName
+        }
+    }
+    // For non-META and same-language tabs, show the result's own
+    // content. For a different-language META tab, show only the
+    // translation (null if none exists — caller renders a "(no
+    // translation)" placeholder rather than falling back to the
+    // foreign-language source).
+    val displayContent: String? = when {
+        result.kind != SecondaryKind.META -> result.content
+        activeLangName == result.targetLanguage -> result.content
+        else -> activeTranslateRow?.content
+    }
+    val traceFilename = activeTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: baseTraceFilename
 
     // Pull the parent report just for its emoji icon — the title bar
     // prepends it for parity with every other report-scoped screen.
@@ -2431,14 +2485,22 @@ internal fun SecondaryResultDetailScreen(
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
-            onCopy = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+            onCopy = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "secondary result") }
             },
-            onShare = result.content?.takeIf { it.isNotBlank() }?.let { body ->
+            onShare = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
             }
         )
         com.ai.ui.shared.HardcodedSubjectRow(title)
+        if (result.kind == SecondaryKind.META && langTabs.size > 1) {
+            LanguagePickerRow(
+                langTabs, selectedLangKey,
+                onSelect = { selectedLangKey = it },
+                useIcons = true,
+                originalIcon = parentReport?.languageIcon
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2454,25 +2516,28 @@ internal fun SecondaryResultDetailScreen(
                     Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
                     Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                 }
-                result.content.isNullOrBlank() -> {
-                    Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+                displayContent.isNullOrBlank() -> {
+                    val msg = if (result.kind == SecondaryKind.META && activeLangName != null && activeLangName != result.targetLanguage)
+                        "(no translation for this language yet)"
+                    else "(no content)"
+                    Text(msg, color = AppColors.TextTertiary, fontSize = 13.sp)
                 }
                 result.kind == SecondaryKind.RERANK -> {
                     // Try to parse the structured JSON the rerank flow
                     // produces (chat-prompt path or callRerankApi path).
                     // Fall back to raw markdown rendering if the model's
                     // output deviated from the requested schema.
-                    val rows = remember(result.content) { parseRerankRows(result.content) }
+                    val rows = remember(displayContent) { parseRerankRows(displayContent) }
                     if (rows == null) {
-                        ContentWithThinkSections(analysis = result.content)
+                        ContentWithThinkSections(analysis = displayContent)
                     } else {
                         RerankTable(rows = rows, agentLabels = agentLabels)
                     }
                 }
                 result.kind == SecondaryKind.MODERATION -> {
-                    val rows = remember(result.content) { parseModerationRows(result.content) }
+                    val rows = remember(displayContent) { parseModerationRows(displayContent) }
                     if (rows == null) {
-                        ContentWithThinkSections(analysis = result.content)
+                        ContentWithThinkSections(analysis = displayContent)
                     } else {
                         ModerationTable(
                             rows = rows,
@@ -2482,7 +2547,7 @@ internal fun SecondaryResultDetailScreen(
                     }
                 }
                 else -> {
-                    ContentWithThinkSections(analysis = result.content)
+                    ContentWithThinkSections(analysis = displayContent)
                 }
             }
         }
