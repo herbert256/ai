@@ -252,10 +252,32 @@ internal fun ViewAiReportScreen(
         TitleBar(
             helpTopic = "view_ai_report",
             title = "Report - view",
+            // Tap title → flip back to "Report - manage" (same as
+            // back). Pairs with onTitleClick on Report - manage so
+            // the two screens toggle from the title text.
+            onTitleClick = onBack,
             reportIcon = reportIcon,
             onBackClick = onBack
         )
-        HardcodedSubjectRow(promptTitle)
+        // Grid vs list mode — toggled by the icon on the right of the
+        // green subject row. The icon shown is always the OTHER
+        // mode's emblem (☰ in grid mode → switch to list; ⊞ in list
+        // mode → switch to grid). rememberSaveable so the mode
+        // sticks across navigation, not config-change-only.
+        var viewMode by rememberSaveable { mutableStateOf("grid") }
+        HardcodedSubjectRow(
+            text = promptTitle,
+            trailing = {
+                Text(
+                    text = if (viewMode == "grid") "☰" else "⊞",
+                    fontSize = 28.sp,
+                    color = AppColors.Blue,
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clickable { viewMode = if (viewMode == "grid") "list" else "grid" }
+                )
+            }
+        )
 
         // Body fills the remaining vertical space between the
         // green subject row and the bottom icons bar — without
@@ -283,29 +305,33 @@ internal fun ViewAiReportScreen(
                 val rankOf = savedOrder.withIndex().associate { it.value to it.index }
                 combinedTiles.sortedBy { rankOf[it.id] ?: Int.MAX_VALUE }
             }
-            ReorderableTileFlow(
-                items = sortedTiles,
-                onReorder = { fromId, toId ->
-                    val current = sortedTiles.map { it.id }.toMutableList()
-                    val fromIdx = current.indexOf(fromId)
-                    val toIdx = current.indexOf(toId)
-                    if (fromIdx >= 0 && toIdx >= 0 && fromIdx != toIdx) {
-                        current.removeAt(fromIdx)
-                        current.add(toIdx, fromId)
-                        // Patch persisted: replace current-visible
-                        // segment with the new local order, keep
-                        // any non-current ids (from other reports)
-                        // in their previous relative positions at
-                        // the tail.
-                        val currentSet = current.toSet()
-                        val newSaved = current + savedOrder.filter { it !in currentSet }
-                        savedOrder = newSaved
-                        tileOrderPrefs.edit()
-                            .putString("tile_order", newSaved.joinToString(","))
-                            .apply()
+            if (viewMode == "list") {
+                ListTileColumn(items = sortedTiles)
+            } else {
+                ReorderableTileFlow(
+                    items = sortedTiles,
+                    onReorder = { fromId, toId ->
+                        val current = sortedTiles.map { it.id }.toMutableList()
+                        val fromIdx = current.indexOf(fromId)
+                        val toIdx = current.indexOf(toId)
+                        if (fromIdx >= 0 && toIdx >= 0 && fromIdx != toIdx) {
+                            current.removeAt(fromIdx)
+                            current.add(toIdx, fromId)
+                            // Patch persisted: replace current-visible
+                            // segment with the new local order, keep
+                            // any non-current ids (from other reports)
+                            // in their previous relative positions at
+                            // the tail.
+                            val currentSet = current.toSet()
+                            val newSaved = current + savedOrder.filter { it !in currentSet }
+                            savedOrder = newSaved
+                            tileOrderPrefs.edit()
+                                .putString("tile_order", newSaved.joinToString(","))
+                                .apply()
+                        }
                     }
-                }
-            )
+                )
+            }
 
             // Inline expansion — full-width card listing each
             // item for the active non-meta computed kind (rerank /
@@ -466,6 +492,60 @@ private fun ReorderableTileFlow(
                             )
                         }
                 ) { TileCard(item.tile) }
+            }
+        }
+    }
+}
+
+/** Compact one-row-per-tile list view — the alternate rendering
+ *  toggled from the subject-row icon. Each row carries the tile's
+ *  accent as a coloured emoji on the left, label in the middle, the
+ *  count badge (when N≥2) and a chevron on the right; the whole row
+ *  is clickable and fires the same onClick the grid tile would. No
+ *  drag-reorder in list mode (reorder lives in grid mode only). */
+@Composable
+private fun ListTileColumn(items: List<IdentifiedTile>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            items.forEachIndexed { idx, item ->
+                if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                val tile = item.tile
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable(onClick = tile.onClick)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        tile.emoji, fontSize = 22.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Text(
+                        tile.label, color = Color.White, fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    if (tile.count >= 2) {
+                        Box(
+                            modifier = Modifier.padding(end = 8.dp)
+                                .size(22.dp).clip(CircleShape)
+                                .background(tile.accent.copy(alpha = 0.55f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                tile.count.toString(),
+                                color = Color.White, fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Text("›", color = AppColors.TextTertiary, fontSize = 18.sp)
+                }
             }
         }
     }
