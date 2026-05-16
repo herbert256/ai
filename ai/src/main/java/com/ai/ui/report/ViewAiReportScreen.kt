@@ -190,25 +190,44 @@ internal fun ViewAiReportScreen(
         buildLangTabs(translates, originalAlias = reportLanguageName)
     }
 
-    // Per-kind availability sets. "" = Original (always available;
-    // the source prompt / agent responses always exist). Other
-    // entries = displayName of every language with a non-blank
-    // PROMPT / AGENT TRANSLATE row. Drives gray-out of the Prompt
-    // and Reports tiles when the View screen's active language has
-    // no content for that tile (e.g. the user picked French but
-    // never translated the prompt).
-    val promptAvailableLangs = remember(translates) {
+    // Per-kind availability sets. "" = Original; included only when
+    // the underlying Original content actually exists (report.prompt
+    // non-blank for Prompt; at least one successful agent has a
+    // non-blank responseBody for Reports) OR when the user has back-
+    // translated to reportLanguageName (which folds into Original).
+    // While the Report is still loading we treat Original as
+    // available so the tile doesn't flash grayed during the cold
+    // produceState. Non-Original entries = displayName of every
+    // language with a non-blank TRANSLATE row, with reportLanguageName
+    // folded back into Original (no duplicate tab / availability).
+    val promptAvailableLangs = remember(translates, loadedReport, reportLanguageName) {
         buildSet {
-            add("")
+            val hasOriginalPrompt = loadedReport == null || loadedReport.prompt.isNotBlank()
+            val hasBackTranslatedPrompt = reportLanguageName != null && translates.any {
+                it.translateSourceKind == "PROMPT" && it.targetLanguage == reportLanguageName
+            }
+            if (hasOriginalPrompt || hasBackTranslatedPrompt) add("")
             translates.filter { it.translateSourceKind == "PROMPT" }
-                .mapNotNullTo(this) { it.targetLanguage?.takeIf { l -> l.isNotBlank() } }
+                .forEach { tr ->
+                    val lang = tr.targetLanguage?.takeIf { l -> l.isNotBlank() } ?: return@forEach
+                    if (lang != reportLanguageName) add(lang)
+                }
         }
     }
-    val reportsAvailableLangs = remember(translates) {
+    val reportsAvailableLangs = remember(translates, loadedReport, reportLanguageName) {
         buildSet {
-            add("")
+            val hasAnyAgentResponse = loadedReport == null || loadedReport.agents.any {
+                it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+            }
+            val hasBackTranslatedAgent = reportLanguageName != null && translates.any {
+                it.translateSourceKind == "AGENT" && it.targetLanguage == reportLanguageName
+            }
+            if (hasAnyAgentResponse || hasBackTranslatedAgent) add("")
             translates.filter { it.translateSourceKind == "AGENT" }
-                .mapNotNullTo(this) { it.targetLanguage?.takeIf { l -> l.isNotBlank() } }
+                .forEach { tr ->
+                    val lang = tr.targetLanguage?.takeIf { l -> l.isNotBlank() } ?: return@forEach
+                    if (lang != reportLanguageName) add(lang)
+                }
         }
     }
     var selectedViewLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
@@ -247,19 +266,25 @@ internal fun ViewAiReportScreen(
             icon = iconForLang(langName)
         )
 
-    // Open the popup for the Prompt tile. Source list = Original +
-    // each PROMPT TRANSLATE language with content; minus the active
-    // target language. Picking a source resolves sourceText and
-    // fires the dispatcher with one PROMPT item.
+    // Open the popup for the Prompt tile. Source list = every
+    // language where the prompt has content (Original if
+    // report.prompt is non-blank, else any PROMPT TRANSLATE
+    // language) minus the active target. When the user is on the
+    // Original tab we translate INTO reportLanguageName (back-
+    // translation); when on a non-Original tab we translate INTO
+    // that tab's language.
     fun openPromptMissing() {
         val target = currentLanguageState.value ?: ""
-        if (target.isEmpty()) return
-        val sourceLangs = promptAvailableLangs.filter { it != target }
+        val effectiveTarget = if (target.isEmpty()) {
+            reportLanguageName ?: return
+        } else target
+        val effectiveTargetNative = nativeNameForLang(effectiveTarget)
+        val sourceLangs = promptAvailableLangs.filter { it != effectiveTarget && (target.isNotEmpty() || it.isNotEmpty()) }
         val rep = loadedReport ?: return
         missingPopup = MissingPopupCtx(
             tileLabel = "Prompt",
-            targetLanguageName = target,
-            targetLanguageNative = nativeNameForLang(target),
+            targetLanguageName = effectiveTarget,
+            targetLanguageNative = effectiveTargetNative,
             sources = sourceLangs.map { sourceOption(it) },
             onPick = { src ->
                 val sourceText = if (src.isEmpty()) rep.prompt
@@ -276,27 +301,31 @@ internal fun ViewAiReportScreen(
                                 label = "Report prompt"
                             )
                         ),
-                        target,
-                        nativeNameForLang(target)
+                        effectiveTarget,
+                        effectiveTargetNative
                     )
                 }
             }
         )
     }
 
-    // Reports tile. Source list = Original + each AGENT TRANSLATE
-    // language. Picking a source produces one AGENT item per
-    // successful agent that has source content (Original = every
-    // agent; non-Original = only those with a matching TRANSLATE).
+    // Reports tile. Source list = every language where any agent
+    // has content (Original = original responseBody exists; else
+    // an AGENT TRANSLATE row exists). Picking a source produces
+    // one AGENT item per successful agent that has source content
+    // in that language; agents without it are skipped.
     fun openReportsMissing() {
         val target = currentLanguageState.value ?: ""
-        if (target.isEmpty()) return
-        val sourceLangs = reportsAvailableLangs.filter { it != target }
+        val effectiveTarget = if (target.isEmpty()) {
+            reportLanguageName ?: return
+        } else target
+        val effectiveTargetNative = nativeNameForLang(effectiveTarget)
+        val sourceLangs = reportsAvailableLangs.filter { it != effectiveTarget && (target.isNotEmpty() || it.isNotEmpty()) }
         val rep = loadedReport ?: return
         missingPopup = MissingPopupCtx(
             tileLabel = "Reports",
-            targetLanguageName = target,
-            targetLanguageNative = nativeNameForLang(target),
+            targetLanguageName = effectiveTarget,
+            targetLanguageNative = effectiveTargetNative,
             sources = sourceLangs.map { sourceOption(it) },
             onPick = { src ->
                 val items = rep.agents.mapNotNull { agent ->
@@ -317,7 +346,7 @@ internal fun ViewAiReportScreen(
                     )
                 }
                 if (items.isNotEmpty()) {
-                    onTranslateMissingItems(items, target, nativeNameForLang(target))
+                    onTranslateMissingItems(items, effectiveTarget, effectiveTargetNative)
                 }
             }
         )
