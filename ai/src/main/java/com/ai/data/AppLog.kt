@@ -88,6 +88,14 @@ object AppLog {
 
     @Volatile private var cachedFiles: List<AppLogFileInfo>? = null
 
+    @Volatile private var appContext: Context? = null
+    private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+    // Debounce so a burst of WARN/ERROR lines (e.g. fan-out icon retries
+    // spraying dozens in a second) doesn't queue a wall of toasts the
+    // user can't dismiss.
+    @Volatile private var lastToastMs: Long = 0L
+    private const val TOAST_MIN_INTERVAL_MS: Long = 1500L
+
     /** Last exception message seen by [appendLine]'s catch block, or
      *  null when the file appender is healthy. Surfaced by the
      *  Application log viewer in the empty-state branch so a user
@@ -105,6 +113,7 @@ object AppLog {
         private set
 
     fun init(context: Context) = lock.withLock {
+        appContext = context.applicationContext
         logDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
         // Apply the persisted threshold immediately so DEBUG/TRACE
         // calls inside bootstrap() are admitted on cold start instead
@@ -141,17 +150,44 @@ object AppLog {
 
     fun w(tag: String, msg: String, t: Throwable? = null) {
         android.util.Log.w(tag, msg, t)
-        if (threshold.priority <= LogLevel.WARN.priority) appendLine(LogLevel.WARN, tag, msg, t)
+        if (threshold.priority <= LogLevel.WARN.priority) {
+            appendLine(LogLevel.WARN, tag, msg, t)
+            maybeShowToast(LogLevel.WARN, tag, msg)
+        }
     }
 
     fun w(tag: String, t: Throwable) {
         android.util.Log.w(tag, t)
-        if (threshold.priority <= LogLevel.WARN.priority) appendLine(LogLevel.WARN, tag, t.message ?: t.javaClass.simpleName, t)
+        if (threshold.priority <= LogLevel.WARN.priority) {
+            val msg = t.message ?: t.javaClass.simpleName
+            appendLine(LogLevel.WARN, tag, msg, t)
+            maybeShowToast(LogLevel.WARN, tag, msg)
+        }
     }
 
     fun e(tag: String, msg: String, t: Throwable? = null) {
         android.util.Log.e(tag, msg, t)
-        if (threshold.priority <= LogLevel.ERROR.priority) appendLine(LogLevel.ERROR, tag, msg, t)
+        if (threshold.priority <= LogLevel.ERROR.priority) {
+            appendLine(LogLevel.ERROR, tag, msg, t)
+            maybeShowToast(LogLevel.ERROR, tag, msg)
+        }
+    }
+
+    /** Post a short Toast on the main thread so the user notices a
+     *  WARN/ERROR happened without having to open the App Log Viewer.
+     *  Coalesces bursts via [TOAST_MIN_INTERVAL_MS]. */
+    private fun maybeShowToast(level: LogLevel, tag: String, msg: String) {
+        val ctx = appContext ?: return
+        val now = System.currentTimeMillis()
+        if (now - lastToastMs < TOAST_MIN_INTERVAL_MS) return
+        lastToastMs = now
+        val safe = redactSecret(msg).take(140)
+        val text = "${level.name} $tag: $safe"
+        mainHandler.post {
+            try {
+                android.widget.Toast.makeText(ctx, text, android.widget.Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {}
+        }
     }
 
     // ===== File management =====
