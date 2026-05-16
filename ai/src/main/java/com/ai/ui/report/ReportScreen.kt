@@ -256,38 +256,22 @@ fun ReportsScreenNav(
         onNavigateHome()
     }
 
-    // Language icon overlay state lives at the Nav scope so that
-    // adding the picker + alt-icons rendering doesn't push the
-    // ReportsScreen Composable past the JVM 64 KB per-method
-    // bytecode ceiling. ReportsScreen only exposes a single
-    // onOpenLanguageDetail callback.
+    // Language icon fan-out callbacks bundled into one ReportsScreen
+    // arg so the per-method bytecode budget stays under the JVM
+    // 64 KB ceiling. The actual overlay rendering happens inline in
+    // ReportsScreen via the existing icon routers (which now branch
+    // on targetLanguageIcon = true to route to the language flow).
     val languageIconFanOutByReport by viewModel.languageIconFanOutByReport.collectAsState()
-    var showLanguageDetail by rememberSaveable { mutableStateOf(false) }
-    var showLanguagePicker by rememberSaveable { mutableStateOf(false) }
-    var showLanguageAltIcons by rememberSaveable { mutableStateOf(false) }
-    var languagePickerModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
-    val currentReportIdNav = uiState.currentReportId
-    if (currentReportIdNav != null && (showLanguageDetail || showLanguagePicker || showLanguageAltIcons)) {
-        LanguageOverlayHost(
-            reportId = currentReportIdNav,
-            aiSettings = aiSettings,
-            promptText = uiState.genericPromptText,
-            iconRefreshTick = uiState.iconRefreshTick,
-            languageIconFanOutByReport = languageIconFanOutByReport,
-            reportViewModel = reportViewModel,
-            context = context,
-            showDetail = showLanguageDetail,
-            showPicker = showLanguagePicker,
-            showAltIcons = showLanguageAltIcons,
-            pickerModels = languagePickerModels,
-            setShowDetail = { showLanguageDetail = it },
-            setShowPicker = { showLanguagePicker = it },
-            setShowAltIcons = { showLanguageAltIcons = it },
-            setPickerModels = { languagePickerModels = it },
-            onNavigateHome = handleNavigateHome,
-        )
-        return
-    }
+    val languageIconCallbacks = LanguageIconCallbacks(
+        fanOutByReport = languageIconFanOutByReport,
+        onStartFanOut = { rid, prompt, models ->
+            reportViewModel.startLanguageIconFanOut(context, rid, prompt, models, aiSettings)
+        },
+        onPickAlternative = { rid, emoji, iconModel ->
+            reportViewModel.pickAlternativeLanguageIcon(context, rid, emoji, iconModel)
+        },
+        onRestartFanOut = { rid -> reportViewModel.restartLanguageIconFanOut(rid) },
+    )
 
     ReportsScreen(
         uiState = uiState,
@@ -310,7 +294,7 @@ fun ReportsScreenNav(
             reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
         },
         onRestartIconFanOut = { rid -> reportViewModel.restartIconFanOut(rid) },
-        onOpenLanguageDetail = { showLanguageDetail = true },
+        languageIconCallbacks = languageIconCallbacks,
         onStartAgentIconFanOut = { rid, agentId, models ->
             reportViewModel.startAgentIconFanOut(context, rid, agentId, models, aiSettings)
         },
@@ -648,12 +632,13 @@ fun ReportsScreen(
      *  wants to start over. Costs already bumped on the Report by
      *  completed calls stay; they accumulate by design. */
     onRestartIconFanOut: (reportId: String) -> Unit = { _ -> },
-    /** Fired when the language row's icon is tapped. Routed by
-     *  [ReportsScreenNav] to flip its own showLanguageDetail flag —
-     *  the detail / picker / alt-icons rendering all live at Nav
-     *  scope so ReportsScreen's bytecode stays under the JVM 64 KB
-     *  per-method ceiling. */
-    onOpenLanguageDetail: () -> Unit = {},
+    /** Bundle of the four language-icon fan-out parameters — passed
+     *  as one slot so ReportsScreen's parameter list stays narrow.
+     *  The inline showIconDetail / showFindIconsPicker /
+     *  showAlternativeIcons overlays multiplex onto the language
+     *  flow when [targetLanguageIcon] is true; the routers know how
+     *  to dispatch via this bundle. */
+    languageIconCallbacks: LanguageIconCallbacks = LanguageIconCallbacks(),
     /** Per-agent counterparts of the three icon-fan-out callbacks.
      *  Same shape but routed to [ReportViewModel.startAgentIconFanOut]
      *  /pickAgentIcon/restartAgentIconFanOut, which target a single
@@ -1100,6 +1085,11 @@ fun ReportsScreen(
     var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
+    // Multiplex flag: when true, the showIconDetail / showFindIconsPicker
+    // / showAlternativeIcons overlays render the language flow
+    // instead of the report-icon flow. Reset on every close path so
+    // a subsequent tap on the report icon opens its own flow again.
+    var targetLanguageIcon by rememberSaveable { mutableStateOf(false) }
     // ── Internal-prompt icon flow. When non-null, the user tapped
     // the cached emoji that replaces ✅ on a successful secondary
     // row and is now drilled into the Meta-icon detail screen.
@@ -1666,16 +1656,18 @@ fun ReportsScreen(
     // below so the ReportsScreen Composable stays within the JVM
     // 64 KB per-method bytecode limit.
     if (showAlternativeIcons && currentReportId != null) {
-        AlternativeIconsRouter(
+        AlternativeIconsOverlayHost(
             reportId = currentReportId,
-            targetLanguage = translationIconLanguageFor,
-            targetPromptId = promptIconDetailForId,
-            targetAgentId = fanOutTargetAgentId,
-            internalPrompts = aiSettings.internalPrompts,
+            aiSettings = aiSettings,
+            translationIconLanguageFor = translationIconLanguageFor,
+            promptIconDetailForId = promptIconDetailForId,
+            fanOutTargetAgentId = fanOutTargetAgentId,
+            targetLanguageIcon = targetLanguageIcon,
             internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
             agentIconFanOutByAgent = agentIconFanOutByAgent,
             iconFanOutByReport = iconFanOutByReport,
             translationIconCallbacks = translationIconCallbacks,
+            languageIconCallbacks = languageIconCallbacks,
             onPickInternalPromptIcon = promptIconCallbacks.onPick,
             onPickAgentIcon = onPickAgentIcon,
             onPickAlternativeIcon = onPickAlternativeIcon,
@@ -1691,6 +1683,7 @@ fun ReportsScreen(
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
                 translationIconLanguageFor = null
+                targetLanguageIcon = false
             },
             onRestartReopenPicker = {
                 findIconsModels = emptyList()
@@ -1713,6 +1706,7 @@ fun ReportsScreen(
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
                 translationIconLanguageFor = null
+                targetLanguageIcon = false
             }
         ) {
             FindIconsPickerRouter(
@@ -1720,11 +1714,13 @@ fun ReportsScreen(
                 targetLanguage = translationIconLanguageFor,
                 targetPromptId = promptIconDetailForId,
                 targetAgentId = fanOutTargetAgentId,
+                targetLanguageIcon = targetLanguageIcon,
                 internalPrompts = aiSettings.internalPrompts,
                 aiSettings = aiSettings,
                 models = findIconsModels,
                 genericPromptText = uiState.genericPromptText,
                 translationIconCallbacks = translationIconCallbacks,
+                languageIconCallbacks = languageIconCallbacks,
                 onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
                 onStartAgentIconFanOut = onStartAgentIconFanOut,
                 onStartIconFanOut = onStartIconFanOut,
@@ -1750,42 +1746,26 @@ fun ReportsScreen(
         return
     }
     if (showIconDetail && currentReportId != null) {
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "icon"
-        }
-        val iconAgent = iconPrompt?.let { p ->
-            aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
-        }
-        if (iconPrompt != null && iconAgent != null) {
-            val rid = currentReportId
-            val hasActiveFanOut = iconFanOutByReport[rid].orEmpty().isNotEmpty()
-            CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showIconDetail = false }) {
-                ReportIconDetailScreen(
-                    aiSettings = aiSettings,
-                    iconPrompt = iconPrompt,
-                    iconAgent = iconAgent,
-                    promptText = uiState.genericPromptText,
-                    icon = reportIcon,
-                    errorMessage = reportIconError,
-                    cost = reportIconCost,
-                    iconModel = reportIconModel,
-                    onFindAlternativeIcons = {
-                        // When there's already an in-flight or finished
-                        // fan-out for this report, the button skips the
-                        // picker and jumps straight to the live list.
-                        if (hasActiveFanOut) {
-                            showAlternativeIcons = true
-                        } else {
-                            showFindIconsPicker = true
-                        }
-                    },
-                    hasActiveFanOut = hasActiveFanOut,
-                    onBack = { showIconDetail = false }
-                )
-            }
-            return
-        }
-        // Icon prompt / agent missing — nothing to show. Fall through.
+        val rid = currentReportId
+        val handled = ReportIconOrLanguageDetailOverlay(
+            reportId = rid,
+            aiSettings = aiSettings,
+            promptText = uiState.genericPromptText,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            iconRefreshTick = uiState.iconRefreshTick,
+            targetLanguageIcon = targetLanguageIcon,
+            reportIcon = reportIcon,
+            reportIconError = reportIconError,
+            reportIconCost = reportIconCost,
+            reportIconModel = reportIconModel,
+            iconFanOutByReport = iconFanOutByReport,
+            languageIconCallbacks = languageIconCallbacks,
+            onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
+            onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
+            onClose = { showIconDetail = false; targetLanguageIcon = false }
+        )
+        if (handled) return
         showIconDetail = false
     }
 
@@ -1794,70 +1774,28 @@ fun ReportsScreen(
     // ReportIconDetailScreen but data is per-agent (the agent's own
     // (provider, model) ran the call, and the icon-prompt's @PROMPT@
     // was the agent's responseBody, not the report's prompt).
-    agentIconDetailFor?.let { agentId ->
-        val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon_chat"
-        }
-        val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon"
-        }
-        val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon_3th"
-        }
-        val agent = agentRecordsByAgentId[agentId]
-        val provider = agent?.let { AppService.findById(it.provider) }
-        if (agent != null && provider != null) {
-            val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
-            val agentIconTraceFilename = rememberAgentIconTrace(
-                reportId = currentReportId,
-                agentModel = agent.model,
-                iconKey = agent.icon,
-                winningTier = agent.iconWinningTier
-            )
-            CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-                LocalNavigateToCurrentReport provides {
-                    agentIconDetailFor = null
-                    fanOutTargetAgentId = null
-                }
-            ) {
-                AgentIconDetailScreen(
-                    chatPrompt = chatPrompt,
-                    tier2Prompt = tier2Prompt,
-                    tier3Prompt = tier3Prompt,
-                    agentProvider = provider,
-                    agentModel = agent.model,
-                    reportPrompt = loadedReportPrompt,
-                    agentResponse = agent.responseBody.orEmpty(),
-                    icon = agent.icon,
-                    errorMessage = agent.iconErrorMessage,
-                    cost = agent.iconInputCost + agent.iconOutputCost,
-                    winningTier = agent.iconWinningTier,
-                    onFindAlternativeIcons = {
-                        fanOutTargetAgentId = agentId
-                        // Same hand-off pattern as the report-level button:
-                        // when a fan-out already exists for this target,
-                        // skip the picker and go straight to the live list.
-                        if (hasActiveAgentFanOut) {
-                            showAlternativeIcons = true
-                        } else {
-                            showFindIconsPicker = true
-                        }
-                    },
-                    hasActiveFanOut = hasActiveAgentFanOut,
-                    traceFilename = agentIconTraceFilename,
-                    onNavigateToTraceFile = onNavigateToTraceFile,
-                    onBack = {
-                        agentIconDetailFor = null
-                        fanOutTargetAgentId = null
-                    }
-                )
+    if (agentIconDetailFor != null) {
+        val handled = AgentIconDetailOverlay(
+            agentId = agentIconDetailFor!!,
+            aiSettings = aiSettings,
+            currentReportId = currentReportId,
+            loadedReportPrompt = loadedReportPrompt,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            agentRecordsByAgentId = agentRecordsByAgentId,
+            agentIconFanOutByAgent = agentIconFanOutByAgent,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onFindAlternativeIcons = { hasActiveAgentFanOut ->
+                fanOutTargetAgentId = agentIconDetailFor
+                if (hasActiveAgentFanOut) showAlternativeIcons = true
+                else showFindIconsPicker = true
+            },
+            onClose = {
+                agentIconDetailFor = null
+                fanOutTargetAgentId = null
             }
-            return
-        }
-        // Missing icon prompt / unknown agent / mirror not yet
-        // hydrated — drop the overlay and fall through so we don't
-        // sit on a blank screen.
+        )
+        if (handled) return
         agentIconDetailFor = null
     }
 
@@ -2759,7 +2697,7 @@ fun ReportsScreen(
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
                 onOpenIconDetail = { showIconDetail = true },
-                onOpenLanguageDetail = onOpenLanguageDetail,
+                onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 onPrevReport = onPrevReport,
                 onNextReport = onNextReport,
@@ -3128,11 +3066,13 @@ private fun FindIconsPickerRouter(
     targetLanguage: String?,
     targetPromptId: String?,
     targetAgentId: String?,
+    targetLanguageIcon: Boolean,
     internalPrompts: List<com.ai.model.InternalPrompt>,
     aiSettings: Settings,
     models: List<ReportModel>,
     genericPromptText: String,
     translationIconCallbacks: TranslationIconCallbacks,
+    languageIconCallbacks: LanguageIconCallbacks,
     onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit,
     onStartAgentIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartIconFanOut: (String, String, List<ReportModel>) -> Unit,
@@ -3161,6 +3101,7 @@ private fun FindIconsPickerRouter(
         onClearAll = onClearAll,
         onAction = {
             when {
+                targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models)
                 targetAgentId != null -> onStartAgentIconFanOut(reportId, targetAgentId, models)
@@ -3184,11 +3125,13 @@ private fun AlternativeIconsRouter(
     targetLanguage: String?,
     targetPromptId: String?,
     targetAgentId: String?,
+    targetLanguageIcon: Boolean,
     internalPrompts: List<com.ai.model.InternalPrompt>,
     internalPromptIconFanOutByPrompt: Map<String, List<IconCandidate>>,
     agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     translationIconCallbacks: TranslationIconCallbacks,
+    languageIconCallbacks: LanguageIconCallbacks,
     onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
     onPickAgentIcon: (String, String, String) -> Unit,
     onPickAlternativeIcon: (String, String, String) -> Unit,
@@ -3206,6 +3149,7 @@ private fun AlternativeIconsRouter(
     val promptKey = targetPrompt?.let { it.name + "" + it.title }
     val translationKey = targetLanguage?.let { "translation_icon" + "" + it }
     val candidates = when {
+        targetLanguageIcon -> languageIconCallbacks.fanOutByReport[reportId].orEmpty()
         translationKey != null -> internalPromptIconFanOutByPrompt[translationKey].orEmpty()
         promptKey != null -> internalPromptIconFanOutByPrompt[promptKey].orEmpty()
         targetAgentId != null -> agentIconFanOutByAgent[targetAgentId].orEmpty()
@@ -3216,6 +3160,7 @@ private fun AlternativeIconsRouter(
         candidates = candidates,
         onPickIcon = { emoji, iconModel ->
             when {
+                targetLanguageIcon -> languageIconCallbacks.onPickAlternative(reportId, emoji, iconModel)
                 targetLanguage != null -> {
                     val cand = candidates.filterIsInstance<IconCandidate.Done>()
                         .firstOrNull { "${it.provider.id}/${it.model}" == iconModel }
@@ -3233,6 +3178,7 @@ private fun AlternativeIconsRouter(
         },
         onRestart = {
             when {
+                targetLanguageIcon -> languageIconCallbacks.onRestartFanOut(reportId)
                 targetLanguage != null -> translationIconCallbacks.onRestartFanOut(targetLanguage)
                 targetPrompt != null -> onRestartInternalPromptIconFanOut(targetPrompt)
                 targetAgentId != null -> onRestartAgentIconFanOut(reportId, targetAgentId)
@@ -3243,6 +3189,70 @@ private fun AlternativeIconsRouter(
         onNavigateToTraceFile = onNavigateToTraceFile,
         onBack = onClose
     )
+}
+
+/** Helper composable for the per-agent icon detail overlay —
+ *  extracted out of `ReportsScreen` so the parent's body stays
+ *  under the JVM 64 KB per-method bytecode limit. Returns true when
+ *  the overlay rendered, false when the agent / its provider didn't
+ *  resolve and the caller should drop the state. */
+@Composable
+private fun AgentIconDetailOverlay(
+    agentId: String,
+    aiSettings: com.ai.model.Settings,
+    currentReportId: String?,
+    loadedReportPrompt: String,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
+    agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
+    onNavigateToTraceFile: (String) -> Unit,
+    onFindAlternativeIcons: (Boolean) -> Unit,
+    onClose: () -> Unit,
+): Boolean {
+    val chatPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "report_icon_chat"
+    }
+    val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "report_icon"
+    }
+    val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "report_icon_3th"
+    }
+    val agent = agentRecordsByAgentId[agentId] ?: return false
+    val provider = AppService.findById(agent.provider) ?: return false
+    val hasActiveAgentFanOut = agentIconFanOutByAgent[agentId].orEmpty().isNotEmpty()
+    val agentIconTraceFilename = rememberAgentIconTrace(
+        reportId = currentReportId,
+        agentModel = agent.model,
+        iconKey = agent.icon,
+        winningTier = agent.iconWinningTier
+    )
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides onClose
+    ) {
+        AgentIconDetailScreen(
+            chatPrompt = chatPrompt,
+            tier2Prompt = tier2Prompt,
+            tier3Prompt = tier3Prompt,
+            agentProvider = provider,
+            agentModel = agent.model,
+            reportPrompt = loadedReportPrompt,
+            agentResponse = agent.responseBody.orEmpty(),
+            icon = agent.icon,
+            errorMessage = agent.iconErrorMessage,
+            cost = agent.iconInputCost + agent.iconOutputCost,
+            winningTier = agent.iconWinningTier,
+            onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
+            hasActiveFanOut = hasActiveAgentFanOut,
+            traceFilename = agentIconTraceFilename,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onBack = onClose
+        )
+    }
+    return true
 }
 
 /** Helper composable for the per-Internal-Prompt Meta-icon
@@ -3924,137 +3934,133 @@ private fun RenderLanguageDetailOverlay(
     }
 }
 
-/** Top-level host for the language-icon detail / picker / alt-icons
- *  flow. Lives at the [ReportsScreenNav] scope so adding these three
- *  overlays doesn't push the inner [ReportsScreen] Composable past
- *  the JVM 64 KB per-method bytecode ceiling. Renders one of the
- *  three modes (precedence: alt-icons > picker > detail). When none
- *  active, the caller renders the regular ReportsScreen instead. */
+/** Bundle of the four language-icon fan-out parameters — passed as
+ *  one slot through to the icon routers so the per-method bytecode
+ *  of ReportsScreen stays under the JVM 64 KB ceiling. */
+data class LanguageIconCallbacks(
+    val fanOutByReport: Map<String, List<IconCandidate>> = emptyMap(),
+    val onStartFanOut: (reportId: String, promptText: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    val onPickAlternative: (reportId: String, emoji: String, iconModel: String) -> Unit = { _, _, _ -> },
+    val onRestartFanOut: (reportId: String) -> Unit = { _ -> },
+)
+
+/** Bytecode-saving wrapper for the two icon-detail variants the
+ *  parent ReportsScreen multiplexes between via [targetLanguageIcon].
+ *  Returns true if it rendered (caller early-returns); false when
+ *  the report-icon prompt / agent isn't configured (caller should
+ *  drop showIconDetail). Extracted from ReportsScreen so the
+ *  parent's per-method bytecode stays under the JVM 64 KB ceiling. */
 @Composable
-private fun LanguageOverlayHost(
+private fun ReportIconOrLanguageDetailOverlay(
     reportId: String,
     aiSettings: com.ai.model.Settings,
     promptText: String,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
     iconRefreshTick: Int,
-    languageIconFanOutByReport: Map<String, List<IconCandidate>>,
-    reportViewModel: com.ai.viewmodel.ReportViewModel,
-    context: Context,
-    showDetail: Boolean,
-    showPicker: Boolean,
-    showAltIcons: Boolean,
-    pickerModels: List<ReportModel>,
-    setShowDetail: (Boolean) -> Unit,
-    setShowPicker: (Boolean) -> Unit,
-    setShowAltIcons: (Boolean) -> Unit,
-    setPickerModels: (List<ReportModel>) -> Unit,
-    onNavigateHome: () -> Unit,
-) {
-    // Disk-load just the icon + title so the overlays' top bars
-    // pick up the report's emoji like the inline overlays do.
-    data class HeaderSnap(val icon: String?, val title: String?)
-    val header = produceState(initialValue = HeaderSnap(null, null), reportId, iconRefreshTick) {
-        value = withContext(Dispatchers.IO) {
-            val r = com.ai.data.ReportStorage.getReport(context, reportId)
-            HeaderSnap(r?.icon?.takeIf { it.isNotBlank() } ?: "📝", r?.title)
-        }
-    }.value
-    val candidates = languageIconFanOutByReport[reportId].orEmpty()
-    val hasFanOut = candidates.isNotEmpty()
-    val closeAll = {
-        setShowDetail(false)
-        setShowPicker(false)
-        setShowAltIcons(false)
-    }
-    if (showAltIcons) {
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides header.icon,
-            com.ai.ui.shared.LocalReportTitle provides header.title,
-            LocalNavigateToCurrentReport provides { setShowAltIcons(false) }
-        ) {
-            AlternativeIconsScreen(
-                reportId = reportId,
-                candidates = candidates,
-                onPickIcon = { emoji, iconModel ->
-                    reportViewModel.pickAlternativeLanguageIcon(context, reportId, emoji, iconModel)
-                    closeAll()
-                },
-                onRestart = {
-                    reportViewModel.restartLanguageIconFanOut(reportId)
-                    setPickerModels(emptyList())
-                    setShowAltIcons(false)
-                    setShowPicker(true)
-                },
-                onNavigateToTraceFile = { /* trace nav not wired here */ },
-                onBack = { setShowAltIcons(false) }
-            )
-        }
-        return
-    }
-    if (showPicker) {
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides header.icon,
-            com.ai.ui.shared.LocalReportTitle provides header.title,
-            LocalNavigateToCurrentReport provides { closeAll() }
-        ) {
-            // Pre-seed the picker with the report's own agents'
-            // models on first open — the user can run alt-icons on
-            // those right away without an Add-Agent dialog (which
-            // would need state from inside ReportsScreen). The user
-            // can still clear and re-pick if they want a different
-            // set.
-            LaunchedEffect(reportId) {
-                if (pickerModels.isEmpty()) {
-                    val r = withContext(Dispatchers.IO) {
-                        com.ai.data.ReportStorage.getReport(context, reportId)
-                    }
-                    val seeded = r?.agents.orEmpty().mapNotNull { a ->
-                        val prov = com.ai.data.AppService.findById(a.provider) ?: return@mapNotNull null
-                        toReportModel(prov, a.model)
-                    }.distinctBy { "${it.provider.id}:${it.model}" }
-                    if (seeded.isNotEmpty()) setPickerModels(seeded)
-                }
-            }
-            ModelSelectionScreen(
-                models = pickerModels,
-                aiSettings = aiSettings,
-                onAddAgent = {},
-                onAddFlock = {},
-                onAddSwarm = {},
-                onAddFromReport = {},
-                onAddAllModels = {},
-                onRemoveModel = { idx ->
-                    setPickerModels(pickerModels.toMutableList().apply { removeAt(idx) })
-                },
-                onClearAll = { setPickerModels(emptyList()) },
-                onAction = {
-                    if (pickerModels.isNotEmpty()) {
-                        reportViewModel.startLanguageIconFanOut(context, reportId, promptText, pickerModels, aiSettings)
-                        setPickerModels(emptyList())
-                        setShowPicker(false)
-                        setShowAltIcons(true)
-                    }
-                },
-                onBack = { setShowPicker(false) },
-                title = "Find language icons"
-            )
-        }
-        return
-    }
-    if (showDetail) {
+    targetLanguageIcon: Boolean,
+    reportIcon: String?,
+    reportIconError: String?,
+    reportIconCost: Double,
+    reportIconModel: String?,
+    iconFanOutByReport: Map<String, List<IconCandidate>>,
+    languageIconCallbacks: LanguageIconCallbacks,
+    onOpenPicker: () -> Unit,
+    onOpenAltIcons: () -> Unit,
+    onClose: () -> Unit,
+): Boolean {
+    if (targetLanguageIcon) {
+        val hasLangFanOut = languageIconCallbacks.fanOutByReport[reportId].orEmpty().isNotEmpty()
         RenderLanguageDetailOverlay(
             reportId = reportId,
             aiSettings = aiSettings,
             promptText = promptText,
-            effectiveReportIcon = header.icon,
-            loadedReportTitle = header.title,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
             iconRefreshTick = iconRefreshTick,
-            hasActiveFanOut = hasFanOut,
-            onFindAlternativeIcons = {
-                setShowDetail(false)
-                if (hasFanOut) setShowAltIcons(true) else setShowPicker(true)
-            },
-            onBack = { setShowDetail(false) }
+            hasActiveFanOut = hasLangFanOut,
+            onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
+            onBack = onClose
         )
-        return
+        return true
     }
+    val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "icon"
+    } ?: return false
+    val iconAgent = aiSettings.agents.firstOrNull {
+        it.name.equals(iconPrompt.agent, ignoreCase = true)
+    } ?: return false
+    val hasActiveFanOut = iconFanOutByReport[reportId].orEmpty().isNotEmpty()
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides onClose
+    ) {
+        ReportIconDetailScreen(
+            aiSettings = aiSettings,
+            iconPrompt = iconPrompt,
+            iconAgent = iconAgent,
+            promptText = promptText,
+            icon = reportIcon,
+            errorMessage = reportIconError,
+            cost = reportIconCost,
+            iconModel = reportIconModel,
+            onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
+            hasActiveFanOut = hasActiveFanOut,
+            onBack = onClose
+        )
+    }
+    return true
+}
+
+/** Thin wrapper around [AlternativeIconsRouter] — extracted from
+ *  [ReportsScreen] so the parent's per-method bytecode stays under
+ *  the JVM 64 KB ceiling. Pure plumbing, no extra logic. */
+@Composable
+private fun AlternativeIconsOverlayHost(
+    reportId: String,
+    aiSettings: com.ai.model.Settings,
+    translationIconLanguageFor: String?,
+    promptIconDetailForId: String?,
+    fanOutTargetAgentId: String?,
+    targetLanguageIcon: Boolean,
+    internalPromptIconFanOutByPrompt: Map<String, List<IconCandidate>>,
+    agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
+    iconFanOutByReport: Map<String, List<IconCandidate>>,
+    translationIconCallbacks: TranslationIconCallbacks,
+    languageIconCallbacks: LanguageIconCallbacks,
+    onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
+    onPickAgentIcon: (String, String, String) -> Unit,
+    onPickAlternativeIcon: (String, String, String) -> Unit,
+    onRestartInternalPromptIconFanOut: (com.ai.model.InternalPrompt) -> Unit,
+    onRestartAgentIconFanOut: (String, String) -> Unit,
+    onRestartIconFanOut: (String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onCloseAll: () -> Unit,
+    onRestartReopenPicker: () -> Unit,
+    onClose: () -> Unit,
+) {
+    AlternativeIconsRouter(
+        reportId = reportId,
+        targetLanguage = translationIconLanguageFor,
+        targetPromptId = promptIconDetailForId,
+        targetAgentId = fanOutTargetAgentId,
+        targetLanguageIcon = targetLanguageIcon,
+        internalPrompts = aiSettings.internalPrompts,
+        internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
+        agentIconFanOutByAgent = agentIconFanOutByAgent,
+        iconFanOutByReport = iconFanOutByReport,
+        translationIconCallbacks = translationIconCallbacks,
+        languageIconCallbacks = languageIconCallbacks,
+        onPickInternalPromptIcon = onPickInternalPromptIcon,
+        onPickAgentIcon = onPickAgentIcon,
+        onPickAlternativeIcon = onPickAlternativeIcon,
+        onRestartInternalPromptIconFanOut = onRestartInternalPromptIconFanOut,
+        onRestartAgentIconFanOut = onRestartAgentIconFanOut,
+        onRestartIconFanOut = onRestartIconFanOut,
+        onNavigateToTraceFile = onNavigateToTraceFile,
+        onCloseAll = onCloseAll,
+        onRestartReopenPicker = onRestartReopenPicker,
+        onClose = onClose,
+    )
 }
