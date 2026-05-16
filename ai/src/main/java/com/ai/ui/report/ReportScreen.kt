@@ -1956,7 +1956,16 @@ fun ReportsScreen(
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
             onConfirm = { pick ->
                 onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                // Clear the WHOLE meta-creation stack — picker + scope —
+                // so the user lands back on the report once the run
+                // kicks off. Without clearing `secondaryScopeMetaPrompt`
+                // the scope-screen guard re-fires on recompose and the
+                // user gets bounced back to Scope (the layered state
+                // that makes Android back unwind step-by-step also has
+                // to be torn down on the forward commit path). Mirrors
+                // the fan-out commit handler.
                 secondaryPickerMetaPrompt = null
+                secondaryScopeMetaPrompt = null
                 pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                 pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             },
