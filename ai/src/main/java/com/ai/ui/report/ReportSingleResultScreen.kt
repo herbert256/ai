@@ -51,6 +51,12 @@ fun ReportSingleResultScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
+    /** Delete a specific SecondaryResult by id — used by the
+     *  multi-language delete popup's "Active language only" path to
+     *  drop just the active-language AGENT TRANSLATE row while
+     *  keeping the agent and its other translations. Default no-op
+     *  so legacy callers still work for the "All languages" path. */
+    onDeleteRowById: (String) -> Unit = { _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
     /** Pre-seed a fresh chat session with the report prompt + this
      *  agent's response and the agent's resolved system prompt /
@@ -209,6 +215,7 @@ fun ReportSingleResultScreen(
     }
 
     var confirmRemove by remember { mutableStateOf(false) }
+    var confirmLangChoice by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
@@ -229,7 +236,15 @@ fun ReportSingleResultScreen(
             subject = agentLabel,
             onBackClick = onBack,
             onTrace = traceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
-            onDelete = { confirmRemove = true },
+            onDelete = {
+                // Multi-language agents get the 3-button popup so the
+                // user can drop just one language's AGENT TRANSLATE
+                // row vs. removing the agent and every translation.
+                // Single-language agents keep the existing remove
+                // confirm dialog.
+                if (langTabs.size > 1) confirmLangChoice = true
+                else confirmRemove = true
+            },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
@@ -387,6 +402,52 @@ fun ReportSingleResultScreen(
             dismissButton = {
                 TextButton(onClick = { confirmRemove = false }) {
                     Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
+    }
+
+    if (confirmLangChoice) {
+        val activeLabel = if (selectedLangKey == LangTab.ORIGINAL_KEY) "Original"
+            else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName ?: "Original"
+        AlertDialog(
+            onDismissRequest = { confirmLangChoice = false },
+            title = { Text("Remove from report?") },
+            text = {
+                Text("Active language: $activeLabel.\n\n" +
+                    "\"Active language only\" drops just this language's translation. " +
+                    "\"All languages\" removes the agent and every translation.")
+            },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = {
+                        confirmLangChoice = false
+                        // Active is a per-language AGENT TRANSLATE
+                        // overlay → drop just that row. Active is
+                        // Original (no overlay) → fall through to
+                        // "All languages" since the only-source IS
+                        // the agent itself.
+                        val tr = activeAgentTranslateRow
+                        if (tr != null) {
+                            onDeleteRowById(tr.id)
+                            onBack()
+                        } else {
+                            onRemoveAgent(reportId, currentAgentId)
+                            onBack()
+                        }
+                    }) {
+                        Text("Active language only", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(onClick = {
+                        confirmLangChoice = false
+                        onRemoveAgent(reportId, currentAgentId)
+                        onBack()
+                    }) {
+                        Text("All languages", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(onClick = { confirmLangChoice = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
                 }
             }
         )

@@ -103,7 +103,11 @@ internal fun ReportMetaScreen(
             onBack = { openId = null },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onDeleteRowById = { rid ->
+                onDelete(rid)
+                refreshTick++
+            }
         )
         return
     }

@@ -387,7 +387,11 @@ internal fun SecondaryResultsScreen(
             },
             onBack = { openId = null },
             onNavigateHome = onNavigateHome,
-            forcedLanguage = forcedLanguage
+            forcedLanguage = forcedLanguage,
+            onDeleteRowById = { rid ->
+                onDelete(rid)
+                refreshTick++
+            }
         )
         return
     }
@@ -2358,7 +2362,14 @@ internal fun SecondaryResultDetailScreen(
      *  content to this language. Same convention as ReportsViewerScreen
      *  / SecondaryResultsScreen: null = picker mode (Report - Manage
      *  path), "" = locked to Original, non-empty = locked displayName. */
-    forcedLanguage: String? = null
+    forcedLanguage: String? = null,
+    /** Delete a specific SecondaryResult by id — used by the
+     *  multi-language delete popup's "Active language only" path to
+     *  drop just the active-language TRANSLATE row while keeping the
+     *  META and its other translations. Default no-op so legacy
+     *  callers that don't wire it still work for the "All languages"
+     *  path. */
+    onDeleteRowById: (String) -> Unit = { _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -2370,6 +2381,7 @@ internal fun SecondaryResultDetailScreen(
     val title = result.metaPromptName?.takeIf { it.isNotBlank() }
         ?: com.ai.data.legacyKindDisplayName(result.kind)
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmLangChoice by remember { mutableStateOf(false) }
 
     // Find the trace file for this meta call: same report, same model,
     // and timestamp closest to the result. Multiple meta runs of the
@@ -2564,7 +2576,14 @@ internal fun SecondaryResultDetailScreen(
             subject = title,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
-            onDelete = { confirmDelete = true },
+            onDelete = {
+                // Multi-language items get the 3-button popup so the
+                // user can drop just the active-language rendering vs.
+                // every language at once. Single-language items keep
+                // the existing single-confirm dialog.
+                if (langTabs.size > 1) confirmLangChoice = true
+                else confirmDelete = true
+            },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
             onCopy = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "secondary result") }
@@ -2654,6 +2673,51 @@ internal fun SecondaryResultDetailScreen(
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
+    }
+
+    if (confirmLangChoice) {
+        val activeLabel = activeLangName ?: "Original"
+        AlertDialog(
+            onDismissRequest = { confirmLangChoice = false },
+            title = { Text("Delete this ${title.lowercase()}?") },
+            text = {
+                Text("Active language: $activeLabel.\n\n" +
+                    "\"Active language only\" drops just this language's content. " +
+                    "\"All languages\" removes the source and every translation.")
+            },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = {
+                        confirmLangChoice = false
+                        // If the active view is a per-language TRANSLATE
+                        // overlay (active != the meta's own language),
+                        // drop just that TRANSLATE row by id. Otherwise
+                        // the active view IS the seed meta — falling
+                        // through to onDelete() removes the meta and
+                        // cascades its translations, same as the
+                        // "All languages" branch.
+                        val tr = activeTranslateRow
+                        if (tr != null) {
+                            onDeleteRowById(tr.id)
+                            onBack()
+                        } else {
+                            onDelete()
+                        }
+                    }) {
+                        Text("Active language only", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(onClick = {
+                        confirmLangChoice = false
+                        onDelete()
+                    }) {
+                        Text("All languages", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    }
+                    TextButton(onClick = { confirmLangChoice = false }) {
+                        Text("Cancel", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
         )
     }
 }

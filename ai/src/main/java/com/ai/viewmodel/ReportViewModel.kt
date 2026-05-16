@@ -4983,6 +4983,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  "Remove model from report" button — that's this. */
     fun removeAgentFromReport(context: Context, reportId: String, agentId: String) {
         ReportStorage.removeAgent(context, reportId, agentId)
+        // Cascade: every TRANSLATE row whose translateSourceKind =
+        // "AGENT" and translateSourceTargetId == this agent's id is
+        // now an orphan. Drop them so the on-disk state matches the
+        // META cascade in deleteSecondaryResult. Their cost rolls
+        // into costsFromDeletedItems so the cost view continues to
+        // reflect the real API spend.
+        val orphans = SecondaryResultStorage
+            .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+            .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
+        if (orphans.isNotEmpty()) {
+            var costDelta = 0.0
+            orphans.forEach { tr ->
+                costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                SecondaryResultStorage.delete(context, reportId, tr.id)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        }
         ReportStorage.bumpReportTimestamp(context, reportId)
         _agentResults.update { it - agentId }
         appViewModel.updateUiState { state ->

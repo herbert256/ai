@@ -1136,6 +1136,7 @@ fun ReportsScreen(
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,
+            onDeleteSecondaryRowById = onDeleteSecondaryWithRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
             onShowAdvancedParametersChange = { showAdvancedParameters = it },
             onTranslateMissingItems = onTranslateMissingItems
@@ -1861,7 +1862,8 @@ fun ReportsScreen(
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToModelInfo = onNavigateToModelInfo,
-                forcedLanguage = secondaryLockedLanguage
+                forcedLanguage = secondaryLockedLanguage,
+                onDeleteRowById = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) }
             )
         }
         return
@@ -2663,6 +2665,11 @@ private fun ReportPrimaryOverlays(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
+    /** Per-SecondaryResult-id deletion used by the multi-language
+     *  delete popup's "Active language only" branch on
+     *  ReportSingleResultScreen. Wired to onDeleteSecondaryWithRefresh
+     *  at the ReportsScreen call site. */
+    onDeleteSecondaryRowById: (reportId: String, resultId: String) -> Unit,
     onAdvancedParametersChange: (AgentParameters?) -> Unit,
     onShowAdvancedParametersChange: (Boolean) -> Unit,
     /** Wired by ReportsScreenNav to ReportViewModel.translateMissingItems.
@@ -2818,6 +2825,9 @@ private fun ReportPrimaryOverlays(
                 onRemoveAgent = { rid, aid ->
                     onRemoveAgent(rid, aid)
                     onSecondaryRefresh()
+                },
+                onDeleteRowById = { resultId ->
+                    onDeleteSecondaryRowById(currentReportId, resultId)
                 },
                 onRegenerateAgent = onRegenerateAgent,
                 onContinueWithCurrent = onContinueWithCurrent,
