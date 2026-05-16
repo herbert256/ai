@@ -1,9 +1,7 @@
 package com.ai.ui.report
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -446,21 +444,18 @@ internal fun FanOutL2Screen(
                         //     horizontal space.
                         val pairIcon = p.icon
                         if (!pairIcon.isNullOrBlank()) {
-                            // Transparent background — the row's
-                            // drawBehind already paints the green
-                            // progress fill across the whole row, so
-                            // stacking another fill on the cell would
-                            // double the alpha and tint the icon.
-                            @OptIn(ExperimentalFoundationApi::class)
+                            // Tap on the icon cell opens the unified
+                            // Icon-lookup screen for this pair (6th
+                            // adapter). The rest of the row stays
+                            // tappable to open L3 — the icon cell's
+                            // clickable shadows the row's clickable
+                            // only on its own 20.dp width. Background
+                            // stays transparent so the row's
+                            // drawBehind progress fill shows through.
                             Box(
                                 modifier = Modifier
                                     .width(20.dp)
-                                    .combinedClickable(
-                                        onClick = {
-                                            onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
-                                        },
-                                        onLongClick = { actions.onOpenPairIconLookup(p.id) }
-                                    ),
+                                    .clickable { actions.onOpenPairIconLookup(p.id) },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(pairIcon, fontSize = 16.sp)
