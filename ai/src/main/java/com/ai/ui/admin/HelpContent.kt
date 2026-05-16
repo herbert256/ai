@@ -251,6 +251,15 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )
     ),
+    "moderation_call_detail" to HelpContent(
+        title = "Moderation result",
+        cards = listOf(
+            HelpCard("Overview", "Drill-in for a single moderation API call's per-input result. Reached by tapping a row in the moderation table on the secondary detail screen. Shows the moderated agent's label, the flag verdict, every category the moderation API returned (with its score), and the original text that was classified."),
+            HelpCard("Flag verdict", "🚩 Flagged means the moderation model marked at least one category as true. ✓ Clean means no category fired. The category list below the verdict surfaces every category the API returned — fired ones in red with a 🚩 prefix, rest in dim grey — sorted by score (descending)."),
+            HelpCard("Scores", "0.0 (definitely not in this category) to 1.0 (definitely in). The boolean \"fired\" decision sits on a provider-internal threshold — a score can be high and still not fire if the model is calibrated conservatively for that category."),
+            HelpCard("Moderated text", "The exact text the moderation API saw — the moderated agent's response body. Copy / Share in the title bar exports just this text. If the source response has since been deleted from the report the row reads \"(source response no longer available)\".")
+        )
+    ),
     "view_ai_report" to HelpContent(
         title = "View AI Report",
         cards = listOf(

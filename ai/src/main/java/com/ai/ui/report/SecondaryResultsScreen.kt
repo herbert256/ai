@@ -2342,7 +2342,9 @@ internal fun SecondaryResultDetailScreen(
 
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
-    // names instead of the bracketed [N] ids.
+    // names instead of the bracketed [N] ids. Also build the parallel
+    // id → response body map — used by the per-row moderation detail
+    // screen to surface the exact text that was moderated.
     val agentLabelsState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
@@ -2355,6 +2357,32 @@ internal fun SecondaryResultDetailScreen(
         }
     }
     val agentLabels = agentLabelsState.value
+    val agentResponsesState = produceState(initialValue = emptyMap<Int, String>(), result.reportId) {
+        value = withContext(Dispatchers.IO) {
+            val report = ReportStorage.getReport(context, result.reportId) ?: return@withContext emptyMap<Int, String>()
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                .mapIndexed { idx, agent -> (idx + 1) to (agent.responseBody ?: "") }
+                .toMap()
+        }
+    }
+    val agentResponses = agentResponsesState.value
+
+    // Per-row moderation drill-in — clicking a row in the moderation
+    // table sets this to that row; the detail screen renders full
+    // screen until back / dismiss clears it.
+    var openModerationRow by remember { mutableStateOf<ModerationRow?>(null) }
+    val activeModRow = openModerationRow
+    if (activeModRow != null) {
+        ModerationCallDetailScreen(
+            row = activeModRow,
+            agentLabel = agentLabels[activeModRow.id] ?: "[${activeModRow.id}]",
+            agentResponse = agentResponses[activeModRow.id].orEmpty(),
+            moderationModelLabel = com.ai.ui.shared.modelLabel(provider, result.model, separator = " / "),
+            onBack = { openModerationRow = null }
+        )
+        return
+    }
 
     // Translation comparison: only meaningful for chat-type META
     // rows, and only when this secondary is a translated copy (its
@@ -2444,7 +2472,11 @@ internal fun SecondaryResultDetailScreen(
                     if (rows == null) {
                         ContentWithThinkSections(analysis = result.content)
                     } else {
-                        ModerationTable(rows = rows, agentLabels = agentLabels)
+                        ModerationTable(
+                            rows = rows,
+                            agentLabels = agentLabels,
+                            onRowClick = { openModerationRow = it }
+                        )
                     }
                 }
                 else -> {
@@ -2550,7 +2582,14 @@ internal data class ModerationRow(
     val firedCategories: List<String>,
     /** All non-zero scores, sorted high → low so the table can show the
      *  top contributors even when nothing crossed the boolean threshold. */
-    val topScores: List<Pair<String, Double>>
+    val topScores: List<Pair<String, Double>>,
+    /** Full per-category boolean map as returned by the API — the
+     *  per-row detail screen iterates this to render every category
+     *  (fired and not) with a check / cross. */
+    val allCategories: Map<String, Boolean> = emptyMap(),
+    /** Full per-category score map (0.0–1.0), unsorted. The detail
+     *  screen renders these sorted high → low alongside [allCategories]. */
+    val allScores: Map<String, Double> = emptyMap()
 )
 
 /** Parse the JSON [callModerationApi] writes into the SecondaryResult.
@@ -2571,19 +2610,28 @@ internal fun parseModerationRows(content: String): List<ModerationRow>? {
         val flagged = obj.get("flagged")?.takeIf { it.isJsonPrimitive }?.asBoolean ?: false
         val cats = obj.getAsJsonObject("categories")
         val scores = obj.getAsJsonObject("scores")
-        val fired = cats?.entrySet()?.filter { it.value.asBoolean }?.map { it.key } ?: emptyList()
-        val scoreList = scores?.entrySet()?.mapNotNull {
+        val allCats = cats?.entrySet()?.associate {
+            it.key to (try { it.value.asBoolean } catch (_: Exception) { false })
+        } ?: emptyMap()
+        val allScores = scores?.entrySet()?.mapNotNull {
             val v = try { it.value.asDouble } catch (_: Exception) { return@mapNotNull null }
             it.key to v
-        }?.sortedByDescending { it.second }?.take(3) ?: emptyList()
-        ModerationRow(id, flagged, fired, scoreList)
+        }?.toMap() ?: emptyMap()
+        val fired = allCats.filterValues { it }.keys.toList()
+        val scoreList = allScores.entries
+            .sortedByDescending { it.value }.take(3).map { it.key to it.value }
+        ModerationRow(id, flagged, fired, scoreList, allCats, allScores)
     }
     if (rows.isEmpty()) return null
     return rows
 }
 
 @Composable
-internal fun ModerationTable(rows: List<ModerationRow>, agentLabels: Map<Int, String>) {
+internal fun ModerationTable(
+    rows: List<ModerationRow>,
+    agentLabels: Map<Int, String>,
+    onRowClick: (ModerationRow) -> Unit = {}
+) {
     val hColor = AppColors.Blue
     val hSize = 12.sp
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -2603,7 +2651,7 @@ internal fun ModerationTable(rows: List<ModerationRow>, agentLabels: Map<Int, St
                 val label = agentLabels[r.id] ?: "[${r.id}] (unknown)"
                 val firedText = if (r.firedCategories.isEmpty()) "—" else r.firedCategories.joinToString(", ")
                 val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
-                Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                Row(modifier = Modifier.clickable { onRowClick(r) }.padding(vertical = 6.dp)) {
                     Text(if (r.flagged) "🚩" else "✓", fontSize = 13.sp,
                         color = if (r.flagged) AppColors.Red else AppColors.Green,
                         modifier = Modifier.width(40.dp))
@@ -2619,6 +2667,127 @@ internal fun ModerationTable(rows: List<ModerationRow>, agentLabels: Map<Int, St
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
             }
+        }
+    }
+}
+
+/**
+ * Full-screen drill-in for a single moderation API call's result row.
+ * Reached by tapping a row in [ModerationTable]. Shows the moderated
+ * agent's label, flag status, full per-category breakdown (every
+ * category — fired or not — with its score), and the original text
+ * that was moderated.
+ */
+@Composable
+internal fun ModerationCallDetailScreen(
+    row: ModerationRow,
+    agentLabel: String,
+    agentResponse: String,
+    moderationModelLabel: String,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val flagColor = if (row.flagged) AppColors.Red else AppColors.Green
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "moderation_call_detail",
+            title = "Moderation result",
+            subject = agentLabel,
+            reportIcon = com.ai.ui.shared.LocalReportIcon.current,
+            onBackClick = onBack,
+            onCopy = if (agentResponse.isNotBlank()) {
+                { com.ai.ui.shared.copyToClipboard(context, agentResponse, "moderated text") }
+            } else null,
+            onShare = if (agentResponse.isNotBlank()) {
+                { com.ai.ui.shared.shareText(context, agentResponse, "Moderated text — $agentLabel") }
+            } else null
+        )
+        com.ai.ui.shared.HardcodedSubjectRow(agentLabel)
+
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            // Flag headline + meta line.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (row.flagged) "🚩 Flagged" else "✓ Clean",
+                    fontSize = 18.sp, color = flagColor, fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Moderated by $moderationModelLabel",
+                fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
+            )
+
+            // Per-category breakdown — every category the API returned,
+            // sorted by score (descending). Fired rows are red; the
+            // rest stay dim. Score is rendered to 4 decimals; absent
+            // scores show "—".
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Categories",
+                fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            val categoryOrder = remember(row.allCategories, row.allScores) {
+                val names = (row.allCategories.keys + row.allScores.keys).distinct()
+                names.sortedWith(
+                    compareByDescending<String> { row.allScores[it] ?: -1.0 }
+                        .thenBy { it.lowercase() }
+                )
+            }
+            if (categoryOrder.isEmpty()) {
+                Text("(no categories returned)", fontSize = 12.sp, color = AppColors.TextTertiary)
+            } else {
+                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                categoryOrder.forEach { cat ->
+                    val fired = row.allCategories[cat] == true
+                    val score = row.allScores[cat]
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (fired) "🚩" else "·",
+                            fontSize = 13.sp, color = if (fired) AppColors.Red else AppColors.TextTertiary,
+                            modifier = Modifier.width(24.dp)
+                        )
+                        Text(
+                            cat,
+                            fontSize = 13.sp,
+                            color = if (fired) AppColors.Red else Color.White,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            score?.let { "%.4f".format(it) } ?: "—",
+                            fontSize = 12.sp,
+                            color = if (fired) AppColors.Red else AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                }
+            }
+
+            // Original moderated text — what the moderation API actually
+            // classified. Sits at the bottom so the verdict + category
+            // breakdown stay above the fold.
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Moderated text",
+                fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            if (agentResponse.isBlank()) {
+                Text("(source response no longer available)", fontSize = 12.sp, color = AppColors.TextTertiary)
+            } else {
+                ContentWithThinkSections(analysis = agentResponse)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
