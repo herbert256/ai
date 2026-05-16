@@ -51,6 +51,15 @@ data class AgentIconRow(val icon: String?, val cost: Double)
 internal data class EveryItem(
     val label: String,
     val prompt: com.ai.model.InternalPrompt? = null,
+    /** Languages this item has content in. Null = item is not
+     *  language-aware (always enabled, e.g. rerank / moderation /
+     *  fan_in / fan_out / translate). Non-null = the set of language
+     *  identifiers where this item has content; "" represents
+     *  Original, every other entry matches
+     *  [SecondaryResult.targetLanguage] (English displayName). The
+     *  View screen uses this to gray out a tile whose set doesn't
+     *  contain the active language. */
+    val availableLanguages: Set<String>? = null,
     /** The String? carries the View screen's currently-selected
      *  language at click time so the opened sub-screen can lock
      *  itself to that language. null = no force (Report - Manage
@@ -84,22 +93,46 @@ internal fun buildEveryItems(
     // language to open. Trailing String? = the View screen's
     // currently-selected language at click time, threaded into the
     // opened sub-screen as a lock; null on the Report - Manage path.
+    // Per-meta-id cross-translate set, used to compute each meta
+    // EveryItem's availableLanguages. Key = META id, value = set of
+    // languages with a non-blank META TRANSLATE row pointing at it.
+    val translateByMetaId: Map<String, Set<String>> = secondaryRuns
+        .asSequence()
+        .filter {
+            it.kind == SecondaryKind.TRANSLATE &&
+                it.translateSourceKind == "META" &&
+                !it.translateSourceTargetId.isNullOrBlank() &&
+                !it.content.isNullOrBlank() &&
+                !it.targetLanguage.isNullOrBlank()
+        }
+        .groupBy { it.translateSourceTargetId!! }
+        .mapValues { (_, rows) -> rows.mapNotNullTo(mutableSetOf()) { it.targetLanguage } }
     val meta = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
         .groupBy { it.metaPromptName ?: "Meta" }
         .map { (name, rows) ->
             val prompt = promptByName[name]
+            // Available languages = union of own targetLanguage of
+            // every row in the group (null → "" for Original) and
+            // every cross-translate language for those rows.
+            val langs = mutableSetOf<String>()
+            rows.forEach { r ->
+                langs.add(r.targetLanguage?.takeIf { it.isNotBlank() } ?: "")
+                translateByMetaId[r.id]?.let { langs.addAll(it) }
+            }
             if (rows.size == 1) {
                 val row = rows.first()
                 EveryItem(
                     label = name,
                     prompt = prompt,
+                    availableLanguages = langs,
                     open = { lang -> onOpenSecondaryRun(row.id, lang) }
                 )
             } else {
                 EveryItem(
                     label = name,
                     prompt = prompt,
+                    availableLanguages = langs,
                     open = { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) }
                 )
             }

@@ -48,6 +48,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -169,6 +170,28 @@ internal fun ViewAiReportScreen(
     val translates = translatesState.value.list
     val originalLanguageIcon = translatesState.value.originalIcon
     val viewLangTabs = remember(translates) { buildLangTabs(translates) }
+
+    // Per-kind availability sets. "" = Original (always available;
+    // the source prompt / agent responses always exist). Other
+    // entries = displayName of every language with a non-blank
+    // PROMPT / AGENT TRANSLATE row. Drives gray-out of the Prompt
+    // and Reports tiles when the View screen's active language has
+    // no content for that tile (e.g. the user picked French but
+    // never translated the prompt).
+    val promptAvailableLangs = remember(translates) {
+        buildSet {
+            add("")
+            translates.filter { it.translateSourceKind == "PROMPT" }
+                .mapNotNullTo(this) { it.targetLanguage?.takeIf { l -> l.isNotBlank() } }
+        }
+    }
+    val reportsAvailableLangs = remember(translates) {
+        buildSet {
+            add("")
+            translates.filter { it.translateSourceKind == "AGENT" }
+                .mapNotNullTo(this) { it.targetLanguage?.takeIf { l -> l.isNotBlank() } }
+        }
+    }
     var selectedViewLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
     androidx.compose.runtime.LaunchedEffect(viewLangTabs) {
         if (viewLangTabs.none { it.key == selectedViewLangKey }) {
@@ -189,10 +212,15 @@ internal fun ViewAiReportScreen(
     // destination; the View screen itself stays in the back-stack
     // underneath so Android-back from the destination falls back
     // to the View grid rather than the report page.
-    val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    // Re-keyed on currentLanguageState.value so the per-tile
+    // `enabled` flag re-evaluates when the View picker changes.
+    val currentLang = currentLanguageState.value
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+        val promptEnabled = currentLang in promptAvailableLangs
+        val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
-            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt(currentLanguageState.value) }))
-            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue) { onViewReports(currentLanguageState.value) }))
+            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple, enabled = promptEnabled) { onViewPrompt(currentLanguageState.value) }))
+            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue, enabled = reportsEnabled) { onViewReports(currentLanguageState.value) }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
             add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
@@ -216,7 +244,7 @@ internal fun ViewAiReportScreen(
     // prompt-icon cache is cold or the master toggle is off). The
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
-    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, onBack) {
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
@@ -230,6 +258,7 @@ internal fun ViewAiReportScreen(
                     label = item.label,
                     emoji = promptEmoji ?: "🧠",
                     accent = AppColors.Purple,
+                    enabled = item.availableLanguages?.contains(currentLang) ?: true,
                     onClick = { item.open(currentLanguageState.value) }
                 )
             )
@@ -241,7 +270,7 @@ internal fun ViewAiReportScreen(
     // an inline list below the tiles. (Meta is excluded; it's
     // handled by [metaTiles] above.)
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
-    val computedTiles = remember(everyItems, moderationFlagged) {
+    val computedTiles = remember(everyItems, moderationFlagged, currentLang) {
         // Moderation accent flips red ↔ green based on whether any
         // moderation row on this report flagged anything; the 🚩
         // emoji is the same either way so the flag motif stays
@@ -258,16 +287,24 @@ internal fun ViewAiReportScreen(
         specs.mapNotNull { s ->
             val items = everyItems[s.key].orEmpty()
             if (items.isEmpty()) null
-            else ComputedTile(
-                key = s.key,
-                items = items,
-                tile = ViewTile(s.label, s.emoji, s.color, count = items.size) {
-                    when (items.size) {
-                        1 -> items[0].open(currentLanguageState.value)
-                        else -> { expandedKind = if (expandedKind == s.key) null else s.key }
+            else {
+                // Tile is enabled iff at least one of its items is
+                // available in the active language. Items with
+                // availableLanguages == null (language-agnostic) count
+                // as always available, so today's non-meta computed
+                // tiles always pass this check.
+                val tileEnabled = items.any { it.availableLanguages?.contains(currentLang) ?: true }
+                ComputedTile(
+                    key = s.key,
+                    items = items,
+                    tile = ViewTile(s.label, s.emoji, s.color, count = items.size, enabled = tileEnabled) {
+                        when (items.size) {
+                            1 -> items[0].open(currentLanguageState.value)
+                            else -> { expandedKind = if (expandedKind == s.key) null else s.key }
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     }
 
@@ -383,6 +420,7 @@ internal fun ViewAiReportScreen(
                     ExpandedKindCard(
                         title = active.tile.label,
                         items = active.items,
+                        currentLanguage = currentLang,
                         onItemClick = { item ->
                             expandedKind = null
                             item.open(currentLanguageState.value)
@@ -409,6 +447,10 @@ private data class ViewTile(
     val emoji: String,
     val accent: Color,
     val count: Int = 0,
+    /** False → the tile renders at low alpha and ignores taps.
+     *  Set by the View screen when the active picker language
+     *  has no content available for the tile. */
+    val enabled: Boolean = true,
     val onClick: () -> Unit
 )
 
@@ -477,53 +519,60 @@ private fun ReorderableTileFlow(
             items.forEach { item ->
                 val id = item.id
                 val isDragged = draggedId == id
+                // Disabled tiles skip the drag-detect (a tile the user
+                // can't tap shouldn't be reorderable either) and the
+                // dragged-z-index lift. TileCard handles the dim +
+                // tap-block on the rendered side.
+                val dragModifier = if (!item.tile.enabled) Modifier
+                else Modifier
+                    .then(
+                        if (isDragged) Modifier
+                            .zIndex(1f)
+                            .graphicsLayer {
+                                translationX = dragOffset.x
+                                translationY = dragOffset.y
+                            }
+                        else Modifier
+                    )
+                    .pointerInput(id) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = {
+                                draggedId = id
+                                dragOffset = Offset.Zero
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDrag = { change, drag ->
+                                change.consume()
+                                dragOffset += drag
+                            },
+                            onDragEnd = {
+                                val src = draggedId
+                                val srcRect = src?.let { positions[it] }
+                                if (src != null && srcRect != null) {
+                                    val dropPoint = srcRect.center + dragOffset
+                                    val dstId = positions.entries
+                                        .firstOrNull { it.value.contains(dropPoint) }
+                                        ?.key
+                                    if (dstId != null && dstId != src) {
+                                        onReorder(src, dstId)
+                                    }
+                                }
+                                draggedId = null
+                                dragOffset = Offset.Zero
+                            },
+                            onDragCancel = {
+                                draggedId = null
+                                dragOffset = Offset.Zero
+                            }
+                        )
+                    }
                 Box(
                     modifier = Modifier
                         .width(tileWidth)
                         .onGloballyPositioned { coords ->
                             positions[id] = coords.boundsInParent()
                         }
-                        .then(
-                            if (isDragged) Modifier
-                                .zIndex(1f)
-                                .graphicsLayer {
-                                    translationX = dragOffset.x
-                                    translationY = dragOffset.y
-                                }
-                            else Modifier
-                        )
-                        .pointerInput(id) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = {
-                                    draggedId = id
-                                    dragOffset = Offset.Zero
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                },
-                                onDrag = { change, drag ->
-                                    change.consume()
-                                    dragOffset += drag
-                                },
-                                onDragEnd = {
-                                    val src = draggedId
-                                    val srcRect = src?.let { positions[it] }
-                                    if (src != null && srcRect != null) {
-                                        val dropPoint = srcRect.center + dragOffset
-                                        val dstId = positions.entries
-                                            .firstOrNull { it.value.contains(dropPoint) }
-                                            ?.key
-                                        if (dstId != null && dstId != src) {
-                                            onReorder(src, dstId)
-                                        }
-                                    }
-                                    draggedId = null
-                                    dragOffset = Offset.Zero
-                                },
-                                onDragCancel = {
-                                    draggedId = null
-                                    dragOffset = Offset.Zero
-                                }
-                            )
-                        }
+                        .then(dragModifier)
                 ) { TileCard(item.tile) }
             }
         }
@@ -547,9 +596,12 @@ private fun ListTileColumn(items: List<IdentifiedTile>) {
             items.forEachIndexed { idx, item ->
                 if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
                 val tile = item.tile
+                val clickMod = if (tile.enabled) Modifier.clickable(onClick = tile.onClick) else Modifier
+                val dimMod = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
-                        .clickable(onClick = tile.onClick)
+                        .then(dimMod)
+                        .then(clickMod)
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -621,8 +673,14 @@ private fun TileFlow(tiles: List<ViewTile>) {
 @Composable
 private fun TileCard(tile: ViewTile) {
     val accent = tile.accent
+    // Disabled tiles render at low alpha and ignore taps. The
+    // .alpha modifier dims the entire Card (border + gradient +
+    // emoji + label); skipping the clickable modifier means a tap
+    // passes through with no ripple.
+    val clickModifier = if (tile.enabled) Modifier.clickable(onClick = tile.onClick) else Modifier
+    val dimModifier = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
     Card(
-        modifier = Modifier.fillMaxWidth().aspectRatio(1.05f).clickable(onClick = tile.onClick),
+        modifier = Modifier.fillMaxWidth().aspectRatio(1.05f).then(dimModifier).then(clickModifier),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.55f))
@@ -672,6 +730,7 @@ private fun TileCard(tile: ViewTile) {
 private fun ExpandedKindCard(
     title: String,
     items: List<EveryItem>,
+    currentLanguage: String?,
     onItemClick: (EveryItem) -> Unit
 ) {
     Card(
@@ -687,8 +746,13 @@ private fun ExpandedKindCard(
             Spacer(modifier = Modifier.height(6.dp))
             items.forEachIndexed { idx, item ->
                 if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                val itemEnabled = item.availableLanguages?.contains(currentLanguage) ?: true
+                val clickMod = if (itemEnabled) Modifier.clickable { onItemClick(item) } else Modifier
+                val dimMod = if (itemEnabled) Modifier else Modifier.alpha(0.4f)
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onItemClick(item) }
+                    modifier = Modifier.fillMaxWidth()
+                        .then(dimMod)
+                        .then(clickMod)
                         .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
