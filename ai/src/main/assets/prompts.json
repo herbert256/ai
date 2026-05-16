@@ -144,6 +144,14 @@
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
+    "name": "language_icon",
+    "title": "Detect a prompt's language + a fitting emoji",
+    "reference": false,
+    "category": "icons",
+    "agent": "DeepSeek",
+    "text": "Identify the language of the text below.\n\nReply with EXACTLY two lines and nothing else:\nlanguage: <English name of the language>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@"
+  },
+  {
     "name": "response",
     "title": "Just the response",
     "reference": false,

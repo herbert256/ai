@@ -477,6 +477,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _iconFanOutByReport.update { it - reportId }
     }
 
+    /** Live state of any "Find alternative icons" run launched from
+     *  the per-report language detail screen (the analog of
+     *  [iconFanOutByReport] but for the language-detection emoji).
+     *  Keyed by reportId. Cleared on process death by design;
+     *  picked emoji writes through to disk via
+     *  ReportStorage.setReportLanguageChoice so survives independently. */
+    private val _languageIconFanOutByReport = MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
+    val languageIconFanOutByReport: StateFlow<Map<String, List<IconCandidate>>> = _languageIconFanOutByReport.asStateFlow()
+    internal fun updateLanguageIconFanOut(reportId: String, mutator: (List<IconCandidate>) -> List<IconCandidate>) {
+        _languageIconFanOutByReport.update { current ->
+            val next = mutator(current[reportId].orEmpty())
+            current + (reportId to next)
+        }
+    }
+    internal fun clearLanguageIconFanOut(reportId: String) {
+        _languageIconFanOutByReport.update { it - reportId }
+    }
+
     /** Per-agent alternative-icons state for the Agent icon detail
      *  screen's "Find alternative icons" button. Keyed by agentId
      *  (UUID, globally unique) so multiple agents under the same

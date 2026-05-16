@@ -182,6 +182,7 @@ internal data class GenerationPhaseHandlers(
     val onNavigateToTraceFile: (String) -> Unit = { _ -> },
     val onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
     val onOpenIconDetail: () -> Unit = {},
+    val onOpenLanguageDetail: () -> Unit = {},
     val onOpenAgentIconDetail: (String) -> Unit = { _ -> },
     val onPrevReport: () -> Unit = {},
     val onNextReport: () -> Unit = {},
@@ -271,6 +272,7 @@ internal fun ColumnScope.GenerationPhase(
     val onNavigateToTraceFile = handlers.onNavigateToTraceFile
     val onNavigateToTraceListFiltered = handlers.onNavigateToTraceListFiltered
     val onOpenIconDetail = handlers.onOpenIconDetail
+    val onOpenLanguageDetail = handlers.onOpenLanguageDetail
     val onOpenAgentIconDetail = handlers.onOpenAgentIconDetail
     val onPrevReport = handlers.onPrevReport
     val onNextReport = handlers.onNextReport
@@ -1109,6 +1111,20 @@ internal fun ColumnScope.GenerationPhase(
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
+                // Language row — sits directly under the icon row.
+                // Same loading/error/success states (⏳ / ❌ / emoji),
+                // tap on the icon cell opens the language detail
+                // screen. Hidden when icon-gen is off (the gate
+                // above covers this since the same flag drives both).
+                if (currentReportId != null) {
+                    item(key = "row-language") {
+                        LanguageRow(
+                            reportId = currentReportId,
+                            iconRefreshTick = uiState.iconRefreshTick,
+                            onOpenDetail = onOpenLanguageDetail
+                        )
+                    }
+                }
             }
         }
 
@@ -1250,6 +1266,62 @@ internal fun RowTypeCell(text: String) {
         // and the type label here — the two were touching before.
         modifier = Modifier.width(80.dp).padding(start = 8.dp, end = 6.dp)
     )
+}
+
+/** Inline 'language' row — the second of the two AI-derived report
+ *  attributes (after the icon row above). Loads [Report.languageName]
+ *  / [Report.languageIcon] / [Report.languageIconErrorMessage]
+ *  directly via produceState (keeps the parent ReportsScreen body
+ *  off the JVM 64 KB per-method bytecode ceiling). Re-reads on every
+ *  [iconRefreshTick] bump so a freshly-detected language flips the
+ *  row in real time without the parent having to thread state. */
+@Composable
+internal fun LanguageRow(
+    reportId: String,
+    iconRefreshTick: Int,
+    onOpenDetail: () -> Unit,
+) {
+    val context = LocalContext.current
+    data class LangSnapshot(val name: String?, val icon: String?, val error: String?)
+    val snapshot = produceState(initialValue = LangSnapshot(null, null, null), reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            val r = com.ai.data.ReportStorage.getReport(context, reportId)
+            LangSnapshot(r?.languageName, r?.languageIcon, r?.languageIconErrorMessage)
+        }
+    }.value
+    val running = snapshot.icon == null && snapshot.error == null
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        .clickable { onOpenDetail() },
+        verticalAlignment = Alignment.CenterVertically) {
+        when {
+            snapshot.error != null -> Text("❌", fontSize = 16.sp,
+                modifier = Modifier.width(24.dp))
+            running -> {
+                val transition = rememberInfiniteTransition(label = "lang-hourglass")
+                val angle by transition.animateFloat(
+                    initialValue = 0f, targetValue = 360f,
+                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                    label = "lang-hourglass-rot"
+                )
+                Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+            }
+            else -> Text(snapshot.icon!!, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        }
+        RowTypeCell("language")
+        Column(modifier = Modifier.weight(1f)) {
+            val text = when {
+                snapshot.error != null -> snapshot.error
+                running -> "Detecting…"
+                else -> snapshot.name ?: "(unknown)"
+            }
+            val color = if (snapshot.error != null) AppColors.Red else Color.White
+            Text(
+                text, fontSize = 13.sp, color = color,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 }
 
 /** Compact action button shared across the Reports result page's

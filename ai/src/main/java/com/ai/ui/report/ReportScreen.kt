@@ -1059,6 +1059,11 @@ fun ReportsScreen(
     var agentIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var showFindIconsPicker by rememberSaveable { mutableStateOf(false) }
     var showAlternativeIcons by rememberSaveable { mutableStateOf(false) }
+    // Language detail overlay — v1 ships the detail only (Find
+    // Alternative Icons gated by extraction work tracked separately,
+    // since piling the full overlay set into ReportsScreen pushes
+    // its Composable past the JVM 64 KB per-method bytecode limit).
+    var showLanguageDetail by rememberSaveable { mutableStateOf(false) }
     // ── Internal-prompt icon flow. When non-null, the user tapped
     // the cached emoji that replaces ✅ on a successful secondary
     // row and is now drilled into the Meta-icon detail screen.
@@ -1747,6 +1752,20 @@ fun ReportsScreen(
         // Icon prompt / agent missing — nothing to show. Fall through.
         showIconDetail = false
     }
+
+    if (showLanguageDetail && currentReportId != null) {
+        RenderLanguageDetailOverlay(
+            reportId = currentReportId,
+            aiSettings = aiSettings,
+            promptText = uiState.genericPromptText,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            iconRefreshTick = uiState.iconRefreshTick,
+            onBack = { showLanguageDetail = false }
+        )
+        return
+    }
+
     // Per-agent icon detail — reached from the leftmost emoji cell on
     // a row that Create → Report icons has populated. Same shape as
     // ReportIconDetailScreen but data is per-agent (the agent's own
@@ -2717,6 +2736,7 @@ fun ReportsScreen(
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
                 onOpenIconDetail = { showIconDetail = true },
+                onOpenLanguageDetail = { showLanguageDetail = true },
                 onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
                 onPrevReport = onPrevReport,
                 onNextReport = onNextReport,
@@ -3819,5 +3839,62 @@ private fun FanOutConfirmScreen(
             )
         }
         // (Cancel / Run hoisted to the top — see above.)
+    }
+}
+
+// ===== Language icon detail overlay =====
+//
+// Tiny single-overlay helper. Find Alternative Icons is not wired
+// in this v1 cut — adding the picker + results overlays inline in
+// ReportsScreen pushes it past the JVM 64 KB per-method bytecode
+// limit. Returns true when the overlay rendered (caller early-
+// returns); false when prompt / agent isn't configured.
+
+@Composable
+private fun RenderLanguageDetailOverlay(
+    reportId: String,
+    aiSettings: com.ai.model.Settings,
+    promptText: String,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    iconRefreshTick: Int,
+    onBack: () -> Unit,
+) {
+    val languagePrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "language_icon"
+    } ?: return
+    val languageAgent = aiSettings.agents.firstOrNull {
+        it.name.equals(languagePrompt.agent, ignoreCase = true)
+    } ?: return
+    val context = LocalContext.current
+    // Load language fields here (not at the ReportsScreen scope) so
+    // the parent's bytecode stays under the JVM 64 KB per-method
+    // ceiling. Re-read on every iconRefreshTick bump so a fresh
+    // detection result lands in the open detail screen too.
+    data class LangSnapshot(val icon: String?, val error: String?, val model: String?)
+    val snapshot = produceState(initialValue = LangSnapshot(null, null, null), reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            val r = com.ai.data.ReportStorage.getReport(context, reportId)
+            LangSnapshot(r?.languageIcon, r?.languageIconErrorMessage, r?.languageIconModel)
+        }
+    }.value
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides onBack
+    ) {
+        ReportIconDetailScreen(
+            aiSettings = aiSettings,
+            iconPrompt = languagePrompt,
+            iconAgent = languageAgent,
+            promptText = promptText,
+            icon = snapshot.icon,
+            errorMessage = snapshot.error,
+            cost = 0.0,
+            iconModel = snapshot.model,
+            onFindAlternativeIcons = { /* TODO: wire alt-icons flow */ },
+            hasActiveFanOut = false,
+            onBack = onBack
+        )
     }
 }

@@ -168,7 +168,32 @@ data class Report(
      *  deep-links the trace list to this id so the user sees only
      *  the calls this report's run made. Null on reports persisted
      *  before this field existed. */
-    var runId: String? = null
+    var runId: String? = null,
+    /** Detected English name of the prompt's source language
+     *  (e.g. "Dutch", "English"), produced by the bundled
+     *  `internal/language_icon` prompt running against its pinned
+     *  agent (DeepSeek by default) when icon-gen is on. Null while
+     *  the detection call is in flight, on failure (see
+     *  [languageIconErrorMessage]), or on legacy reports created
+     *  before the feature shipped. */
+    var languageName: String? = null,
+    /** Fitting emoji for [languageName], picked by the same
+     *  bundled-agent call. Surfaces as the icon cell on the
+     *  Report - manage screen's "language" row. Null whenever
+     *  [languageName] is null. */
+    var languageIcon: String? = null,
+    /** When non-null, the model that produced the currently
+     *  displayed [languageIcon] — set by the language-icon "Find
+     *  alternative icons" fan-out pick. Null = bundled agent
+     *  default; falls back to the pinned `internal/language_icon`
+     *  agent label in the detail screen. Stored as
+     *  "<providerId>/<modelId>". */
+    var languageIconModel: String? = null,
+    /** Failure reason from the language-icon call. Null while
+     *  running, on success, or when the call was never kicked off.
+     *  Surfaces on the manage-screen row as a ❌ + message and on
+     *  the detail screen's Response card. */
+    var languageIconErrorMessage: String? = null
 )
 
 /**
@@ -556,6 +581,68 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(
                 icon = icon, iconErrorMessage = null, iconModel = iconModel,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Persist a successful language-detection result: the English
+     *  language name + a fitting emoji + optional model attribution.
+     *  Clears any prior [Report.languageIconErrorMessage]. Parallel
+     *  to [updateReportIcon] but for the language pair. */
+    fun updateReportLanguage(
+        context: Context, reportId: String,
+        name: String?, icon: String?,
+        model: String? = null
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                languageName = name,
+                languageIcon = icon,
+                languageIconModel = model,
+                languageIconErrorMessage = null,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Persist a failure reason for the language-icon call. Leaves
+     *  any previously-resolved [Report.languageName] /
+     *  [Report.languageIcon] alone (so a retry that errored doesn't
+     *  blank out an earlier success). */
+    fun updateReportLanguageError(context: Context, reportId: String, error: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                languageIconErrorMessage = error,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Commit a user pick from the language-icon "Alternative icons"
+     *  screen. Replaces the emoji + sets [Report.languageIconModel]
+     *  to the "<providerId>/<modelId>" label; leaves
+     *  [Report.languageName] alone (the picker only changes the
+     *  emoji, not the detected language). Clears any prior
+     *  [Report.languageIconErrorMessage]. */
+    fun setReportLanguageChoice(
+        context: Context, reportId: String,
+        icon: String, iconModel: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                languageIcon = icon,
+                languageIconModel = iconModel,
+                languageIconErrorMessage = null,
                 timestamp = System.currentTimeMillis()
             ))
             true

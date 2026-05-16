@@ -81,6 +81,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     // whole search in one call instead of leaving N orphan HTTP-calls
     // running on viewModelScope.
     private val iconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    /** Mirror of [iconFanOutJobs] for the language-icon alt-picker. */
+    private val languageIconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private fun registerIconFanOutJob(reportId: String, job: Job) {
         // Cancel any prior in-flight run for the same report — a user
         // who hits Find Icons twice in a row should get the latest
@@ -336,6 +338,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
+                kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
 
                 try {
                     coroutineScope {
@@ -492,6 +495,79 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
             }
         }
+    }
+
+    /** Runs the bundled `internal/language_icon` prompt against its
+     *  pinned agent (DeepSeek by default) and writes the detected
+     *  language name + a fitting emoji onto the Report. Mirrors
+     *  [kickOffIconGeneration]'s shape — same gate, same agent
+     *  resolution, same persistence + recompose-tick pattern. */
+    private fun kickOffLanguageGeneration(
+        context: Context,
+        reportId: String,
+        promptText: String,
+        aiSettings: Settings
+    ) {
+        if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
+        val languagePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "language_icon"
+        } ?: return
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(languagePrompt.agent, ignoreCase = true)
+        } ?: return
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            withTracerTags(reportId = reportId, category = "Language icon") {
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(),
+                        null, context, baseUrl
+                    )
+                    if (response.error == null) {
+                        val (name, icon) = parseLanguageDetectionResponse(response.analysis)
+                        if (name != null || icon != null) {
+                            ReportStorage.updateReportLanguage(
+                                context, reportId,
+                                name = name, icon = icon ?: "🌐"
+                            )
+                        } else {
+                            ReportStorage.updateReportLanguageError(
+                                context, reportId, "unparseable response"
+                            )
+                        }
+                    } else {
+                        ReportStorage.updateReportLanguageError(
+                            context, reportId, response.error
+                        )
+                    }
+                }.onFailure {
+                    ReportStorage.updateReportLanguageError(
+                        context, reportId,
+                        it.message ?: "language-gen failed"
+                    )
+                }
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
+        }
+    }
+
+    /** Pull `language: …` + `icon: …` lines out of the model's reply.
+     *  Tolerant of leading/trailing whitespace and case-variant
+     *  field names. Falls back to scanning the whole body for an
+     *  emoji when the structured line is missing. */
+    private fun parseLanguageDetectionResponse(raw: String?): Pair<String?, String?> {
+        if (raw.isNullOrBlank()) return null to null
+        val langLine = Regex("(?im)^\\s*language\\s*[:=]\\s*(.+?)\\s*$").find(raw)?.groupValues?.get(1)?.trim()
+        val iconLineRaw = Regex("(?im)^\\s*icon\\s*[:=]\\s*(.+?)\\s*$").find(raw)?.groupValues?.get(1)?.trim()
+        val icon = iconLineRaw?.let { extractFirstEmoji(it) } ?: extractFirstEmoji(raw)
+        return langLine?.takeIf { it.isNotBlank() } to icon
     }
 
     /** Background helper that resolves the bundled `internal/prompt_icon`
@@ -1127,6 +1203,103 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.clearIconFanOut(reportId)
     }
 
+    /** Language-icon counterpart of [startIconFanOut]. Runs the
+     *  bundled `internal/language_icon` prompt against each picked
+     *  (provider, model) and pushes results into
+     *  [AppViewModel.languageIconFanOutByReport]. The cost is left
+     *  unbumped — v1 doesn't track language-icon cost separately
+     *  (the call is a single DeepSeek-tier request worth a fraction
+     *  of a cent). */
+    fun startLanguageIconFanOut(
+        context: Context,
+        reportId: String,
+        promptText: String,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        val languagePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "language_icon"
+        } ?: return
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
+        appViewModel.updateLanguageIconFanOut(reportId) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+        val outer = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            unique.forEach { item ->
+                launch {
+                    val host = providerHost(item.provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "Language icon (alt)") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "language-icon-alt-${item.provider.id}-${item.model}",
+                                        name = item.model,
+                                        provider = item.provider,
+                                        model = item.model,
+                                        apiKey = aiSettings.getApiKey(item.provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, AgentParameters(),
+                                        null, context, baseUrl
+                                    )
+                                    // Only the icon matters for the
+                                    // picker — language name is fixed at
+                                    // detection time; the user is
+                                    // re-picking the emoji only.
+                                    val (_, icon) = parseLanguageDetectionResponse(response.analysis)
+                                    val emoji = icon ?: response.analysis?.trim().orEmpty().take(8)
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                                    val totalCost = (tu?.inputTokens ?: 0) * pricing.promptPrice +
+                                        (tu?.outputTokens ?: 0) * pricing.completionPrice
+                                    if (response.error == null && emoji.isNotEmpty()) {
+                                        appViewModel.updateLanguageIconFanOut(reportId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Done(item.provider, item.model, emoji, totalCost)
+                                                else c
+                                            }
+                                        }
+                                    } else {
+                                        appViewModel.updateLanguageIconFanOut(reportId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Error(item.provider, item.model, response.error ?: "empty response", totalCost)
+                                                else c
+                                            }
+                                        }
+                                    }
+                                }.onFailure { e ->
+                                    appViewModel.updateLanguageIconFanOut(reportId) { list ->
+                                        list.map { c ->
+                                            if (c.provider.id == item.provider.id && c.model == item.model)
+                                                IconCandidate.Error(item.provider, item.model, e.message ?: "language-gen failed", 0.0)
+                                            else c
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        languageIconFanOutJobs.put(reportId, outer)?.cancel()
+        outer.invokeOnCompletion { languageIconFanOutJobs.remove(reportId, outer) }
+    }
+
+    fun restartLanguageIconFanOut(reportId: String) {
+        languageIconFanOutJobs.remove(reportId)?.cancel()
+        appViewModel.clearLanguageIconFanOut(reportId)
+    }
+
     /** Per-agent counterpart of [startIconFanOut]. Drives the Agent
      *  icon detail screen's "Find alternative icons" button: the user
      *  picks alternative models, and each one is asked to iconify
@@ -1281,6 +1454,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
+
+    /** Language-icon counterpart of [pickAlternativeIcon]. Writes
+     *  the picked emoji + model attribution to disk; bumps the
+     *  recompose tick so the row/detail rerender. */
+    fun pickAlternativeLanguageIcon(
+        context: Context,
+        reportId: String,
+        emoji: String,
+        iconModel: String
+    ) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            ReportStorage.setReportLanguageChoice(context, reportId, emoji, iconModel)
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
@@ -2427,6 +2617,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ReportStorage.clearReportIcon(context, reportId)
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
                     kickOffIconGeneration(context, reportId, report.prompt, ai)
+                    kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                 }
                 for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
                 if (newTasks.isNotEmpty()) ReportStorage.appendAgents(context, reportId, newTasks.map { it.reportAgent })
@@ -2611,6 +2802,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val fanOutPrefix = "$reportId|"
         fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         iconFanOutJobs.remove(reportId)?.cancel()
+        languageIconFanOutJobs.remove(reportId)?.cancel()
+        appViewModel.clearLanguageIconFanOut(reportId)
         // reportIconsJobs is now keyed by "$reportId|$agentId" (one
         // job per per-agent chain) — sweep by prefix like the fan-out
         // pair jobs above.
