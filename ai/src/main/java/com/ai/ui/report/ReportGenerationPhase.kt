@@ -82,6 +82,9 @@ internal fun buildEveryItems(
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
         .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }
+    val moderation = secondaryRuns
+        .filter { it.kind == SecondaryKind.MODERATION }
+        .map { row -> EveryItem(row.metaPromptName ?: "Moderation") { onOpenSecondaryRun(row.id) } }
     val fanIn = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
         .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { onOpenSecondaryRun(row.id) } }
@@ -108,6 +111,7 @@ internal fun buildEveryItems(
     return mapOf(
         "meta" to meta,
         "rerank" to rerank,
+        "moderation" to moderation,
         "fan_out" to fanOut,
         "fan_in" to fanIn,
         "fan-in-model" to fanInModel,

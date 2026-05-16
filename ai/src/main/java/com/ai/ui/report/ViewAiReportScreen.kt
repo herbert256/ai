@@ -156,6 +156,7 @@ internal fun ViewAiReportScreen(
     val computedTiles = remember(everyItems) {
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
+            ComputedSpec("moderation", "Moderation", "🛡", AppColors.Red),
             ComputedSpec("fan_out", "Fan-out", "🌀", AppColors.Indigo),
             ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
             ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
