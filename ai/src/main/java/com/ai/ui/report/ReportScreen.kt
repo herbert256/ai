@@ -2551,6 +2551,12 @@ fun ReportsScreen(
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,
+            // Tap title → flip to "Report - view" (same condition as
+            // the ℹ️ icon below — only meaningful when a report
+            // exists). Hidden during selection / pre-generation.
+            onTitleClick = if (isGenerating && currentReportId != null) {
+                { showViewReportScreen = true }
+            } else null,
             subject = if (isGenerating) promptTitle else null,
             // Resolved emoji renders as the absolute leftmost icon
             // when present; falls back to 📝 while icon-gen is in

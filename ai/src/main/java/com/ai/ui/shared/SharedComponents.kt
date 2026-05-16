@@ -497,6 +497,11 @@ fun TitleBar(
      *  pass `report.icon ?: "📝"` so the slot is filled while
      *  icon-gen is in flight or after it errored. */
     reportIcon: String? = null,
+    /** Optional tap target on the title text itself. Used by paired
+     *  sub-screens (e.g. Report - manage ↔ Report - view) to let the
+     *  title double as a navigation toggle between them. Null →
+     *  title is non-interactive. */
+    onTitleClick: (() -> Unit)? = null,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -587,6 +592,8 @@ fun TitleBar(
             // illegible. Resets when the title text changes.
             val minFontSize = (barFontSize.value * 0.55f).sp
             var titleFontSize by remember(title) { mutableStateOf(barFontSize) }
+            val titleMod = Modifier.align(Alignment.Top).padding(top = 4.dp)
+                .let { base -> if (onTitleClick != null) base.clickable(onClick = onTitleClick) else base }
             Text(
                 text = title, style = titleStyle, color = Color.White,
                 fontSize = titleFontSize, fontWeight = FontWeight.Bold,
@@ -598,7 +605,7 @@ fun TitleBar(
                         titleFontSize = (titleFontSize.value * 0.95f).coerceAtLeast(minFontSize.value).sp
                     }
                 },
-                modifier = Modifier.align(Alignment.Top).padding(top = 4.dp)
+                modifier = titleMod
             )
         }
     }
