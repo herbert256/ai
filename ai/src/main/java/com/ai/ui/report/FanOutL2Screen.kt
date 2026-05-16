@@ -446,11 +446,15 @@ internal fun FanOutL2Screen(
                         //     horizontal space.
                         val pairIcon = p.icon
                         if (!pairIcon.isNullOrBlank()) {
+                            // Transparent background — the row's
+                            // drawBehind already paints the green
+                            // progress fill across the whole row, so
+                            // stacking another fill on the cell would
+                            // double the alpha and tint the icon.
                             @OptIn(ExperimentalFoundationApi::class)
                             Box(
                                 modifier = Modifier
                                     .width(20.dp)
-                                    .background(progressColor)
                                     .combinedClickable(
                                         onClick = {
                                             onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
