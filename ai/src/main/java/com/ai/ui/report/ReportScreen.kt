@@ -1427,6 +1427,7 @@ fun ReportsScreen(
                 onViewIcons = {
                     showIconsView = true
                 },
+                onViewTrace = { onNavigateToTrace(currentReportId) },
                 onBack = { showViewReportScreen = false }
             )
         }

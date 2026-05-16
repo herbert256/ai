@@ -111,6 +111,9 @@ internal fun ViewAiReportScreen(
     onOpenHtmlPreview: () -> Unit,
     onViewLog: () -> Unit,
     onViewIcons: () -> Unit,
+    /** Open the API trace list filtered to this report — mirrors
+     *  the 🐞 icon on the result-page title bar. */
+    onViewTrace: () -> Unit,
     onBack: () -> Unit
 ) {
     // Inline expansion target — which Computed kind's items list is
@@ -123,13 +126,16 @@ internal fun ViewAiReportScreen(
     // destination; the View screen itself stays in the back-stack
     // underneath so Android-back from the destination falls back
     // to the View grid rather than the report page.
-    val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons) {
+    val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         buildList {
             add(ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt() })
             add(ViewTile("Reports", "📊", AppColors.Blue) { onViewReports() })
             add(ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() })
             add(ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() })
             add(ViewTile("Log", "📜", AppColors.Brown) { onViewLog() })
+            // 🐞 mirrors the title-bar trace icon — opens the API
+            // trace list pre-filtered to this report.
+            add(ViewTile("Trace", "🐞", AppColors.Red) { onViewTrace() })
             if (perModelIconGenEnabled) {
                 add(ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() })
             }
