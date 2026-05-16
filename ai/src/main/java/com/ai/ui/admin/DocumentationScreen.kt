@@ -17,15 +17,25 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.ui.shared.TitleBar
 
-/** In-app browser for the bundled mobile-friendly documentation at
- *  `assets/docs/technical/`. WebView loads
- *  `file:///android_asset/docs/technical/index.html` — the developer
- *  hub. The end-user manual lives in the sibling `manual/` directory
- *  and is reached from its own entry point (not this screen). Intra-doc
- *  anchor links and cross-doc `.html` links navigate inside the
- *  WebView. JavaScript stays off — the docs are pure HTML + CSS. */
+/** In-app browser for one bundled documentation hub. The same
+ *  WebView wrapper serves both the developer technical hub
+ *  (`assets/docs/technical/`) and the end-user manual
+ *  (`assets/docs/manual/`); the caller picks the subdir + title.
+ *  Intra-doc anchor links and cross-doc `.html` links navigate
+ *  inside the WebView. JavaScript stays off — the docs are pure
+ *  HTML + CSS. */
 @Composable
-fun DocumentationScreen(onBack: () -> Unit) {
+fun DocumentationScreen(
+    onBack: () -> Unit,
+    /** Subdirectory under `assets/docs/` whose `index.html` is the
+     *  WebView entry point. Either `"technical"` or `"manual"` in
+     *  the current asset layout. */
+    docsSubdir: String = "technical",
+    /** Title shown in the TitleBar. */
+    title: String = "Documentation",
+    /** Help topic id wired into the TitleBar's ? icon. */
+    helpTopic: String = "documentation"
+) {
     // Hold a WebView reference so the system back button can walk the
     // WebView's own history before exiting the screen — gives the user
     // a normal browser back experience across cross-doc links.
@@ -37,8 +47,8 @@ fun DocumentationScreen(onBack: () -> Unit) {
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
-            helpTopic = "documentation",
-            title = "Documentation",
+            helpTopic = helpTopic,
+            title = title,
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
@@ -52,7 +62,7 @@ fun DocumentationScreen(onBack: () -> Unit) {
                     settings.cacheMode = WebSettings.LOAD_DEFAULT
                     webViewClient = WebViewClient()
                     webViewRef.value = this
-                    loadUrl("file:///android_asset/docs/technical/index.html")
+                    loadUrl("file:///android_asset/docs/$docsSubdir/index.html")
                 }
             }
         )

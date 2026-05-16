@@ -47,7 +47,7 @@ fun HubScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToTraces: () -> Unit,
     onNavigateToHelp: () -> Unit,
-    onNavigateToDocumentation: () -> Unit,
+    onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
     onNavigateToUsage: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
@@ -146,13 +146,17 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83D\uDCD6", title = "Documentation", onClick = onNavigateToDocumentation)
+            // \u2139\uFE0F About \u2014 replaces the old Documentation card. The About
+            // screen surfaces the AI logo + version + build date and
+            // hosts the two documentation hubs (Manual + Technical) as
+            // its own cards.
+            HubCard(icon = "\u2139\uFE0F", title = "About", onClick = onNavigateToAbout)
         }
     }
 }
 
 @Composable
-private fun HubCard(icon: String, title: String, onClick: () -> Unit) {
+internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)

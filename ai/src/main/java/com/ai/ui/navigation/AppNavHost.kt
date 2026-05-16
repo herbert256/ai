@@ -247,7 +247,7 @@ fun AppNavHost(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
-                onNavigateToDocumentation = { navController.navigate(NavRoutes.DOCUMENTATION) },
+                onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToUsage = { navController.navigate(NavRoutes.AI_USAGE) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
@@ -1045,7 +1045,27 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.DOCUMENTATION) {
-            com.ai.ui.admin.DocumentationScreen(onBack = safePopBack)
+            com.ai.ui.admin.DocumentationScreen(
+                onBack = safePopBack,
+                docsSubdir = "technical",
+                title = "Technical documentation",
+                helpTopic = "documentation"
+            )
+        }
+        composable(NavRoutes.DOCUMENTATION_MANUAL) {
+            com.ai.ui.admin.DocumentationScreen(
+                onBack = safePopBack,
+                docsSubdir = "manual",
+                title = "Manual",
+                helpTopic = "documentation"
+            )
+        }
+        composable(NavRoutes.ABOUT) {
+            com.ai.ui.admin.AboutScreen(
+                onBack = safePopBack,
+                onOpenManual = { navController.navigate(NavRoutes.DOCUMENTATION_MANUAL) },
+                onOpenTechnicalDocs = { navController.navigate(NavRoutes.DOCUMENTATION) }
+            )
         }
         composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
             val topicId = try {

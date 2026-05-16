@@ -21,6 +21,8 @@ object NavRoutes {
     const val HELP = "help"
     const val HELP_FOR_TOPIC = "help/{topicId}"
     const val DOCUMENTATION = "documentation"
+    const val DOCUMENTATION_MANUAL = "documentation_manual"
+    const val ABOUT = "about"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
     const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"
