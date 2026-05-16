@@ -393,12 +393,6 @@
       "baseUrl": "https://api.cohere.ai/compatibility/",
       "defaultModel": "command-r7b-12-2024",
       "extractApiCost": false,
-      "hardcodedModels": [
-        "command-a-03-2025",
-        "command-r-plus-08-2024",
-        "command-r-08-2024",
-        "command-r7b-12-2024"
-      ],
       "id": "Cohere",
       "maxCallsPerProviderPerMinute": 19,
       "modelListFormat": "object",
