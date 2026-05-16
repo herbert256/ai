@@ -762,9 +762,10 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "cost_view" to HelpContent(
         title = "Cost summary",
         cards = listOf(
-            HelpCard("Overview", "Read-only cost table for the report — every API call counted against this report (agents + secondaries + translations) gets a row. Reached from the result page's View → Costs button."),
-            HelpCard("Per-row breakdown", "Each row shows model, kind ('report' / 'rerank' / 'meta' / 'moderate' / 'translate'), input/output tokens, and a USD subtotal computed against the layered pricing lookup at view-time."),
-            HelpCard("Group totals", "Tables aggregate by provider and by model so you can see which provider absorbed most of the spend; both groupings render below the per-row list."),
+            HelpCard("Overview", "Read-only cost view for the report — three compact, sortable lists (By type · By model · All calls) covering every API call counted against this report (agents + secondaries + translations). Reached from the result page's View → Costs button."),
+            HelpCard("Tap a row", "Opens a popup with the full breakdown for that group or call — calls, in/out tokens, in/out cents, total, plus tier and duration on All-calls rows. Tap Close to dismiss."),
+            HelpCard("Sortable columns", "Tap any column header to sort by that column. Tap the active column again to flip direction (▲ ascending / ▼ descending). Each list remembers its own sort independently. Default sort is Total descending."),
+            HelpCard("Row display", "One line per row — model column shows only the part after the last `/` (no provider prefix), full provider/model is in the popup. The bold Total row at the end of By type sums every call in the report. If items were deleted with non-zero spend, an orange `deleted +X.XX ¢` line shows directly above the Total."),
             HelpCard("Translation costs", "Translation calls are billed against the same model that ran them — they appear as 'translate' kind rows. The language picker is hidden in cost mode since costs aggregate every call."),
             HelpCard("Empty state", "When neither the agents nor any secondary carries a tokenUsage record, the body reads '(no usage recorded)'. This usually means the run was cancelled before the first response landed."),
             HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),

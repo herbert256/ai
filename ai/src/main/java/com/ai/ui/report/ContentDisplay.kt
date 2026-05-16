@@ -806,57 +806,86 @@ fun ReportCostTable(report: Report) {
     fun fmtT(n: Int) = "%,d".format(n)
 
     val tColor = AppColors.Blue
+    var popup by remember { mutableStateOf<CostPopup?>(null) }
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // By type / By model — rendered as a stack of cards (one
-        // per group) sorted by total ¢ descending. Replaces the
-        // side-scrolling wide table that the previous
-        // desktop-derived design used and that overflowed mobile
-        // screens.
-        CostSummarySection(
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Three sortable lists. One line per row; tap = full
+        // breakdown in a dialog. Only "By type" carries the bold
+        // grand-totals row (and the deleted-items orange line) so
+        // we don't triple-count across the three sections.
+        CostRowSection(
             label = "By type",
-            groups = byType.sortedByDescending { it.inputCents + it.outputCents },
-            isByModel = false,
-            tColor = tColor
-        )
-        CostSummarySection(
-            label = "By model",
-            groups = byModel.sortedByDescending { it.inputCents + it.outputCents },
-            isByModel = true,
-            tColor = tColor
-        )
-        CostTotalsCard(
-            totalInC = totalInC,
-            totalOutC = totalOutC,
-            totalIn = totalIn,
-            totalOut = totalOut,
+            rows = byType,
+            columnLabels = listOf("Type", "Calls", "Total"),
+            columnWeights = listOf(2f, 1f, 1f),
+            keyExtractors = listOf(
+                { (it as GroupTotal).key },
+                { (it as GroupTotal).calls },
+                { (it as GroupTotal).let { g -> g.inputCents + g.outputCents } },
+            ),
+            renderCells = { g ->
+                listOf(
+                    CostCell(g.key, costTypeColor(g.key), mono = false, end = false, weight = 2f),
+                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 1f),
+                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
+                )
+            },
+            onRowTap = { g -> popup = CostPopup.TypeGroup(g) },
+            defaultSortColumn = 2,
+            defaultSortDescending = true,
+            totalsCells = listOf(
+                CostCell("Total", tColor, mono = false, end = false, weight = 2f, bold = true),
+                CostCell(rows.size.toString(), tColor, mono = true, end = true, weight = 1f, bold = true),
+                CostCell("%.2f ¢".format(totalInC + totalOutC + deletedCents), tColor, mono = true, end = true, weight = 1f, bold = true),
+            ),
             deletedCents = deletedCents,
-            tColor = tColor
         )
-        var showAll by rememberSaveable { mutableStateOf(false) }
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .clickable { showAll = !showAll }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "All calls (${rows.size})",
-                fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
-            Text(if (showAll) "▴" else "▾", color = AppColors.Blue, fontSize = 14.sp)
-        }
-        if (showAll) {
-            val sortedRows = remember(rows) {
-                rows.sortedByDescending { it.inputCents + it.outputCents }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                sortedRows.forEach { r -> CostCallCard(r) }
-            }
-        }
+        CostRowSection(
+            label = "By model",
+            rows = byModel,
+            columnLabels = listOf("Model", "Calls", "Total"),
+            columnWeights = listOf(2f, 1f, 1f),
+            keyExtractors = listOf(
+                { com.ai.ui.shared.shortModelName((it as GroupTotal).model ?: "") },
+                { (it as GroupTotal).calls },
+                { (it as GroupTotal).let { g -> g.inputCents + g.outputCents } },
+            ),
+            renderCells = { g ->
+                listOf(
+                    CostCell(com.ai.ui.shared.shortModelName(g.model ?: ""), Color.White, mono = true, end = false, weight = 2f),
+                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 1f),
+                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
+                )
+            },
+            onRowTap = { g -> popup = CostPopup.ModelGroup(g) },
+            defaultSortColumn = 2,
+            defaultSortDescending = true,
+        )
+        CostRowSection(
+            label = "All calls",
+            rows = rows,
+            columnLabels = listOf("Type", "Model", "Cost"),
+            columnWeights = listOf(1f, 2f, 1f),
+            keyExtractors = listOf(
+                { (it as CostRow).type },
+                { com.ai.ui.shared.shortModelName((it as CostRow).model) },
+                { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
+            ),
+            renderCells = { r ->
+                listOf(
+                    CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
+                    CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
+                    CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
+                )
+            },
+            onRowTap = { r -> popup = CostPopup.Call(r) },
+            defaultSortColumn = 2,
+            defaultSortDescending = true,
+        )
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    popup?.let { p -> CostDetailDialog(p, onDismiss = { popup = null }) }
 }
 
 /** One row in the per-call detail list — hoisted to top-level
@@ -878,194 +907,239 @@ internal data class GroupTotal(
     val inputCents: Double, val outputCents: Double
 )
 
-/** Card-per-row summary section — mobile-friendly replacement for
- *  the previous side-scrolling table. Key (type name OR
- *  provider+model) on the left, total ¢ on the right; secondary
- *  line carries calls + token / cent breakdown so all numeric
- *  detail is visible without horizontal scroll. */
+// ===== Row-based cost view (V3) =====
+//
+// V3 replaces V2's card stack with a true list: one short line per
+// row, sortable columns, tap-to-popup for the full breakdown.
+// Three sections (By type / By model / All calls) all go through
+// the same generic [CostRowSection]; the dialog is shared too.
+
+private data class CostCell(
+    val text: String,
+    val color: Color,
+    val mono: Boolean,
+    val end: Boolean,
+    val weight: Float,
+    val bold: Boolean = false,
+)
+
+private sealed class CostPopup {
+    data class TypeGroup(val g: GroupTotal) : CostPopup()
+    data class ModelGroup(val g: GroupTotal) : CostPopup()
+    data class Call(val r: CostRow) : CostPopup()
+}
+
+private fun costTypeColor(type: String): Color = when (type) {
+    "rerank" -> AppColors.Orange
+    "summarize" -> AppColors.Indigo
+    "compare" -> AppColors.Purple
+    "moderation" -> AppColors.Red
+    "fan-out" -> AppColors.Indigo
+    "fan-in" -> AppColors.Green
+    else -> AppColors.TextSecondary
+}
+
 @Composable
-private fun CostSummarySection(
+private fun <T> CostRowSection(
     label: String,
-    groups: List<GroupTotal>,
-    isByModel: Boolean,
-    tColor: Color
+    rows: List<T>,
+    columnLabels: List<String>,
+    columnWeights: List<Float>,
+    keyExtractors: List<(T) -> Comparable<*>>,
+    renderCells: (T) -> List<CostCell>,
+    onRowTap: (T) -> Unit,
+    defaultSortColumn: Int,
+    defaultSortDescending: Boolean,
+    totalsCells: List<CostCell>? = null,
+    deletedCents: Double = 0.0,
 ) {
-    if (groups.isEmpty()) return
+    if (rows.isEmpty()) return
+    var sortColumn by rememberSaveable(label) { mutableStateOf(defaultSortColumn) }
+    var sortDescending by rememberSaveable(label) { mutableStateOf(defaultSortDescending) }
+    val sorted = remember(rows, sortColumn, sortDescending) {
+        @Suppress("UNCHECKED_CAST")
+        val extract = keyExtractors[sortColumn] as (T) -> Comparable<Any>
+        val cmp = compareBy<T> { extract(it) }
+        rows.sortedWith(if (sortDescending) cmp.reversed() else cmp)
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            label, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 6.dp)
+            "$label · ${rows.size}",
+            fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp)
         )
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            groups.forEach { g -> CostSummaryCard(g, isByModel, tColor) }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            columnLabels.forEachIndexed { i, lbl ->
+                val active = i == sortColumn
+                val arrow = if (active) (if (sortDescending) " ▼" else " ▲") else ""
+                Text(
+                    text = lbl + arrow,
+                    fontSize = 11.sp,
+                    color = if (active) AppColors.Blue else AppColors.TextSecondary,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
+                    textAlign = if (i == 0) androidx.compose.ui.text.style.TextAlign.Start
+                                else androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier
+                        .weight(columnWeights[i])
+                        .clickable {
+                            if (sortColumn == i) sortDescending = !sortDescending
+                            else { sortColumn = i; sortDescending = true }
+                        }
+                        .padding(vertical = 4.dp)
+                )
+            }
+        }
+        HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.25f))
+        sorted.forEachIndexed { idx, item ->
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { onRowTap(item) }
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                renderCells(item).forEach { c -> CostCellText(c) }
+            }
+            if (idx < sorted.lastIndex) {
+                HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.15f))
+            }
+        }
+        if (totalsCells != null) {
+            HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.25f))
+            if (deletedCents > 0.0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "deleted",
+                        fontSize = 11.sp, color = AppColors.Orange,
+                        fontStyle = FontStyle.Italic,
+                        modifier = Modifier.weight(columnWeights[0])
+                    )
+                    Spacer(modifier = Modifier.weight(columnWeights[1]))
+                    Text(
+                        "+%.2f ¢".format(deletedCents),
+                        fontSize = 11.sp, color = AppColors.Orange,
+                        fontFamily = FontFamily.Monospace,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                        modifier = Modifier.weight(columnWeights[2])
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                totalsCells.forEach { c -> CostCellText(c) }
+            }
         }
     }
 }
 
 @Composable
-private fun CostSummaryCard(g: GroupTotal, isByModel: Boolean, tColor: Color) {
+private fun RowScope.CostCellText(c: CostCell) {
+    Text(
+        text = c.text,
+        color = c.color,
+        fontSize = 13.sp,
+        fontFamily = if (c.mono) FontFamily.Monospace else FontFamily.Default,
+        fontWeight = if (c.bold) FontWeight.Bold else FontWeight.Normal,
+        textAlign = if (c.end) androidx.compose.ui.text.style.TextAlign.End
+                    else androidx.compose.ui.text.style.TextAlign.Start,
+        modifier = Modifier.weight(c.weight),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun CostDetailDialog(popup: CostPopup, onDismiss: () -> Unit) {
+    val titleText: String
+    val titleColor: Color
+    val titleMono: Boolean
+    val body: String
+    when (popup) {
+        is CostPopup.TypeGroup -> {
+            titleText = popup.g.key
+            titleColor = costTypeColor(popup.g.key)
+            titleMono = false
+            body = buildGroupBody(popup.g)
+        }
+        is CostPopup.ModelGroup -> {
+            titleText = listOfNotNull(popup.g.provider, popup.g.model).joinToString(" / ")
+            titleColor = AppColors.Blue
+            titleMono = true
+            body = buildGroupBody(popup.g)
+        }
+        is CostPopup.Call -> {
+            titleText = popup.r.type
+            titleColor = costTypeColor(popup.r.type)
+            titleMono = false
+            body = buildCallBody(popup.r)
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AppColors.CardBackground,
+        title = {
+            Text(
+                titleText,
+                color = titleColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = if (titleMono) FontFamily.Monospace else FontFamily.Default,
+            )
+        },
+        text = {
+            Text(
+                text = body,
+                color = AppColors.TextSecondary,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close", color = AppColors.Blue)
+            }
+        },
+    )
+}
+
+private fun buildGroupBody(g: GroupTotal): String {
     val total = g.inputCents + g.outputCents
     val callsStr = if (g.calls == 1) "1 call" else "${g.calls} calls"
-    val tokensStr = "in %,d · out %,d".format(g.inputTokens, g.outputTokens)
-    val centsStr = "in %.2f / out %.2f ¢".format(g.inputCents, g.outputCents)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isByModel) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            g.provider ?: "",
-                            color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            com.ai.ui.shared.shortModelName(g.model ?: ""),
-                            color = Color.White, fontSize = 13.sp,
-                            fontFamily = FontFamily.Monospace,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                } else {
-                    val keyColor = when (g.key) {
-                        "rerank" -> AppColors.Orange
-                        "summarize" -> AppColors.Indigo
-                        "compare" -> AppColors.Purple
-                        "moderation" -> AppColors.Red
-                        else -> Color.White
-                    }
-                    Text(
-                        g.key,
-                        color = keyColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text(
-                    "%.2f ¢".format(total),
-                    color = tColor, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                "$callsStr · $tokensStr · $centsStr",
-                color = AppColors.TextTertiary, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 2, overflow = TextOverflow.Ellipsis
-            )
-        }
+    return buildString {
+        appendLine(callsStr)
+        appendLine()
+        appendLine("in  tokens: %,d".format(g.inputTokens))
+        appendLine("out tokens: %,d".format(g.outputTokens))
+        appendLine()
+        appendLine("in  ¢: %.4f".format(g.inputCents))
+        appendLine("out ¢: %.4f".format(g.outputCents))
+        append("total: %.4f ¢".format(total))
     }
 }
 
-@Composable
-private fun CostTotalsCard(
-    totalInC: Double,
-    totalOutC: Double,
-    totalIn: Int,
-    totalOut: Int,
-    deletedCents: Double,
-    tColor: Color
-) {
-    val total = totalInC + totalOutC + deletedCents
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Total",
-                    color = tColor, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "%.2f ¢".format(total),
-                    color = tColor, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                "in %,d / out %,d tokens · in %.2f / out %.2f ¢".format(
-                    totalIn, totalOut, totalInC, totalOutC
-                ),
-                color = AppColors.TextTertiary, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            if (deletedCents > 0.0) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    "+ %.2f ¢ from deleted items".format(deletedCents),
-                    color = AppColors.Orange, fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CostCallCard(r: CostRow) {
-    val typeColor = when (r.type) {
-        "rerank" -> AppColors.Orange
-        "summarize" -> AppColors.Indigo
-        "compare" -> AppColors.Purple
-        "moderation" -> AppColors.Red
-        "fan-out" -> AppColors.Indigo
-        "fan-in" -> AppColors.Green
-        else -> AppColors.TextSecondary
-    }
-    val tierColor = when (r.tier) {
-        "OVERRIDE" -> AppColors.Orange
-        "OPENROUTER" -> AppColors.Blue
-        "LITELLM" -> AppColors.Purple
-        else -> AppColors.TextDim
-    }
-    val secStr = r.durationMs?.let { "%.1fs".format(it / 1000.0) } ?: ""
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(r.type, color = typeColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        if (r.tier.isNotBlank()) {
-                            Text("  ·  ${r.tier}", color = tierColor, fontSize = 10.sp)
-                        }
-                        if (secStr.isNotBlank()) {
-                            Text(
-                                "  ·  $secStr",
-                                color = AppColors.TextTertiary, fontSize = 10.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                    Text(
-                        "${r.providerDisplay} / ${com.ai.ui.shared.shortModelName(r.model)}",
-                        color = Color.White, fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Text(
-                    "%.2f ¢".format(r.inputCents + r.outputCents),
-                    color = AppColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                "in %,d · out %,d · in %.2f / out %.2f ¢".format(
-                    r.inputTokens, r.outputTokens, r.inputCents, r.outputCents
-                ),
-                color = AppColors.TextTertiary, fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        }
+private fun buildCallBody(r: CostRow): String {
+    val total = r.inputCents + r.outputCents
+    val durStr = r.durationMs?.let { "%.1fs".format(it / 1000.0) } ?: "—"
+    val tierStr = if (r.tier.isBlank()) "—" else r.tier
+    return buildString {
+        appendLine("provider: ${r.providerDisplay}")
+        appendLine("model:    ${r.model}")
+        appendLine("tier:     $tierStr")
+        appendLine("duration: $durStr")
+        appendLine()
+        appendLine("in  tokens: %,d".format(r.inputTokens))
+        appendLine("out tokens: %,d".format(r.outputTokens))
+        appendLine()
+        appendLine("in  ¢: %.4f".format(r.inputCents))
+        appendLine("out ¢: %.4f".format(r.outputCents))
+        append("total: %.4f ¢".format(total))
     }
 }
 
