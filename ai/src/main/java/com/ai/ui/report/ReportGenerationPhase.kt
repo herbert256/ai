@@ -78,15 +78,33 @@ internal fun buildEveryItems(
     fun categoryOf(row: com.ai.data.SecondaryResult): String? =
         row.metaPromptName?.let { nameToCat[it] }
 
+    // Meta rows: collapse multi-language groups into ONE EveryItem
+    // per metaPromptName. Single-language groups keep their direct
+    // [onOpenSecondaryRun] navigation; multi-language groups fall
+    // through to [onViewSecondaryName] so SecondaryResultsScreen
+    // shows its language-picker strip and the user picks which
+    // language to open.
     val meta = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
-        .map { row ->
-            EveryItem(
-                label = row.metaPromptName ?: "Meta",
-                prompt = row.metaPromptName?.let { promptByName[it] },
-                targetLanguage = row.targetLanguage?.takeIf { it.isNotBlank() },
-                open = { onOpenSecondaryRun(row.id) }
-            )
+        .groupBy { it.metaPromptName ?: "Meta" }
+        .map { (name, rows) ->
+            val prompt = promptByName[name]
+            if (rows.size == 1) {
+                val row = rows.first()
+                EveryItem(
+                    label = name,
+                    prompt = prompt,
+                    targetLanguage = row.targetLanguage?.takeIf { it.isNotBlank() },
+                    open = { onOpenSecondaryRun(row.id) }
+                )
+            } else {
+                EveryItem(
+                    label = name,
+                    prompt = prompt,
+                    targetLanguage = null,
+                    open = { onViewSecondaryName(name, SecondaryKind.META) }
+                )
+            }
         }
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
