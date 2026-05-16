@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Throttle — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Throttle</span></header>
+<main>
+
+<h1>Per-provider throttle, 429 retry, read timeouts</h1>
+
+<p>Network-side rate control. Everything here is configurable per
+provider (overrides in <code>assets/providers.json</code> + Settings →
+Provider edit) and falls through to a global default
+(<code>GeneralSettings.*</code>, exposed under Settings → Network).</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#singletons">Singletons</a></li>
+<li><a href="#interceptors">Interceptor chain</a></li>
+<li><a href="#overrides">Per-provider overrides</a></li>
+<li><a href="#pre-acquire">Pre-acquire flows</a></li>
+<li><a href="#files">Files</a></li>
+</ul>
+</nav>
+
+<h2 id="singletons">Singletons</h2>
+
+<p><code>data/ApiTracer.kt</code> carries the three load-bearing
+singletons.</p>
+
+<h3>NetworkSettings</h3>
+<p>Live mirror of the user-tunable network knobs. The OkHttp
+interceptors read from here so they don't have to thread a
+<code>Settings</code> reference through their constructors.
+<code>AppViewModel.applyGeneralSettings</code> writes on bootstrap
+and on every Settings update.</p>
+
+<dl class="kv">
+<div>
+<dt>streamingReadTimeoutSec</dt>
+<div class="meta"><code>BuildConfig.NETWORK_READ_TIMEOUT_SEC</code> (10 min)</div>
+<dd>SSE chat / report streams.</dd>
+</div>
+<div>
+<dt>nonStreamingReadTimeoutSec</dt>
+<div class="meta"><code>BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC</code></div>
+<dd>Analyze, meta, rerank, translate, model-list, individual analyze
+calls.</dd>
+</div>
+<div>
+<dt>maxCallsPerProviderPerMinute</dt>
+<div class="meta">default <code>30</code></div>
+<dd>Sliding-window rate cap.</dd>
+</div>
+<div>
+<dt>maxConcurrentCallsPerProvider</dt>
+<div class="meta">default <code>3</code></div>
+<dd>Concurrency cap.</dd>
+</div>
+<div>
+<dt>maxRetriesOn429</dt>
+<div class="meta">default <code>3</code></div>
+<dd>In-line 429 retries.</dd>
+</div>
+<div>
+<dt>retryBackoffMs429</dt>
+<div class="meta">default <code>1000</code></div>
+<dd>Wait between retries.</dd>
+</div>
+<div>
+<dt>maxRetriesOn529</dt>
+<div class="meta">default <code>3</code></div>
+<dd>In-line 529 (server overloaded) retries.</dd>
+</div>
+<div>
+<dt>retryBackoffMs529</dt>
+<div class="meta">default <code>1000</code></div>
+<dd>Wait between 529 retries.</dd>
+</div>
+</dl>
+
+<h3>ProviderThrottle</h3>
+<p>Per-hostname rate + concurrency gate. One <code>Semaphore</code>
+per host caps in-flight calls; a sibling
+<code>ConcurrentLinkedDeque</code> of call timestamps enforces the
+60-second sliding window.</p>
+
+<p><code>acquire(host)</code> is <strong>synchronous</strong> — it
+blocks the calling thread (an OkHttp dispatcher worker, never the main
+thread) and returns a <code>Releaser</code> that must be invoked in a
+<code>finally</code> so the permit isn't leaked.</p>
+
+<p>Caps are resolved per acquire from per-provider override
+(<code>AppService.maxCalls…</code> / <code>maxConcurrent…</code>) →
+global default (<code>NetworkSettings.*</code>). Provider edits go
+through <code>ProviderRegistry.save</code>, which calls
+<code>ProviderThrottle.resetForNewLimits()</code> — the next acquire
+builds fresh per-host semaphores at the new caps.</p>
+
+<p>Each rate-limit / concurrency wait emits a DEBUG line under the
+<code>Throttle</code> tag with the host, queue depth, and elapsed
+wait, so the AppLog viewer shows exactly where time is going when an
+action feels slow.</p>
+
+<h3>ProviderThrottle.permitPreAcquired</h3>
+<p><code>ThreadLocal&lt;Boolean&gt;</code>. True on threads where the
+calling flow already acquired a permit explicitly
+(<code>FanOutEngine</code>, fan-icons batch,
+<code>ModelTestEngine</code>, Find alternative icons, the per-agent
+report-icon chain). <code>ProviderThrottleInterceptor</code> reads it
+on the OkHttp worker and skips its own acquire — without the flag the
+interceptor would double-count and halve effective concurrency for
+those flows.</p>
+
+<p>Propagated across coroutine dispatcher hops via
+<code>asContextElement</code> and copied onto OkHttp workers by
+<code>TagPropagatingExecutor</code>.</p>
+
+<h3>ApiCallCaps</h3>
+<p>Six application-level per-kind semaphores layered on top of the
+per-host throttle. Each dispatcher
+<code>withPermit</code>-wraps through the relevant kind's semaphore
+first, then through <code>ProviderThrottle.acquire(host)</code>.</p>
+
+<dl class="kv">
+<div>
+<dt>global</dt><div class="meta">default <code>50</code></div>
+<dd>Every API call across the app.</dd>
+</div>
+<div>
+<dt>report</dt><div class="meta">default <code>15</code></div>
+<dd>Per-agent calls inside one report-gen run.</dd>
+</div>
+<div>
+<dt>translation</dt><div class="meta">default <code>15</code></div>
+<dd>Total in-flight Translate calls (across runs).</dd>
+</div>
+<div>
+<dt>fanOut</dt><div class="meta">default <code>15</code></div>
+<dd>Fan-out pair calls (FanOutEngine).</dd>
+</div>
+<div>
+<dt>fanIcons</dt><div class="meta">default <code>15</code></div>
+<dd>Fan-icons batch calls (separate from fanOut).</dd>
+</div>
+</dl>
+
+<p>A seventh knob, <code>GeneralSettings.maxTestApiCalls</code>
+(default 40), is read directly by <code>ModelTestEngine</code> to
+size its in-flight semaphore and is <strong>not</strong> mirrored
+into <code>ApiCallCaps</code>.</p>
+
+<p>Mirrored from <code>GeneralSettings</code> on every Settings
+update. Surfaced under <strong>Settings → Network → Maximal API
+calls</strong>.</p>
+
+<h3>ModelCooldownStore</h3>
+<p>Separate from the throttle layer but the same network surface. A
+429 with a Retry-After hint longer than
+<code>LONG_RETRY_THRESHOLD_MS = 1 h</code> benches the
+<code>(providerId, model)</code> pair until the hint expires. The 429
+interceptor calls
+<code>markUnavailable(providerId, model, availableAtMs, traceFile)</code>;
+pickers dim the row with a "rate-limited · back HH:mm" caption;
+engines skip benched pairs for the rest of the run. CRUD under AI
+Setup → AI Models setup → Model cooldowns. Persisted in its own
+SharedPreferences file (<code>model_cooldowns</code>) and
+round-tripped through backup. See <a href="cooldowns.html">cooldowns</a>.</p>
+
+<h2 id="interceptors">Interceptor chain</h2>
+
+<p>OkHttp application interceptors, outer → inner:</p>
+
+<ul class="tree">
+<li>RateLimitRetryInterceptor <span class="note">— handles 429 retries</span>
+  <ul>
+    <li>ProviderThrottleInterceptor <span class="note">— acquires / releases per-host permits</span>
+      <ul>
+        <li>ReadTimeoutInterceptor <span class="note">— per-call read timeout swap</span>
+          <ul>
+            <li>TestCallTimeoutInterceptor <span class="note">— Provider-test 30 s window</span>
+              <ul>
+                <li>TracingInterceptor <span class="note">— writes the ApiTracer JSON</span>
+                  <ul>
+                    <li>upstream</li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+
+<h3>RateLimitRetryInterceptor</h3>
+
+<p>Loops on 429, sleeping <code>backoffMs</code> between attempts up
+to <code>maxRetries</code>. Caps are resolved per 429 via
+<code>ProviderThrottle.retryLimitsFor(host)</code> so a settings
+change while a call is in flight takes effect on the next iteration.
+<code>maxRetries == 0</code> is a valid "no in-line retries" — the
+outer <code>withRetry</code> layer still gets a chance.</p>
+
+<p>Hard guards:</p>
+<ul>
+<li>Main-thread check — if anything ever sneaks through, the
+interceptor returns the 429 directly instead of sleeping (would ANR
+otherwise).</li>
+<li><code>chain.call().isCanceled()</code> — bails the loop the moment
+the caller cancels.</li>
+<li>Closes the previous response before reissuing — a left-open body
+leaks an OkHttp connection.</li>
+<li><code>408 / 425 / 429</code> are treated as transient by the
+outer <code>withRetry</code> layer too, so the suspend-level retry
+can layer on top.</li>
+</ul>
+
+<h3>ProviderThrottleInterceptor</h3>
+
+<p>Skips its own acquire when <code>permitPreAcquired</code> is set.
+Otherwise calls <code>ProviderThrottle.acquire(host)</code>
+pre-<code>proceed</code>, releases in <code>finally</code>. Same
+main-thread bypass as above.</p>
+
+<h3>ReadTimeoutInterceptor</h3>
+
+<p>Per-call read-timeout shim. Without it every call would inherit
+the OkHttp client's static streaming timeout (10 min), which is fine
+for SSE but disastrous for short non-streaming calls — a single hung
+provider then gates the whole batch for minutes.</p>
+
+<p>Streaming detection runs pre-proceed against the request:</p>
+
+<ul>
+<li>Gemini URL contains <code>:streamGenerateContent</code> →
+streaming; <code>:generateContent</code> → non-streaming.</li>
+<li>POST request body contains <code>"stream": true</code> →
+streaming.</li>
+<li>Otherwise (GET model-list calls, …) → non-streaming.</li>
+</ul>
+
+<p>The body bytes are read off a <code>Buffer.snapshot()</code> so the
+original request body stays untouched.</p>
+
+<h3>TestCallTimeoutInterceptor</h3>
+
+<p>When the calling thread is inside a
+<code>withTraceCategory("Provider test")</code> block (Refresh All's
+per-provider Test step), overrides connect + read timeouts down to
+30 s. Sits ahead of <code>ReadTimeoutInterceptor</code> so the
+test-specific window wins regardless of which branch
+<code>ReadTimeoutInterceptor</code> would have picked.</p>
+
+<h2 id="overrides">Per-provider overrides</h2>
+
+<p>Four nullable fields on <code>AppService</code>:</p>
+
+<pre><code>val maxCallsPerProviderPerMinute: Int? = null,
+val maxConcurrentCallsPerProvider: Int? = null,
+val maxRetriesOn429: Int? = null,
+val retryBackoffMs429: Long? = null,
+val maxRetriesOn529: Int? = null,
+val retryBackoffMs529: Long? = null</code></pre>
+
+<p>Null = inherit the global default. Resolved by
+<code>ProviderThrottle.limitsFor(host)</code> /
+<code>retryLimitsFor(host)</code> (each clamps to a safe minimum — 1
+for rate / concurrency, 0 for retries, 1 ms for backoff).</p>
+
+<p>The provider Settings → Network card exposes all four with
+"inherit" placeholders next to the global value, and a
+<strong>Refresh All</strong> never silently overwrites a user-set
+value — the asset-driven sync paths (<code>importFromAsset</code>,
+<code>upsertFromJson</code>, <code>syncFromAsset</code>) check
+<code>ProviderFieldTimestamps</code> and skip fields the user has
+already edited.</p>
+
+<h2 id="pre-acquire">Pre-acquire flows</h2>
+
+<p>Several flows pre-acquire to keep the request slot from being held
+across an idle window. In every case the pre-acquired permit is held
+over the actual network call (not the planning code), and the
+<code>permitPreAcquired</code> context element tells the inline
+interceptor to skip.</p>
+
+<ol>
+<li><strong>FanOutEngine</strong> — pre-acquires per pair before the
+HTTP call, releases after the response settles. The engine's internal
+IO semaphore (<code>maxConcurrentFanOutCalls</code>) bounds total
+in-flight pair coroutines. Pairs whose per-host throttle is full
+surface as <code>Throttled</code> on the L1 stats panel.</li>
+<li><strong>Fan-icons batch</strong> — same shape, separate budget
+(<code>maxConcurrentFanIconsCalls</code>).</li>
+<li><strong>ModelTestEngine</strong> — pre-acquires per probe; the
+<code>throttledKeys: StateFlow&lt;Set&lt;String&gt;&gt;</code>
+exposes which pairs are currently blocked in
+<code>ProviderThrottle.acquire</code> so the L1 list can render the
+live "Throttled" badge.</li>
+<li><strong>Per-agent report-icon chain</strong>
+(<code>runReportIconsForAgent</code>) — each of the three tiers
+acquires its own permit on entry, releases on exit. See
+<a href="report-icons.html">report-icons</a>.</li>
+<li><strong>Find alternative icons</strong>
+(<code>startIconFanOut</code>) — same pattern.</li>
+</ol>
+
+<h2 id="files">Files</h2>
+
+<ul>
+<li><code>data/ApiTracer.kt</code> — <code>NetworkSettings</code>,
+<code>ProviderThrottle</code>, <code>ProviderThrottleInterceptor</code>,
+<code>RateLimitRetryInterceptor</code>,
+<code>OverloadedRetryInterceptor</code>,
+<code>ReadTimeoutInterceptor</code>,
+<code>TestCallTimeoutInterceptor</code>, <code>ApiCallCaps</code>
+(the six per-kind semaphores).</li>
+<li><code>data/ModelCooldownStore.kt</code> — singleton store +
+persisted <code>model_cooldowns</code> SharedPreferences file.</li>
+<li><code>data/AppService.kt</code> — the four nullable override
+fields.</li>
+<li><code>data/ProviderRegistry.kt</code> — calls
+<code>ProviderThrottle.resetForNewLimits()</code> from
+<code>save</code>.</li>
+<li><code>data/ProviderFieldTimestamps.kt</code> — per-provider
+per-field edit timestamps; the asset-sync paths consult these to
+decide which fields to refresh from <code>providers.json</code>.</li>
+<li><code>viewmodel/AppViewModel.kt</code> —
+<code>GeneralSettings.*</code> mirror, bootstrap + on-update
+propagation, the six <code>maxConcurrent*</code> knobs.</li>
+<li><code>viewmodel/FanOutEngine.kt</code> /
+<code>viewmodel/ModelTestEngine.kt</code> — the largest pre-acquire
+consumers.</li>
+<li><code>ui/settings/SettingsScreen.kt</code> — the
+<strong>Network</strong> card on the Settings → AI Setup → Provider
+edit screen, and the global <strong>Maximal API calls</strong> card
+on Settings → Network.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

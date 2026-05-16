@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Secondary results — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Secondary results</span></header>
+<main>
+
+<h1>Secondary results</h1>
+<p class="muted">Meta prompts · Rerank · Moderate · Translate ·
+Fan-out / Fan-in</p>
+
+<p>A "secondary result" is a meta-result that operates on a finished
+report's per-agent outputs. Four kinds exist (<code>SecondaryKind</code>):</p>
+
+<dl class="kv">
+<div>
+<dt>RERANK</dt>
+<dd>Rank the responses 1..N. Default prompt asks for strict JSON:
+<code>[{id, rank, score, reason}, ...]</code>.</dd>
+</div>
+<div>
+<dt>META</dt>
+<dd>Any user-defined chat-type Meta prompt — "Compare", "Critique",
+"Synthesize", anything the user names in the Meta-prompt CRUD. Also
+covers Fan-out per-pair rows and Fan-in combined-report rows. Default
+prompt asks for free-form prose; the prompt body is whatever the
+user wrote.</dd>
+</div>
+<div>
+<dt>MODERATION</dt>
+<dd>Per-response policy classification. Structured JSON from a
+provider's <code>/moderations</code> endpoint (no chat prompt).</dd>
+</div>
+<div>
+<dt>TRANSLATE</dt>
+<dd>Translate prompt + responses to one or more languages. Free-form
+prose, one row per (source × language) — see
+<a href="translation.html">translation</a>.</dd>
+</div>
+</dl>
+
+<p>Every chat-type prompt routes through the single <code>META</code>
+kind; the user-given prompt name carried on the row
+(<code>metaPromptName</code>) is what the UI and exports bucket by.
+The kind decides which API path handles the call (rerank endpoint /
+moderation endpoint / chat); the name decides how the result is
+grouped, labelled, and exported. The Fan-out per-pair rows and Fan-in
+combined-report row also carry <code>kind = META</code> but are
+distinguished by <code>fanOutSourceAgentId != null</code> (Fan-out)
+and <code>fanInOf != null</code> (Fan-in).</p>
+
+<p>Each result is the work of a single chosen model and is persisted
+independently — a report can accumulate any combination, and each
+entry is independently viewable and deletable.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#crud">Internal Prompt CRUD</a></li>
+<li><a href="#lifecycle">Lifecycle</a></li>
+<li><a href="#resolution">Prompt resolution</a></li>
+<li><a href="#results-block">The @RESULTS@ block</a></li>
+<li><a href="#reference-legend">Reference legend</a></li>
+<li><a href="#scope-encoding">Scope encoding</a></li>
+<li><a href="#storage">Storage</a></li>
+<li><a href="#cost">Cost tracking</a></li>
+<li><a href="#fan">Fan-out / Fan-in / Fan-icons</a></li>
+<li><a href="#export">HTML export</a></li>
+<li><a href="#concurrency">Concurrency and gating</a></li>
+<li><a href="#native">Native rerank / moderation endpoints</a></li>
+<li><a href="#new-kind">Adding a fifth kind</a></li>
+</ul>
+</nav>
+
+<h2 id="crud">Internal Prompt CRUD</h2>
+
+<p>Every chat-type meta / fan-out / fan-in / fixed-internal prompt
+lives as an <code>InternalPrompt</code> row, keyed by
+<code>category</code> + <code>name</code>. Settings → AI Setup →
+<strong>Prompt management</strong> is the CRUD surface, broken into
+category buckets:</p>
+
+<dl class="kv">
+<div><dt>Meta prompts <span class="muted">(category = "meta")</span></dt>
+<dd>Runs on the full report (or a SecondaryScope). Compare, Critique,
+Synthesize, etc.</dd></div>
+<div><dt>Fan-out prompts <span class="muted">(category = "fan_out")</span></dt>
+<dd>Runs across every (answerer × source) pair.</dd></div>
+<div><dt>Fan-in prompts <span class="muted">(category = "fan_in")</span></dt>
+<dd>Combines fan-out responses back into a single combined-report
+row.</dd></div>
+<div><dt>Model-scoped fan-in prompts <span class="muted">(initiator / requester / model)</span></dt>
+<dd>Produces per-(provider, model) rows that the Fan-out L2 page
+surfaces under each model's own bucket. Distinct from the legacy total
+<code>fan_in</code> (which combines the whole report and shows on
+L1's combined-rows section). Resolver is
+<code>resolveModelFanInPrompt</code> with placeholders
+<code>@INITIATOR@</code>, <code>@RESPONDERS@</code>,
+<code>@RESPONDER_PAIRS@</code>. Rows carry
+<code>scopeProviderId</code> / <code>scopeModel</code> so the L2 page
+can filter to the active model.</dd></div>
+<div><dt>Other internal <span class="muted">(category = "internal")</span></dt>
+<dd>Fixed list of five fixed-name templates: <code>intro</code>,
+<code>model_info</code>, <code>translate</code>, <code>rerank</code>,
+<code>moderation</code>. No Add / Delete in this bucket.</dd></div>
+</dl>
+
+<p>Each entry has:</p>
+
+<dl class="kv">
+<div><dt>name</dt>
+<dd>User-facing label that ends up as <code>metaPromptName</code> on
+every row it produces. Unique within (<code>category</code>,
+<code>name</code>) so a "Compare" can exist under both <code>meta</code>
+and <code>fan_in</code> without collision.</dd></div>
+<div><dt>title</dt>
+<dd>One-line description shown alongside <code>name</code> on the
+Fan out card and the prompt-edit screen.</dd></div>
+<div><dt>reference</dt>
+<dd>When true, the run appends a deterministic <code>## References</code>
+legend mapping <code>[N]</code> to provider / model.</dd></div>
+<div><dt>agent</dt>
+<dd><code>"*select"</code> (the default — ask the user which model to
+run on) or the literal <code>Agent.name</code>.</dd></div>
+<div><dt>text</dt>
+<dd>The prompt template, with placeholders.</dd></div>
+</dl>
+
+<div class="callout">
+<p>Routing of meta prompts to a <code>SecondaryKind</code> is
+name-driven, not a separate <code>type</code> field.
+<code>metaTypeToKind</code> resolves <code>name == "rerank"</code> →
+<code>RERANK</code>, <code>name == "moderation"</code> →
+<code>MODERATION</code>, anything else → <code>META</code>. Unknown
+names log a warning and fall back to META so the run still surfaces
+somewhere.</p>
+</div>
+
+<h2 id="lifecycle">Lifecycle</h2>
+
+<ul class="tree">
+<li>Report finishes
+  <ul>
+    <li>Tap a Meta button on the result page <span class="note">— one per Meta prompt, plus Translate, Rerank, Fan out</span>
+      <ul>
+        <li>Rerank / Moderation: skip the scope screen <span class="note">— always operate on the full set</span></li>
+        <li>chat-type Meta / Translate / Fan-out:
+          <ul>
+            <li>SecondaryScopeScreen
+              <ul>
+                <li>All model reports</li>
+                <li>Only top ranked reports <span class="note">— Number + Rank dropdown</span></li>
+                <li>Manual selection <span class="note">— checklist of agents</span></li>
+                <li>chat-type Meta and Translate: language scope <span class="note">— All present / Selected — when translations exist</span></li>
+              </ul>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </li>
+    <li>Model picker <span class="note">— multi-select</span>
+      <ul>
+        <li>Rerank picker has a "rerank models only" toggle</li>
+        <li>Pre-checks the previous run's selection <span class="note">— per-(reportId, prompt)</span></li>
+        <li>Includes the synthetic Local provider when at least one .task LLM is installed</li>
+      </ul>
+    </li>
+    <li>Run <span class="note">— N independent calls in parallel, gated by ProviderThrottle</span>
+      <ul>
+        <li>Multi-language fan-out for chat-type META and TRANSLATE: one batch per (language, model-pick)</li>
+        <li>Multiple TRANSLATE batches can run concurrently (one runId each)</li>
+      </ul>
+    </li>
+    <li>Each result saved as <code class="path">&lt;filesDir&gt;/secondary/&lt;reportId&gt;/&lt;id&gt;.json</code>
+      <ul>
+        <li>metaPromptId / metaPromptName stamped on every chat-type META row</li>
+        <li>secondaryScope encoded onto the row at save time</li>
+        <li>For META rows with reference=true: a deterministic "## References" legend appended</li>
+        <li>Fan-out rows carry fanOutSourceAgentId</li>
+        <li>Fan-in rows carry fanInOf = &lt;metaPromptId&gt;</li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+
+<h2 id="resolution">Prompt resolution</h2>
+
+<p>Every prompt — Rerank, every chat-type Meta entry, Fan-out, Fan-in,
+Translate, plus the fixed internal templates (Intro, Model info) —
+lives as an <code>InternalPrompt</code> row seeded from
+<code>assets/prompts.json</code> on first launch. The CRUD lets the
+user add / rename / delete freely after that; the JSON only gates
+fresh-install seeding (no in-code <code>DEFAULT_*</code> constants
+exist).</p>
+
+<p>For a chat-type Meta run the prompt template is the
+<code>InternalPrompt.text</code> of whichever Meta-prompt button the
+user tapped. For RERANK runs the template is the
+<code>InternalPrompt.text</code> of the rerank-typed Meta entry the
+user picked (defaults to the seeded "rerank" entry). For TRANSLATE
+runs the runtime looks up the <code>InternalPrompt</code> named
+<code>"translate"</code> in the <code>internal</code> category.
+MODERATION runs through a provider's <code>/moderations</code>
+endpoint which takes no chat prompt — there's nothing to
+substitute.</p>
+
+<p>Templates substitute these variables:</p>
+
+<dl class="kv">
+<div><dt>@QUESTION@</dt>
+<dd>Original report prompt (or its translation when fan-out
+language ≠ original).</dd></div>
+<div><dt>@RESULTS@</dt>
+<dd>Pre-formatted block, see below.</dd></div>
+<div><dt>@COUNT@</dt>
+<dd>Number of results being processed.</dd></div>
+<div><dt>@TITLE@</dt>
+<dd>Report title (or empty).</dd></div>
+<div><dt>@DATE@</dt>
+<dd>Current date / time, <code>yyyy-MM-dd HH:mm</code>.</dd></div>
+<div><dt>@LANGUAGE@</dt>
+<dd>TRANSLATE only — target language English name.</dd></div>
+<div><dt>@TEXT@</dt>
+<dd>TRANSLATE only — the source text being translated.</dd></div>
+<div><dt>@RESPONSE@</dt>
+<dd>Fan-out only — the source agent's response body.</dd></div>
+<div><dt>@FAN_OUT_COUNT@</dt>
+<dd>Fan-in only — the number of fan-out source agents.</dd></div>
+<div>
+<dt>***Report*** @REPORT@@RESPONSES@</dt>
+<dd>Fan-in only — iterable block; expands once per source agent, with
+<code>@RESPONSES@</code> populated by every fan-out response for that
+source.</dd>
+</div>
+<div>
+<dt>@INITIATOR@</dt>
+<dd>Model-scoped fan-in only — active model's own report response.
+Used by <code>initiator</code> / <code>model</code> categories; empty
+for <code>requester</code> (where the active model is the answerer,
+not the source).</dd>
+</div>
+<div>
+<dt>@RESPONDERS@</dt>
+<dd>Model-scoped fan-in only — block of fan-out responses where the
+active model is the source (other models responded TO active's
+report). One <code>***Response*** {body}</code> line per responder.
+Used by <code>initiator</code> / <code>model</code>.</dd>
+</div>
+<div>
+<dt>@RESPONDER_PAIRS@</dt>
+<dd>Model-scoped fan-in only — iterable list of pairs where the active
+model is the answerer. Each pair renders as <code>***Report*** {other's
+report body}\n\n***Response*** {active's fan-out response}</code>.
+Used by <code>requester</code> / <code>model</code>.</dd>
+</div>
+</dl>
+
+<h2 id="results-block">The @RESULTS@ block</h2>
+
+<p><code>buildResultsBlock</code> produces:</p>
+
+<pre><code>[1] provider=openai model=gpt-5
+&lt;full response text from agent #1&gt;
+
+[2] provider=anthropic model=claude-opus-4
+&lt;full response text from agent #2&gt;
+
+…</code></pre>
+
+<p>The bracketed <code>[N]</code> is the <strong>stable id</strong>
+rerank models echo back in their JSON output. It also matches the
+<code>result-N</code> HTML anchors in the report export, so chat-type
+Meta references like "as [3] noted" auto-link back to that agent's
+card.</p>
+
+<p>When a TopRanked or Manual scope filters the input, the original
+<code>[N]</code> numbering is preserved — the result block becomes
+sparse (e.g. <code>[1]</code>, <code>[4]</code>, <code>[7]</code>
+only) so the export anchors still resolve.</p>
+
+<p>For multi-language chat-type Meta batches the agent response bodies
+are pulled from the matching TRANSLATE rows when present (so each
+language's batch sees translated content), with the prompt-side
+<code>@QUESTION@</code> likewise translated.</p>
+
+<h2 id="reference-legend">Reference legend (chat-type Meta only)</h2>
+
+<p>When the Meta prompt's <code>reference</code> flag is true, after
+the model returns its output <code>executeSecondaryTask</code> appends
+a deterministic reference legend to the persisted content:</p>
+
+<pre><code>…model output…
+
+---
+
+## References
+
+[1] = OpenAI / gpt-5
+[2] = Anthropic / claude-opus-4
+[3] = Google / gemini-2.5-pro</code></pre>
+
+<p>The legend is built once per batch via
+<code>buildReferenceLegend(report, includeIds)</code> so it honours
+the same Manual / TopRanked filter as the results block, and is
+written before save so subsequent renders / exports include it
+without further work.</p>
+
+<h2 id="scope-encoding">Scope encoding</h2>
+
+<p>The chosen <code>SecondaryScope</code> is encoded as a string and
+stored on the row's <code>secondaryScope</code> field at run time:</p>
+
+<dl class="kv">
+<div><dt>AllReports</dt>
+<div class="meta"><code>"ALL"</code></div></div>
+<div><dt>TopRanked(count, rerankResultId)</dt>
+<div class="meta"><code>"TOP:&lt;rerankResultId&gt;:&lt;count&gt;"</code></div></div>
+<div><dt>Manual(agentIds)</dt>
+<div class="meta"><code>"MANUAL:&lt;id1&gt;,&lt;id2&gt;,..."</code></div></div>
+</dl>
+
+<p>The cascade-on-prompt-change path reads this and re-runs at the
+same scope rather than silently widening to <code>AllReports</code>.
+Legacy rows (no <code>secondaryScope</code> set) fall back to
+<code>AllReports</code>.</p>
+
+<h2 id="storage">Storage</h2>
+
+<p><code class="path">&lt;filesDir&gt;/secondary/&lt;reportId&gt;/&lt;resultId&gt;.json</code>
+← <code>SecondaryResult</code>.</p>
+
+<p>Cascades on parent-report deletion:
+<code>ReportStorage.deleteReport</code> calls
+<code>SecondaryResultStorage.deleteAllForReport</code> so the
+directory goes with the parent. Per-(reportId, kind) cache validity
+is fingerprinted by <code>(name, mtime, length)</code> joined across
+every JSON file, so an in-place edit to one file invalidates the
+cache.</p>
+
+<p><code>SecondaryResultStorage.save</code> validates that the
+resolved <code>&lt;resultId&gt;.json</code> file stays inside the
+configured directory — a defence against <code>..</code>-traversal in
+a corrupted id.</p>
+
+<h2 id="cost">Cost tracking</h2>
+
+<p>Every secondary call is tagged in <code>usage-stats.json</code>
+with the <code>kind</code> it ran under: <code>"rerank"</code>,
+<code>"meta"</code>, <code>"moderation"</code>, or
+<code>"translate"</code>. The AI Usage screen shows the kind as a
+small pill on the per-model row.</p>
+
+<p>In the Report cost summary and HTML export the <strong>Type</strong>
+column prefers the <code>metaPromptName</code> (lowercased) over the
+kind, so a "Compare" row reads <code>compare</code>, a "Critique" row
+reads <code>critique</code>, etc. Rerank / Moderation / Translate keep
+their fixed labels. Fan-out per-pair rows surface as
+<code>cross-out</code> or the prompt's lowercased name; Fan-in
+combined-report rows as <code>cross-in</code>.</p>
+
+<h2 id="fan">Fan-out / Fan-in / Fan-icons</h2>
+
+<h3>FanOutEngine — the runtime</h3>
+
+<p>Fan-out execution lives on the dedicated <code>FanOutEngine</code>
+view model. It owns the canonical
+<code>_runs: MutableStateFlow&lt;Map&lt;FanOutRunKey, FanOutRunState&gt;&gt;</code>
+and mutates it atomically: every per-pair transition (queued, permit
+acquired, HTTP completed, error stamped, row deleted) is a single
+<code>_runs.update { … }</code> call, so subscribers see exactly one
+value per transition with no flicker — no polling loop, no
+<code>recentlySettled</code> grace window, no merging of disk +
+StateFlow.</p>
+
+<ul>
+<li>The per-run snapshot type is <code>FanOutRunState</code>:
+<code>pairs: Map&lt;PairKey, PairState&gt;</code>,
+<code>combinedReports</code>, <code>scope</code>,
+<code>metaPrompt</code>, plus the explicit <code>PairStatus</code>
+enum (PENDING / RUNNING / DONE / ERROR) on every <code>PairState</code>
+so the UI's classifier reads one field instead of merging three
+loosely coupled views.</li>
+<li><strong>Per-pair Job map</strong> (<code>fanOutPairJobs</code>)
+keyed by <code>PairState.id</code> lets destructive paths
+<code>cancelAndJoin</code> a specific pair before deleting its disk
+row — closes the "result lands after delete" race. Registration
+happens BEFORE <code>start()</code> via
+<code>CoroutineStart.LAZY</code> so concurrent deletes always find
+the Job.</li>
+<li><strong>Concurrency</strong> is nested. Per host, the
+<a href="throttle.html">ProviderThrottle</a> gates 30 calls / min × 3
+concurrent (defaults; per-provider overrides apply). Across hosts, an
+engine-level IO semaphore sized from
+<code>GeneralSettings.maxConcurrentFanOutCalls</code> (default 15)
+bounds total in-flight pair coroutines. Permits are pre-acquired on
+the coroutine side and the
+<code>ProviderThrottle.permitPreAcquired</code> thread-local stops the
+inline interceptor from double-counting.</li>
+<li>A 429 with a Retry-After hint ≥ 1 h calls
+<code>ModelCooldownStore.markUnavailable</code>; the engine skips the
+benched (provider, model) for the rest of the run. See
+<a href="cooldowns.html">cooldowns</a>.</li>
+<li>Hydration is lazy: <code>engine.hydrate(context, reportId)</code>
+re-reads every <code>SecondaryResult</code> row for the report and
+rebuilds the in-memory map via <code>toPairState</code> /
+<code>toCombinedReportState</code>. HTTP + save is still delegated to
+<code>ReportViewModel.executeSecondaryTask</code> so the persistence
+layer stays one canonical writer.</li>
+</ul>
+
+<h3>Fan-out screens (L1 / L2 / L3 + Icons)</h3>
+
+<p>The drill-in lives in <code>FanOutScreen.kt</code> (parent + nav)
+plus <code>FanOutL1Screen.kt</code>, <code>FanOutL2Screen.kt</code>,
+<code>FanOutL3Screen.kt</code>, and the icons-mode siblings in
+<code>FanOutIconsScreens.kt</code>. A <code>FanOutNav</code>
+sealed-class state in <code>rememberSaveable</code> survives rotation;
+every level subscribes to
+<code>engine.runs.collectAsState()</code>.</p>
+
+<p>A <code>FanOutMode</code> enum (<code>MAIN</code> vs
+<code>ICONS</code>) flips the screen tree between standard fan-out
+and <strong>fan-icons mode</strong> — a parallel 3-tier emoji chain
+across every completed pair. Same screen files, separate budget
+(<code>maxConcurrentFanIconsCalls</code>), separate Costs row tagged
+<code>fan-icons</code>, and a <strong>Clear fan-icons</strong> button
+wipes icon state without deleting pairs. When the user opens a report
+mid-batch the icons batch auto-resumes on screen entry.</p>
+
+<dl class="kv">
+<div><dt>L1</dt>
+<dd>Pinned stats panel as a grid: <strong>Total / Running / Queued /
+Throttled / Done / Errors / Costs</strong>, with the row background
+acting as a progress bar replacing the legacy "6 / 9" line. Stats
+counters reconcile by construction (Queued + Running + Done + Errors
+= Total). Action buttons live on a single row — "Show icons" flips
+into ICONS mode, the one-page view button drills into the per-pair
+flat list. The Running stat goes yellow → green on activity; Queued
+pink / brown by mode; Throttled always shows even at zero. Per-mode
+costs show in the list header rather than a separate banner.</dd></div>
+<div><dt>L2</dt>
+<dd>One row per (answerer, source) pair, virtualised. Two role
+flavours via a Switch role button: <strong>Responder mode</strong>
+(drill into one answerer) vs <strong>Source mode</strong> (drill into
+one source). In ICONS mode the row is a focused icon list — big
+glyphs, the per-tier hit count in the stats panel.</dd></div>
+<div><dt>L3</dt>
+<dd>Single-pair detail. Subject is the answerer or source model name
+(HARDCODED green subject row); the ℹ️ / 🐞 icons follow the "other"
+model in the pair so a single tap goes to the right Model Info /
+trace; the trailing divider sits tight against the response.</dd></div>
+</dl>
+
+<h3>Fan-in</h3>
+
+<p>Fan-in still runs through <code>ReportViewModel.runFanInPrompt</code>.
+It runs the chosen <code>category="fan_in"</code> Internal Prompt
+<strong>once per source agent</strong> (NOT once per answerer × source
+pair). The <code>***Report*** @REPORT@@RESPONSES@</code> iterable
+block is matched whitespace-tolerantly and expanded once per source
+agent, with <code>@RESPONSES@</code> populated by every fan-out
+response for that source. Output rows carry
+<code>fanInOf = &lt;metaPromptId&gt;</code> so the drill-in
+distinguishes them from per-pair rows.</p>
+
+<p>Model-scoped fan-in (categories <code>initiator</code> /
+<code>requester</code> / <code>model</code>) produces
+per-(provider, model) rows that the L2 page surfaces under each
+model's own bucket distinct from the legacy total
+<code>fan_in</code>.</p>
+
+<h3>Recovery + delete</h3>
+
+<p><code>resumeStaleFanOutPairs</code> re-reads each row before
+stamping "Interrupted" — a cold launch in the middle of a run
+recovers genuinely-stuck placeholders without losing in-flight work.
+<code>rerunCompleteFanOut</code> / <code>rerunFailedFanOutPairs</code>
+dedupe in-flight job keys (so one tap doesn't fork two batches) and
+cancel before resetting. Fan-out delete blocks on a "Deleting Fan
+Out" popup while the engine cancels every per-pair Job before the
+disk rows go.</p>
+
+<h2 id="export">HTML export</h2>
+
+<p>After the main report sections, the view-picker offers one tab per
+content type, in this order (when present):</p>
+
+<ol>
+<li><strong>Reports</strong> — agents in either One-by-one or
+All-together layout.</li>
+<li><strong>One tab per chat-type Meta prompt name</strong> — one tab
+per unique <code>metaPromptName</code> on the report. The tab label
+IS the user-given name. Multiple Meta prompts on the same report each
+get their own tab; tab order matches first-seen chronological
+order.</li>
+<li><strong>Reranks</strong> — each entry rendered as a linked rank
+table (<code>Rank | Result | Score | Reason</code>). The Result column
+is a <code>&lt;a href="#result-N"&gt;[N]&lt;/a&gt;</code> link back to
+that agent's card.</li>
+<li><strong>Moderations</strong> — flagged-categories table, one row
+per source response with category pills coloured by severity.</li>
+<li><strong>Prompt / Costs / JSON</strong> — original prompt,
+per-call cost table (with By type and By model rollup tables),
+captured API traces (Original-only).</li>
+</ol>
+
+<p><code>[N]</code> references inside chat-type Meta content are
+linkified back to the corresponding agent anchor.</p>
+
+<h3>Zipped HTML export</h3>
+
+<p>The Zipped HTML export builds a self-contained site with one
+directory per content type. Inside each language directory:</p>
+
+<ul class="tree">
+<li>original/
+  <ul>
+    <li>index.html</li>
+    <li>Reports/
+      <ul>
+        <li>index.html</li>
+        <li>01_provider_model.html</li>
+        <li>…</li>
+      </ul>
+    </li>
+    <li>&lt;metaPromptName&gt;/ <span class="note">— one folder per chat-type Meta prompt name</span>
+      <ul>
+        <li>index.html</li>
+        <li>01_provider_model.html</li>
+        <li>…</li>
+      </ul>
+    </li>
+    <li>Reranks/, Moderations/ <span class="note">— Original only</span></li>
+    <li>Prompt/, Costs/, JSON/ <span class="note">— Original only</span></li>
+  </ul>
+</li>
+</ul>
+
+<p>The directory name is the <code>metaPromptName</code> filtered
+through the filesystem-safe regex (so a name like "Pro/Con" becomes
+"Pro_Con"). Trace-link lookup keys off
+<code>"Report meta: &lt;name&gt;"</code> — the same category tag
+<code>runMetaPrompt</code> writes — so each row's 🐞 link points at
+the right captured API trace.</p>
+
+<h2 id="concurrency">Concurrency and gating</h2>
+
+<ul>
+<li>The Meta / Translate / Fan-out / Rerank buttons are
+<strong>disabled</strong> while the parent report is still streaming
+(the button row only shows on the result-phase UI, after
+<code>isComplete = true</code>).</li>
+<li>chat-type Meta / Rerank / Moderation / Translate are gated by the
+per-provider throttle (<code>ProviderThrottle</code> — defaults 30
+calls / min, 3 concurrent per provider host). Across hosts every flow
+goes through one of the six <code>ApiCallCaps</code> ceilings
+(<code>global</code> / <code>report</code> / <code>translation</code>
+/ <code>fanOut</code> / <code>fanIcons</code>, plus the standalone
+<code>maxTestApiCalls</code> for the model-test sweep). See
+<a href="throttle.html">throttle</a>.</li>
+<li>Fan-out pre-acquires the per-provider permit on the coroutine
+side so the UI can distinguish queued vs running rows; the inline
+interceptor skips its own acquire via the
+<code>ProviderThrottle.permitPreAcquired</code> context element.</li>
+<li>Multiple chat-type Meta batches AND multiple Translate batches
+can be in flight concurrently — each batch has its own
+<code>metaPromptId</code> (chat-type) or <code>translationRunId</code>
+(translate) and its rows surface independently in the UI.</li>
+<li>Per-(report, prompt-name) last-selection is persisted under
+<code>secondary_last_&lt;promptId&gt;_&lt;reportId&gt;</code> in
+<code>eval_prefs</code> so the next click on the same Meta button
+pre-checks the same models.</li>
+<li><code>runFanOutPrompt</code> / <code>runFanInPrompt</code>
+<strong>dedupes against an in-flight job key</strong> so a fast
+double-tap doesn't fork two batches.</li>
+</ul>
+
+<h2 id="native">Native rerank / moderation endpoints</h2>
+
+<p>Providers that declare <code>nativeRerankUrl</code> (Cohere
+<code>/v2/rerank</code>) take rerank dispatches through
+<code>callRerankApi</code> instead of building a chat prompt. The
+provider's <code>(index, relevance_score)</code> array is re-shaped
+into the same <code>[{id, rank, score, reason}, ...]</code> JSON the
+chat-rerank flow produces — score rescaled to 0-100 — so the rest of
+the pipeline (HTML export, Top-Ranked scope, anchor links) needs no
+second code path. <code>RerankApiResult.billedSearchUnits</code>
+captures Cohere's per-call billing units.</p>
+
+<p>Providers that declare <code>nativeModerationUrl</code> (Mistral
+<code>/v1/moderations</code>) take moderation dispatches through
+<code>callModerationApi</code>. The structured per-input result list
+is re-encoded into the
+<code>[{id, flagged, categories, scores}, ...]</code> JSON the detail
+screen parses. Mistral's response includes <code>prompt_tokens</code>
+/ <code>completion_tokens</code> / <code>total_tokens</code> on the
+moderation call; <code>callNativeModeration</code> lifts these into
+<code>TokenUsage</code> so cost attribution matches chat-driven Meta
+runs.</p>
+
+<p>Both fall through with an explanatory error when the provider
+doesn't declare the URL — the user is told which provider to pick
+instead.</p>
+
+<h2 id="new-kind">Adding a fifth kind</h2>
+
+<p>The <code>when (kind)</code> blocks throughout the codebase are
+exhaustive, so the Kotlin compiler will list every site you need to
+touch. See <a href="development.html">development</a> → "A new
+SecondaryKind". For most new behaviour you don't need a new kind —
+adding an Internal Prompt in a new category covers any new chat-type
+analysis without code changes.</p>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

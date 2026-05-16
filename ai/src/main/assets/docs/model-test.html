@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Model test — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Model test</span></header>
+<main>
+
+<h1>Test all models</h1>
+
+<p>End-to-end probe of every configured model in every active
+provider, in parallel, with a fixed prompt and per-(provider, model)
+trace capture. Surfaces under <strong>Housekeeping → Test → Test all
+models</strong> and backs the auto-fed <strong>Blocked /
+Test-excluded / Inaccessible</strong> lists under AI Setup → AI Models
+setup.</p>
+
+<h2>Engine</h2>
+
+<p><code>ModelTestEngine</code> owns the run. It exposes two
+<code>StateFlow</code>s:</p>
+
+<dl class="kv">
+<div>
+<dt>currentRun</dt>
+<div class="meta"><code>StateFlow&lt;ModelTestRunState?&gt;</code></div>
+<dd>The latest run snapshot — drives every L1 / L2 / L3 screen.</dd>
+</div>
+<div>
+<dt>throttledKeys</dt>
+<div class="meta"><code>StateFlow&lt;Set&lt;String&gt;&gt;</code></div>
+<dd>Live set of <code>(provider, model)</code> pairs blocked inside
+<code>ProviderThrottle.acquire</code>; drives the L1 "Throttled"
+badge.</dd>
+</div>
+</dl>
+
+<p>A run is built from the user's provider selection. For each
+selected provider the engine partitions the catalog at
+<code>startRun</code> time into four buckets:</p>
+
+<dl class="kv">
+<div>
+<dt>For testing</dt>
+<dd>Probed in the run. Reported as Done / Error / Throttled.</dd>
+</div>
+<div>
+<dt>Inaccessible</dt>
+<dd>In <code>Settings.inaccessibleModels</code> (user-curated +
+seeded from <code>assets/inaccessible.json</code>). Dropped from the
+sweep entirely; counted in <code>inaccessibleAtStart</code>.</dd>
+</div>
+<div>
+<dt>Test-excluded</dt>
+<dd>In <code>Settings.testExcludedModels</code> (cost &gt; 5¢
+auto-rule + manual + seeded from <code>assets/excluded.json</code>).
+Skipped; counted in <code>excludedAtStart</code>.</dd>
+</div>
+<div>
+<dt>No chat</dt>
+<dd>Non-testable model types (IMAGE, TTS, STT, …). Dropped; counted
+in <code>noChatAtStart</code>.</dd>
+</div>
+</dl>
+
+<p>The four buckets + <code>forTestingAtStart</code> always sum to
+<code>catalogTotal</code> by construction so the stats panel
+reconciles without rounding errors.</p>
+
+<h2>Run lifecycle</h2>
+
+<p>Each probe runs <code>analyze(provider, model, TEST_PROMPT, ...)</code>
+with the provider's default agent config. The fixed prompt is
+<code>"Reply with exactly: OK"</code>. Each <code>ModelTestState</code>
+carries the captured trace filename, the model's raw response text,
+duration, and per-call cost broken into input + output.</p>
+
+<ul class="tree">
+<li>PENDING 🕓
+  <ul><li>permit acquired
+    <ul><li>RUNNING ⏳
+      <ul>
+        <li>response → PASS ✅</li>
+        <li>error → FAIL ❌</li>
+      </ul>
+    </li></ul>
+  </li></ul>
+</li>
+</ul>
+
+<p>A 429 with Retry-After ≥ 1 h auto-benches the model via
+<code>ModelCooldownStore.markUnavailable(providerId, model, availableAtMs, trace)</code>.
+The benched pair is dropped from the rest of the run and shows in the
+<strong>Model cooldowns</strong> picker thereafter. See
+<a href="cooldowns.html">cooldowns</a>.</p>
+
+<p>State is persisted to
+<code class="path">&lt;filesDir&gt;/test_run.json</code> (single
+document via <code>ModelTestRunStore</code>) after each item
+completion + once on run end — so a process kill mid-sweep doesn't
+lose progress. Hydration backfills empty cells on the next open;
+the catalog-stats snapshot stays stable for the lifetime of the run
+(only the live progress counters move).</p>
+
+<h2>Concurrency</h2>
+
+<ul>
+<li>The total in-flight cap is
+<code>GeneralSettings.maxTestApiCalls</code> (default 40). Read
+directly by the engine — <strong>not</strong> part of
+<code>ApiCallCaps</code>, so it doesn't compete with report-gen /
+fan-out / fan-icons budgets.</li>
+<li>Per-host caps come from <code>ProviderThrottle</code> like every
+other flow (30 / min × 3 concurrent default, per-provider overrides
+apply).</li>
+<li>The engine pre-acquires permits before each probe so the L1
+"Throttled" badge can show a live count of pairs blocked in
+<code>acquire</code>.</li>
+</ul>
+
+<h2>L1 / L2 / L3 screens</h2>
+
+<p>The drill-in shape mirrors the Fan-out one (so the stats panel +
+progress bar pattern reuses). <code>ModelTestScreen</code> is the
+entry point; <code>ModelTestSelectScreen</code> picks providers
+(skipped when there's only one provider eligible — the flow jumps
+straight to the picker).</p>
+
+<details open>
+<summary>L1 — ModelTestL1Screen</summary>
+<div class="body">
+<ul>
+<li><strong>Stats panel</strong> (pinned at the top, split into two
+rows): catalog partition (Total / For-testing / Inaccessible /
+Excluded / No-chat) + live progress (Running / Queued / Throttled /
+Done / Errors), plus total cost in the list header.</li>
+<li>One row per provider, alphabetical, with per-provider Test +
+Cancel buttons.</li>
+<li>"Test all models" + "Cancel test" + "Check current test run"
+(resume) + "Rerun errors" actions.</li>
+<li>Math reconciles by construction; "Run" was renamed to "Running"
+and "Queue" to "Queued" with swapped colours.</li>
+</ul>
+</div>
+</details>
+
+<details>
+<summary>L2 — ModelTestL2Screen</summary>
+<div class="body">
+<p>Per-provider list of model rows. Each row shows status icon, model
+name, latency, cost, and (on FAIL) an error tooltip with a 🐞 deep
+link to the captured trace. The source prompt sits at the top of the
+page so the user knows what every row was tested with.</p>
+</div>
+</details>
+
+<details>
+<summary>L3 — ModelTestL3Screen</summary>
+<div class="body">
+<p>Single-model detail. HARDCODED green subject row carries the model
+name; centred dynamic icon; the captured trace deep-link; the request
+prompt; the response body; and chevron nav to walk siblings in the
+provider list.</p>
+</div>
+</details>
+
+<h2>Auto-feeds</h2>
+
+<p>The sweep automatically feeds three Settings lists from its
+outcomes — each user-editable under AI Setup → AI Models setup:</p>
+
+<dl class="kv">
+<div>
+<dt>Blocked models <span class="muted">(Settings.blockedModels)</span></dt>
+<dd>Anything that returned an error above the user threshold.
+Counted as FAIL until manually un-blocked. CRUD with a reason text.</dd>
+</div>
+<div>
+<dt>Test-excluded models <span class="muted">(Settings.testExcludedModels)</span></dt>
+<dd>Models whose probe cost would exceed 5¢ get added automatically;
+the user can add or remove freely. Skipped by the sweep but still
+picker-visible. Seeded from <code>assets/excluded.json</code> on
+every cold start via <code>TestExcludedSeed</code>.</dd>
+</div>
+<div>
+<dt>Inaccessible models <span class="muted">(Settings.inaccessibleModels)</span></dt>
+<dd>Tier-gated catalog entries the user can't actually call (Together
+non-serverless, etc.). <strong>Hidden from every picker</strong> —
+distinct from Test-excluded which only hides from the sweep.
+Auto-added on tier-gating provider errors. Seeded from
+<code>assets/inaccessible.json</code> (64 bundled entries today) via
+<code>InaccessibleSeed</code>.</dd>
+</div>
+</dl>
+
+<h2>Seed asset files</h2>
+
+<p>Both <code>assets/inaccessible.json</code> and
+<code>assets/excluded.json</code> are delta-merged on every cold start
+— bundled entries whose <code>(providerId, model)</code> key isn't
+already in the user's list are appended; existing entries are never
+overwritten. So updating an asset reaches existing installs without
+destroying user edits.</p>
+
+<p>To curate a new bundled entry: append the row to the asset JSON,
+push a build, the next cold start picks it up.</p>
+
+<h2>Files</h2>
+
+<ul>
+<li><code>viewmodel/ModelTestEngine.kt</code> — run logic, partition,
+persistence.</li>
+<li><code>data/ModelTestRunModel.kt</code> —
+<code>TestStatus</code>, <code>ModelTestState</code>,
+<code>ModelTestRunState</code> (see
+<a href="datastructures.html#modeltestrunstate">datastructures</a>).</li>
+<li><code>data/ModelTestRunStore.kt</code> —
+<code class="path">&lt;filesDir&gt;/test_run.json</code>
+single-document writer.</li>
+<li><code>data/InaccessibleSeed.kt</code> +
+<code>data/TestExcludedSeed.kt</code> — delta merge of bundled assets
+into Settings on cold start.</li>
+<li><code>ui/report/ModelTestScreen.kt</code>,
+<code>ModelTestSelectScreen.kt</code>,
+<code>ModelTestL1Screen.kt</code>,
+<code>ModelTestL2Screen.kt</code>,
+<code>ModelTestL3Screen.kt</code>.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

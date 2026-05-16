@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Knowledge / RAG — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Knowledge / RAG</span></header>
+<main>
+
+<h1>Knowledge (RAG)</h1>
+
+<p>The Knowledge subsystem turns user-provided documents into embedded
+chunks that get retrieved and prepended to chat messages and report
+prompts. Code lives under <code>com.ai.data.Knowledge*</code> and
+<code>com.ai.ui.knowledge.*</code>.</p>
+
+<h2>Concepts</h2>
+
+<ul class="tree">
+<li>KnowledgeBase
+  <ul>
+    <li>KnowledgeSource <span class="note">— file or URL</span>
+      <ul>
+        <li>chunks/&lt;sourceId&gt;.json <span class="note">— KnowledgeChunk[]</span></li>
+      </ul>
+    </li>
+    <li>KnowledgeSource …</li>
+    <li>KnowledgeSource …</li>
+    <li>manifest.json <span class="note">— KnowledgeBase + sources</span></li>
+  </ul>
+</li>
+</ul>
+
+<p>A <strong>Knowledge base</strong> is a named collection of indexed
+documents sharing one embedder model. The embedder is fixed at
+creation time — chunks aren't compatible with a different model — so
+changing the embedder requires a new KB.</p>
+
+<p>A <strong>Knowledge source</strong> is one document inside a KB:
+a file the user picked via SAF, or a URL the user pasted. Each source
+extracts to plain text and chunks into a sibling
+<code>chunks/&lt;sourceId&gt;.json</code>.</p>
+
+<p>A <strong>Knowledge chunk</strong> is
+<code>(id, sourceId, ordinal, text, embedding)</code>. Embeddings are
+a primitive <code>FloatArray</code> — for a typical 1024-dim vector
+that's a ~6× heap reduction vs a boxed <code>List&lt;Double&gt;</code>
+(4 bytes per dim vs 24 including the Double object header and array
+reference), paid back across the entire KB during retrieval. Most
+embedders emit float32 anyway, so the precision shed is negligible.
+The cosine math itself is still done in double internally to avoid
+float-accumulator drift on long vectors. JSON storage on disk is
+unchanged: Gson serialises <code>FloatArray</code> and
+<code>List&lt;Double&gt;</code> to the same array of JSON numbers, so
+existing chunk files written before the type change keep working.
+<code>KnowledgeChunk</code> overrides <code>equals</code> /
+<code>hashCode</code> so the <code>FloatArray</code> field compares
+by content rather than identity.</p>
+
+<h2>Source types — ten extractors</h2>
+
+<p><code>KnowledgeExtractors.extract(context, type, origin)</code>
+dispatches to one of:</p>
+
+<dl class="kv">
+<div>
+<dt>TEXT</dt><div class="meta"><code>readUriText</code></div>
+<dd>UTF-8 read, normalised newlines, streamed via
+<code>BufferedReader</code> instead of <code>readText</code> to avoid
+loading huge text files into a single String.</dd>
+</div>
+<div>
+<dt>MARKDOWN</dt><div class="meta"><code>readUriText</code></div>
+<dd>Same as TEXT — chunker preserves paragraph breaks.</dd>
+</div>
+<div>
+<dt>PDF</dt><div class="meta"><code>readUriPdf</code></div>
+<dd>PDFBox-Android <code>PDFTextStripper.getText</code>.
+<strong>OCR fallback</strong> when the result is blank —
+<code>PdfRenderer</code> rasterises each page at 200 DPI (capped
+2400 px long side) and runs ML Kit Latin text recognition.</dd>
+</div>
+<div>
+<dt>DOCX</dt><div class="meta"><code>readUriDocx</code></div>
+<dd>JDK <code>ZipInputStream</code> + <code>XmlPullParser</code> over
+<code>word/document.xml</code>; <code>&lt;w:p&gt;</code> → paragraph,
+<code>&lt;w:t&gt;</code> → text, <code>&lt;w:tab&gt;</code> → tab.</dd>
+</div>
+<div>
+<dt>ODT</dt><div class="meta"><code>readUriOdt</code></div>
+<dd>Same idea over <code>content.xml</code> with
+<code>&lt;text:p&gt;</code> / <code>&lt;text:h&gt;</code> paragraphs
+and direct text — streamed instead of slurped.</dd>
+</div>
+<div>
+<dt>XLSX</dt><div class="meta"><code>readUriXlsx</code></div>
+<dd>Single-pass: walk the zip;
+<code>xl/sharedStrings.xml</code> populates the shared-string table,
+each <code>xl/worksheets/sheet*.xml</code> is <strong>spooled</strong>
+to a temp file as encountered (a multi-sheet workbook never holds two
+sheets in memory at once). Cells with <code>t="s"</code> resolve to a
+shared-string index, <code>t="inlineStr"</code> reads the literal text
+under <code>&lt;is&gt;&lt;t&gt;</code>, anything else takes
+<code>&lt;v&gt;</code> as-is. Output is <code>[sheet N]</code> headers
++ tab-separated rows in zip-encounter order.</dd>
+</div>
+<div>
+<dt>ODS</dt><div class="meta"><code>readUriOds</code></div>
+<dd>Streams <code>content.xml</code> via the spreadsheet zip without
+an intermediate <code>readText</code> slurp; same
+<code>[sheet N]</code> layout as XLSX.</dd>
+</div>
+<div>
+<dt>CSV</dt><div class="meta"><code>readUriCsv</code></div>
+<dd>Streaming RFC-4180-ish parser: <code>BufferedReader.mark</code> +
+1 KB sample sniffs <code>,</code> vs <code>;</code>, then
+<code>parseCsvStream</code> walks the rest via a
+<code>PushbackReader</code> (1-char lookahead for <code>""</code>
+escape and CRLF) and yields rows through a callback. Quoted-field +
+<code>""</code> handling unchanged. CR / LF / CRLF all terminate a
+row — bare CR catches legacy Mac CSV exports that previously
+collapsed into one row. Emits the header row at the top of every
+10-row block so retrieval chunks always carry column context.</dd>
+</div>
+<div>
+<dt>IMAGE</dt><div class="meta"><code>readUriImage</code></div>
+<dd>BitmapFactory bounds-decode + downsample to 2400 px max long
+side, then ML Kit Latin OCR. The recogniser's async
+<code>Task&lt;Text&gt;</code> is bridged to a synchronous String via
+<code>com.google.android.gms.tasks.Tasks.await</code>.</dd>
+</div>
+<div>
+<dt>URL</dt><div class="meta"><code>fetchUrlAsText</code></div>
+<dd>Jsoup fetch + visible-text extraction (drops
+<code>script</code>, <code>style</code>, <code>noscript</code>,
+<code>nav</code>, <code>footer</code>, <code>aside</code>,
+<code>header</code>).</dd>
+</div>
+</dl>
+
+<p>The chunker, embedder, and retriever are type-agnostic. Once an
+extractor returns a string, every downstream stage works unchanged.</p>
+
+<p>JSON loaders across the codebase (provider catalog, prompts, etc.)
+also stream via <code>JsonReader</code> rather than
+<code>readText</code> to keep peak heap down.</p>
+
+<h2>Chunking</h2>
+
+<p><code>KnowledgeChunker.chunk(text, maxCharsPerChunk = 2048, overlapChars = 200)</code>
+is a paragraph-greedy chunker with overlap:</p>
+
+<ol>
+<li>Split source on blank lines (paragraphs).</li>
+<li>Greedily merge until the running window approaches
+<code>maxCharsPerChunk</code> (~4 chars ≈ 1 token; 2048 chars ≈ 512
+tokens).</li>
+<li>Carry the last <code>overlapChars</code> of each emitted chunk
+into the start of the next one so context survives a paragraph
+cut.</li>
+<li>Single oversize paragraphs get hard-cut by char count with the
+same overlap, so a giant table-collapsed-onto-one-line still
+chunks.</li>
+</ol>
+
+<h2>Embedding</h2>
+
+<p>Two paths, picked at KB creation:</p>
+
+<dl class="kv">
+<div>
+<dt>Local</dt>
+<dd><code>embedderProviderId == "Local"</code>. Calls
+<code>LocalEmbedder.embed(modelName, text)</code> which holds a
+per-model <code>TextEmbedder</code> cache. No network. Default model
+is <code>universal_sentence_encoder_lite</code> (~25 MB), downloaded
+lazily on first use of the Local Semantic Search screen or the first
+time a Local KB embeds.</dd>
+</div>
+<div>
+<dt>Remote</dt>
+<dd>Any active provider with at least one embedding-capable model.
+Calls <code>AnalysisRepository.embed(provider, model, text)</code> —
+the same Retrofit + tracing path the chat dispatch uses.</dd>
+</div>
+</dl>
+
+<p>Either way, every embedded chunk is keyed in
+<code>EmbeddingsStore</code> (cache under
+<code class="path">&lt;filesDir&gt;/embeddings/&lt;sha256&gt;.json</code>)
+so re-indexing the same content with the same model is a hashmap hit,
+not a re-embed. <code>Knowledge.saveSource</code> refuses chunks with
+empty embeddings or a dim mismatch and logs a warning, so the cosine
+path can never silently rank a malformed chunk as 0.</p>
+
+<h2>Retrieval</h2>
+
+<p><code>KnowledgeService.retrieve(context, attached: List&lt;KnowledgeBase&gt;,
+query: String, topK: Int = 8, maxContextChars: Int = 8000)</code>:</p>
+
+<ol>
+<li>Embed the query once via the embedder shared across all attached
+KBs (they must match — see below) and convert the result from
+<code>List&lt;Double&gt;</code> to <code>FloatArray</code> for the
+hot loop.</li>
+<li>Stream every <code>KnowledgeChunk</code> in every embedder-matched
+KB through <code>KnowledgeStore.forEachChunk</code>, which parses one
+source file at a time and lets the array go out of scope between
+files. Score each chunk's <code>FloatArray</code> embedding via
+<code>EmbeddingsStore.cosine(FloatArray, FloatArray)</code>.</li>
+<li>Maintain a bounded min-heap of size <code>topK * 2</code>
+(<code>java.util.PriorityQueue&lt;Scored&gt;</code>). Each chunk
+either enters the heap (room available, or score beats the current
+minimum) or is dropped immediately. Peak heap is the heap itself plus
+one chunk mid-iteration, regardless of total KB size.</li>
+<li>Sort the survivors descending, then walk taking chunks until the
+cumulative <code>text.length</code> would exceed
+<code>maxContextChars</code>. Stops at <code>topK</code> matches or
+the budget, whichever comes first, and skips zero-score chunks.</li>
+<li>Format the result via <code>formatContextBlock(...)</code> into a
+<code>&lt;context&gt;…&lt;/context&gt;</code> block including each
+chunk's KB and source name.</li>
+</ol>
+
+<p>The dispatch layer prepends the context block:</p>
+
+<ul>
+<li>For <strong>reports</strong>:
+<code>AnalysisRepository.analyzeWithAgent</code> reads
+<code>report.knowledgeBaseIds</code>, retrieves once per agent call,
+and prepends to that agent's prompt.</li>
+<li>For <strong>chats</strong>: each user turn re-retrieves against
+the current message text via <code>ChatViewModel.messagesWithRag</code>
+(a <code>suspend</code> function called from inside
+<code>flow { … }.flowOn(Dispatchers.IO)</code>) and merges the block
+into the system message — or prepends a fresh system message if none
+was set. Retrieval failures log a warning instead of silently falling
+back to the raw prompt.</li>
+</ul>
+
+<p>The "embedder must match" rule is enforced by the retrieval path:
+KBs whose embedder differs from the first attached KB's are skipped
+entirely (with a warning log) so a mismatched-dimension cosine never
+silently mis-ranks. Mismatched-dimension chunks encountered mid-stream
+surface as a warning rather than scoring 0.</p>
+
+<h2>On-disk layout</h2>
+
+<ul class="tree">
+<li>&lt;filesDir&gt;/knowledge/&lt;kbId&gt;/
+  <ul>
+    <li>manifest.json <span class="note">— KnowledgeBase + sources</span></li>
+    <li>chunks/
+      <ul>
+        <li>&lt;sourceId&gt;.json <span class="note">— JSON array of KnowledgeChunk</span></li>
+      </ul>
+    </li>
+    <li>files/
+      <ul>
+        <li>&lt;localCopy&gt; <span class="note">— locally-persisted source file (atomic)</span></li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+
+<p>One JSON file per source keeps add / remove / re-index cheap (no
+full-KB rewrite for a single-source change), while loading a whole
+KB for retrieval still scans only one directory.
+<code>KnowledgeStore</code> takes a single lock around the
+manifest-update + chunk-write pair so a crash mid-write can't leave
+the manifest pointing at half a chunk file. Source files are
+persisted via tmp + fsync + atomic rename.</p>
+
+<p>The store enforces a <strong>canonical-containment guard</strong>
+around every path join that uses <code>kbId</code> (and
+<code>saveSource</code> / <code>deleteSource</code> validate
+<code>source.id</code> with the same <code>isSafeFlatId</code> rule
+the storage writers use) — a corrupt id with a <code>..</code>
+segment, a <code>/</code> inside, or a symlinked target can't escape
+<code class="path">&lt;filesDir&gt;/knowledge/</code>.</p>
+
+<h2>UI</h2>
+
+<ul>
+<li><code>ui/knowledge/KnowledgeListScreen.kt</code> — list of KBs +
+create button + share-target ingest banner ("N shared items ready to
+import" when the share-target chooser routed files into the
+queue).</li>
+<li><code>ui/knowledge/NewKnowledgeBaseScreen.kt</code> — name +
+embedder picker (lists local <code>.tflite</code> files plus every
+(provider, model) tagged <code>EMBEDDING</code>).</li>
+<li><code>ui/knowledge/KnowledgeDetailScreen.kt</code> — per-KB
+sources + add file / add URL / re-index / delete + status line.
+Auto-consumes the share-target queue when entered with a non-empty
+<code>pendingUris</code>. The auto-ingest <code>LaunchedEffect</code>
+re-keys whenever the KB loads so late-arriving share intents still
+drain.</li>
+</ul>
+
+<h2>Picker MIME filter</h2>
+
+<p>The detail screen's SAF picker accepts:</p>
+
+<pre><code>text/*, text/csv, text/tab-separated-values,
+application/pdf,
+application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+application/vnd.oasis.opendocument.text,
+application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+application/vnd.oasis.opendocument.spreadsheet,
+image/jpeg, image/png,
+*/*</code></pre>
+
+<p>The same MIME types appear in the share-target intent filters in
+<code>AndroidManifest.xml</code> (see
+<a href="share-target.html">share-target</a>).</p>
+
+<h2>Cleanup</h2>
+
+<ul>
+<li><code>KnowledgeStore.deleteSource(kbId, sourceId)</code> removes
+the chunk file and the manifest entry.</li>
+<li><code>KnowledgeStore.deleteKnowledgeBase(kbId)</code>
+<code>deleteRecursively</code>s the KB directory; also takes the
+store lock during <code>clearAll</code> so a full-reset and an
+in-flight ingest can't race.</li>
+<li>A full reset (Housekeeping → Reset → Clear all runtime data)
+wipes <code class="path">&lt;filesDir&gt;/knowledge/</code>, the
+<code>embeddings/</code> cache, and the local-semantic-search
+cache.</li>
+<li>Embedder model files (<code>.tflite</code>) and Local LLM bundles
+(<code>.task</code>) persist across full resets — they have their
+own per-row Remove on <strong>AI Setup → Local Models</strong>.
+They're also excluded from the backup zip and preserved through the
+restore wipe; see <a href="backup-restore.html">backup-restore</a>.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

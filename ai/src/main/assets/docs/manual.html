@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Manual — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Manual</span></header>
+<main>
+
+<h1>User manual</h1>
+
+<p>A multi-provider AI app for Android. Run the same prompt against
+many models at once, compare what they say, fan one model's response
+into another's prompt, ground the run in your own documents, save the
+result, share it, and keep an audit trail of every API call you made
+— cloud or on-device.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#first-run">First run</a></li>
+<li><a href="#hub">The Hub</a></li>
+<li><a href="#reports">Reports</a></li>
+<li><a href="#chat">Chat</a></li>
+<li><a href="#dual-chat">Dual Chat</a></li>
+<li><a href="#knowledge">Knowledge (RAG)</a></li>
+<li><a href="#local">Local Runtime</a></li>
+<li><a href="#models">Models</a></li>
+<li><a href="#usage">AI Usage</a></li>
+<li><a href="#traces">API Traces</a></li>
+<li><a href="#applog">AI App log</a></li>
+<li><a href="#settings">Settings</a></li>
+<li><a href="#help">Help</a></li>
+<li><a href="#tips">Tips</a></li>
+</ul>
+</nav>
+
+<h2 id="first-run">First run</h2>
+
+<ol>
+<li>Install the APK and open it. The app imports a default catalog
+of 42 cloud providers from a bundled <code>providers.json</code> and
+seeds Internal Prompts (Meta / Fan-out / Fan-in / fixed templates)
+from <code>prompts.json</code> so you don't have to type any URLs or
+prompt templates yourself.</li>
+<li>Open <strong>Settings → AI Setup → Providers</strong>. Pick the
+providers you want to use, paste in their API keys (each card has a
+🔗 link to that provider's console), and tap <strong>Test API
+Key</strong>. A successful model-list fetch + key test marks the
+provider as 🔑 and adds it to <strong>Active</strong>. Activation is
+gated on both passing — a stale model list never lets a misconfigured
+provider count as active.</li>
+<li>Optionally, paste a HuggingFace token, OpenRouter token, and / or
+Artificial Analysis key under <strong>AI Setup → External
+Services</strong>. None of these are required to use the app — they
+only enable model metadata, pricing, and intelligence / speed
+scores.</li>
+</ol>
+
+<p>The on-device LLM and on-device embedder paths require <strong>no
+API key</strong> — they run a <code>.task</code> or
+<code>.tflite</code> model file you supply. See the
+<a href="#local">Local Runtime</a> section below.</p>
+
+<h2 id="hub">The Hub</h2>
+
+<p>The home screen has these big cards:</p>
+
+<dl class="kv">
+<div><dt>AI Reports</dt>
+<dd>Multi-model reports with rerank / chat-meta / fan-out / moderate
+/ translate.</dd></div>
+<div><dt>AI Chat</dt>
+<dd>Single-model conversation. Chat titles are AI-generated (the
+bundled <code>chat_title</code> prompt fires after the first assistant
+response); a first-10-words fallback fills the row instantly.</dd></div>
+<div><dt>AI Knowledge</dt>
+<dd>Knowledge bases for retrieval-augmented generation. Attach to
+Reports / Chats. (Hidden by default on fresh installs — flip
+<strong>Settings → Show AI Knowledge card on home page</strong> to
+surface it.)</dd></div>
+<div><dt>AI Models</dt>
+<dd>Search every model across all your providers.</dd></div>
+<div><dt>AI Usage</dt>
+<dd>Running token / cost statistics.</dd></div>
+<div><dt>AI API Traces</dt>
+<dd>Every recent API call (cloud or local) as a JSON file. Hidden
+when API tracing is disabled in Settings.</dd></div>
+<div><dt>AI App log</dt>
+<dd>Daily-rotating in-app log file with a searchable / filterable
+viewer (<a href="applog.html">applog</a>). Useful for handing a clean
+log to support without needing <code>adb logcat</code>.</dd></div>
+</dl>
+
+<p>Plus shortcut buttons for <strong>Settings</strong>,
+<strong>Housekeeping</strong>, <strong>AI Setup</strong>,
+<strong>Help</strong>.</p>
+
+<p>The Hub logo doubles as a one-tap shortcut to the most recent
+report's result page.</p>
+
+<h2 id="reports">Reports</h2>
+
+<p>Reports are the killer feature. A report = one prompt run against
+many models in parallel.</p>
+
+<details open>
+<summary>AI Reports hub</summary>
+<div class="body">
+<p>Tapping <strong>AI Reports</strong> lands on a hub screen with
+several cards:</p>
+<ul>
+<li><strong>Start</strong> — <code>New AI Report</code>, <code>Start
+with an example prompt</code>, <code>Start with a previous
+prompt</code>.</li>
+<li><strong>Existing reports</strong> — combined card with Pinned,
+Recent, and a <code>View previous reports</code> row in one place.
+Every row's leading icon is the report's generated emoji (or 🕘 /
+📌 when icon-gen is off or the call failed).</li>
+<li><strong>Search</strong> — four modes:
+  <ul>
+    <li><strong>Quick local search</strong> — fast keyword scan
+    across saved report prompts and bodies.</li>
+    <li><strong>Extended local search</strong> — slower, broader
+    scan (also into secondaries / translations).</li>
+    <li><strong>Remote semantic search</strong> — embed your query
+    against any chat provider and rank reports by cosine
+    similarity.</li>
+    <li><strong>Local semantic search</strong> — same idea, but the
+    embedder is the on-device <code>LocalEmbedder</code> — no
+    network.</li>
+  </ul>
+</li>
+<li><strong>Manage</strong> — bulk housekeeping (pin / unpin, delete,
+export many).</li>
+</ul>
+</div>
+</details>
+
+<details>
+<summary>Selection phase</summary>
+<div class="body">
+<ol>
+<li>Tap <strong>New AI Report</strong>. You land on the model
+selection screen.</li>
+<li>Add models to the report using the buttons at the top:
+  <ul>
+    <li><strong>+Agent</strong> — full-screen Agent picker.</li>
+    <li><strong>+Flock</strong> — full-screen Flock picker with
+    Edit + One-time entry points.</li>
+    <li><strong>+Swarm</strong> — full-screen Swarm picker with
+    Edit + One-time.</li>
+    <li><strong>+Provider</strong> — pick any provider (including
+    the synthetic <strong>Local</strong> provider for on-device
+    <code>.task</code> models).</li>
+    <li><strong>+Model</strong> — full-screen multi-select picker
+    across every active provider's catalog. The
+    <strong>+Report</strong> entry only appears once an existing
+    report is selectable.</li>
+  </ul>
+</li>
+<li>Optionally tap <strong>Params</strong> to apply a parameter
+preset (temperature, max_tokens, system prompt, reasoning effort,
+etc.).</li>
+<li>Optionally tap <strong>📚 Knowledge</strong> to attach one or
+more knowledge bases.</li>
+<li>Optionally attach a vision image (📎), toggle web-search 🌐, or
+pick a reasoning level 🧠.</li>
+<li>Type your prompt and tap <strong>Generate</strong>.</li>
+</ol>
+</div>
+</details>
+
+<details>
+<summary>Generation phase</summary>
+<div class="body">
+<ul>
+<li>A progress bar shows X / Y completed.</li>
+<li>Each agent's status icon spins ⏳ until the call finishes (✅ /
+❌).</li>
+<li>The full action row is available from the moment Generate is
+tapped — you can navigate away and the run <strong>continues in the
+background</strong> on <code>appViewModel.viewModelScope</code>.
+Coming back to the screen recovers stale placeholders and shows
+finished rows.</li>
+<li>Tap <strong>STOP</strong> to cancel.</li>
+</ul>
+
+<h4>Per-report icon</h4>
+<p>Right after Generate the app fires a background call to pick a
+fitting emoji for the report. The icon appears as the leftmost
+title-bar glyph and as the row icon on every list. If the call
+fails it shows ❌ with the error reason. Toggle off under
+<strong>Settings → Generate report icons</strong>.</p>
+
+<h4>Per-agent icons</h4>
+<p>If <strong>Generate per model icons</strong> is on (default), each
+successful agent call kicks off a 3-tier icon-generation chain. The
+result becomes the row's emoji on the <strong>Icons</strong> view.
+See <a href="report-icons.html">report-icons</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>Result phase</summary>
+<div class="body">
+<p>When the report is complete, the top of the screen carries a
+two-tier toggle action bar:</p>
+<dl class="kv">
+<div><dt>View</dt>
+<dd>Results / Prompt / Costs / <strong>Icons</strong> / Trace, plus
+one button per Meta-prompt name with at least one row. The
+<em>every:</em> kinds (rerank / moderation / translate) fold into the
+View row with a smart drill-in.</dd></div>
+<div><dt>Edit</dt>
+<dd>Prompt / Title / Models / Parameters. Edits queue up; tap
+<strong>Regenerate</strong> in the Actions row to re-run. When only
+the model list changed, Regenerate is <strong>additive</strong> — it
+runs only the new models and merges them in.</dd></div>
+<div><dt>Create</dt>
+<dd>Regenerate / Export / Copy / Translate / Delete / Rerank and
+other generators including <strong>Report icons</strong> when
+per-model icons are enabled.</dd></div>
+</dl>
+
+<p>The TitleBar above the result screen carries a 💬 Chat icon that
+starts a new chat pre-populated with the report's prompt, a 📋 Copy
+icon, and a 📤 Share icon.</p>
+
+<h4>View → Icons</h4>
+<p>Minimal grid of every agent's generated emoji. Tap a glyph to open
+that agent's <strong>Model response</strong> detail.</p>
+
+<h4>Per-agent prev / next on Model response</h4>
+<p>Per-agent detail screens carry <strong>Prev / Next</strong>
+chevrons under the title bar that walk the agent list by model
+name.</p>
+</div>
+</details>
+
+<details>
+<summary>Meta prompts and Translate</summary>
+<div class="body">
+<p>The available Meta buttons are entirely user-driven via the
+Meta-prompt CRUD: Settings → AI Setup → <strong>Prompt management →
+Meta prompts</strong>. A typical setup:</p>
+<ul>
+<li><strong>Compare</strong> — chat-type prompt asking the model to
+identify where responses agree, where they diverge, and what each one
+uniquely contributed. Tick <strong>reference</strong> on the entry
+to get a deterministic <code>[N] = Provider / Model</code> legend
+appended automatically.</li>
+<li><strong>Critique</strong> / <strong>Synthesize</strong> / etc.
+— any chat-type analysis you want; the prompt name becomes the
+button label and the view tab name in exports.</li>
+<li><strong>Rerank</strong> — pick a <code>type=rerank</code> Meta
+prompt (or a chat-type one) to rank responses 1..N with a score and
+reason. Rerank-typed entries route through the provider's dedicated
+rerank endpoint when the picked model supports it (Cohere
+<code>/v2/rerank</code> is wired today).</li>
+<li><strong>Moderation</strong> — <code>type=moderation</code> Meta
+prompt that runs the report's responses through a provider's
+<code>/moderations</code> endpoint and shows the flagged-categories
+table.</li>
+</ul>
+<p>Translate is a separate Actions button — see
+<a href="translation.html">translation</a>.</p>
+<p>You can run any of them multiple times per report — each run is a
+separate, independently viewable, independently deletable entry. Once
+results exist, the View row gains a button per Meta prompt name plus
+<strong>Reranks / Moderations / Translations</strong> buttons for
+those structured kinds.</p>
+
+<h4>Scope step</h4>
+<p>For chat-type Meta prompts and Translate, a <strong>scope</strong>
+screen shows up to let you narrow what gets fed in:</p>
+<ul>
+<li><strong>All model reports</strong> (default).</li>
+<li><strong>Only top ranked reports</strong> — narrow to the top-N
+entries of a chosen rerank.</li>
+<li><strong>Manual selection</strong> — explicitly pick which agents
+to feed in.</li>
+<li>For chat-type Meta and Translate on a report with translations:
+restrict to <strong>All present languages</strong> or
+<strong>Selected</strong> specific languages.</li>
+</ul>
+<p>The chosen scope is <strong>encoded onto each row</strong> at run
+time, so a cascade-on-prompt-change re-runs at exactly the same scope
+rather than silently widening. Rerank / Moderation–typed Meta prompts
+skip the scope screen.</p>
+</div>
+</details>
+
+<details>
+<summary>Fan out / Fan in</summary>
+<div class="body">
+<ol>
+<li><strong>Run a fan-out</strong> — pick a Fan-out prompt (CRUD'd
+under AI Setup → Prompt management → <strong>Fan-out prompts</strong>).
+The popup confirmation reads "N reports × M responses = pairs".</li>
+<li>The runtime fans out one API call per (answerer, source) pair —
+each <code>@RESPONSE@</code> placeholder in the template is replaced
+by the source response text. Concurrency is capped at 3 per provider
+so even 6 reports against one provider keeps three in flight; against
+6 different providers all 18 run concurrently.</li>
+<li><strong>Drill in</strong> — three levels deep:
+  <ul>
+    <li><strong>Level 1</strong> lists one row per answerer with a
+    pinned stats grid (Total / Running / Queued / Throttled / Done /
+    Errors / Costs).</li>
+    <li><strong>Level 2</strong> lists one row per (answerer, source)
+    pair. A <strong>Switch role</strong> button toggles between
+    Responder mode (one answerer, list of sources) and Source mode.</li>
+    <li><strong>Level 3</strong> is the single-response detail.
+    ℹ️ / 🐞 icons follow the <em>other</em> model in the pair;
+    left-swipe = next response, right-swipe = previous.</li>
+  </ul>
+</li>
+<li><strong>Fan-icons mode</strong> — tap <strong>Show icons</strong>
+on L1 to flip the drill-in into a parallel emoji chain. Each
+completed pair gets a 3-tier icon-generation run; the icons batch is
+gated by its own concurrency cap
+(<code>maxConcurrentFanIconsCalls</code>, default 15) and costs
+surface on a dedicated <code>fan-icons</code> row in the Costs view.
+A <strong>Clear fan-icons</strong> button wipes icon state without
+deleting pairs.</li>
+<li><strong>Run a fan-in</strong> — pick a Fan-in prompt to combine
+every per-pair row into a single combined-report row. The
+<code>***Report*** @REPORT@@RESPONSES@</code> block in the template
+expands once per source agent.</li>
+</ol>
+</div>
+</details>
+
+<details>
+<summary>Export</summary>
+<div class="body">
+<p>Tap <strong>Export</strong> in the Actions row. Choose:</p>
+<dl class="kv">
+<div><dt>Format</dt>
+<dd>HTML, JSON, PDF (print the HTML), DOCX (Word), ODT (LibreOffice),
+RTF, or <strong>Zipped HTML</strong> — a self-contained HTML site
+(one folder per language, anchored cross-links, embedded CSS).</dd></div>
+<div><dt>Detail</dt>
+<dd>Full per-agent results vs. condensed.</dd></div>
+<div><dt>Sections</dt>
+<dd>Include / exclude prompt, costs, citations, traces.</dd></div>
+<div><dt>Action</dt>
+<dd>Share-sheet, email, or <strong>open in app</strong> (an in-app
+WebView preview of the Complete / Short HTML — handy on phones where
+the system browser handles <code>file://</code> poorly).</dd></div>
+</dl>
+<p>The 📤 share-as icon on the title bar of result-screen siblings
+opens the same Export sheet on those scopes.</p>
+<p>The HTML export contains a toggle for <strong>One by one</strong>
+(tabbed) vs <strong>All together</strong> (grid card layout), the
+original prompt, a Costs view with <strong>By type</strong> /
+<strong>By model</strong> / <strong>All</strong> tabs, stable
+<code>result-N</code> anchors on each agent's card, and one
+view-picker tab per chat-type Meta prompt name plus Reranks /
+Moderations / Translations tabs. Markdown tables (GFM pipe-style)
+render as proper HTML tables.</p>
+</div>
+</details>
+
+<details>
+<summary>Edit / regenerate</summary>
+<div class="body">
+<p>After a report has finished, you can tweak the prompt, the title,
+the model list, or the parameters and re-run. A pending-changes
+banner appears at the top of the result screen until you tap
+<strong>Regenerate</strong>. Regenerate stays on the same report and
+<strong>cascades by impact</strong>: prompt edits run all agents
+fresh; parameter edits do too; model-list-only edits run just the
+additions / changes and merge them in.</p>
+</div>
+</details>
+
+<h2 id="chat">Chat</h2>
+
+<p>Single-model conversation with full history. Pick a provider +
+model at the top, type messages, get streaming replies. Sessions are
+auto-saved.</p>
+
+<h3>AI Chat hub</h3>
+<ul>
+<li><strong>Start</strong> — <code>New AI Chat</code>,
+<code>Configure on the fly</code> (<code>ModelSearchScreen</code>),
+<code>Chat with a local LLM</code> (when at least one
+<code>.task</code> file is installed), <code>Dual AI Chat</code>.</li>
+<li><strong>Pinned chats</strong> (when present).</li>
+<li><strong>Recent</strong> — last few chats with the 🕐 icon.</li>
+<li><strong>Unfinished</strong> pill — when a chat from a previous
+session was left mid-turn, a one-tap resume.</li>
+<li><strong>Search</strong> — full-text scan across saved chat
+sessions.</li>
+<li><strong>Manage</strong> — bulk housekeeping.</li>
+</ul>
+
+<p>A chat session can have:</p>
+<ul>
+<li>A vision image attached per turn (📎). Images are downscaled and
+JPEG-encoded before base64.</li>
+<li>The 🌐 web-search tool toggled per provider.</li>
+<li>The 🧠 reasoning-effort selector per turn (clamped to the active
+model's supported range on session resume).</li>
+<li>One or more knowledge bases attached (📚) — every user turn the
+retriever pulls top-K chunks across the attached KBs and prepends a
+context block to the system message.</li>
+</ul>
+
+<p>A mid-session system-prompt change takes effect on the next turn,
+not just on a fresh session.</p>
+
+<h2 id="dual-chat">Dual Chat</h2>
+
+<p>Two models in conversation with each other. You define two prompt
+templates that reference each other's output (<code>%subject%</code>,
+<code>%answer%</code>), pick a subject, and an interaction count. The
+first model answers about the subject; the second responds to the
+first; they take turns until they hit the count. Useful for
+adversarial cross-examination, devil's-advocate setups, or multi-step
+pipelines. Conversations persist across rotation and process
+recreation.</p>
+
+<h2 id="knowledge">Knowledge (RAG)</h2>
+
+<p>The <strong>AI Knowledge</strong> card on the Hub manages knowledge
+bases. A knowledge base is a named collection of source documents
+that have been chunked + embedded so that report and chat calls can
+prepend the most-relevant excerpts to the prompt.</p>
+
+<h3>Creating a KB</h3>
+<ol>
+<li><strong>AI Knowledge → + New knowledge base</strong>.</li>
+<li>Give it a name and pick an embedder. Embedders fall in two
+categories:
+  <ul>
+    <li><strong>Local (LiteRT)</strong> — on-device MediaPipe
+    TextEmbedder (universal-sentence-encoder-lite by default).</li>
+    <li><strong>Provider</strong> (e.g. OpenAI /
+    <code>text-embedding-3-small</code>) — any active provider with
+    an embedding model.</li>
+  </ul>
+</li>
+<li>Tap Create.</li>
+</ol>
+
+<h3>Adding sources</h3>
+<ul>
+<li><strong>+ File</strong> opens a SAF picker that accepts:
+  <ul>
+    <li>PDFs (with OCR fallback for image-only PDFs).</li>
+    <li>Word documents (<code>.docx</code>, <code>.odt</code>).</li>
+    <li>Spreadsheets (<code>.xlsx</code>, <code>.ods</code>,
+    <code>.csv</code>, <code>.tsv</code>).</li>
+    <li>Images (<code>.jpg</code>, <code>.jpeg</code>,
+    <code>.png</code>) — Latin OCR via ML Kit.</li>
+    <li>Plain text and Markdown (<code>.md</code>).</li>
+  </ul>
+</li>
+<li><strong>+ Web page</strong> fetches a URL with Jsoup and ingests
+the visible text.</li>
+</ul>
+
+<p>Every source goes through a per-type extractor → paragraph chunker
+(2 KB target, 200-char overlap) → embedder. Status reports
+"Extracting…" → "Embedding batch N / M…" → "Indexed (chunks=K)".</p>
+
+<h3>Attaching a KB to a Report or Chat</h3>
+<ul>
+<li><strong>Reports</strong>: on the New AI Report screen, tap
+<strong>📚 Knowledge</strong> to multi-select KBs.</li>
+<li><strong>Chats</strong>: on the Chat parameters screen (or via the
+chat session's own 📚 button), pick KBs the same way.</li>
+</ul>
+
+<h3>Share-target</h3>
+<p>Other apps can share documents into AI. From any app's share
+sheet, pick "AI"; you'll get a chooser screen with three destinations:
+<strong>New Report</strong>, <strong>New Chat</strong>, <strong>Add
+to Knowledge</strong>. See <a href="share-target.html">share-target</a>.</p>
+
+<p>See <a href="knowledge.html">knowledge</a> for the full RAG
+pipeline.</p>
+
+<h2 id="local">Local Runtime</h2>
+
+<p>Two on-device subsystems live alongside the cloud providers:</p>
+
+<dl class="kv">
+<div><dt>Local LLM</dt>
+<dd><code>LocalLlm</code>, MediaPipe Tasks GenAI — runs a
+<code>.task</code> bundle (Gemma, Phi, Llama …) for chat or report
+generation. The Local provider appears in every model picker as a
+normal provider; the Hub's "Chat with a local LLM" card is a
+shortcut.</dd></div>
+<div><dt>Local Embedder</dt>
+<dd><code>LocalEmbedder</code>, MediaPipe Tasks TextEmbedder — runs
+a <code>.tflite</code> text embedder for Local Semantic Search and
+as an embedder option when creating a Knowledge base. A default
+Universal Sentence Encoder is downloaded on first use.</dd></div>
+</dl>
+
+<p>Both record synthetic API trace entries (hostname
+<code>local</code>, url <code>local://generate/&lt;model&gt;</code>
+or <code>local://embed/&lt;model&gt;</code>) so on-device traffic
+shows up on the Trace screen.</p>
+
+<p>Maintenance lives under <strong>AI Setup → Local Models</strong>.
+See <a href="local-runtime.html">local-runtime</a>.</p>
+
+<h2 id="models">Models</h2>
+
+<p>A flat searchable view of every model across every active provider.
+Filter by provider, by capability (vision / web-search / function
+calling / reasoning), or just by name. Tap a model for the
+<strong>Model Info</strong> screen.</p>
+
+<h3>Model Info</h3>
+<p>The Model Info page paints immediately and every card loads in
+parallel so a slow external lookup never gates the rest:</p>
+
+<ol>
+<li><strong>Actions</strong> — Start AI chat • Create AI Agent •
+<strong>Test</strong> (fires one probe against this model, captures
+the trace, and surfaces the response inline).</li>
+<li><strong>Capabilities</strong> — vision / web-search /
+function-calling / reasoning toggles plus the underlying signals
+from each layer.</li>
+<li><strong>Provider</strong> — provider's display name links to the
+per-provider help page.</li>
+<li><strong>Sources</strong> — buttons that open the model's page on
+each external repository (HuggingFace / OpenRouter / LiteLLM /
+models.dev / Helicone / llm-prices / Artificial Analysis), each with
+an ℹ button that deep-links to that repository's help page.
+<strong>Show all</strong> opens a side-by-side raw-JSON dump of every
+source.</li>
+<li><strong>Costs</strong> — input / output prices from each tier and
+the resolved layered price.</li>
+<li><strong>API Traces</strong> — every API call to this
+provider + model that's still on disk.</li>
+<li><strong>In AI configuration</strong> — Agents whose
+<code>(provider, model)</code> match this entry.</li>
+<li><strong>Workers</strong> — same agent list framed as workers.</li>
+<li><strong>Last usage</strong> — running cost + token stats for this
+model.</li>
+</ol>
+
+<p>Standalone model-name labels across the app are clickable and open
+the Model Info screen. The "Model name layout" Settings preference
+controls whether labels show only the model id or both provider and
+model.</p>
+
+<h2 id="usage">AI Usage</h2>
+
+<p>A breakdown of every API call you've made. Provider cards expand
+into per-model rows; each row has a small Type pill when it isn't a
+normal report call (<code>rerank</code>, <code>meta</code>,
+<code>moderate</code>, <code>translate</code>, fan-out prompts
+surface under their own Meta-prompt name). The Cost column is
+coloured by which tier supplied the price.</p>
+
+<h2 id="traces">API Traces</h2>
+
+<p>Every API call (request + response) is dumped as a JSON file under
+<code class="path">&lt;filesDir&gt;/trace/</code>. The Trace screen
+lets you browse them by hostname, status code, model, or the report
+they belonged to. Local LLM and local embedder calls are traced too
+with hostname <code>local</code>. The Trace list <strong>auto-collapses
+to detail when filters yield a single entry</strong>.</p>
+
+<p>The Trace detail's TitleBar carries 🗑 (delete) and 🔄 (refresh)
+icons. The detail page surfaces the request body's first line in a
+Get-style preview, with an ℹ️ icon that falls back to the provider
+help when no per-model help exists.</p>
+
+<p>API tracing is <strong>on by default</strong> but can be toggled
+off under Settings → Privacy &amp; backup → API tracing — when off,
+no new traces are written, the Hub's AI API Traces card is hidden,
+and every 🐞 ladybug icon disappears from result screens.</p>
+
+<h2 id="applog">AI App log</h2>
+
+<p>A daily-rotating in-app log file with a structured viewer
+(Hub → AI App log). Useful when you want to send a clean log to
+support without needing <code>adb</code>. The viewer offers search,
+level checkboxes (default WARN + ERROR), time-range pickers, and a
+tag dropdown. Tap any row to open the entry detail, with a 🐞 Trace
+link when the entry's tag + timestamp match a captured API trace.
+The Copy / Share dialog asks Filtered-only vs whole file and Last-N-
+lines vs Complete. Sensitive headers and API keys are redacted inline
+at write time. See <a href="applog.html">applog</a>.</p>
+
+<h2 id="settings">Settings</h2>
+
+<p>The <strong>Settings</strong> main screen is split into three
+sub-screens. Each card on the main screen is collapsed by default
+and shows only the title; tapping expands it.</p>
+
+<details open>
+<summary>Preferences</summary>
+<div class="body">
+<ul>
+<li><strong>Identity</strong> — name + email (the email pre-fills
+the export sheet).</li>
+<li><strong>Model name layout</strong> — model only / provider and
+model.</li>
+<li><strong>Title bar</strong> — the top bar is the unified
+three-section layout: the <strong>AI</strong> logo (left, vivid
+Material A700 blue, alpha 0.75) and the <strong>❓ Help</strong>
+icon, the centred per-report icon (when in scope), and the hardcoded
+screen title (right, top-aligned). Below the bar, a single
+green-coloured 26 sp subject row (the <strong>HARDCODED</strong>
+subject row, used app-wide via <code>HardcodedSubjectRow</code>) shows
+the dynamic per-screen subject and is clickable into Model Info when
+a <code>(provider, model)</code> is supplied.</li>
+<li>The action icons + back arrow always live in a fixed bar pinned
+at the bottom of the screen. The bar lives at AppNavHost scope so
+it survives nav transitions.</li>
+<li><strong>Generate report icons</strong> — master switch for the
+per-report emoji. Default on. See
+<a href="report-icons.html">report-icons</a>.</li>
+<li><strong>Generate per model icons</strong> — master switch for
+the per-agent 3-tier icon chain. Default on.</li>
+<li><strong>Show AI Knowledge card on home page</strong> — default
+off.</li>
+</ul>
+</div>
+</details>
+
+<details>
+<summary>Privacy &amp; backup</summary>
+<div class="body">
+<ul>
+<li><strong>API tracing</strong> — master switch for
+<code>ApiTracer</code>.</li>
+</ul>
+</div>
+</details>
+
+<details>
+<summary>Network</summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Streaming read timeout (s)</dt>
+<dd>Read timeout for SSE chat / report streams (default ~10 min).
+Shrink it on flaky networks.</dd></div>
+<div><dt>Non-streaming read timeout (s)</dt>
+<dd>Read timeout for analyze / meta / rerank / translate / model-list
+calls. Default is much shorter than streaming so a hung provider
+can't gate a whole batch for 10 minutes.</dd></div>
+<div><dt>Max calls per provider per minute (default 30)</dt>
+<dd>Sliding 60 s rate cap per provider hostname. See
+<a href="throttle.html">throttle</a>.</dd></div>
+<div><dt>Max concurrent calls per provider (default 3)</dt>
+<dd>Concurrency cap. Applies across overlapping flows (report + meta
++ chat).</dd></div>
+</dl>
+
+<p><strong>Maximal API calls</strong> — six per-kind concurrency
+ceilings applied across hosts:</p>
+
+<dl class="kv">
+<div><dt>Global API calls</dt><div class="meta">50</div>
+<dd>Hard ceiling for every dispatcher.</dd></div>
+<div><dt>Report calls</dt><div class="meta">15</div>
+<dd>Per-agent calls inside one report-gen run.</dd></div>
+<div><dt>Translation calls</dt><div class="meta">15</div>
+<dd>Total across all in-flight Translate runs.</dd></div>
+<div><dt>Fan-out calls</dt><div class="meta">15</div>
+<dd>Fan-out pair calls.</dd></div>
+<div><dt>Fan-icons calls</dt><div class="meta">15</div>
+<dd>Fan-icons batch — independent of Fan-out.</dd></div>
+<div><dt>Test sweep calls</dt><div class="meta">40</div>
+<dd>"Test all models" sweep.</dd></div>
+</dl>
+
+<ul>
+<li><strong>Max 429 retries</strong> (default 3) — in-line retries
+on a 429 response. 0 disables.</li>
+<li><strong>429 retry backoff (ms)</strong> (default 1000).</li>
+<li><strong>Max 529 retries</strong> / <strong>529 backoff
+(ms)</strong> — independent budget for "server overloaded"
+(Anthropic) responses.</li>
+</ul>
+
+<p>Each provider has its own override card on its edit screen that
+inherits these values when left blank.</p>
+</div>
+</details>
+
+<details>
+<summary>Logging</summary>
+<div class="body">
+<ul>
+<li><strong>Log level</strong> — threshold for the in-app file
+logger (<code>AppLog</code>). One of <code>TRACE</code> /
+<code>DEBUG</code> / <code>INFO</code> / <code>WARN</code> /
+<code>ERROR</code> / <code>OFF</code>. Default <code>INFO</code>.
+See <a href="applog.html">applog</a>.</li>
+</ul>
+<p>Edits debounce and flush on screen leave so a quick back doesn't
+lose typed changes.</p>
+</div>
+</details>
+
+<details>
+<summary>AI Setup hub</summary>
+<div class="body">
+<dl class="kv">
+<div><dt>Providers</dt>
+<dd>API keys, state, and default model per provider. The list sorts
+by state, and the <strong>+ Add provider</strong> entry is at the
+bottom. Each provider edit screen carries a Network card with
+per-provider rate-limit / concurrency / 429-retry overrides.</dd></div>
+<div><dt>Models (sub-hub)</dt>
+<dd>Models / Model Types / Manual model types overrides.</dd></div>
+<div><dt>AI Models setup (sub-hub)</dt>
+<dd>Local Models / <strong>Model cooldowns</strong> /
+<strong>Blocked models</strong> /
+<strong>Test-excluded models</strong> /
+<strong>Inaccessible models</strong>. Cooldowns + Blocked are
+auto-populated by the throttle layer + Test sweep; Test-excluded and
+Inaccessible are also seeded from <code>assets/excluded.json</code>
+and <code>assets/inaccessible.json</code> on every cold start.</dd></div>
+<div><dt>Workers (sub-hub)</dt>
+<dd>Agents / Flocks / Swarms.</dd></div>
+<div><dt>Prompt management</dt>
+<dd>Top-level page (the legacy Internal Prompts sub-hub was
+collapsed): System Prompts / Internal Prompts grouped by category
+(Meta + Fan-out + Fan-in + Other internal — including the icon
+prompts) / Example prompts. Each row carries a per-card help
+icon.</dd></div>
+<div><dt>Parameters</dt>
+<dd>Reusable parameter presets (incl. reasoning effort).</dd></div>
+<div><dt>Costs</dt>
+<dd>Manual price overrides + Cleanup + Layered costs (collapsed at
+the bottom).</dd></div>
+<div><dt>External Services</dt>
+<dd>HuggingFace / OpenRouter / Artificial Analysis keys (debounced
+keystroke saves; flush on dispose).</dd></div>
+<div><dt>Refresh</dt>
+<dd>Per-tier refresh + Refresh all chain.</dd></div>
+</dl>
+
+<div class="callout">
+<p>Anything user-driven that runs on a report's outputs (Compare,
+Critique, Synthesize, …) is configured under <strong>Prompt
+management → Meta prompts</strong>. Fan-out / Fan-in templates live
+under their own siblings; "Other internal" (intro / model_info /
+translate / rerank / moderation) is a fixed list with no Add /
+Delete.</p>
+</div>
+</div>
+</details>
+
+<details>
+<summary>Refresh</summary>
+<div class="body">
+<p>A dedicated screen for refreshing the seven external repositories.
+Each card has its own button; <strong>Refresh all</strong> runs a
+full-screen progress page that fetches catalogs in parallel, then
+re-tests every active provider in dependency order, and finally
+auto-restarts the app to pick up the freshly-persisted caches.
+Refresh all skips the default-agent re-test (it trusts the
+catalog-fetch results) and lists any failed providers with a one-tap
+nav-to-edit.</p>
+</div>
+</details>
+
+<details>
+<summary>Housekeeping</summary>
+<div class="body">
+<p>A compact landing screen — each drill-in is a full screen with
+its own help topic. <strong>Refresh</strong> and
+<strong>Reset</strong> are grouped next to each other on the landing
+page.</p>
+<dl class="kv">
+<div><dt>Backup &amp; Restore</dt>
+<dd>Export the entire app to a <code>.zip</code>; restore from one.
+The Restore screen carries a red warning that the zip contains your
+API keys.</dd></div>
+<div><dt>Export &amp; Import</dt>
+<dd>Collapsible cards for Settings / Model lists / Parameters /
+System prompts / Workers / Costs CSV / Prompts JSON / Runtime data /
+API keys / All.</dd></div>
+<div><dt>Refresh</dt>
+<dd>Hand-off to the per-tier Refresh screen.</dd></div>
+<div><dt>Test</dt>
+<dd>Hand-off to the per-provider Test screen + "Test all models"
+sweep (see <a href="model-test.html">model-test</a>).</dd></div>
+<div><dt>Trim by age</dt>
+<dd>Drop reports / chats / traces / log files older than a chosen
+cutoff. Hides "Trim by age" when there's nothing to trim.</dd></div>
+<div><dt>Usage statistics</dt>
+<dd>Reset the per-(provider, model, kind) counters.</dd></div>
+<div><dt>Reset</dt>
+<dd>Five dedicated sub-screens.</dd></div>
+</dl>
+
+<p><strong>Reset</strong> is split into five sub-screens (each is a
+collapsible card, all collapsed by default):</p>
+<dl class="kv">
+<div><dt>Clear all runtime data</dt>
+<dd>Narrower than before: wipes app log, traces, chats, reports,
+prompt history, and usage stats. Knowledge / pricing / model-list
+caches stay put.</dd></div>
+<div><dt>Clear Info providers</dt>
+<dd>Wipes the seven external-info caches (LiteLLM, OpenRouter,
+models.dev, Helicone, llm-prices, Artificial Analysis, HuggingFace)
+and their timestamps.</dd></div>
+<div><dt>Clear all configuration</dt>
+<dd>Wipes provider config, prompts, Local LLMs, LiteRT models. Asks
+before destructive actions.</dd></div>
+<div><dt>Restore bundled assets</dt>
+<dd>Re-merges <code>providers.json</code> / <code>prompts.json</code>
+/ <code>examples.json</code> from the APK. User edits to existing
+rows are preserved.</dd></div>
+<div><dt>Reset application</dt>
+<dd>Factory-style reset that preserves API keys (written to a temp
+file under <code>cacheDir/reset_keys_*</code>, restored after the
+wipe). No longer runs a trailing Refresh-all chain.</dd></div>
+</dl>
+
+<p>After any wholesale-state-replace op, a <strong>Restart-app</strong>
+dialog prompts you to relaunch.</p>
+</div>
+</details>
+
+<details>
+<summary>Test all models</summary>
+<div class="body">
+<p><strong>Housekeeping → Test → Test all models</strong> probes
+every model in every active provider with a fixed
+<code>"Reply with exactly: OK"</code> prompt, in parallel up to the
+<strong>Maximal API calls → test sweep</strong> cap (default 40
+concurrent). Each result is captured with a trace deep-link, latency,
+and cost.</p>
+<ol>
+<li><strong>Select screen</strong> — pick which providers to
+include.</li>
+<li><strong>L1</strong> — top stats panel with the catalog partition
+snapshot (For testing / Inaccessible / Excluded / No-chat) and live
+progress: Running, Queued, Throttled, Done, Errors.</li>
+<li><strong>L2</strong> — per-provider list of models with status
+icons, error tooltips, cost, latency, and the source prompt at the
+top.</li>
+<li><strong>L3</strong> — single-model detail with the captured
+trace, request prompt, response body, and chevron nav to walk
+siblings.</li>
+</ol>
+<p>The sweep auto-feeds three Settings lists: Inaccessible models
+(tier-gated), Test-excluded models (cost &gt; 5¢), Blocked models
+(error above threshold). See <a href="model-test.html">model-test</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>Model cooldowns</summary>
+<div class="body">
+<p>When a provider answers a 429 with a Retry-After hint longer than
+<strong>1 hour</strong> (Google quota exhausted, Cohere monthly cap,
+per-day token quotas reset at Pacific midnight), the model is
+benched in the <strong>Model cooldowns</strong> store until the hint
+expires. Model pickers dim the row and show "rate-limited · back
+HH:mm" (or "back May 15 14:30" when the cooldown crosses midnight).
+The Fan-out engine, the Test sweep, and the per-agent icon chain all
+skip the benched pair automatically for the rest of the run.</p>
+<p>Manage the list under <strong>AI Setup → AI Models setup → Model
+cooldowns</strong> — CRUD entries, clear all, and tap a row to
+deep-link into the API trace whose 429 produced the cooldown. See
+<a href="cooldowns.html">cooldowns</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>Export / Import</summary>
+<div class="body">
+<p>Granular sub-bundles plus an All bundle (split into "with API
+keys" and "without API keys" so you can share configs without leaking
+secrets). The Workers bundle round-trips agents + flocks + swarms
+together; Settings / Model lists / Parameters / System prompts /
+Costs CSV / Prompts JSON each have their own button. CSVs use
+RFC-4180 quoting on export and a tolerant RFC-4180 parser on
+import.</p>
+</div>
+</details>
+
+<h2 id="help">Help</h2>
+
+<p>Every screen's TitleBar carries a ❓ that opens a per-screen help
+topic. Provider cards on Model Info / Trace detail / Costs carry
+ℹ buttons that deep-link to a per-provider help page covering that
+provider's setup, capabilities, quirks, and known issues.</p>
+
+<p>The Help home page surfaces an icon legend rendered as a 3-column
+table — every TitleBar icon you'll see in the app, with a one-line
+description.</p>
+
+<h2 id="tips">Tips</h2>
+
+<ul>
+<li><strong>Rate limits + concurrency</strong>: every provider has a
+per-host sliding-window rate cap (default 30 calls / minute) and a
+per-host concurrency cap (default 3 in flight) enforced globally
+across every flow — report, meta, fan-out, chat, translate,
+model-list fetches. A 429 retries up to 3× with 1 s back-off by
+default. All of these are configurable under
+<strong>Settings → Network</strong>, and any provider can override
+them on its own edit screen. Each retry is a separate trace with the
+originating call's <code>(reportId, category)</code> tags
+propagated.</li>
+<li><strong>Vision attachments</strong> are stored on the Report so a
+Regenerate re-uses the same image. Images are downscaled +
+JPEG-encoded before base64.</li>
+<li><strong>Reasoning effort</strong> (low / medium / high) is
+plumbed through to models that support it (gpt-5.x / o-series via
+OpenAI Responses API; Gemini thinking models). Non-reasoning models
+silently ignore the field; on chat session resume it's clamped to
+the active model's supported range.</li>
+<li><strong>External intent</strong>: another app can launch this one
+with a prompt, a list of agents / flocks / swarms / models, and an
+action ("view", "share", "browser", "email"). See the in-app
+<strong>Help</strong> screen for the full intent contract — and
+<a href="share-target.html">share-target</a> for the standard
+<code>ACTION_SEND</code> flow.</li>
+<li><strong>Multiple translation runs at once</strong> — the
+Translate flow lets you fire off several language batches
+concurrently; results land in their own rows on the Result
+screen.</li>
+<li><strong>Background continuation</strong> — Generate, Regenerate,
+secondary launches (Rerank / Meta / Moderate / Translate), the
+alternative-icons fan-out, and the per-agent icon chain all continue
+running when you navigate away from the result page. Cancelling a
+report (delete) cancels every in-flight call for that report
+including any icon-chain jobs.</li>
+<li><strong>Background ↔ chat from cross-app</strong> — When another
+app launches a report via <code>ACTION_NEW_REPORT</code>, the user
+gets a one-tap confirmation before generation starts — no silent
+background runs.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

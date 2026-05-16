@@ -197,6 +197,16 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
         )
     ),
+    "documentation" to HelpContent(
+        title = "Documentation",
+        cards = listOf(
+            HelpCard("Overview", "An in-app browser over the project's full documentation, bundled in the APK at `assets/docs/`. Mobile-friendly rewrite of the `doc/` markdown tree: collapsible cards instead of wide tables, nested HTML trees instead of ASCII diagrams, dark theme matching the app. No network — every page is read from disk."),
+            HelpCard("Index", "The first page is a card-style table of contents. Sections: For end users (Manual), For developers (Architecture, Development, API formats, Data structures, Secondary results, Model test, Cooldowns, Help system, AppLog, Report icons, Throttle), Subsystem deep dives (Knowledge / RAG, Local runtime, Translation, Share target, Backup & restore), Reference data (Providers, Repositories, Persistent state), Backlog (TODO)."),
+            HelpCard("Navigation", "Tap a card on the index to open that doc. Inside a page, the top \"Jump to\" panel anchor-links to each section. Long reference sections (per data class, per provider) are collapsed by default — tap to expand. The system back button walks the browser history first, then exits the screen."),
+            HelpCard("Authoritative source", "Documentation is hand-written; the code is the ultimate source of truth. The bundled HTML is a snapshot — when in doubt, the file pointers at the bottom of `index` lead back to the live source files."),
+            HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending the second rewrite pass — they link back to the original `doc/<name>.md` in the repo. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
+        )
+    ),
     "help_topic_view" to HelpContent(
         title = "Help (this screen)",
         cards = listOf(

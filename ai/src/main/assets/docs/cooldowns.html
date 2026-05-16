@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cooldowns — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Cooldowns</span></header>
+<main>
+
+<h1>Model cooldowns</h1>
+
+<p>When a provider answers a 429 with a Retry-After hint longer than
+<strong>1 hour</strong>, the model gets benched in
+<code>ModelCooldownStore</code> until the hint expires. Every flow that
+picks a (provider, model) pair — Fan-out, fan-icons, the model-test
+sweep, the report-icon chain, every model picker — skips or dims
+benched pairs.</p>
+
+<p>The threshold is the <code>LONG_RETRY_THRESHOLD_MS</code> constant
+on <code>ModelCooldownStore</code> (= 60 × 60 × 1000 ms = 1 h).
+Anything below goes through the normal 429 retry loop in
+<code>RateLimitRetryInterceptor</code>; only the long-hint cases land
+here.</p>
+
+<h2>Triggers</h2>
+
+<p>A handful of 429 shapes route through <code>markUnavailable</code>:</p>
+
+<dl class="kv">
+<div>
+<dt>Google quota exhausted</dt>
+<dd>Per-day quota response; the hint resets at Pacific midnight.
+Benched until that wall clock.</dd>
+</div>
+<div>
+<dt>Cohere monthly trial cap</dt>
+<dd>Trial keys hit a long per-month cap; benched per provider, not
+per model.</dd>
+</div>
+<div>
+<dt>Per-day token quotas</dt>
+<dd>Several providers return Retry-After at Pacific midnight when
+the daily token bucket is empty.</dd>
+</div>
+<div>
+<dt>Long Retry-After ≥ 1 h</dt>
+<dd>The generic catch — any 429 whose Retry-After exceeds the
+threshold benches the model regardless of source.</dd>
+</div>
+</dl>
+
+<p>The interceptor captures the API trace whose 429 triggered the
+cooldown and stores its filename alongside the expiry — the picker
+deep-links into it so the user can see exactly what came back.</p>
+
+<h2>Storage</h2>
+
+<p>Two maps in a dedicated SharedPreferences file
+(<code class="path">/data/data/com.ai/shared_prefs/model_cooldowns.xml</code>):</p>
+
+<dl class="kv">
+<div>
+<dt>map</dt>
+<div class="meta"><code>Map&lt;String, Long&gt;</code></div>
+<dd><code>"$providerId:$model"</code> → epoch-ms expiry.</dd>
+</div>
+<div>
+<dt>traces</dt>
+<div class="meta"><code>Map&lt;String, String&gt;</code></div>
+<dd><code>"$providerId:$model"</code> → trace filename.</dd>
+</div>
+</dl>
+
+<p>The trace filename map is <strong>device-local</strong> — trace
+files don't travel with backup/restore, so it's persisted alongside
+but not part of the public
+<code>cooldowns: StateFlow&lt;Map&lt;String, Long&gt;&gt;</code>
+snapshot.</p>
+
+<p>Expired entries are pruned lazily on read
+(<code>isUnavailable</code> / <code>availableAt</code>) and on init.</p>
+
+<h2>Public surface</h2>
+
+<pre><code>object ModelCooldownStore {
+    val cooldowns: StateFlow&lt;Map&lt;String, Long&gt;&gt;
+
+    fun init(context: Context)
+    fun markUnavailable(providerId, model, availableAtMs, traceFile?)
+    fun isUnavailable(providerId, model): Boolean
+    fun availableAt(providerId, model): Long?
+    fun remove(providerId, model)
+    fun clearAll()
+    fun entries(): List&lt;CooldownEntry&gt;
+    fun importMerge(incoming: Map&lt;String, Long&gt;)
+    fun cooldownCaption(untilMs: Long): String
+}</code></pre>
+
+<p><code>cooldownCaption</code> returns
+<code>"rate-limited · back 14:30"</code> for entries expiring today,
+<code>"rate-limited · back May 15 14:30"</code> otherwise — the
+caption the picker dims the row with.</p>
+
+<h2>UI</h2>
+
+<h3>Model pickers</h3>
+<p>Every model picker (per-provider list, +Agent, +Model, the
+secondary picker, the Fan-out / Fan-out icons launch screens, the
+Model Info "in AI config" card) consults
+<code>ModelCooldownStore.isUnavailable</code> via the consolidated
+dim+icon+selectable advisory rule and renders the benched row dimmed
+with a "rate-limited · back …" caption. Tap-target stays live so the
+user can override if they want to try anyway.</p>
+
+<h3>Engines</h3>
+<p><code>FanOutEngine</code>, the fan-icons batch,
+<code>ModelTestEngine</code>, and the per-agent report-icon chain all
+consult <code>isUnavailable</code> before committing a pair to the
+run — benched pairs are skipped or shifted to ERROR with a reason.
+The Fan-out L1 stats panel surfaces them in the
+<strong>Throttled</strong> column.</p>
+
+<h3>Cooldowns CRUD</h3>
+<p>Settings → AI Setup → AI Models setup → <strong>Model cooldowns</strong>
+lists every stored cooldown (expired and live), grouped by provider.
+Each row shows the model, the expiry, and a 🐞 button that deep-links
+into the captured trace. Actions:</p>
+
+<ul>
+<li><strong>Remove</strong> — drop one entry (un-bench).</li>
+<li><strong>Clear all</strong> — drop every entry.</li>
+<li>Tap a row → the API trace screen for the 429 that caused it.</li>
+</ul>
+
+<p>The store is also part of <strong>Export &amp; Import → Runtime
+data</strong> and the full backup zip — round-trips through
+<code>BackupManager</code> like every other prefs file.</p>
+
+<h2>Files</h2>
+
+<ul>
+<li><code>data/ModelCooldownStore.kt</code> — the singleton store.</li>
+<li><code>data/ApiTracer.kt</code> —
+<code>RateLimitRetryInterceptor</code> /
+<code>OverloadedRetryInterceptor</code> (the 429/529 paths that route
+into <code>markUnavailable</code>).</li>
+<li><code>ui/settings/SettingsScreen.kt</code> — the
+<strong>Model cooldowns</strong> CRUD surface under AI Models setup.</li>
+<li><code>model/SettingsModels.kt</code> — <code>BlockedModel</code> /
+<code>TestExcludedModel</code> / <code>InaccessibleModel</code> are
+the sibling CRUD lists (cooldowns is distinct: it's auto-managed by
+the network layer and persists across runs without being part of
+Settings).</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

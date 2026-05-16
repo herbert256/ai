@@ -247,6 +247,7 @@ fun AppNavHost(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
+                onNavigateToDocumentation = { navController.navigate(NavRoutes.DOCUMENTATION) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToUsage = { navController.navigate(NavRoutes.AI_USAGE) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
@@ -1042,6 +1043,9 @@ fun AppNavHost(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) }
             )
+        }
+        composable(NavRoutes.DOCUMENTATION) {
+            com.ai.ui.admin.DocumentationScreen(onBack = safePopBack)
         }
         composable(NavRoutes.HELP_FOR_TOPIC) { entry ->
             val topicId = try {

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><span>AI app docs</span></header>
+<main>
+
+<h1>Documentation</h1>
+
+<p>Multi-provider AI app — reports, chat, dual chat, RAG knowledge
+bases, on-device LLM &amp; embedder, share-target ingest, fan-out /
+fan-in. 42 cloud providers across three API formats, plus a synthetic
+on-device <em>Local</em> provider.</p>
+
+<p class="muted">Kotlin 2.2.10 · Jetpack Compose · single Activity ·
+MVVM with five view models · seven external metadata repositories
+layered into one resolved view per (provider, model) pair.</p>
+
+<div class="index-section">
+<h2>For end users</h2>
+
+<a class="index-card" href="manual.html">
+  <span class="name">Manual</span>
+  <span class="blurb">Walkthrough of every screen and feature — Reports, Chat, Dual Chat, Knowledge, Local, Translation, Fan-out, Housekeeping.</span>
+</a>
+</div>
+
+<div class="index-section">
+<h2>For developers</h2>
+
+<a class="index-card" href="architecture.html">
+  <span class="name">Architecture</span>
+  <span class="blurb">Big-picture map: navigation, view models, data layer, layered lookups, concurrency, state recovery, RAG, on-device runtime, Fan-out.</span>
+</a>
+
+<a class="index-card" href="development.html">
+  <span class="name">Development</span>
+  <span class="blurb">Build / deploy / test commands. How to add a provider, parameter, pricing tier, knowledge source, SecondaryKind, internal prompt. Gotchas.</span>
+</a>
+
+<a class="index-card" href="api-formats.html">
+  <span class="name">API formats</span>
+  <span class="blurb">The three dispatch paths — <code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>, <code>GOOGLE</code> — and what's quirky about each.</span>
+</a>
+
+<a class="index-card" href="datastructures.html">
+  <span class="name">Data structures</span>
+  <span class="blurb">Every non-trivial data class with every field, grouped by domain.</span>
+</a>
+
+<a class="index-card" href="secondary-results.html">
+  <span class="name">Secondary results</span>
+  <span class="blurb">RERANK, the user-driven META kind, MODERATION, TRANSLATE, and the Fan-out / Fan-in / Fan-icons flow with three-level drill-in.</span>
+</a>
+
+<a class="index-card" href="model-test.html">
+  <span class="name">Model test</span>
+  <span class="blurb">"Test all models" subsystem: catalog partitioning, L1/L2/L3 drill-in, throttle integration, seeded inaccessible/excluded lists.</span>
+</a>
+
+<a class="index-card" href="cooldowns.html">
+  <span class="name">Cooldowns</span>
+  <span class="blurb"><code>ModelCooldownStore</code> — auto-benching on long 429 Retry-After, CRUD screen, picker dimming, deep-link to trace.</span>
+</a>
+
+<a class="index-card" href="help.html">
+  <span class="name">Help system</span>
+  <span class="blurb">In-app Help: per-screen topics, per-provider pages, per-repository pages, icon legend.</span>
+</a>
+
+<a class="index-card" href="applog.html">
+  <span class="name">AppLog</span>
+  <span class="blurb">In-app log4j-style file logger, daily-rotated files, viewer screens, threshold / level settings, filter UX, Copy / Share.</span>
+</a>
+
+<a class="index-card" href="report-icons.html">
+  <span class="name">Report icons</span>
+  <span class="blurb">Per-report emoji + per-agent 3-tier icon chain, generation flow, alternative-icons picker, icons grid, cost surfacing.</span>
+</a>
+
+<a class="index-card" href="throttle.html">
+  <span class="name">Throttle</span>
+  <span class="blurb">Per-provider rate-limit + concurrency caps, 429-retry interceptor, read-timeout settings, per-provider override hierarchy.</span>
+</a>
+</div>
+
+<div class="index-section">
+<h2>Subsystem deep dives</h2>
+
+<a class="index-card" href="knowledge.html">
+  <span class="name">Knowledge / RAG</span>
+  <span class="blurb">Knowledge base structure, ten source-type extractors, local + remote embedding, chunker, retrieval, attachment to reports and chats.</span>
+</a>
+
+<a class="index-card" href="local-runtime.html">
+  <span class="name">Local runtime</span>
+  <span class="blurb">On-device LLM (<code>LocalLlm</code>, MediaPipe GenAI) + embedder (<code>LocalEmbedder</code>, TextEmbedder). Model gating, download, import.</span>
+</a>
+
+<a class="index-card" href="translation.html">
+  <span class="name">Translation</span>
+  <span class="blurb">TRANSLATE secondary-kind, multi-language fan-out, translation runs, side-by-side / Translate Run / Translate Call detail screens.</span>
+</a>
+
+<a class="index-card" href="share-target.html">
+  <span class="name">Share target</span>
+  <span class="blurb"><code>ACTION_SEND</code> / <code>ACTION_SEND_MULTIPLE</code> plumbing, the chooser, and the three landing routes (Report, Chat, Knowledge).</span>
+</a>
+
+<a class="index-card" href="backup-restore.html">
+  <span class="name">Backup &amp; restore</span>
+  <span class="blurb">Full-app zip backup format, two-pass validate-then-write restore, local-models exclude/preserve set, post-restore catalog merge.</span>
+</a>
+</div>
+
+<div class="index-section">
+<h2>Reference data</h2>
+
+<a class="index-card" href="providers.html">
+  <span class="name">Providers</span>
+  <span class="blurb">All 42 cloud providers with base URL, admin URL, and non-default fields. Plus the synthetic Local provider.</span>
+</a>
+
+<a class="index-card" href="repositories.html">
+  <span class="name">Repositories</span>
+  <span class="blurb">Seven external metadata repositories — LiteLLM, OpenRouter, models.dev, Helicone, llm-prices, Artificial Analysis, HuggingFace.</span>
+</a>
+
+<a class="index-card" href="persistent.html">
+  <span class="name">Persistent state</span>
+  <span class="blurb">Every SharedPreferences file and every persistent JSON file under <code>&lt;filesDir&gt;</code>, including knowledge, models, embeddings, secondary, pricing, trace.</span>
+</a>
+</div>
+
+<div class="index-section">
+<h2>Backlog</h2>
+
+<a class="index-card" href="todo.html">
+  <span class="name">TODO</span>
+  <span class="blurb">Future work discussed but not scheduled — currently a foreground-Service plan so API calls survive process kill.</span>
+</a>
+</div>
+
+<div class="index-section">
+<h2>Reading order</h2>
+<p class="muted">If new to the codebase:
+<a href="manual.html">manual</a> →
+<a href="architecture.html">architecture</a> →
+<a href="datastructures.html">datastructures</a> →
+<a href="development.html">development</a>.
+Pull up a subsystem doc when a specific question lands in your lap.</p>
+</div>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>
