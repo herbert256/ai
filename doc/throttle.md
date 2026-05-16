@@ -50,16 +50,48 @@ Provider edit) and falls through to a global default
 
 - **`ProviderThrottle.permitPreAcquired`** —
   `ThreadLocal<Boolean>`. True on threads where the calling
-  flow already acquired a permit explicitly (Fan-out, Find
-  alternative icons, the per-agent report-icon chain).
-  `ProviderThrottleInterceptor` reads it on the OkHttp worker
-  and skips its own acquire — without the flag the
-  interceptor would double-count and halve effective
-  concurrency for those flows.
+  flow already acquired a permit explicitly (`FanOutEngine`,
+  fan-icons batch, `ModelTestEngine`, Find alternative icons, the
+  per-agent report-icon chain). `ProviderThrottleInterceptor`
+  reads it on the OkHttp worker and skips its own acquire —
+  without the flag the interceptor would double-count and halve
+  effective concurrency for those flows.
 
   Propagated across coroutine dispatcher hops via
   `asContextElement` and copied onto OkHttp workers by
   `TagPropagatingExecutor`.
+
+- **`ApiCallCaps`** — six application-level per-kind semaphores
+  layered on top of the per-host throttle. Each dispatcher
+  `withPermit`-wraps through the relevant kind's semaphore first,
+  then through `ProviderThrottle.acquire(host)`.
+
+  | Cap | Default | Wraps |
+  |---|---|---|
+  | `global` | 50 | every API call across the app |
+  | `report` | 15 | per-agent calls inside one report-gen run |
+  | `translation` | 15 | total in-flight Translate calls (across runs) |
+  | `fanOut` | 15 | fan-out pair calls (FanOutEngine) |
+  | `fanIcons` | 15 | fan-icons batch calls (separate from fanOut) |
+
+  A seventh knob, `GeneralSettings.maxTestApiCalls` (default 40), is
+  read directly by `ModelTestEngine` to size its in-flight semaphore
+  and is **not** mirrored into `ApiCallCaps`.
+
+  Mirrored from `GeneralSettings` on every Settings update.
+  Surfaced under **Settings → Network → Maximal API calls**.
+
+- **`ModelCooldownStore`** — separate from the throttle layer
+  but the same network surface. A 429 with a Retry-After hint
+  longer than `LONG_RETRY_THRESHOLD_MS = 1 h` benches the
+  `(providerId, model)` pair until the hint expires. The 429
+  interceptor calls `markUnavailable(providerId, model,
+  availableAtMs, traceFile)`; pickers dim the row with a
+  "rate-limited · back HH:mm" caption; engines skip benched
+  pairs for the rest of the run. CRUD under AI Setup → AI
+  Models setup → Model cooldowns. Persisted in its own
+  SharedPreferences file (`model_cooldowns`) and round-tripped
+  through backup. See [cooldowns.md](cooldowns.md).
 
 ## Interceptor chain
 
@@ -156,30 +188,39 @@ already edited.
 
 ## Pre-acquire flows
 
-Three flows pre-acquire to keep the request slot from being
-held across an idle window:
+Several flows pre-acquire to keep the request slot from being
+held across an idle window. In every case the pre-acquired
+permit is held over the actual network call (not the planning
+code), and the `permitPreAcquired` context element tells the
+inline interceptor to skip.
 
-1. **Fan-out** (`runFanOutPrompt`) — acquires once before
-   building the request, releases after the response settles.
-   The `runningFanOutPairs` set surfaces "queued" vs "running"
-   in the UI so the user can see exactly where their permits
-   are.
-2. **Per-agent report-icon chain** (`runReportIconsForAgent`)
+1. **`FanOutEngine`** — pre-acquires per pair before the HTTP
+   call, releases after the response settles. The engine's
+   internal IO semaphore (`maxConcurrentFanOutCalls`) bounds
+   total in-flight pair coroutines. Pairs whose per-host
+   throttle is full surface as `Throttled` on the L1 stats
+   panel.
+2. **Fan-icons batch** — same shape, separate budget
+   (`maxConcurrentFanIconsCalls`).
+3. **`ModelTestEngine`** — pre-acquires per probe; the
+   `throttledKeys: StateFlow<Set<String>>` exposes which pairs
+   are currently blocked in `ProviderThrottle.acquire` so the L1
+   list can render the live "Throttled" badge.
+4. **Per-agent report-icon chain** (`runReportIconsForAgent`)
    — each of the three tiers acquires its own permit on entry,
    releases on exit. See [report-icons.md](report-icons.md).
-3. **Find alternative icons** (`startIconFanOut`) — same
+5. **Find alternative icons** (`startIconFanOut`) — same
    pattern.
-
-In every case the pre-acquired permit is held over the actual
-network call (not the planning code), and the
-`permitPreAcquired` context element tells the inline
-interceptor to skip.
 
 ## Files
 
 - `data/ApiTracer.kt` — `NetworkSettings`, `ProviderThrottle`,
   `ProviderThrottleInterceptor`, `RateLimitRetryInterceptor`,
-  `ReadTimeoutInterceptor`, `TestCallTimeoutInterceptor`.
+  `OverloadedRetryInterceptor`, `ReadTimeoutInterceptor`,
+  `TestCallTimeoutInterceptor`, `ApiCallCaps` (the six
+  per-kind semaphores).
+- `data/ModelCooldownStore.kt` — singleton store + persisted
+  `model_cooldowns` SharedPreferences file.
 - `data/AppService.kt` — the four nullable override fields.
 - `data/ProviderRegistry.kt` — calls
   `ProviderThrottle.resetForNewLimits()` from `save`.
@@ -187,6 +228,10 @@ interceptor to skip.
   edit timestamps; the asset-sync paths consult these to
   decide which fields to refresh from `providers.json`.
 - `viewmodel/AppViewModel.kt` — `GeneralSettings.*` mirror,
-  bootstrap + on-update propagation.
+  bootstrap + on-update propagation, the six `maxConcurrent*`
+  knobs.
+- `viewmodel/FanOutEngine.kt` / `viewmodel/ModelTestEngine.kt` —
+  the largest pre-acquire consumers.
 - `ui/settings/SettingsScreen.kt` — the **Network** card on
-  the Settings → AI Setup → Provider edit screen.
+  the Settings → AI Setup → Provider edit screen, and the
+  global **Maximal API calls** card on Settings → Network.

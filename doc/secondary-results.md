@@ -252,95 +252,119 @@ Fan-out per-pair rows surface as `cross-out` or the
 prompt's lowercased name; Fan-in combined-report rows as
 `cross-in`.
 
-## Fan-out / Fan-in
+## Fan-out / Fan-in / Fan-icons
 
-A separate code path under `ReportViewModel.runFanOutPrompt` /
-`runFanInPrompt`:
+### `FanOutEngine` — the runtime
 
-- **Fan-out** runs the chosen `category="fan_out"` Internal
-  Prompt once per (answerer × source) pair. Each `@RESPONSE@`
-  in the template is replaced by the source agent's response
-  body. Concurrency is gated by a per-provider `Semaphore(3)` —
-  6 reports against one provider keeps three in flight, but
-  against 6 different providers all 18 run concurrently. The
-  hot per-pair `runningFanOutPairs: StateFlow<Set<String>>`
-  state lives outside `UiState` so 5–15 Hz updates don't ripple
-  through the rest of the composition.
+Fan-out execution lives on the dedicated
+[`FanOutEngine`](../ai/src/main/java/com/ai/viewmodel/FanOutEngine.kt)
+view model. It owns the canonical
+`_runs: MutableStateFlow<Map<FanOutRunKey, FanOutRunState>>` and
+mutates it atomically: every per-pair transition (queued, permit
+acquired, HTTP completed, error stamped, row deleted) is a single
+`_runs.update { … }` call, so subscribers see exactly one value per
+transition with no flicker — no polling loop, no `recentlySettled`
+grace window, no merging of disk + StateFlow.
 
-### Fan-out runtime model (redesign)
-
-As of the from-scratch redesign (commits `865fb443`..`af0521aa`):
-
-- **`FanOutRunState`** (`ai/src/main/java/com/ai/data/FanOutRunModel.kt`)
-  is the canonical per-run snapshot — `pairs: Map<PairKey,
-  PairState>`, plus `combinedReports`, scope, and the meta-prompt.
-  Each `PairState` carries an explicit `PairStatus`
-  (PENDING/RUNNING/DONE/ERROR) so the UI's classifier reads a
-  single field instead of merging three loosely-coupled views.
-
-- **`FanOutEngine`** (`ai/src/main/java/com/ai/viewmodel/FanOutEngine.kt`)
-  owns the authoritative `runs: StateFlow<Map<FanOutRunKey,
-  FanOutRunState>>`. Every state transition (pair queued, permit
-  acquired, HTTP completed, error stamped, row deleted) is an
-  atomic `_runs.update { … }` call — subscribers see exactly one
-  value per transition, no flicker. The engine hydrates from disk
-  on demand (`hydrate(context, reportId)`) and delegates the
-  actual HTTP+save to `ReportViewModel.executeSecondaryTask`.
+- The per-run snapshot type is
+  [`FanOutRunState`](../ai/src/main/java/com/ai/data/FanOutRunModel.kt):
+  `pairs: Map<PairKey, PairState>`, `combinedReports`, `scope`,
+  `metaPrompt`, plus the explicit `PairStatus` enum
+  (PENDING / RUNNING / DONE / ERROR) on every `PairState` so the
+  UI's classifier reads one field instead of merging three loosely
+  coupled views. See [datastructures.md](datastructures.md#fanoutrunstate--pairstate--combinedreportstate).
 
 - **Per-pair Job map** (`fanOutPairJobs`) keyed by `PairState.id`
-  so destructive paths can `cancelAndJoin` a specific pair before
+  lets destructive paths `cancelAndJoin` a specific pair before
   deleting its disk row — closes the "result lands after delete"
   race. Registration happens BEFORE `start()` via
   `CoroutineStart.LAZY` so concurrent deletes always find the Job.
 
-- **Per-pair IO-thread cap** (`Semaphore(8)` inside the runner)
-  bounds how many pair coroutines sit in the BLOCKING
-  `ProviderThrottle.acquire` call at once. Without it,
-  Dispatchers.IO got starved on large fan-outs and new
-  `generateGenericReports` calls queued forever.
+- **Concurrency** is nested. Per host, the
+  [`ProviderThrottle`](throttle.md) gates 30 calls / min × 3
+  concurrent (defaults; per-provider overrides apply). Across hosts,
+  an engine-level IO semaphore sized from
+  `GeneralSettings.maxConcurrentFanOutCalls` (default 15) bounds
+  total in-flight pair coroutines. Permits are pre-acquired on the
+  coroutine side and the `ProviderThrottle.permitPreAcquired`
+  thread-local stops the inline interceptor from double-counting.
 
-- The redesigned **UI** lives in
-  `ai/src/main/java/com/ai/ui/report/FanOutScreen.kt` (parent + nav)
-  + `FanOutL1Screen.kt` / `FanOutL2Screen.kt` / `FanOutL3Screen.kt`
-  (each level). The parent holds a `FanOutNav` sealed-class state
-  in `rememberSaveable`; back-stack survives rotation. Each level
-  subscribes to `engine.runs.collectAsState()` and renders the
-  current snapshot — no polling, no `recentlySettled` grace
-  window, no merging of disk + StateFlow.
+- A 429 with a Retry-After hint ≥ 1 h calls
+  `ModelCooldownStore.markUnavailable`; the engine skips the benched
+  (provider, model) for the rest of the run. See
+  [cooldowns.md](cooldowns.md).
 
-The launch path (`runFanOutPrompt`) still lives on `ReportViewModel`
-for now; the engine hydrates after each refresh tick to pick up its
-disk writes. A follow-up commit migrates the launch path to
-`engine.startRun` and removes the legacy `FanOutDrillInView` +
-`runningFanOutPairs` StateFlow.
+- Hydration is lazy: `engine.hydrate(context, reportId)` re-reads
+  every `SecondaryResult` row for the report and rebuilds the
+  in-memory map via `toPairState` / `toCombinedReportState`. HTTP +
+  save is still delegated to
+  `ReportViewModel.executeSecondaryTask` so the persistence layer
+  stays one canonical writer.
 
-- **Fan-in** runs the chosen `category="fan_in"` Internal Prompt
-  once per source agent (NOT once per answerer × source pair).
-  The `***Report*** @REPORT@@RESPONSES@` iterable block is
-  matched whitespace-tolerantly and expanded once per source
-  agent, with `@RESPONSES@` populated by every fan-out response
-  for that source. Output rows carry `fanInOf =
-  <metaPromptId>` so the drill-in distinguishes them from
-  per-pair rows.
+### Fan-out screens (L1 / L2 / L3 + Icons)
 
-The drill-in is three levels deep:
-- **L1** — one row per (answerer, prompt). `✅` when done, `❌`
-  when any pair errored, `⏳` (animated hourglass) while a new
-  combined-report row arrives. Per-row cost + total banner.
-  Empty-body successes count as Done. Stats panel hides when
-  every pair has finished. Action buttons collapse under an
-  Actions card.
-- **L2** — one row per (answerer, source) pair, virtualised so
-  long lists scroll smoothly.
-- **L3** — single response detail with a 🐞 link to the original
-  report-model trace.
+The drill-in lives in
+[`FanOutScreen.kt`](../ai/src/main/java/com/ai/ui/report/FanOutScreen.kt)
+(parent + nav) plus `FanOutL1Screen.kt`, `FanOutL2Screen.kt`,
+`FanOutL3Screen.kt`, and the icons-mode siblings in
+`FanOutIconsScreens.kt`. A `FanOutNav` sealed-class state in
+`rememberSaveable` survives rotation; every level subscribes to
+`engine.runs.collectAsState()`.
+
+A `FanOutMode` enum (`MAIN` vs `ICONS`) flips the screen tree
+between standard fan-out and **fan-icons mode** — a parallel
+3-tier emoji chain across every completed pair. Same screen
+files, separate budget (`maxConcurrentFanIconsCalls`),
+separate Costs row tagged `fan-icons`, and a **Clear fan-icons**
+button wipes icon state without deleting pairs. When the user opens
+a report mid-batch the icons batch auto-resumes on screen entry.
+
+- **L1** — pinned stats panel as a grid: **Total / Running /
+  Queued / Throttled / Done / Errors / Costs**, with the row
+  background acting as a progress bar replacing the legacy
+  "6 / 9" line. Stats counters reconcile by construction
+  (Queued + Running + Done + Errors = Total). Action buttons live
+  on a single row — "Show icons" flips into ICONS mode, the
+  one-page view button drills into the per-pair flat list. The
+  Running stat goes yellow → green on activity; Queued pink/brown
+  by mode; Throttled always shows even at zero. Per-mode costs
+  show in the list header rather than a separate banner.
+- **L2** — one row per (answerer, source) pair, virtualised. Two
+  role flavours via a Switch role button: **Responder mode** (drill
+  into one answerer) vs **Source mode** (drill into one source). In
+  ICONS mode the row is a focused icon list — big glyphs, the
+  per-tier hit count in the stats panel.
+- **L3** — single-pair detail. Subject is the answerer or source
+  model name (HARDCODED green subject row); the ℹ️ / 🐞 icons
+  follow the "other" model in the pair so a single tap goes to the
+  right Model Info / trace; the trailing divider sits tight
+  against the response.
+
+### Fan-in
+
+Fan-in still runs through `ReportViewModel.runFanInPrompt`. It runs
+the chosen `category="fan_in"` Internal Prompt **once per source
+agent** (NOT once per answerer × source pair). The
+`***Report*** @REPORT@@RESPONSES@` iterable block is matched
+whitespace-tolerantly and expanded once per source agent, with
+`@RESPONSES@` populated by every fan-out response for that source.
+Output rows carry `fanInOf = <metaPromptId>` so the drill-in
+distinguishes them from per-pair rows.
+
+Model-scoped fan-in (categories `initiator` / `requester` / `model`)
+produces per-(provider, model) rows that the L2 page surfaces under
+each model's own bucket distinct from the legacy total `fan_in`.
+
+### Recovery + delete
 
 `resumeStaleFanOutPairs` re-reads each row before stamping
 "Interrupted" — a cold launch in the middle of a run recovers
 genuinely-stuck placeholders without losing in-flight work.
-`rerunFailedFanOutPairs` and `rerunCompleteFanOut` rebuild the
-per-pair set, dedupe in-flight job keys (so one tap doesn't fork
-two batches), and cancel before resetting.
+`rerunCompleteFanOut` / `rerunFailedFanOutPairs` dedupe in-flight
+job keys (so one tap doesn't fork two batches) and cancel before
+resetting. Fan-out delete blocks on a "Deleting Fan Out" popup
+while the engine cancels every per-pair Job before the disk rows
+go.
 
 ## HTML export
 
@@ -397,9 +421,10 @@ points at the right captured API trace.
   shows on the result-phase UI, after `isComplete = true`).
 - chat-type Meta / Rerank / Moderation / Translate are gated by
   the per-provider throttle (`ProviderThrottle` — defaults 30
-  calls / min, 3 concurrent per provider host). The legacy
-  `REPORT_CONCURRENCY_LIMIT` global semaphore is gone — limits
-  now hold across every overlapping flow on the same provider.
+  calls / min, 3 concurrent per provider host). Across hosts every
+  flow goes through one of the six `ApiCallCaps` ceilings
+  (`global` / `report` / `translation` / `fanOut` / `fanIcons`,
+  plus the standalone `maxTestApiCalls` for the model-test sweep).
   See [throttle.md](throttle.md).
 - Fan-out pre-acquires the per-provider permit on the coroutine
   side so the UI can distinguish queued vs running rows; the

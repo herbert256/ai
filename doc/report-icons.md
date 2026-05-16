@@ -249,9 +249,39 @@ data class IconCallRecord(
 )
 ```
 
+## Fan-icons (parallel feature)
+
+A separate emoji chain runs on every Fan-out **pair** (not on
+report agents), driven by `FanOutEngine`. Same 3-tier shape
+(tier 1: chat continuation; tier 2: one-shot `internal/report_icon`;
+tier 3: `internal/report_icon_3th` against the DeepSeek-pinned
+agent) and same emoji-normalisation rules. Lives in
+[`FanOutIconsScreens.kt`](../ai/src/main/java/com/ai/ui/report/FanOutIconsScreens.kt)
+and routed through `FanOutMode.ICONS`. The batch:
+
+- Runs separately from the parent fan-out, gated by
+  `maxConcurrentFanIconsCalls` so it doesn't starve the parent's
+  budget.
+- Stamps `PairState.icon`, `iconWinningTier`, `iconInputCost`,
+  `iconOutputCost`, `iconErrorMessage` so the L1 stats and Costs
+  view reflect both the pair and its icon side-by-side. Costs
+  surface on a dedicated `fan-icons` row in the report Costs view.
+- Auto-resumes on screen entry if the user closed the report
+  mid-batch. A 429 on a chain tier benches the model in
+  `ModelCooldownStore`; subsequent pairs skip the benched
+  (provider, model).
+- Has its own **Clear fan-icons** action that wipes icon state
+  without deleting pairs.
+
+See [secondary-results.md](secondary-results.md#fan-out--fan-in--fan-icons)
+for the full Fan-out picture.
+
 ## Files
 
 - `data/EmojiExtract.kt` — `extractFirstEmoji`.
+- `data/InternalPromptIconCache.kt` — per-Internal-Prompt emoji
+  cache keyed on `(name, title)`; lights up the secondary-result
+  row labels.
 - `data/ReportStorage.kt` — `Report` + `ReportAgent` + `IconCallRecord` + the
   `updateReportIcon` / `updateReportIconError` /
   `setReportIconChoice` / `clearReportAgentIconState` writers.

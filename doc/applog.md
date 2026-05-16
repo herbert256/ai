@@ -106,10 +106,12 @@ canonical set):
 - `AppLifecycle`, `AppViewModel`, `AiAnalysis`, `ApiDispatch`,
   `ApiStreaming`, `ApiTracer`, `AtomicFileWrite`
 - `BackupManager`, `ChatHistoryManager`, `ChatViewModel`
+- `FanOutEngine` — per-pair transitions, hydration, cancellation
 - `ImportExport`, `KnowledgeService`
 - `LocalEmbedder`, `LocalLlm`, `LocalRuntime`
-- `ModelListCache`, `PricingCache`, `ProviderRegistry`,
-  `ProviderFieldTimestamps`
+- `ModelCooldown` — auto-bench events with their trace filename
+- `ModelListCache`, `ModelTestEngine`, `PricingCache`,
+  `ProviderRegistry`, `ProviderFieldTimestamps`
 - `ReportExport`, `ReportStorage`, `ReportViewModel`
 - `SecondaryResultStorage`, `SettingsExport`
 - `Throttle` — `ProviderThrottle`'s rate-limit / concurrent-cap

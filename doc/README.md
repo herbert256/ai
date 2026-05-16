@@ -8,13 +8,14 @@ base, and running everything offline against an on-device model
 when you want to.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~60,300 LOC across 123 Kotlin files, MVVM with three primary view
-models plus an extracted helpers file, 42 cloud providers across
-three API formats plus a synthetic on-device `Local` provider,
-seven external metadata repositories layered into one resolved
-view per `(provider, model)` pair, and a RAG layer that chunks
-documents and either embeds them on-device or against any
-provider's `/v1/embeddings`.
+~73,900 LOC across 150 Kotlin files, MVVM with **five** view models
+(`AppViewModel`, `ChatViewModel`, `ReportViewModel` + the extracted
+helpers file, plus the engine-style `FanOutEngine` and
+`ModelTestEngine`), 42 cloud providers across three API formats plus
+a synthetic on-device `Local` provider, seven external metadata
+repositories layered into one resolved view per `(provider, model)`
+pair, and a RAG layer that chunks documents and either embeds them
+on-device or against any provider's `/v1/embeddings`.
 
 ## Index
 
@@ -40,8 +41,17 @@ provider's `/v1/embeddings`.
 - **[secondary-results.md](secondary-results.md)** — Deep dive on the
   meta-result flow: RERANK, the user-driven META kind (every chat-
   type Meta prompt — Compare, Critique, Synthesize, …), MODERATION,
-  TRANSLATE, and the Fan-out / Fan-in flow with its three-level
-  drill-in.
+  TRANSLATE, and the Fan-out / Fan-in / Fan-icons flow with its
+  three-level drill-in driven by `FanOutEngine`.
+- **[model-test.md](model-test.md)** — "Test all models" subsystem
+  (`ModelTestEngine`): catalog partitioning, L1/L2/L3 drill-in,
+  per-host throttle integration, and the seeded
+  `assets/inaccessible.json` + `assets/excluded.json` lists that
+  bound the sweep on a clean install.
+- **[cooldowns.md](cooldowns.md)** — `ModelCooldownStore`:
+  auto-benching on a long 429 Retry-After, the CRUD screen, picker
+  dimming with "back HH:mm" captions, and the deep-link to the API
+  trace that produced each cooldown.
 - **[help.md](help.md)** — The in-app Help system: per-screen
   topics, per-provider pages, per-repository pages, icon legend.
 - **[applog.md](applog.md)** — In-app log4j-style file logger
@@ -111,8 +121,8 @@ If you're new to the codebase, the recommended path is:
 4. **development.md** — practical guide for making a change.
 
 Pull up a subsystem doc (knowledge, local-runtime, translation,
-share-target, secondary-results, help) when a specific question
-lands in your lap.
+share-target, secondary-results, model-test, cooldowns, throttle,
+help) when a specific question lands in your lap.
 
 ## Internal QA notes
 
@@ -139,14 +149,32 @@ truth. When in doubt, the relevant files are:
   under `<filesDir>/pricing/`; `pricing_cache.xml` keeps only
   timestamps and the manual-override map
 - `data/SecondaryResult.kt` — `SecondaryKind` (RERANK, META, MODERATION, TRANSLATE) + storage + scope / language-scope sealed types + prompt-template helpers + Fan-out / Fan-in scope encoding
+- `data/FanOutRunModel.kt` — `FanOutRunState`, `PairState`,
+  `CombinedReportState`, `PairStatus` (the canonical per-run snapshot
+  the `FanOutEngine` mutates atomically)
+- `data/ModelCooldownStore.kt` — auto-bench on long 429s,
+  persistent across launches in its own SharedPreferences file
+- `data/ModelTestRunModel.kt` + `data/ModelTestRunStore.kt` —
+  `ModelTestRunState`, `ModelTestState`, `TestStatus`; single-document
+  JSON at `<filesDir>/test_run.json`
+- `data/InaccessibleSeed.kt` + `data/TestExcludedSeed.kt` —
+  delta-merge loaders for `assets/inaccessible.json` and
+  `assets/excluded.json`; ensure tier-gated entries don't waste sweep
+  slots on clean installs
+- `data/InternalPromptIconCache.kt` — per-Internal-Prompt emoji cache
+  keyed on `(name, title)`
 - `data/Knowledge.kt` + `data/KnowledgeService.kt` + `data/KnowledgeExtractors.kt` — RAG layer
-- `data/LocalLlm.kt` + `data/LocalEmbedder.kt` — on-device runtime
+- `data/local/LocalLlm.kt` + `data/local/LocalEmbedder.kt` — on-device runtime
 - `data/SharedContent.kt` — share-target snapshot
 - `data/InternalPromptSeed.kt` + `data/ExamplePromptSeed.kt` — bundled-asset loaders
 - `model/SettingsModels.kt` — every settings data class
+  (including `BlockedModel`, `TestExcludedModel`, `InaccessibleModel`)
 - `viewmodel/AppViewModel.kt` — `UiState`, `GeneralSettings`,
-  bootstrap, model fetching, hot per-pair fan-out flow
-- `viewmodel/ReportViewModel.kt` — report and secondary-result generation, Fan-out / Fan-in
+  bootstrap, model fetching
+- `viewmodel/ReportViewModel.kt` — report and secondary-result generation; delegates Fan-out per-pair execution to `FanOutEngine`
+- `viewmodel/FanOutEngine.kt` — authoritative `StateFlow<Map<FanOutRunKey, FanOutRunState>>`, per-pair Job map, fan-icons batch
+- `viewmodel/ModelTestEngine.kt` — "Test all models" runner; throttled-keys StateFlow drives the L1 live readout
 - `ui/settings/SettingsPreferences.kt` — every prefs key
 - `ui/admin/HelpScreen.kt` — per-screen / per-provider / per-repository help topics
+- `ui/shared/SharedComponents.kt` — `HardcodedSubjectRow`, the unified green subject row used app-wide
 - `data/BackupManager.kt` — what gets backed up

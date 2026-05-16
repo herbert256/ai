@@ -72,7 +72,7 @@ after explicit-commit prompts.
 ## Logs
 
 ```bash
-adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"
+adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|FanOutEngine|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelCooldown|ModelListCache|ModelTestEngine|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"
 ```
 
 The in-app **API Traces** screen (Hub → AI API Traces) is usually a
@@ -99,7 +99,7 @@ Complete** options. See [applog.md](applog.md).
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt
-├── data/                              # 34 files (incl. data/local/)
+├── data/                              # 41 files (incl. data/local/)
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -107,55 +107,58 @@ ai/src/main/java/com/ai/
 │   ├── AtomicFileWrite.kt      BackupManager.kt
 │   ├── ChatHistoryManager.kt   DataModels.kt
 │   ├── EmbeddingsStore.kt      EmojiExtract.kt  ExamplePromptSeed.kt
-│   ├── HuggingFaceCache.kt     ImageAttach.kt
-│   ├── InternalPromptSeed.kt
+│   ├── FanOutRunModel.kt       HuggingFaceCache.kt
+│   ├── ImageAttach.kt          InaccessibleSeed.kt
+│   ├── InternalPromptIconCache.kt    InternalPromptSeed.kt
 │   ├── Knowledge.kt + KnowledgeService.kt + KnowledgeExtractors.kt
-│   ├── ModelListCache.kt       ModelType.kt     PricingCache.kt
-│   ├── PricingParsers.kt       PromptCache.kt
-│   ├── ProviderFieldTimestamps.kt    ProviderRegistry.kt
-│   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
+│   ├── ModelCooldownStore.kt   ModelListCache.kt
+│   ├── ModelTestRunModel.kt    ModelTestRunStore.kt
+│   ├── ModelType.kt            PricingCache.kt  PricingParsers.kt
+│   ├── PromptCache.kt          ProviderFieldTimestamps.kt
+│   ├── ProviderRegistry.kt     ReportStorage.kt
+│   ├── SecondaryResult.kt      SharedContent.kt TestExcludedSeed.kt
 │   └── local/                         # 2 files
 │       ├── LocalEmbedder.kt + LocalLlm.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                         # 4 files
+├── viewmodel/                         # 6 files
 │   ├── AppViewModel.kt + ChatViewModel.kt + ReportViewModel.kt
-│   └── ReportViewModelHelpers.kt
-└── ui/                                # 82 files
-    ├── navigation/  (2)               # AppNavHost, NavRoutes
+│   ├── ReportViewModelHelpers.kt
+│   ├── FanOutEngine.kt + ModelTestEngine.kt
+└── ui/                                # 100 files
+    ├── navigation/  (2)               # AppNavHost, NavRoutes (~80 routes)
     ├── hub/         (1)               # main hub + Reports / Chats hubs
-    ├── report/      (26)              # report flows, secondary results,
-    │                                  # Fan-out / Fan-in screens, exports
-    │                                  # (PDF, DOCX/ODT, RTF, zipped HTML),
-    │                                  # translation screens, icon screens
-    │                                  # (FindAlternativeIcons, agent
-    │                                  # icon detail, icons grid),
-    │                                  # split SelectionPhase /
-    │                                  # GenerationPhase / Dialogs files
+    ├── report/      (37)              # report flows, secondary results,
+    │                                  # exports (PDF, DOCX/ODT, RTF,
+    │                                  # zipped HTML), FanOutScreen +
+    │                                  # FanOutL1/L2/L3 + FanOutIconsScreens,
+    │                                  # ModelTestScreen + Select +
+    │                                  # ModelTestL1/L2/L3, Translation
+    │                                  # L1/L2/L3 + Compare + Run,
+    │                                  # FindAlternativeIconsScreens
     ├── chat/        (5)               # chat + chat history + dual chat
     ├── knowledge/   (1)               # KB list + detail
     ├── search/      (4)               # Quick / Extended local + Local /
     │                                  # Remote semantic search screens
-    ├── share/       (2)               # ShareChooserScreen + helpers
+    ├── share/       (1)               # ShareChooserScreen + helpers
     ├── models/      (1)               # model search + Model Info
     ├── history/     (3)               # report history + prompt history
     │                                  # + example-prompt picker
     ├── settings/    (17)              # all AI Setup sub-screens
-    ├── admin/       (10)              # Housekeeping / Backup-Restore /
+    ├── admin/       (11)              # Housekeeping / Backup-Restore /
     │                                  # Reset / Trim by age / Usage stats /
     │                                  # statistics / traces / help /
-    │                                  # provider admin / developer +
-    │                                  # AppLogScreen
-    ├── shared/      (9)               # CrudListScreen, TitleBar +
-    │                                  # BottomIconBar, AppColors,
-    │                                  # CameraCapture, CsvHelpers,
+    │                                  # developer / Test + AppLogScreen
+    ├── shared/      (~9)              # CrudListScreen, TitleBar +
+    │                                  # BottomIconBar + HardcodedSubjectRow,
+    │                                  # AppColors, CameraCapture, CsvHelpers,
     │                                  # ExportShare, RestartAppDialog,
     │                                  # SelectionScreens,
     │                                  # SharedComponents, UiFormatting
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **123 Kotlin files, ~60,300 LOC** total.
+Roughly **150 Kotlin files, ~73,900 LOC** total.
 
 ## Adding things
 
@@ -228,6 +231,23 @@ insensitively dedups when merging.
 6. Add the tier as a Source button on the Model Info screen.
 7. Add a per-provider help page entry under `HelpScreen.kt` with an
    ℹ deep link from the Source button.
+
+### A new asset-backed seed list
+
+Two seed loaders live in `data/`: `InaccessibleSeed.kt` reads
+`assets/inaccessible.json` and merges entries into
+`Settings.inaccessibleModels`; `TestExcludedSeed.kt` reads
+`assets/excluded.json` and merges into `Settings.testExcludedModels`.
+Both run a delta merge — only entries whose `provider:model` key
+isn't already in the user's list get appended on every cold start,
+so a new bundled entry reaches existing installs without destroying
+user edits.
+
+To curate a new entry: append a `{provider, model, reason}` (or
+`{provider, model}` for excluded) row to the JSON, reinstall or wait
+for the next cold start. The matching CRUD screens live under
+Settings → AI Setup → AI Models setup → Inaccessible models /
+Test-excluded models.
 
 ### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE)
 
@@ -409,8 +429,9 @@ correctness here.
   425 / 429 as transient.
 - **Per-provider throttle**. `ProviderThrottle` keeps one
   semaphore + sliding-window deque per host. Flows that
-  pre-acquire (Fan-out, report-icon chain, alternative-icons
-  fan-out) MUST also set
+  pre-acquire (Fan-out via `FanOutEngine`, fan-icons batch,
+  report-icon chain, alternative-icons fan-out, the model-test
+  sweep via `ModelTestEngine`) MUST also set
   `ProviderThrottle.permitPreAcquired` on the coroutine so the
   inline `ProviderThrottleInterceptor` doesn't double-count.
   Propagation across coroutine dispatcher hops goes via
@@ -419,6 +440,20 @@ correctness here.
   `ProviderRegistry.save` which calls
   `ProviderThrottle.resetForNewLimits()` — overrides take
   effect on the next acquire. See [throttle.md](throttle.md).
+- **Six per-kind concurrency ceilings** live on `ApiCallCaps`
+  and mirror `GeneralSettings` knobs on every Settings update:
+  `global` (50), `report` (15), `translation` (15), `fanOut` (15),
+  `fanIcons` (15), `maxTestApiCalls` (40 — read directly by
+  `ModelTestEngine`, not part of `ApiCallCaps`). Surfaced in
+  Settings → Network → **Maximal API calls**. New flows that need
+  a budget separate from the existing kinds should add a sibling
+  cap rather than reusing one.
+- **Model cooldowns**. A 429 with a Retry-After hint longer than
+  `ModelCooldownStore.LONG_RETRY_THRESHOLD_MS` (1 hour) calls
+  `markUnavailable(providerId, model, availableAtMs, traceFile)`.
+  Engines (`FanOutEngine`, `ModelTestEngine`) skip benched pairs
+  for the rest of the run; model pickers dim the row and show
+  "rate-limited · back HH:mm" — see [cooldowns.md](cooldowns.md).
 - **Read-timeout interceptor split**. `ReadTimeoutInterceptor`
   picks `streamingReadTimeoutSec` (default 10 min) vs
   `nonStreamingReadTimeoutSec` (default short) based on the
@@ -443,11 +478,13 @@ correctness here.
   / restore mirrors this prefs file.
 - **Backup zip** mirrors `filesDir` (incl. `knowledge/`,
   `embeddings/`, `secondary/`, `trace/`, `pricing/`, `model_lists/`,
-  `prompt_cache/`) and 5 SharedPreferences files. Two top-level
-  subdirs are explicitly excluded via
-  `BackupManager.FILES_DIR_BACKUP_EXCLUDES` — `local_llms/` and
-  `local_models/`, holding user-supplied multi-GB on-device model
-  bundles. The same set is **also** preserved through
+  `prompt_cache/`, plus `test_run.json`) and 6 SharedPreferences
+  files (`eval_prefs`, `provider_registry`, `provider_field_timestamps`,
+  `pricing_cache`, `dual_chat_prefs`, `huggingface_cache`, and
+  `model_cooldowns`). Two top-level subdirs are explicitly excluded
+  via `BackupManager.FILES_DIR_BACKUP_EXCLUDES` — `local_llms/`
+  and `local_models/`, holding user-supplied multi-GB on-device
+  model bundles. The same set is **also** preserved through
   `clearFilesDirForRestore`, so a settings restore on a device with
   local models installed doesn't destroy them. New prefs files
   won't survive a restore unless added to

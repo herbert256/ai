@@ -103,15 +103,17 @@ language.
   The Translations branch groups rows by `translationRunId`; each
   group surfaces as a single "run" row with the model name, the
   language list, and the count.
-- **`TranslationRunDetailScreen`** — drill into a run: shows the
-  per-(source, language) calls, with an **Actions** card carrying
-  *Restart failed* / *Start missing* buttons that re-run only the
-  rows that need it.
-- **`TranslationCallDetailScreen`** — one specific TRANSLATE row,
-  with the source text, target language, model, full translated
-  body, raw HTTP trace link. Model names render as pane labels;
-  the original text wraps to size. Every row carries a source-type
-  column.
+- **`TranslationRunScreen`** + **`TranslationL1Screen`** /
+  **`TranslationL2Screen`** / **`TranslationL3Screen`** — three-level
+  drill-in into a run: L1 lists languages, L2 lists per-(source,
+  language) calls within a language, L3 is the single-call detail.
+  An **Actions** card on each level carries *Restart failed* /
+  *Start missing* buttons that re-run only the rows that need it.
+  Translation runs use a shared work queue with cross-model retry,
+  share the per-host throttle but live under the
+  `maxConcurrentTranslationCalls` ceiling. A `delete-run` blocks
+  on `cancelAndJoin` before dropping rows, so an in-flight call
+  can't land after delete.
 - **`TranslationCompareScreen`** — side-by-side comparison view of
   the same source across multiple translations / languages.
 

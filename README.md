@@ -23,8 +23,20 @@ offline against a local `.task` model when you want to.
   Prompt management
 - **Fan-out / Fan-in** — feed one model's response into another's
   prompt (one call per (answerer, source) pair) and combine all
-  responses back into one report. Three drill-in levels with progress
-  bars, role toggle, and per-pair regeneration
+  responses back into one report. Three drill-in levels (L1 / L2 / L3)
+  driven by `FanOutEngine` with progress bars, role toggle, per-pair
+  regeneration, and a parallel **fan-icons** mode that runs a 3-tier
+  emoji chain across every pair
+- **Test all models** — `ModelTestEngine` probes every active
+  provider's chat / embedding / rerank models with a fixed prompt
+  in parallel; L1/L2/L3 drill-in mirrors the Fan-out layout (split
+  catalog-stats panel, throttled-keys live readout, per-row latency
+  and cost). Auto-feeds the **Blocked** / **Test-excluded** /
+  **Inaccessible** lists from probe outcomes
+- **Model cooldowns** — a 429 with a long Retry-After (≥ 1 h) benches
+  the model in `ModelCooldownStore`; pickers dim it with a
+  "rate-limited · back HH:mm" caption; entry is CRUD'd and the
+  trace that produced it is one tap away
 - **Rerank / Moderate / Translate** structured meta-results — turn
   N model outputs into a ranked list, a content-policy verdict, or
   a multi-language translation; rerank routes through a provider's
@@ -52,7 +64,13 @@ offline against a local `.task` model when you want to.
   Artificial Analysis, HuggingFace), each with its own per-provider
   help page deep-linked from every entry point
 - **Per-(provider, model, kind) Cost Tracking** with breakdown for
-  rerank / chat-meta / moderate / translate / fan-out API spend
+  rerank / chat-meta / moderate / translate / fan-out / fan-icons /
+  report-icon API spend; split Costs view per chain tier
+- **Per-host throttling** — sliding-window rate cap + concurrency
+  cap per provider hostname (`ProviderThrottle`) with per-provider
+  overrides, six **Maximal API calls** ceilings (global / report /
+  translation / fan-out / fan-icons / test-sweep), 429 + 529 retry
+  interceptors with configurable budget
 - **API Trace Viewer** — every request and response saved as
   inspectable JSON; local LLM and local embedder calls trace too
 - **Backup / Restore** the entire app to a single zip
@@ -92,7 +110,10 @@ order:
 | [doc/development.md](doc/development.md) | Build, deploy, test, and how to add things |
 | [doc/api-formats.md](doc/api-formats.md) | The three API dispatch paths and their quirks |
 | [doc/datastructures.md](doc/datastructures.md) | Every data class with every field |
-| [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in deep dive |
+| [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in / Fan-icons deep dive |
+| [doc/model-test.md](doc/model-test.md) | "Test all models" — `ModelTestEngine`, the L1/L2/L3 drill-in, and the seeded Inaccessible / Test-excluded lists |
+| [doc/cooldowns.md](doc/cooldowns.md) | `ModelCooldownStore` — auto-benching from 429s, CRUD, picker dimming, trace deep-links |
+| [doc/throttle.md](doc/throttle.md) | Per-host rate + concurrency caps, six per-kind concurrency ceilings, 429 / 529 retry interceptors |
 | [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, source extractors, embeddings, retrieval |
 | [doc/local-runtime.md](doc/local-runtime.md) | On-device LLM (`LocalLlm`) + on-device embeddings (`LocalEmbedder`) |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
