@@ -47,6 +47,7 @@ fun HubScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToTraces: () -> Unit,
     onNavigateToHelp: () -> Unit,
+    onNavigateToDocumentation: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
     onNavigateToUsage: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
@@ -94,7 +95,7 @@ fun HubScreen(
     val tracingEnabled = uiState.generalSettings.tracingEnabled
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
-    val cardCount = if (tracingEnabled) 10 else 9
+    val cardCount = if (tracingEnabled) 11 else 10
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -143,6 +144,8 @@ fun HubScreen(
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
+            Spacer(modifier = Modifier.height(12.dp))
+            HubCard(icon = "\uD83D\uDCD6", title = "Documentation", onClick = onNavigateToDocumentation)
         }
     }
 }

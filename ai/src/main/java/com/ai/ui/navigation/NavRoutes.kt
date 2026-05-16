@@ -20,6 +20,7 @@ object NavRoutes {
     const val SETTINGS_INTERNAL_PROMPTS_BY_CATEGORY = "settings_internal_prompts/{category}"
     const val HELP = "help"
     const val HELP_FOR_TOPIC = "help/{topicId}"
+    const val DOCUMENTATION = "documentation"
     const val TRACE_LIST = "trace_list"
     const val TRACE_LIST_FOR_REPORT = "trace_list/{reportId}"
     const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"
