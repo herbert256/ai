@@ -220,21 +220,24 @@ private fun ReportsViewerScreenLoaded(
     LaunchedEffect(langTabs) {
         if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
     }
-    // Quick lookups for the active language: by-targetId → translated
-    // content. Recomputed only when the selected language or the
-    // translation list changes.
-    val translationByTarget = remember(translates, selectedLangKey) {
+    // Quick lookups for the active language: by-targetId → the
+    // TRANSLATE SecondaryResult row that holds the translated content
+    // plus the per-call metadata (trace file, runId, …). Recomputed
+    // only when the selected language or the translation list changes.
+    val translationRowByTarget = remember(translates, selectedLangKey) {
         if (selectedLangKey == LangTab.ORIGINAL_KEY) emptyMap()
         else {
             val tab = langTabs.firstOrNull { it.key == selectedLangKey }
             val langName = tab?.displayName ?: return@remember emptyMap()
             translates
                 .filter { it.targetLanguage == langName }
-                .associate {
-                    val k = (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
-                    k to (it.content ?: "")
+                .associateBy {
+                    (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "")
                 }
         }
+    }
+    val translationByTarget = remember(translationRowByTarget) {
+        translationRowByTarget.mapValues { (_, row) -> row.content ?: "" }
     }
 
     // Single-section variants: just the prompt, or just the cost table — no agent picker,
@@ -258,10 +261,19 @@ private fun ReportsViewerScreenLoaded(
             // Costs view has no copy target — the helper renders a
             // table, not a copyable string.
             val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
+            // 🐞 → trace of the prompt's translation call, but only
+            // when a non-Original language is selected AND that
+            // translation row carries a captured trace filename
+            // (legacy translation rows written before traceFile was
+            // wired don't). Hidden on the Cost view and on Original.
+            val promptTraceFile = if (initialSection == "prompt") {
+                translationRowByTarget["PROMPT:prompt"]?.traceFile?.takeIf { it.isNotBlank() }
+            } else null
             TitleBar(helpTopic = sectionHelpTopic,
                 title = title,
                 reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
                 onBackClick = onDismiss,
+                onTrace = promptTraceFile?.let { tf -> { onNavigateToTraceFile(tf) } },
                 onCopy = if (initialSection == "prompt") {
                     displayPrompt.takeIf { it.isNotBlank() }?.let {
                         { com.ai.ui.shared.copyToClipboard(context, displayPrompt, "prompt") }

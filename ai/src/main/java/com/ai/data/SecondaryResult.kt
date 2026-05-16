@@ -130,7 +130,14 @@ data class SecondaryResult(
      *  the row's own [runId] (which records the fan-out that
      *  created the row). Null when no icon sweep has run, or on
      *  legacy rows. */
-    val iconRunId: String? = null
+    val iconRunId: String? = null,
+    /** Trace filename captured for the specific API call that
+     *  produced this row, when available. Currently populated only
+     *  for TRANSLATE rows (the View → Prompt screen wires a 🐞 from
+     *  this so a selected translation jumps straight into its trace).
+     *  Null on every other kind and on legacy translate rows written
+     *  before this field existed. */
+    val traceFile: String? = null
 )
 
 /**

@@ -4728,7 +4728,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         /** SecondaryResult.id — set only when this item was
          *  reconstructed from disk for a finished run, so the leaf
          *  screen can delete / trace that exact persisted row. */
-        val persistedRowId: String? = null
+        val persistedRowId: String? = null,
+        /** Filename of the API trace produced by this item's call,
+         *  captured via [withTraceFilenameSink] so the View → Prompt
+         *  (and equivalent per-item) screens can deep-link a 🐞
+         *  straight to the translation's trace. Null until the call
+         *  returns; stays null when tracing is disabled. */
+        val traceFile: String? = null
     )
 
     data class TranslationRunState(
@@ -5207,16 +5213,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             provider = provider, model = model, apiKey = apiKey
         )
         val callStart = System.currentTimeMillis()
+        // Capture the trace filename so the View → Prompt screen
+        // can wire a 🐞 directly to this exact translation call.
+        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         val response = try {
-            appViewModel.repository.analyzeWithAgent(
-                agent, "", resolved, AgentParameters(), null, context, baseUrl
-            )
+            withTraceFilenameSink(traceSink) {
+                appViewModel.repository.analyzeWithAgent(
+                    agent, "", resolved, AgentParameters(), null, context, baseUrl
+                )
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
         }
         val callDurationMs = System.currentTimeMillis() - callStart
+        val capturedTraceFile = traceSink.get()
         val tu = response.tokenUsage
         val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
         // A failed call (incl. a benched-on-this-call >1h 429) is
@@ -5242,7 +5254,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     tokenUsage = tu,
                     durationMs = callDurationMs,
                     providerId = provider.id,
-                    model = model
+                    model = model,
+                    traceFile = capturedTraceFile
                 )
             }
             runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
@@ -5326,7 +5339,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             targetLanguage = run.targetLanguageName,
             targetLanguageNative = run.targetLanguageNative,
             translationRunId = runId,
-            runId = runId
+            runId = runId,
+            traceFile = item.traceFile
         ))
     }
 
