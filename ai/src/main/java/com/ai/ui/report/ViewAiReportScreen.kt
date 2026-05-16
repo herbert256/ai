@@ -127,6 +127,13 @@ internal fun ViewAiReportScreen(
     /** Open the API trace list filtered to this report — mirrors
      *  the 🐞 icon on the result-page title bar. */
     onViewTrace: () -> Unit,
+    /** Fired when the "Language missing" popup's row is tapped.
+     *  Dispatches a one-off translation of the picked items to the
+     *  active target language. Hosted by ReportScreen which routes
+     *  to ReportViewModel.translateMissingItems. */
+    onTranslateMissingItems: (items: List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>,
+                              targetLanguageName: String,
+                              targetLanguageNative: String) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
 ) {
     // Inline expansion target — which Computed kind's items list is
@@ -150,11 +157,13 @@ internal fun ViewAiReportScreen(
     // picker at the top of the View screen. When the user taps a
     // tile we forward the active language to the opened sub-screen
     // as a lock, and that sub-screen suppresses its own picker.
-    // Loaded together with the report.languageIcon so the Original
-    // tab can render the detected source-language emoji.
+    // Loaded together with the full Report so the popup that fires
+    // when a grayed tile is tapped can resolve per-item source text
+    // (report.prompt + agents' responseBody) without a second IO
+    // round-trip.
     data class TranslatesLoad(
         val list: List<com.ai.data.SecondaryResult>,
-        val originalIcon: String?
+        val report: com.ai.data.Report?
     )
     val translatesState = androidx.compose.runtime.produceState(
         initialValue = TranslatesLoad(emptyList(), null), reportId
@@ -163,12 +172,13 @@ internal fun ViewAiReportScreen(
             val list = com.ai.data.SecondaryResultStorage
                 .listForReport(viewPrefsCtx, reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
-            val icon = com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)?.languageIcon
-            TranslatesLoad(list, icon)
+            val rep = com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)
+            TranslatesLoad(list, rep)
         }
     }
     val translates = translatesState.value.list
-    val originalLanguageIcon = translatesState.value.originalIcon
+    val loadedReport = translatesState.value.report
+    val originalLanguageIcon = loadedReport?.languageIcon
     val viewLangTabs = remember(translates) { buildLangTabs(translates) }
 
     // Per-kind availability sets. "" = Original (always available;
@@ -207,6 +217,148 @@ internal fun ViewAiReportScreen(
             else viewLangTabs.firstOrNull { it.key == selectedViewLangKey }?.displayName ?: ""
     }
 
+    // "Language missing" popup state — opened when the user taps a
+    // grayed tile, dismissed on Cancel or after the user picks a
+    // source language to translate from.
+    var missingPopup by remember { mutableStateOf<MissingPopupCtx?>(null) }
+
+    fun nativeNameForLang(langName: String): String =
+        viewLangTabs.firstOrNull { it.displayName == langName }?.nativeName?.takeIf { it != langName }
+            ?: langName
+
+    fun iconForLang(langName: String): String? = when {
+        langName.isEmpty() -> originalLanguageIcon?.takeIf { it.isNotBlank() }
+        else -> com.ai.data.InternalPromptIconCache.get("translation_icon", langName)
+    }
+
+    fun sourceOption(langName: String): SourceOption =
+        SourceOption(
+            languageId = langName,
+            displayName = if (langName.isEmpty()) "Original" else langName,
+            icon = iconForLang(langName)
+        )
+
+    // Open the popup for the Prompt tile. Source list = Original +
+    // each PROMPT TRANSLATE language with content; minus the active
+    // target language. Picking a source resolves sourceText and
+    // fires the dispatcher with one PROMPT item.
+    fun openPromptMissing() {
+        val target = currentLanguageState.value ?: ""
+        if (target.isEmpty()) return
+        val sourceLangs = promptAvailableLangs.filter { it != target }
+        val rep = loadedReport ?: return
+        missingPopup = MissingPopupCtx(
+            tileLabel = "Prompt",
+            targetLanguageName = target,
+            targetLanguageNative = nativeNameForLang(target),
+            sources = sourceLangs.map { sourceOption(it) },
+            onPick = { src ->
+                val sourceText = if (src.isEmpty()) rep.prompt
+                else translates.firstOrNull {
+                    it.translateSourceKind == "PROMPT" && it.targetLanguage == src
+                }?.content.orEmpty()
+                if (sourceText.isNotBlank()) {
+                    onTranslateMissingItems(
+                        listOf(
+                            com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                                sourceKind = "PROMPT",
+                                targetId = "prompt",
+                                sourceText = sourceText,
+                                label = "Report prompt"
+                            )
+                        ),
+                        target,
+                        nativeNameForLang(target)
+                    )
+                }
+            }
+        )
+    }
+
+    // Reports tile. Source list = Original + each AGENT TRANSLATE
+    // language. Picking a source produces one AGENT item per
+    // successful agent that has source content (Original = every
+    // agent; non-Original = only those with a matching TRANSLATE).
+    fun openReportsMissing() {
+        val target = currentLanguageState.value ?: ""
+        if (target.isEmpty()) return
+        val sourceLangs = reportsAvailableLangs.filter { it != target }
+        val rep = loadedReport ?: return
+        missingPopup = MissingPopupCtx(
+            tileLabel = "Reports",
+            targetLanguageName = target,
+            targetLanguageNative = nativeNameForLang(target),
+            sources = sourceLangs.map { sourceOption(it) },
+            onPick = { src ->
+                val items = rep.agents.mapNotNull { agent ->
+                    if (agent.reportStatus != com.ai.data.ReportStatus.SUCCESS) return@mapNotNull null
+                    val sourceText = if (src.isEmpty()) agent.responseBody.orEmpty()
+                    else translates.firstOrNull {
+                        it.translateSourceKind == "AGENT" &&
+                            it.translateSourceTargetId == agent.agentId &&
+                            it.targetLanguage == src
+                    }?.content.orEmpty()
+                    if (sourceText.isBlank()) return@mapNotNull null
+                    val prov = com.ai.data.AppService.findById(agent.provider)?.id ?: agent.provider
+                    com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                        sourceKind = "AGENT",
+                        targetId = agent.agentId,
+                        sourceText = sourceText,
+                        label = "$prov / ${com.ai.ui.shared.shortModelName(agent.model)}"
+                    )
+                }
+                if (items.isNotEmpty()) {
+                    onTranslateMissingItems(items, target, nativeNameForLang(target))
+                }
+            }
+        )
+    }
+
+    // Meta tile. sources = item.availableLanguages minus active
+    // target. Items computed from item.sourceRows + ambient
+    // translates (own targetLanguage matches OR META TRANSLATE row
+    // pointing back at the meta in the chosen source).
+    fun openMetaMissing(item: EveryItem) {
+        val target = currentLanguageState.value ?: ""
+        if (target.isEmpty()) return
+        val avail = item.availableLanguages ?: return
+        val rows = item.sourceRows ?: return
+        val sourceLangs = avail.filter { it != target }
+        missingPopup = MissingPopupCtx(
+            tileLabel = item.label,
+            targetLanguageName = target,
+            targetLanguageNative = nativeNameForLang(target),
+            sources = sourceLangs.map { sourceOption(it) },
+            onPick = { src ->
+                val items = rows.mapNotNull { meta ->
+                    val sourceText = when {
+                        src.isEmpty() ->
+                            if (meta.targetLanguage.isNullOrBlank()) meta.content.orEmpty() else ""
+                        meta.targetLanguage == src -> meta.content.orEmpty()
+                        else -> translates.firstOrNull {
+                            it.translateSourceKind == "META" &&
+                                it.translateSourceTargetId == meta.id &&
+                                it.targetLanguage == src
+                        }?.content.orEmpty()
+                    }
+                    if (sourceText.isBlank()) return@mapNotNull null
+                    val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
+                        ?: com.ai.data.legacyKindDisplayName(meta.kind)
+                    val prov = com.ai.data.AppService.findById(meta.providerId)?.id ?: meta.providerId
+                    com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                        sourceKind = "META",
+                        targetId = meta.id,
+                        sourceText = sourceText,
+                        label = "$name: $prov / ${com.ai.ui.shared.shortModelName(meta.model)}"
+                    )
+                }
+                if (items.isNotEmpty()) {
+                    onTranslateMissingItems(items, target, nativeNameForLang(target))
+                }
+            }
+        )
+    }
+
     // Documents tiles — fixed set, Icons only when the per-model
     // icon chain is enabled in Settings. The tile only OPENS the
     // destination; the View screen itself stays in the back-stack
@@ -219,8 +371,16 @@ internal fun ViewAiReportScreen(
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
-            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple, enabled = promptEnabled) { onViewPrompt(currentLanguageState.value) }))
-            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue, enabled = reportsEnabled) { onViewReports(currentLanguageState.value) }))
+            add(IdentifiedTile("doc:Prompt", ViewTile(
+                "Prompt", "📝", AppColors.Purple,
+                enabled = promptEnabled,
+                onMissingClick = if (!promptEnabled) ({ openPromptMissing() }) else null
+            ) { onViewPrompt(currentLanguageState.value) }))
+            add(IdentifiedTile("doc:Reports", ViewTile(
+                "Reports", "📊", AppColors.Blue,
+                enabled = reportsEnabled,
+                onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
+            ) { onViewReports(currentLanguageState.value) }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
             add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
@@ -252,13 +412,15 @@ internal fun ViewAiReportScreen(
                 if (e == null) onMissingPromptIcon(prompt)
                 e
             } else null
+            val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
             IdentifiedTile(
                 id = "meta:${item.label}",
                 tile = ViewTile(
                     label = item.label,
                     emoji = promptEmoji ?: "🧠",
                     accent = AppColors.Purple,
-                    enabled = item.availableLanguages?.contains(currentLang) ?: true,
+                    enabled = metaEnabled,
+                    onMissingClick = if (!metaEnabled) ({ openMetaMissing(item) }) else null,
                     onClick = { item.open(currentLanguageState.value) }
                 )
             )
@@ -431,6 +593,69 @@ internal fun ViewAiReportScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
     }
+
+    // "Language missing" popup — listed sources are languages this
+    // tile DOES have content in. Picking one fires the translation
+    // dispatch and closes the popup; the tile un-grays once the
+    // translation row lands on disk.
+    val popup = missingPopup
+    if (popup != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { missingPopup = null },
+            title = {
+                androidx.compose.material3.Text(
+                    "Language missing for this item.",
+                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                Column {
+                    androidx.compose.material3.Text(
+                        "Select below a source language to generate a translation",
+                        fontSize = 13.sp, color = AppColors.TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    if (popup.sources.isEmpty()) {
+                        androidx.compose.material3.Text(
+                            "(no source language available)",
+                            fontSize = 13.sp, color = AppColors.TextTertiary
+                        )
+                    } else {
+                        popup.sources.forEach { src ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable {
+                                        missingPopup = null
+                                        popup.onPick(src.languageId)
+                                    }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (src.icon != null) {
+                                    androidx.compose.material3.Text(
+                                        src.icon, fontSize = 24.sp,
+                                        modifier = Modifier.padding(end = 12.dp)
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.width(36.dp))
+                                }
+                                androidx.compose.material3.Text(
+                                    src.displayName,
+                                    color = Color.White, fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { missingPopup = null }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 /** A tile + its stable identifier — used to map the on-screen
@@ -447,10 +672,15 @@ private data class ViewTile(
     val emoji: String,
     val accent: Color,
     val count: Int = 0,
-    /** False → the tile renders at low alpha and ignores taps.
-     *  Set by the View screen when the active picker language
-     *  has no content available for the tile. */
+    /** False → the tile renders at low alpha and (unless
+     *  [onMissingClick] is set) ignores taps. Set by the View
+     *  screen when the active picker language has no content
+     *  available for the tile. */
     val enabled: Boolean = true,
+    /** When the tile is disabled but [onMissingClick] is non-null
+     *  the tile stays tappable (still dimmed); the tap opens the
+     *  "Language missing" popup instead of firing [onClick]. */
+    val onMissingClick: (() -> Unit)? = null,
     val onClick: () -> Unit
 )
 
@@ -462,6 +692,27 @@ private data class ComputedSpec(
     val label: String,
     val emoji: String,
     val color: Color
+)
+
+/** A picker row in the "Language missing" popup — one language the
+ *  tapped tile DOES have content in. `languageId == ""` is Original;
+ *  otherwise displayName matches SecondaryResult.targetLanguage. */
+private data class SourceOption(
+    val languageId: String,
+    val displayName: String,
+    val icon: String?
+)
+
+/** Context for the AlertDialog rendered when the user taps a grayed
+ *  View-screen tile. The dialog title names the tile + target
+ *  language; tapping a source row fires [onPick] with the chosen
+ *  source's languageId. */
+private data class MissingPopupCtx(
+    val tileLabel: String,
+    val targetLanguageName: String,
+    val targetLanguageNative: String,
+    val sources: List<SourceOption>,
+    val onPick: (sourceLanguageId: String) -> Unit
 )
 
 @Composable
@@ -596,7 +847,12 @@ private fun ListTileColumn(items: List<IdentifiedTile>) {
             items.forEachIndexed { idx, item ->
                 if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
                 val tile = item.tile
-                val clickMod = if (tile.enabled) Modifier.clickable(onClick = tile.onClick) else Modifier
+                val effectiveClick: (() -> Unit)? = when {
+                    tile.enabled -> tile.onClick
+                    tile.onMissingClick != null -> tile.onMissingClick
+                    else -> null
+                }
+                val clickMod = if (effectiveClick != null) Modifier.clickable(onClick = effectiveClick) else Modifier
                 val dimMod = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
@@ -673,11 +929,16 @@ private fun TileFlow(tiles: List<ViewTile>) {
 @Composable
 private fun TileCard(tile: ViewTile) {
     val accent = tile.accent
-    // Disabled tiles render at low alpha and ignore taps. The
-    // .alpha modifier dims the entire Card (border + gradient +
-    // emoji + label); skipping the clickable modifier means a tap
-    // passes through with no ripple.
-    val clickModifier = if (tile.enabled) Modifier.clickable(onClick = tile.onClick) else Modifier
+    // Disabled tiles render at low alpha; if onMissingClick is set
+    // they STAY tappable and route to that handler (the "Language
+    // missing" popup) instead of the normal onClick. Otherwise
+    // taps pass through with no ripple.
+    val effectiveClick: (() -> Unit)? = when {
+        tile.enabled -> tile.onClick
+        tile.onMissingClick != null -> tile.onMissingClick
+        else -> null
+    }
+    val clickModifier = if (effectiveClick != null) Modifier.clickable(onClick = effectiveClick) else Modifier
     val dimModifier = if (tile.enabled) Modifier else Modifier.alpha(0.4f)
     Card(
         modifier = Modifier.fillMaxWidth().aspectRatio(1.05f).then(dimModifier).then(clickModifier),

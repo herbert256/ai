@@ -6002,7 +6002,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         sourceReportId: String,
         runId: String,
         targetKindPairs: List<Pair<String, String>>,
-        deleteRowIds: List<String>
+        deleteRowIds: List<String>,
+        /** Optional per-pair source-text overrides. When a (kind,
+         *  targetId) key is present the override string is used as
+         *  the translation input instead of the default
+         *  `report.prompt` / `agent.responseBody` / `meta.content`.
+         *  Used by [translateMissingItems] to translate FROM an
+         *  arbitrary source language (e.g. an existing Spanish
+         *  TRANSLATE row's content) instead of always from Original.
+         *  Null preserves the original behavior for the failed-
+         *  restart and start-missing callers. */
+        sourceTextOverrides: Map<Pair<String, String>, String>? = null
     ) {
         if (targetKindPairs.isEmpty()) return
         val translateRows = SecondaryResultStorage
@@ -6042,10 +6052,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // (or the prior failed row, in the restart-failed flow)
             // rather than spawning a parallel record.
             val rowId = rowByKindTarget[(kind to targetId)]?.id
+            // Honor caller-supplied source-text overrides ahead of
+            // the default report/agent/meta derivation — used to
+            // translate from a non-Original source language.
+            val sourceOverride = sourceTextOverrides?.get(kind to targetId)
             when (kind) {
                 "PROMPT" -> TranslationItem(
                     id = "prompt", label = "Report prompt",
-                    kind = TranslationKind.PROMPT, sourceText = report.prompt,
+                    kind = TranslationKind.PROMPT,
+                    sourceText = sourceOverride ?: report.prompt,
                     persistedRowId = rowId
                 )
                 "AGENT" -> {
@@ -6055,7 +6070,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         id = "agent:${ag.agentId}",
                         label = "$prov / ${ag.model}",
                         kind = TranslationKind.AGENT_RESPONSE,
-                        sourceText = ag.responseBody.orEmpty(),
+                        sourceText = sourceOverride ?: ag.responseBody.orEmpty(),
                         target = ag.agentId,
                         persistedRowId = rowId
                     )
@@ -6067,7 +6082,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         ?: com.ai.data.legacyKindDisplayName(s.kind)
                     TranslationItem(
                         id = "meta:${s.id}", label = "$name: $prov / ${s.model}",
-                        kind = TranslationKind.META, sourceText = s.content.orEmpty(),
+                        kind = TranslationKind.META,
+                        sourceText = sourceOverride ?: s.content.orEmpty(),
                         target = s.id,
                         persistedRowId = rowId
                     )
@@ -6322,5 +6338,107 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             runs + (runId to cur.copy(finished = true))
         }
         ReportStorage.bumpReportTimestamp(context, reportId)
+    }
+
+    /** One item the View screen's "Language missing" popup asked us
+     *  to translate from a chosen source language to the View's
+     *  active target language. The [sourceText] is whatever the
+     *  source language renders for that item — Original's
+     *  `report.prompt` / `agent.responseBody` / `meta.content`, or a
+     *  non-Original existing TRANSLATE row's content. */
+    data class TranslateMissingItem(
+        val sourceKind: String,    // "PROMPT" | "AGENT" | "META"
+        val targetId: String,      // "prompt" / agentId / meta SecondaryResult id
+        val sourceText: String,
+        val label: String          // surfaced on the placeholder row's agentName
+    )
+
+    /** Translate one or more items into [targetLanguageName] using
+     *  the source text the caller already resolved from the user's
+     *  picked source language. Attaches to the existing target-
+     *  language translation run; reuses that run's model set so the
+     *  user doesn't have to pick. Fires the View-screen "Language
+     *  missing" popup's chosen action. */
+    fun translateMissingItems(
+        context: Context,
+        reportId: String,
+        items: List<TranslateMissingItem>,
+        targetLanguageName: String,
+        targetLanguageNative: String
+    ): Job? {
+        if (items.isEmpty()) return null
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+            val runId = allSecondaries
+                .firstOrNull { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == targetLanguageName }
+                ?.let { translationRunGroupingId(it) }
+            if (runId == null) {
+                AppLog.w("Translate-missing", "No existing translation run for $targetLanguageName — skipping ${items.size} item(s)")
+                return@launch
+            }
+
+            // Persist placeholder TRANSLATE rows — same pattern as
+            // addCrossTranslationItems. Map the (sourceKind, targetId)
+            // back to the placeholder row id so runTranslationSubset's
+            // rowByKindTarget lookup picks it up and saveOneTranslationItem
+            // overwrites this row in place.
+            items.forEach { item ->
+                SecondaryResultStorage.save(context, SecondaryResult(
+                    id = java.util.UUID.randomUUID().toString(),
+                    reportId = reportId,
+                    kind = SecondaryKind.TRANSLATE,
+                    providerId = "",
+                    model = "",
+                    agentName = "Translate: ${item.label}",
+                    timestamp = System.currentTimeMillis(),
+                    content = null,
+                    errorMessage = null,
+                    translateSourceKind = item.sourceKind,
+                    translateSourceTargetId = item.targetId,
+                    targetLanguage = targetLanguageName,
+                    targetLanguageNative = targetLanguageNative,
+                    translationRunId = runId,
+                    runId = runId,
+                ))
+            }
+
+            // Reopen the run so the live row reverts to ⏳ while the
+            // new items dispatch. Rebuild from disk if the run was
+            // evicted from memory after the original finished.
+            if (_translationRuns.value[runId] != null) {
+                _translationRuns.update { runs ->
+                    val c = runs[runId] ?: return@update runs
+                    runs + (runId to c.copy(finished = false))
+                }
+            } else {
+                val rebuilt = buildPersistedTranslationRunState(context, reportId, runId) ?: run {
+                    AppLog.w("Translate-missing", "Could not rebuild persisted state for run $runId — aborting")
+                    return@launch
+                }
+                _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
+            }
+
+            // Dispatch via runTranslationSubset with per-item source
+            // overrides — passes our caller-resolved sourceText
+            // instead of the default Original-derivation.
+            val pairs = items.map { it.targetId to it.sourceKind }
+            val overrides: Map<Pair<String, String>, String> = items.associate {
+                (it.sourceKind to it.targetId) to it.sourceText
+            }
+            runTranslationSubset(
+                context = context,
+                sourceReportId = reportId,
+                runId = runId,
+                targetKindPairs = pairs,
+                deleteRowIds = emptyList(),
+                sourceTextOverrides = overrides
+            )
+
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(finished = true))
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
     }
 }

@@ -60,6 +60,12 @@ internal data class EveryItem(
      *  View screen uses this to gray out a tile whose set doesn't
      *  contain the active language. */
     val availableLanguages: Set<String>? = null,
+    /** Underlying META SecondaryResult rows backing this tile (the
+     *  group of rows sharing one metaPromptName). Exposed so the
+     *  View screen's "Language missing" popup can resolve per-meta
+     *  source text in any picked source language. Null for non-meta
+     *  items. */
+    val sourceRows: List<com.ai.data.SecondaryResult>? = null,
     /** The String? carries the View screen's currently-selected
      *  language at click time so the opened sub-screen can lock
      *  itself to that language. null = no force (Report - Manage
@@ -126,6 +132,7 @@ internal fun buildEveryItems(
                     label = name,
                     prompt = prompt,
                     availableLanguages = langs,
+                    sourceRows = rows,
                     open = { lang -> onOpenSecondaryRun(row.id, lang) }
                 )
             } else {
@@ -133,6 +140,7 @@ internal fun buildEveryItems(
                     label = name,
                     prompt = prompt,
                     availableLanguages = langs,
+                    sourceRows = rows,
                     open = { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) }
                 )
             }

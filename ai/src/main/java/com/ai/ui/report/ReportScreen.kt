@@ -352,6 +352,9 @@ fun ReportsScreenNav(
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
+        onTranslateMissingItems = { reportId, items, target, targetNative ->
+            reportViewModel.translateMissingItems(context, reportId, items, target, targetNative)
+        },
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds ->
             reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds)
         },
@@ -710,6 +713,9 @@ fun ReportsScreen(
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    /** Fired by the View screen's "Language missing" popup. Routes
+     *  to ReportViewModel.translateMissingItems. */
+    onTranslateMissingItems: (String, List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?) -> Unit = { _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>) -> Unit = { _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
@@ -1131,7 +1137,8 @@ fun ReportsScreen(
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
-            onShowAdvancedParametersChange = { showAdvancedParameters = it }
+            onShowAdvancedParametersChange = { showAdvancedParameters = it },
+            onTranslateMissingItems = onTranslateMissingItems
         )
     ) return
 
@@ -2657,7 +2664,15 @@ private fun ReportPrimaryOverlays(
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
     onAdvancedParametersChange: (AgentParameters?) -> Unit,
-    onShowAdvancedParametersChange: (Boolean) -> Unit
+    onShowAdvancedParametersChange: (Boolean) -> Unit,
+    /** Wired by ReportsScreenNav to ReportViewModel.translateMissingItems.
+     *  Fired when the View screen's "Language missing" popup picks a
+     *  source language; dispatches a one-off translation of the
+     *  supplied items into the active target language. */
+    onTranslateMissingItems: (reportId: String,
+                              items: List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>,
+                              targetLanguageName: String,
+                              targetLanguageNative: String) -> Unit
 ): Boolean {
     if (showIconsView && singleResultAgentId == null && currentReportId != null) {
         CompositionLocalProvider(
@@ -2741,6 +2756,9 @@ private fun ReportPrimaryOverlays(
                 },
                 onViewIcons = { onShowIconsViewChange(true) },
                 onViewTrace = { onNavigateToTrace(currentReportId) },
+                onTranslateMissingItems = { items, target, targetNative ->
+                    onTranslateMissingItems(currentReportId, items, target, targetNative)
+                },
                 onBack = { onShowViewReportScreenChange(false) }
             )
         }
