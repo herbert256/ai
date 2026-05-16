@@ -200,14 +200,14 @@ data class Report(
      *  Surfaces on the manage-screen row as a ❌ + message and on
      *  the detail screen's Response card. */
     var languageIconErrorMessage: String? = null,
-    /** Token usage + USD cost of the language-icon call(s), split
-     *  input vs output so the call surfaces as its own row in the
-     *  per-call cost tables (View → Costs and the HTML export's
-     *  "By type" view show it as type = "language"). Mirrors the
-     *  icon-gen cost fields above. All zero while running, on
-     *  missing pricing, or on legacy reports written before this
-     *  field existed. Bumped per-call when "Find alternative
-     *  icons" runs a language fan-out. */
+    /** Token usage + USD cost of the SECOND language-flow call (the
+     *  one that picks an emoji for the already-detected language).
+     *  Surfaces as the cost row labelled "language-icon" on the
+     *  Report - manage screen and HTML export. Mirrors the icon-gen
+     *  cost fields above. All zero while running, on missing pricing,
+     *  or on legacy reports written before the two-call split.
+     *  Bumped per-call when "Find alternative icons" runs a
+     *  language-icon fan-out. */
     var languageIconInputTokens: Int = 0,
     var languageIconOutputTokens: Int = 0,
     var languageIconInputCost: Double = 0.0,
@@ -216,13 +216,30 @@ data class Report(
      *  the language detail screen. Null when tracing is off, on
      *  legacy reports, or during the cold window. */
     var languageIconTraceFile: String? = null,
-    /** Raw assistant text returned by the language-icon model
-     *  (typically two lines, "language: …" / "icon: …"). The
-     *  language detail screen renders this verbatim so the user
-     *  sees exactly what the model said, then the parsed icon at
-     *  large size below. Null on legacy reports / before the call
-     *  returned. */
-    var languageIconRawResponse: String? = null
+    /** Raw assistant text returned by the language-icon model (the
+     *  single emoji). The language detail screen renders this
+     *  verbatim so the user sees exactly what the model said. Null
+     *  on legacy reports / before the call returned. */
+    var languageIconRawResponse: String? = null,
+    /** Token usage + USD cost of the FIRST language-flow call (the
+     *  one that detects [languageName]). Tracked separately from
+     *  the icon call above so the cost table can show two rows:
+     *  type = "language" for the detection call, type =
+     *  "language-icon" for the icon call. Zero on legacy reports
+     *  whose single combined call was logged under
+     *  [languageIconInputCost] instead. */
+    var languageInputTokens: Int = 0,
+    var languageOutputTokens: Int = 0,
+    var languageInputCost: Double = 0.0,
+    var languageOutputCost: Double = 0.0,
+    /** Trace filename of the language-detection API call. Wires 🐞
+     *  on the detection row's cost popup. Null when tracing was off
+     *  at call time or on legacy reports. */
+    var languageTraceFile: String? = null,
+    /** Raw assistant text returned by the language-detection model
+     *  (typically a single `language: …` line). Null on legacy
+     *  reports / before the call returned. */
+    var languageRawResponse: String? = null
 )
 
 /**
@@ -618,16 +635,17 @@ object ReportStorage {
         }
     }
 
-    /** Persist a successful language-detection result: the English
-     *  language name + a fitting emoji + optional model attribution
-     *  + token usage / cost so the call shows up as its own row in
-     *  the per-call cost view (type = "language"). Clears any prior
-     *  [Report.languageIconErrorMessage]. Parallel to
-     *  [updateReportIcon]. */
-    fun updateReportLanguage(
+    /** Persist a successful language-DETECTION result (first of two
+     *  calls in the language flow). Stores the English language name
+     *  + the detection call's tokens / cost / trace / raw response
+     *  under the new `language*` fields. The second call (icon) is
+     *  written separately by [updateReportLanguageIcon] and uses the
+     *  `languageIcon*` fields. Clears any prior
+     *  [Report.languageIconErrorMessage] so a retry that succeeds
+     *  doesn't leave a stale error visible. */
+    fun updateReportLanguageDetect(
         context: Context, reportId: String,
-        name: String?, icon: String?,
-        model: String? = null,
+        name: String?,
         inputTokens: Int = 0, outputTokens: Int = 0,
         inputCost: Double = 0.0, outputCost: Double = 0.0,
         traceFile: String? = null,
@@ -638,6 +656,37 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(
                 languageName = name,
+                languageIconErrorMessage = null,
+                languageInputTokens = inputTokens,
+                languageOutputTokens = outputTokens,
+                languageInputCost = inputCost,
+                languageOutputCost = outputCost,
+                languageTraceFile = traceFile,
+                languageRawResponse = rawResponse,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Persist the SECOND call in the language flow: the fitting
+     *  emoji for the already-detected [Report.languageName]. Stores
+     *  the icon + optional model attribution + the second call's
+     *  tokens / cost / trace / raw response under the `languageIcon*`
+     *  fields. Clears any prior [Report.languageIconErrorMessage]. */
+    fun updateReportLanguageIcon(
+        context: Context, reportId: String,
+        icon: String?,
+        model: String? = null,
+        inputTokens: Int = 0, outputTokens: Int = 0,
+        inputCost: Double = 0.0, outputCost: Double = 0.0,
+        traceFile: String? = null,
+        rawResponse: String? = null
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
                 languageIcon = icon,
                 languageIconModel = model,
                 languageIconErrorMessage = null,

@@ -501,11 +501,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Runs the bundled `internal/language_icon` prompt against its
-     *  pinned agent (DeepSeek by default) and writes the detected
-     *  language name + a fitting emoji onto the Report. Mirrors
-     *  [kickOffIconGeneration]'s shape — same gate, same agent
-     *  resolution, same persistence + recompose-tick pattern. */
+    /** Two-call language flow. First call (bundled `internal/language`
+     *  prompt) detects the report prompt's source language; on
+     *  success, schedules a second call (bundled
+     *  `internal/language_icon` prompt) that picks a fitting emoji
+     *  for that detected language. The two calls surface as separate
+     *  rows in the cost table — type `"language"` for detection,
+     *  `"language-icon"` for the emoji. Same gate / agent-resolution
+     *  / recompose-tick pattern as [kickOffIconGeneration]. */
     private fun kickOffLanguageGeneration(
         context: Context,
         reportId: String,
@@ -514,7 +517,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "language_icon"
+            it.category == "icons" && it.name == "language"
         } ?: return
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(languagePrompt.agent, ignoreCase = true)
@@ -525,9 +528,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "Language icon") {
+            withTracerTags(reportId = reportId, category = "Language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                runCatching {
+                val detectedName = runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
@@ -535,59 +538,130 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             null, context, baseUrl
                         )
                     }
-                    if (response.error == null) {
-                        val (name, icon) = parseLanguageDetectionResponse(response.analysis)
-                        val tu = response.tokenUsage
-                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val inC = inT * pricing.promptPrice
-                        val outC = outT * pricing.completionPrice
-                        if (name != null || icon != null) {
-                            ReportStorage.updateReportLanguage(
-                                context, reportId,
-                                name = name, icon = icon ?: "🌐",
-                                inputTokens = inT, outputTokens = outT,
-                                inputCost = inC, outputCost = outC,
-                                traceFile = traceSink.get(),
-                                rawResponse = response.analysis
-                            )
-                        } else {
-                            ReportStorage.updateReportLanguageError(
-                                context, reportId, "unparseable response"
-                            )
-                        }
-                    } else {
+                    if (response.error != null) {
                         ReportStorage.updateReportLanguageError(
                             context, reportId, response.error
                         )
+                        return@runCatching null
                     }
+                    val name = parseLanguageDetectionResponse(response.analysis)
+                    val tu = response.tokenUsage
+                    val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                    val inT = tu?.inputTokens ?: 0
+                    val outT = tu?.outputTokens ?: 0
+                    val inC = inT * pricing.promptPrice
+                    val outC = outT * pricing.completionPrice
+                    ReportStorage.updateReportLanguageDetect(
+                        context, reportId,
+                        name = name,
+                        inputTokens = inT, outputTokens = outT,
+                        inputCost = inC, outputCost = outC,
+                        traceFile = traceSink.get(),
+                        rawResponse = response.analysis
+                    )
+                    if (name.isNullOrBlank()) {
+                        ReportStorage.updateReportLanguageError(
+                            context, reportId, "unparseable response"
+                        )
+                    }
+                    name
                 }.onFailure {
                     ReportStorage.updateReportLanguageError(
                         context, reportId,
-                        it.message ?: "language-gen failed"
+                        it.message ?: "language-detection failed"
                     )
-                }
+                }.getOrNull()
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+                if (!detectedName.isNullOrBlank()) {
+                    kickOffLanguageIconForDetected(context, reportId, detectedName, aiSettings)
                 }
             }
         }
     }
 
-    /** Pull `language: …` + `icon: …` lines out of the model's reply.
-     *  Tolerant of leading/trailing whitespace and case-variant
-     *  field names. Falls back to scanning the whole body for an
-     *  emoji when the structured line is missing. */
-    private fun parseLanguageDetectionResponse(raw: String?): Pair<String?, String?> {
-        if (raw.isNullOrBlank()) return null to null
-        val langLine = Regex("(?im)^\\s*language\\s*[:=]\\s*(.+?)\\s*$").find(raw)?.groupValues?.get(1)?.trim()
-        val iconLineRaw = Regex("(?im)^\\s*icon\\s*[:=]\\s*(.+?)\\s*$").find(raw)?.groupValues?.get(1)?.trim()
-        val icon = iconLineRaw?.let { extractFirstEmoji(it) } ?: extractFirstEmoji(raw)
-        return langLine?.takeIf { it.isNotBlank() } to icon
+    /** Second call in the two-step language flow: picks a fitting
+     *  emoji for the already-detected [languageName] using the new
+     *  bundled `internal/language_icon` prompt (template copied from
+     *  `translation_icon`, substitutes `@LANGUAGE@`). Persists the
+     *  emoji + second-call cost / tokens / trace into the existing
+     *  `Report.languageIcon*` fields so the cost table picks it up
+     *  as a row of type `"language-icon"`. Errors only update
+     *  [Report.languageIconErrorMessage]; the detected language name
+     *  from the first call stays intact. */
+    private suspend fun kickOffLanguageIconForDetected(
+        context: Context,
+        reportId: String,
+        languageName: String,
+        aiSettings: Settings
+    ) {
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "language_icon"
+        } ?: return
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(iconPrompt.agent, ignoreCase = true)
+        } ?: return
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val resolved = iconPrompt.text.replace("@LANGUAGE@", languageName)
+        withTracerTags(reportId = reportId, category = "Language icon") {
+            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+            runCatching {
+                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val response = withTraceFilenameSink(traceSink) {
+                    appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(),
+                        null, context, baseUrl
+                    )
+                }
+                if (response.error != null) {
+                    ReportStorage.updateReportLanguageError(
+                        context, reportId, response.error
+                    )
+                    return@runCatching
+                }
+                val emoji = extractFirstEmoji(response.analysis.orEmpty()) ?: "🌐"
+                val tu = response.tokenUsage
+                val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                val inT = tu?.inputTokens ?: 0
+                val outT = tu?.outputTokens ?: 0
+                val inC = inT * pricing.promptPrice
+                val outC = outT * pricing.completionPrice
+                ReportStorage.updateReportLanguageIcon(
+                    context, reportId,
+                    icon = emoji,
+                    inputTokens = inT, outputTokens = outT,
+                    inputCost = inC, outputCost = outC,
+                    traceFile = traceSink.get(),
+                    rawResponse = response.analysis
+                )
+            }.onFailure {
+                ReportStorage.updateReportLanguageError(
+                    context, reportId,
+                    it.message ?: "language-icon failed"
+                )
+            }
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
     }
 
-    /** Background helper that resolves the bundled `internal/prompt_icon`
+    /** Pull the `language: …` line out of the detection model's
+     *  reply. Tolerant of leading/trailing whitespace and
+     *  case-variant field names. Returns null when no parseable
+     *  language line was found. */
+    private fun parseLanguageDetectionResponse(raw: String?): String? {
+        if (raw.isNullOrBlank()) return null
+        return Regex("(?im)^\\s*language\\s*[:=]\\s*(.+?)\\s*$")
+            .find(raw)?.groupValues?.get(1)?.trim()
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    /** Background helper that resolves the bundled `internal/meta_icon`
      *  prompt against its pinned agent and caches a one-emoji result for
      *  [prompt] in [InternalPromptIconCache]. Idempotent: bails when the
      *  master switch is off, when the cache already has a value, or when
@@ -607,10 +681,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (!InternalPromptIconCache.markInFlight(prompt.name, prompt.title)) return
 
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("prompt_icon", ignoreCase = true)
+            it.category == "icons" && it.name.equals("meta_icon", ignoreCase = true)
         }
         if (iconPrompt == null) {
-            AppLog.w("InternalPromptIcon", "internal/prompt_icon not configured — skipping")
+            AppLog.w("InternalPromptIcon", "internal/meta_icon not configured — skipping")
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             return
         }
@@ -695,7 +769,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun internalPromptIconKey(prompt: InternalPrompt): String =
         prompt.name + "\u001F" + prompt.title
 
-    /** Fan-out of `internal/prompt_icon` across user-picked [models]
+    /** Fan-out of `internal/meta_icon_alt` across user-picked [models]
      *  for one `InternalPrompt`. Each call:
      *  - Substitutes `@NAME@` + `@TITLE@`.
      *  - Calls `analyzeWithAgent` on (provider, model).
@@ -714,10 +788,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         aiSettings: Settings
     ) {
         if (prompt.name.isBlank()) return
+        // Find-alternative-icons uses the `_alt` variant whose text
+        // actively asks the model for something different than the
+        // obvious emoji the base prompt would otherwise return.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("prompt_icon", ignoreCase = true)
+            it.category == "icons" && it.name.equals("meta_icon_alt", ignoreCase = true)
         } ?: run {
-            AppLog.w("InternalPromptIconAlt", "internal/prompt_icon not configured — skipping fan-out")
+            AppLog.w("InternalPromptIconAlt", "internal/meta_icon_alt not configured — skipping fan-out")
             return
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
@@ -967,10 +1044,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         aiSettings: Settings
     ) {
         if (language.isBlank()) return
+        // Find-alternative-icons uses the `_alt` variant so the
+        // text actively asks for a non-flag, non-obvious alternative.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("translation_icon", ignoreCase = true)
+            it.category == "icons" && it.name.equals("translation_icon_alt", ignoreCase = true)
         } ?: run {
-            AppLog.w("TranslationIconAlt", "internal/translation_icon not configured — skipping fan-out")
+            AppLog.w("TranslationIconAlt", "internal/translation_icon_alt not configured — skipping fan-out")
             return
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
@@ -1113,8 +1192,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
+        // Find-alternative-icons uses the `_alt` variant so the
+        // picked models don't return the same obvious emoji the base
+        // `icon` prompt already produced.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "icon"
+            it.category == "icons" && it.name == "icon_alt"
         } ?: return
         // Dedupe by "provider:model" so picking the same pair via two
         // different sources (e.g. an agent + a direct +Model) only
@@ -1234,12 +1316,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
+        // Find-alternative-icons uses the `_alt` variant whose text
+        // uses @LANGUAGE@ (the language was already detected by the
+        // first call in the two-step language flow). promptText is
+        // ignored — the @PROMPT@ token doesn't exist on the alt
+        // template. Kept in the signature for caller compat.
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "language_icon"
+            it.category == "icons" && it.name == "language_icon_alt"
         } ?: return
+        val report = ReportStorage.getReport(context, reportId) ?: return
+        val languageName = report.languageName.orEmpty()
+        if (languageName.isBlank()) {
+            AppLog.w("LanguageIconAlt", "no detected language on report=$reportId — skipping fan-out")
+            return
+        }
+        @Suppress("UNUSED_VARIABLE") val _unusedPrompt = promptText
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
+        val resolved = languagePrompt.text.replace("@LANGUAGE@", languageName)
         appViewModel.updateLanguageIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -1264,12 +1358,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
-                                    // Only the icon matters for the
-                                    // picker — language name is fixed at
-                                    // detection time; the user is
-                                    // re-picking the emoji only.
-                                    val (_, icon) = parseLanguageDetectionResponse(response.analysis)
-                                    val emoji = icon ?: response.analysis?.trim().orEmpty().take(8)
+                                    // The alt template outputs a single
+                                    // emoji directly — language name was
+                                    // fixed by the detection call, the
+                                    // user is re-picking the emoji only.
+                                    val emoji = extractFirstEmoji(response.analysis.orEmpty())
+                                        ?: response.analysis?.trim().orEmpty().take(8)
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
@@ -1349,10 +1443,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
+        // Find-alternative-icons uses the `_alt` variant so the
+        // picked models don't echo the same obvious emoji this agent's
+        // 3-tier chain already produced.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon"
+            it.category == "icons" && it.name == "report_icon_alt"
         } ?: run {
-            AppLog.w("AgentIconAlt", "internal/report_icon prompt not found — skipping (agent=$agentId)")
+            AppLog.w("AgentIconAlt", "internal/report_icon_alt prompt not found — skipping (agent=$agentId)")
             return
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
@@ -1519,11 +1616,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *
      *    Tier 1 — chat continuation against the agent's own
      *      (provider, model). user→assistant→user message chain with
-     *      the third turn = internal/report_icon_chat.text.
+     *      the third turn = internal/report_icon_2.text.
      *    Tier 2 — one-shot internal/report_icon template (@PROMPT@ +
      *      @RESPONSE@) against the agent's own (provider, model).
      *    Tier 3 — fixed bundled-agent (DeepSeek) running
-     *      internal/report_icon_3th with @RESPONSE@ only.
+     *      internal/report_icon_3 with @RESPONSE@ only.
      *
      *  Each call's cost bumps the per-agent ReportAgent.iconInputCost
      *  / iconOutputCost so the row's cost cell shows the cumulative
@@ -1546,13 +1643,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         ra: ReportAgent, reportPrompt: String, aiSettings: Settings
     ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon_chat"
+            it.category == "icons" && it.name == "report_icon_2"
         }
         val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "report_icon"
         }
         val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_icon_3th"
+            it.category == "icons" && it.name == "report_icon_3"
         }
         if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
             AppLog.w("ReportIcons", "no icon prompts configured — skipping (agent=${ra.agentId})")
@@ -1712,7 +1809,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /** Tier 3 of [runReportIcons]: bundled fixed-agent fallback. Uses
-     *  whichever Agent matches the report_icon_3th prompt's pinned
+     *  whichever Agent matches the report_icon_3 prompt's pinned
      *  agent name (case-insensitive). When the user has no such
      *  agent configured, this returns null instantly — no API call,
      *  no IconCallRecord — and the chain falls through to 📝. */
@@ -1833,7 +1930,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  sees the question → source response → meta prompt → its own
      *  response, then is asked for an emoji). Tier 2 = one-shot
      *  fan_out_icon template substitution against the pair's own
-     *  (provider, model). Tier 3 = fixed-agent fan_out_icon_3th
+     *  (provider, model). Tier 3 = fixed-agent fan_out_icon_3
      *  fallback. */
     /** Outcome of one fan-out icon-chain tier. */
     private sealed class TierResult {
@@ -1874,13 +1971,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         rateLimitedHosts: MutableSet<String>
     ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_icon_chat"
+            it.category == "icons" && it.name == "fan_out_icon_2"
         }
         val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "fan_out_icon"
         }
         val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_icon_3th"
+            it.category == "icons" && it.name == "fan_out_icon_3"
         }
         if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
             AppLog.w("FanOutIcons", "no icon prompts configured — skipping (pair=${pair.id})")

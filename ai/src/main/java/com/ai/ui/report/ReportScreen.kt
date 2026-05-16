@@ -3470,13 +3470,13 @@ private fun AgentIconDetailOverlay(
     onClose: () -> Unit,
 ): Boolean {
     val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_icon_chat"
+        it.category == "icons" && it.name == "report_icon_2"
     }
     val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "icons" && it.name == "report_icon"
     }
     val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_icon_3th"
+        it.category == "icons" && it.name == "report_icon_3"
     }
     val agent = agentRecordsByAgentId[agentId] ?: return false
     val provider = AppService.findById(agent.provider) ?: return false

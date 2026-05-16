@@ -89,7 +89,7 @@ data class GeneralSettings(
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a
      *  leading emoji generated once via the bundled
-     *  `internal/prompt_icon` prompt and persisted in
+     *  `internal/meta_icon` prompt and persisted in
      *  [com.ai.data.InternalPromptIconCache]. The cache is keyed on
      *  `(InternalPrompt.name, InternalPrompt.title)` so editing
      *  either field re-fires generation; cache hits cost nothing.
@@ -795,7 +795,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val iconNames = setOf(
                 "icon", "report_icon", "report_icon_chat", "report_icon_3th",
                 "fan_out_icon", "fan_out_icon_chat", "fan_out_icon_3th",
-                "prompt_icon", "translation_icon"
+                "prompt_icon", "translation_icon", "language_icon",
+                // post-rename names — covered here so a fresh install
+                // that somehow shipped them under "internal" still gets
+                // re-categorised.
+                "meta_icon", "language", "report_icon_2", "report_icon_3",
+                "fan_out_icon_2", "fan_out_icon_3",
+                "icon_alt", "meta_icon_alt", "report_icon_alt",
+                "fan_out_icon_alt", "language_icon_alt", "translation_icon_alt"
             )
             val migrated = ai.internalPrompts.map { p ->
                 if (p.category.equals("internal", ignoreCase = true) &&
@@ -808,18 +815,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot rename of bundled icon prompts. The user-facing
+        // names changed from inconsistent suffixes (`_chat` / `_3th` /
+        // `prompt_icon`) to a uniform `_2` / `_3` / `meta_icon` scheme,
+        // and `language_icon` was split into two prompts: the old one
+        // becomes `language` (detection only) and a NEW `language_icon`
+        // (copied from `translation_icon`) handles the second call.
+        // Rewrite any persisted row that still carries an old name so
+        // the delta-merge below doesn't append a duplicate next to the
+        // user's customised copy. Manual edits to `text` survive — only
+        // the `name` is rewritten. Idempotent.
+        run {
+            val rename = mapOf(
+                "prompt_icon" to "meta_icon",
+                "language_icon" to "language",
+                "report_icon_chat" to "report_icon_2",
+                "report_icon_3th" to "report_icon_3",
+                "fan_out_icon_chat" to "fan_out_icon_2",
+                "fan_out_icon_3th" to "fan_out_icon_3"
+            )
+            val migrated = ai.internalPrompts.map { p ->
+                val newName = rename[p.name.lowercase()]
+                if (newName != null && p.category.equals("icons", ignoreCase = true)) p.copy(name = newName) else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Renamed ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled icon prompts to the new naming scheme")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // One-shot text upgrade: the tier-1 chat-continuation icon
-        // prompts ("fan_out_icon_chat", "report_icon_chat") used to say
-        // "give your previous response back as an emoji" — models read
-        // that literally and echoed the prior content instead of
-        // producing a fitting emoji. The delta-merge below only appends
-        // missing rows, never overwrites, so rewrite any persisted row
-        // that still carries the verbatim old default. A user's manual
-        // edit (text != old default) is left untouched. Idempotent.
+        // prompts (now `fan_out_icon_2` / `report_icon_2` after the
+        // rename pass above; legacy `_chat` names matched here too in
+        // case the rename hasn't run yet) used to say "give your
+        // previous response back as an emoji" — models read that
+        // literally and echoed the prior content instead of producing
+        // a fitting emoji. The delta-merge below only appends missing
+        // rows, never overwrites, so rewrite any persisted row that
+        // still carries the verbatim old default. A user's manual edit
+        // (text != old default) is left untouched. Idempotent.
         run {
             val oldText = "Please give your previous response back as an emoji, just one emoji, nothing more."
             val newText = "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
-            val targets = setOf("fan_out_icon_chat", "report_icon_chat")
+            val targets = setOf("fan_out_icon_chat", "report_icon_chat", "fan_out_icon_2", "report_icon_2")
             val upgraded = ai.internalPrompts.map { p ->
                 if (p.name.lowercase() in targets && p.text == oldText) p.copy(text = newText) else p
             }

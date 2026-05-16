@@ -863,7 +863,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val secondary = secondaryState.value
     val hasIconCost = report.iconInputCost > 0.0 || report.iconOutputCost > 0.0
     val hasIconCalls = report.iconCalls.isNotEmpty()
-    val hasLanguageCost = report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0
+    val hasLanguageDetectCost = report.languageInputCost > 0.0 || report.languageOutputCost > 0.0
+    val hasLanguageIconCost = report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0
+    val hasLanguageCost = hasLanguageDetectCost || hasLanguageIconCost
     if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost) return null
 
     val agentRows = agentsWithCosts.map { agent ->
@@ -901,24 +903,52 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             outputCents = report.iconOutputCost * 100
         )
     } else null
-    // Language-icon call(s) surface as a single aggregated "language"
-    // row, parallel to iconRow above. The (provider, model) shown is
-    // either the user's alt-icon pick (Report.languageIconModel) when
-    // set, or the bundled internal/language_icon agent's default.
-    val languageRow: CostRow? = if (report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0) {
-        val ai = com.ai.model.SettingsHolder.current
-        val languagePrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "language_icon"
+    // Two-call language flow surfaces as two rows. The first call
+    // (detection) uses the bundled `internal/language` prompt and
+    // pumps cost into `languageInputCost/OutputCost` — surfaces as
+    // type = "language". The second call (icon) uses the bundled
+    // `internal/language_icon` prompt and pumps cost into the
+    // existing `languageIconInputCost/OutputCost` — surfaces as
+    // type = "language-icon". The icon row's (provider, model)
+    // shows the user's alt-pick from Report.languageIconModel when
+    // set; the detection row always shows the bundled `language`
+    // agent's default (no alt-pick mechanism for detection).
+    val ai = com.ai.model.SettingsHolder.current
+    val languageDetectRow: CostRow? = if (hasLanguageDetectCost) {
+        val detectPrompt = ai?.internalPrompts?.firstOrNull {
+            it.category == "icons" && it.name == "language"
         }
-        val langAgent = languagePrompt?.let { p ->
+        val agent = detectPrompt?.let { p ->
             ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
         }
-        val pickedParts = report.languageIconModel?.split("/", limit = 2)
-        val provider = pickedParts?.firstOrNull()?.let { AppService.findById(it) } ?: langAgent?.provider
-        val model = pickedParts?.getOrNull(1) ?: langAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+        val provider = agent?.provider
+        val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
             type = "language",
+            providerDisplay = provider?.id ?: "",
+            model = model,
+            tier = pricing?.source ?: "",
+            durationMs = null,
+            inputTokens = report.languageInputTokens,
+            outputTokens = report.languageOutputTokens,
+            inputCents = report.languageInputCost * 100,
+            outputCents = report.languageOutputCost * 100
+        )
+    } else null
+    val languageIconRow: CostRow? = if (hasLanguageIconCost) {
+        val iconPrompt = ai?.internalPrompts?.firstOrNull {
+            it.category == "icons" && it.name == "language_icon"
+        }
+        val iconAgent = iconPrompt?.let { p ->
+            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+        }
+        val pickedParts = report.languageIconModel?.split("/", limit = 2)
+        val provider = pickedParts?.firstOrNull()?.let { AppService.findById(it) } ?: iconAgent?.provider
+        val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+        val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
+        CostRow(
+            type = "language-icon",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -993,7 +1023,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // report.iconCalls (split into the "fan-icons" bucket by
     // iconCallRows above) — no separate pass over SecondaryResult
     // .iconInputCost, which would double-count.
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
@@ -1297,6 +1327,7 @@ private fun costTypeColor(type: String): Color = when (type) {
     "fan-out" -> AppColors.Indigo
     "fan-in" -> AppColors.Green
     "language" -> AppColors.Yellow
+    "language-icon" -> AppColors.Brown
     else -> AppColors.TextSecondary
 }
 
