@@ -600,13 +600,18 @@ internal fun ColumnScope.GenerationPhase(
         text = uiState.genericPromptTitle,
         trailing = {
             if (showTotals) {
-                Text(
-                    text = "💰 ${formatCents(totalCost)} ¢",
-                    fontSize = 14.sp, color = AppColors.Blue,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(start = 8.dp)
-                )
+                ) {
+                    Text("💰", fontSize = 20.sp)
+                    Text(
+                        text = " ${formatCents(totalCost)}",
+                        fontSize = 14.sp, color = AppColors.Blue,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     )
