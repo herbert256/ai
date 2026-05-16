@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Data structures — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Data structures</span></header>
+<main>
+
+<h1>Data structures</h1>
+
+<p>All non-trivial data classes shipped by the app, grouped by domain.
+Field types follow Kotlin notation; <code>?</code> marks nullable.
+Classes inside <code>com.ai.data.ApiModels</code> (raw provider
+request / response shapes) are not listed here — see the file
+directly.</p>
+
+<nav class="toc">
+<strong>Domains</strong>
+<ul>
+<li><a href="#settings-config">Settings &amp; Configuration</a></li>
+<li><a href="#reports">Reports</a></li>
+<li><a href="#knowledge">Knowledge / RAG</a></li>
+<li><a href="#local-runtime">Local runtime</a></li>
+<li><a href="#provider-routing">Provider routing</a></li>
+<li><a href="#pricing">Pricing</a></li>
+<li><a href="#chat">Chat</a></li>
+<li><a href="#tracing">Tracing</a></li>
+<li><a href="#throttling">Throttling</a></li>
+<li><a href="#logging">Logging</a></li>
+<li><a href="#field-timestamps">Per-provider field timestamps</a></li>
+<li><a href="#share-target">Share-target</a></li>
+<li><a href="#viewmodel-state">ViewModel state</a></li>
+<li><a href="#provider-defs">Provider definitions</a></li>
+</ul>
+</nav>
+
+<h2 id="settings-config">Settings &amp; Configuration</h2>
+<p class="muted"><code>com.ai.model</code></p>
+
+<h3 id="settings">Settings</h3>
+<p>The top-level AI configuration object. Persisted in
+<code>eval_prefs</code>.</p>
+<dl class="kv">
+<div>
+<dt>providers</dt>
+<div class="meta"><code>Map&lt;AppService, ProviderConfig&gt;</code></div>
+<dd>One entry per known provider.</dd>
+</div>
+<div>
+<dt>agents</dt>
+<div class="meta"><code>List&lt;Agent&gt;</code></div>
+<dd>Named model configurations.</dd>
+</div>
+<div>
+<dt>flocks</dt>
+<div class="meta"><code>List&lt;Flock&gt;</code></div>
+<dd>Groups of agents.</dd>
+</div>
+<div>
+<dt>swarms</dt>
+<div class="meta"><code>List&lt;Swarm&gt;</code></div>
+<dd>Groups of provider / model pairs.</dd>
+</div>
+<div>
+<dt>parameters</dt>
+<div class="meta"><code>List&lt;Parameters&gt;</code></div>
+<dd>Reusable parameter presets.</dd>
+</div>
+<div>
+<dt>systemPrompts</dt>
+<div class="meta"><code>List&lt;SystemPrompt&gt;</code></div>
+<dd>Reusable system prompts.</dd>
+</div>
+<div>
+<dt>internalPrompts</dt>
+<div class="meta"><code>List&lt;InternalPrompt&gt;</code></div>
+<dd>User-managed Meta / Fan-out / Fan-in / Other internal templates.</dd>
+</div>
+<div>
+<dt>examplePrompts</dt>
+<div class="meta"><code>List&lt;ExamplePrompt&gt;</code></div>
+<dd>Starter (title, text) pairs surfaced in the New Report flow.</dd>
+</div>
+<div>
+<dt>endpoints</dt>
+<div class="meta"><code>Map&lt;AppService, List&lt;Endpoint&gt;&gt;</code></div>
+<dd>Per-provider endpoint URLs.</dd>
+</div>
+<div>
+<dt>providerStates</dt>
+<div class="meta"><code>Map&lt;String, String&gt;</code></div>
+<dd>"ok" / "error" / "inactive" / "not-used" per provider id.</dd>
+</div>
+<div>
+<dt>modelTypeOverrides</dt>
+<div class="meta"><code>List&lt;ModelTypeOverride&gt;</code></div>
+<dd>Manual per-model type assignments.</dd>
+</div>
+<div>
+<dt>blockedModels</dt>
+<div class="meta"><code>List&lt;BlockedModel&gt;</code></div>
+<dd>Models the Test sweep should treat as failed-by-config (with
+reason text).</dd>
+</div>
+<div>
+<dt>testExcludedModels</dt>
+<div class="meta"><code>List&lt;TestExcludedModel&gt;</code></div>
+<dd>Models the Test sweep should skip entirely (cost &gt; 5¢ +
+manual). Auto-seeded from <code>assets/excluded.json</code>.</dd>
+</div>
+<div>
+<dt>inaccessibleModels</dt>
+<div class="meta"><code>List&lt;InaccessibleModel&gt;</code></div>
+<dd>Models hidden from every picker (tier-gated catalog entries).
+Auto-seeded from <code>assets/inaccessible.json</code>.</dd>
+</div>
+</dl>
+
+<h3 id="providerconfig">ProviderConfig</h3>
+<dl class="kv">
+<div>
+<dt>apiKey</dt><div class="meta"><code>String</code></div>
+<dd>Empty until user pastes one.</dd>
+</div>
+<div>
+<dt>model</dt><div class="meta"><code>String</code></div>
+<dd>Default model selected for this provider.</dd>
+</div>
+<div>
+<dt>modelSource</dt><div class="meta"><code>ModelSource</code></div>
+<dd><code>API</code> or <code>MANUAL</code>.</dd>
+</div>
+<div>
+<dt>models</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<dd>Model ids (from API list or hardcoded fallback).</dd>
+</div>
+<div>
+<dt>modelTypes</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div>
+<dd><code>id → type</code> ("chat", "embedding", "rerank", …).</dd>
+</div>
+<div>
+<dt>visionModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>User-flagged vision-capable ids.</dd>
+</div>
+<div>
+<dt>webSearchModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>User-flagged web-search-capable ids.</dd>
+</div>
+<div>
+<dt>reasoningModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>User-flagged reasoning-capable ids.</dd>
+</div>
+<div>
+<dt>modelCapabilities</dt>
+<div class="meta"><code>Map&lt;String, ModelCapabilities&gt;</code></div>
+<dd>Provider's own self-report.</dd>
+</div>
+<div>
+<dt>modelListRawJson</dt><div class="meta"><code>String?</code></div>
+<dd>Raw <code>/models</code> response for future parsing.</dd>
+</div>
+<div>
+<dt>visionCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>Precomputed layered lookup result.</dd>
+</div>
+<div>
+<dt>webSearchCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>Precomputed layered lookup result.</dd>
+</div>
+<div>
+<dt>reasoningCapableComputed</dt><div class="meta"><code>Set&lt;String&gt;</code></div>
+<dd>Precomputed layered lookup result.</dd>
+</div>
+<div>
+<dt>modelPricing</dt>
+<div class="meta"><code>Map&lt;String, PricingCache.ModelPricing&gt;</code></div>
+<dd>Precomputed per-model price.</dd>
+</div>
+<div>
+<dt>parametersIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
+<dd>Default param presets.</dd>
+</div>
+</dl>
+<div class="callout">
+<p>The legacy <code>adminUrl</code> and <code>modelListUrl</code>
+per-provider override fields have been dropped — admin-URL overrides
+now live as part of the bundled provider definition only.</p>
+</div>
+
+<h3 id="agent">Agent</h3>
+<dl class="kv">
+<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
+<div><dt>name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
+<div><dt>model</dt><div class="meta"><code>String</code></div></div>
+<div>
+<dt>apiKey</dt><div class="meta"><code>String</code></div>
+<dd>Empty → inherit from provider.</dd>
+</div>
+<div><dt>endpointId</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+<div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+
+<h3 id="flock">Flock</h3>
+<dl class="kv">
+<div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>agentIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+<div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+<div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+<p>The constant <code>DEFAULT_AGENTS_FLOCK_NAME = "default agents"</code>
+names the auto-managed flock the per-provider Test button and
+Refresh-all populate.</p>
+
+<h3 id="swarm">Swarm</h3>
+<dl class="kv">
+<div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>members</dt><div class="meta"><code>List&lt;SwarmMember&gt;</code></div></div>
+<div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+<div><dt>systemPromptId</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+
+<h3 id="swarmmember">SwarmMember</h3>
+<dl class="kv">
+<div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
+<div><dt>model</dt><div class="meta"><code>String</code></div></div>
+</dl>
+
+<h3 id="parameters">Parameters</h3>
+<p>A named parameter preset.</p>
+<dl class="kv">
+<div><dt>id, name</dt><div class="meta"><code>String</code></div></div>
+<div><dt>temperature</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>maxTokens</dt><div class="meta"><code>Int?</code></div></div>
+<div><dt>topP</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>topK</dt><div class="meta"><code>Int?</code></div></div>
+<div><dt>frequencyPenalty</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>presencePenalty</dt><div class="meta"><code>Float?</code></div></div>
+<div><dt>systemPrompt</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>stopSequences</dt><div class="meta"><code>List&lt;String&gt;?</code></div></div>
+<div><dt>seed</dt><div class="meta"><code>Int?</code></div></div>
+<div><dt>responseFormatJson</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>searchEnabled</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>returnCitations</dt><div class="meta"><code>Boolean (default true)</code></div></div>
+<div><dt>searchRecency</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>webSearchTool</dt><div class="meta"><code>Boolean</code></div></div>
+<div><dt>reasoningEffort</dt><div class="meta"><code>String?</code>
+<span class="muted">— "low" / "medium" / "high" / null</span></div></div>
+</dl>
+
+<h3 id="endpoint">Endpoint</h3>
+<dl class="kv">
+<div><dt>id, name, url</dt><div class="meta"><code>String</code></div></div>
+<div><dt>isDefault</dt><div class="meta"><code>Boolean</code></div></div>
+</dl>
+
+<h3 id="systemprompt">SystemPrompt</h3>
+<dl class="kv">
+<div><dt>id, name, prompt</dt><div class="meta"><code>String</code></div></div>
+</dl>
+
+<h3 id="internalprompt">InternalPrompt</h3>
+<p>User-managed prompt template. Covers Meta-prompt launchers on the
+Report Result screen (<code>category="meta"</code>), Fan-out / Fan-in
+templates (<code>category="fan_out"</code> / <code>"fan_in"</code>),
+and the fixed internal templates (<code>category="internal"</code>:
+intro, model_info, translate, rerank, moderation).</p>
+<dl class="kv">
+<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
+<div>
+<dt>name</dt><div class="meta"><code>String</code></div>
+<dd>Unique within (<code>category</code>, <code>name</code>).</dd>
+</div>
+<div>
+<dt>reference</dt><div class="meta"><code>Boolean (default false)</code></div>
+<dd>When true on a meta entry, executor appends
+<code>[N] = Provider / Model</code> legend.</dd>
+</div>
+<div>
+<dt>category</dt><div class="meta"><code>String (default "internal")</code></div>
+<dd>One of <code>meta</code>, <code>fan_out</code>,
+<code>fan_in</code>, <code>internal</code>.</dd>
+</div>
+<div>
+<dt>agent</dt><div class="meta"><code>String (default "*select")</code></div>
+<dd><code>"*select"</code> = ask the user; otherwise an
+<code>Agent.name</code>.</dd>
+</div>
+<div>
+<dt>text</dt><div class="meta"><code>String</code></div>
+<dd>Template body. Top-level placeholders: <code>@QUESTION@</code>,
+<code>@RESULTS@</code>, <code>@COUNT@</code>, <code>@TITLE@</code>,
+<code>@DATE@</code>, <code>@RESPONSE@</code>, <code>@PROMPT@</code>,
+<code>@LANGUAGE@</code>, <code>@TEXT@</code>,
+<code>@FAN_OUT_COUNT@</code>, <code>@MODEL@</code>,
+<code>@PROVIDER@</code>. Iterable block:
+<code>***Report*** @REPORT@@RESPONSES@</code> (whitespace-tolerant;
+one expansion per source-report). Model-scoped fan-in
+(<code>category</code> of <code>initiator</code> /
+<code>requester</code> / <code>model</code>) adds
+<code>@INITIATOR@</code> (active model's own report response),
+<code>@RESPONDERS@</code> (block of fan-out responses where the
+active model is the source), <code>@RESPONDER_PAIRS@</code> (iterable
+list of <code>***Report*** {body} ***Response*** {body}</code> pairs
+where the active model is the answerer).</dd>
+</div>
+<div>
+<dt>title</dt><div class="meta"><code>String (default empty)</code></div>
+<dd>One-line description shown alongside <code>name</code> on Fan
+out and the prompt-edit screen.</dd>
+</div>
+<div>
+<dt>scope</dt><div class="meta"><code>String (default "Default")</code></div>
+<dd>Meta-prompt + fan-out launch scope. <code>"Default"</code> runs
+against every report agent / every present language with no extra
+picker step; <code>"Select"</code> routes the user through
+<code>SecondaryScopeScreen</code> first so they can pick a subset /
+top-N / language fan-out. Other categories carry the value verbatim
+so round-tripping through <code>prompts.json</code> and the export
+bundle is lossless.</dd>
+</div>
+</dl>
+<div class="callout">
+<p>The legacy <code>type</code> field is gone — routing is now
+derived from <code>category</code>. <code>category="meta"</code> plus
+a <code>name</code> matching <code>"rerank"</code>,
+<code>"moderation"</code>, etc. drives <code>metaTypeToKind</code>
+resolution at runtime. Categories <code>initiator</code> /
+<code>requester</code> / <code>model</code> drive the model-scoped
+fan-in flow (<code>resolveModelFanInPrompt</code> produces their text;
+rows carry <code>scopeProviderId</code> / <code>scopeModel</code>).</p>
+</div>
+
+<h3 id="exampleprompt">ExamplePrompt</h3>
+<p>Stand-alone (title, text) pair the user curates as a starter
+library for the New Report screen.</p>
+<dl class="kv">
+<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
+<div><dt>title</dt><div class="meta"><code>String</code></div></div>
+<div><dt>text</dt><div class="meta"><code>String</code></div></div>
+</dl>
+
+<h3 id="modeltypeoverride">ModelTypeOverride</h3>
+<dl class="kv">
+<div><dt>id, providerId, modelId, type</dt><div class="meta"><code>String</code></div></div>
+<div>
+<dt>supportsVision</dt><div class="meta"><code>Boolean</code></div>
+<dd>Wins over per-provider <code>visionModels</code> for this id.</dd>
+</div>
+<div>
+<dt>supportsWebSearch</dt><div class="meta"><code>Boolean</code></div>
+<dd>Same idea for web-search.</dd>
+</div>
+<div>
+<dt>supportsReasoning</dt><div class="meta"><code>Boolean</code></div>
+<dd>Same idea for reasoning-capable.</dd>
+</div>
+</dl>
+
+<h3 id="blockedmodel">BlockedModel</h3>
+<dl class="kv">
+<div>
+<dt>providerId, model</dt><div class="meta"><code>String</code></div>
+<dd>Identity is (<code>providerId</code>, <code>model</code>).</dd>
+</div>
+<div>
+<dt>reason</dt><div class="meta"><code>String</code></div>
+<dd>Free-text reason shown in the picker tooltip.</dd>
+</div>
+</dl>
+<p>The Test sweep auto-populates this list when a probe fails with an
+HTTP error above the user's threshold; manually editable under
+Settings → AI Setup → AI Models setup → Blocked models. Computed
+<code>key</code> is <code>"$providerId:$model"</code>.</p>
+
+<h3 id="testexcludedmodel">TestExcludedModel</h3>
+<dl class="kv">
+<div>
+<dt>providerId, model</dt><div class="meta"><code>String</code></div>
+<dd>Identity is (<code>providerId</code>, <code>model</code>).</dd>
+</div>
+</dl>
+<p>No reason field — this is a simple "don't probe in Test all models"
+skip-set. Auto-populated by the &gt; 5¢ price guard; seeded from
+<code>assets/excluded.json</code> on every cold start via
+<code>TestExcludedSeed</code>. Computed <code>key</code> is
+<code>"$providerId:$model"</code>. CRUD'd under Settings → AI Setup →
+AI Models setup → Test-excluded models.</p>
+
+<h3 id="inaccessiblemodel">InaccessibleModel</h3>
+<dl class="kv">
+<div>
+<dt>providerId, model</dt><div class="meta"><code>String</code></div>
+<dd>Identity is (<code>providerId</code>, <code>model</code>).</dd>
+</div>
+<div>
+<dt>reason</dt><div class="meta"><code>String</code></div>
+<dd>Typically "Unable to access non-serverless" or the original 4xx
+body.</dd>
+</div>
+</dl>
+<div class="callout">
+<p><strong>Distinct from <code>TestExcludedModel</code></strong>:
+inaccessible entries are <em>hidden from every picker</em> (the user
+genuinely can't reach them) and dropped from sweep results entirely
+rather than counted as FAIL. Auto-populated by the Test sweep when a
+probe returns tier-gating errors; seeded from
+<code>assets/inaccessible.json</code> (64 bundled tier-gated entries
+today) via <code>InaccessibleSeed</code>. CRUD'd under Settings → AI
+Setup → AI Models setup → Inaccessible models. Computed
+<code>key</code> is <code>"$providerId:$model"</code>.</p>
+</div>
+
+<h3 id="reportmodel">ReportModel</h3>
+<p>Used during the report selection phase.</p>
+<dl class="kv">
+<div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
+<div><dt>model, type, sourceType, sourceName</dt><div class="meta"><code>String</code></div></div>
+<div><dt>sourceId, agentId, endpointId, agentApiKey</dt><div class="meta"><code>String?</code></div></div>
+<div><dt>paramsIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+</dl>
+
+<h3 id="usagestats">UsageStats</h3>
+<p>A per-(provider, model, kind) aggregate.</p>
+<dl class="kv">
+<div><dt>provider</dt><div class="meta"><code>AppService</code></div></div>
+<div><dt>model</dt><div class="meta"><code>String</code></div></div>
+<div><dt>callCount</dt><div class="meta"><code>Int</code></div></div>
+<div><dt>inputTokens</dt><div class="meta"><code>Long</code></div></div>
+<div><dt>outputTokens</dt><div class="meta"><code>Long</code></div></div>
+<div>
+<dt>kind</dt><div class="meta"><code>String</code></div>
+<dd><code>report</code>, <code>rerank</code>, <code>meta</code>,
+<code>moderate</code>, or <code>translate</code>. (Fan-out rows tag
+as <code>meta</code> since they share the META kind; the Type column
+reads the prompt name on display.)</dd>
+</div>
+</dl>
+
+<h3 id="modelcapabilities">ModelCapabilities</h3>
+<p>Per-model capability bundle derived from a provider's own
+<code>/models</code> endpoint. Authoritative when populated since
+it's the provider's self-report; empty fields fall through to LiteLLM
+/ models.dev / heuristic in the lookup chain.</p>
+<dl class="kv">
+<div>
+<dt>supportsVision</dt><div class="meta"><code>Boolean?</code></div>
+<dd>Provider self-report on image input.</dd>
+</div>
+<div>
+<dt>supportsFunctionCalling</dt><div class="meta"><code>Boolean?</code></div>
+<dd>Tool / function calling.</dd>
+</div>
+<div>
+<dt>contextLength</dt><div class="meta"><code>Int?</code></div>
+<dd>Input context window.</dd>
+</div>
+<div>
+<dt>maxOutputTokens</dt><div class="meta"><code>Int?</code></div>
+<dd>Per-call output cap.</dd>
+</div>
+<div>
+<dt>supportsReasoning</dt><div class="meta"><code>Boolean?</code></div>
+<dd>"This model exposes a thinking / <code>reasoning_effort</code>
+parameter". Surfaces from each provider's <code>/models</code>
+response — Anthropic <code>capabilities.thinking.supported</code>,
+Gemini top-level <code>thinking</code>, Mistral
+<code>capabilities.reasoning</code>, xAI / OpenRouter
+<code>supported_parameters</code> containing "reasoning". Null falls
+through to the <code>inferReasoning</code> heuristic.</dd>
+</div>
+<div>
+<dt>reasoningEffortLevels</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Subset of "low" / "medium" / "high" / "max" the model accepts on
+<code>reasoning_effort</code>. Currently from Anthropic
+<code>capabilities.effort.{low,medium,high,max}</code> — Claude 3.7 /
+4.x report different sets per tier.</dd>
+</div>
+<div>
+<dt>supportsPdfInput</dt><div class="meta"><code>Boolean?</code></div>
+<dd>Native PDF document blocks (Anthropic
+<code>capabilities.pdf_input.supported</code>). Distinct from vision
+because Anthropic parses page text + embedded images server-side.</dd>
+</div>
+<div>
+<dt>aliases</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Friendly version-alias ids (Mistral <code>aliases: [...]</code>).
+The picker search filter matches against these so a query for "latest"
+finds the dated model.</dd>
+</div>
+<div>
+<dt>deprecationDate</dt><div class="meta"><code>String?</code></div>
+<dd>ISO-8601 deprecation date (Mistral). Pickers can render a ⚠ badge
+when set.</dd>
+</div>
+<div>
+<dt>deprecationReplacement</dt><div class="meta"><code>String?</code></div>
+<dd>Provider-recommended successor (Mistral
+<code>deprecation_replacement_model</code>).</dd>
+</div>
+<div>
+<dt>defaultTemperature</dt><div class="meta"><code>Float?</code></div>
+<dd>Provider-recommended default temperature (Mistral
+<code>default_model_temperature</code>). Surfaced on Model Info.</dd>
+</div>
+<div>
+<dt>defaultStopSequences</dt><div class="meta"><code>List&lt;String&gt;?</code></div>
+<dd>Together's <code>config.stop</code> — typically the tokeniser's
+eos / bos markers.</dd>
+</div>
+</dl>
+
+<h3 id="fetchedmodels">FetchedModels</h3>
+<p>Result of a single provider model-list fetch.</p>
+<dl class="kv">
+<div><dt>ids</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
+<div><dt>types</dt><div class="meta"><code>Map&lt;String, String&gt;</code></div></div>
+<div><dt>visionModels</dt><div class="meta"><code>Set&lt;String&gt;</code></div></div>
+<div><dt>capabilities</dt><div class="meta"><code>Map&lt;String, ModelCapabilities&gt;</code></div></div>
+<div><dt>rawResponse</dt><div class="meta"><code>String?</code></div></div>
+</dl>
+
+<hr>
+
+<div class="callout warn">
+<p><strong>Pass 1 stub.</strong> Sections from <em>Reports</em>
+through <em>Provider definitions</em> are filled in during Pass 2 of
+the docs rewrite. The remaining domains (Reports, Knowledge / RAG,
+Local runtime, Provider routing, Pricing, Chat, Tracing, Throttling,
+Logging, Per-provider field timestamps, Share-target, ViewModel
+state, Provider definitions) live in
+<a href="../../../../../doc/datastructures.md">doc/datastructures.md</a>
+until then.</p>
+</div>
+
+<h2 id="reports" class="muted">Reports</h2>
+<h2 id="knowledge" class="muted">Knowledge / RAG</h2>
+<h2 id="local-runtime" class="muted">Local runtime</h2>
+<h2 id="provider-routing" class="muted">Provider routing</h2>
+<h2 id="pricing" class="muted">Pricing</h2>
+<h2 id="chat" class="muted">Chat</h2>
+<h2 id="tracing" class="muted">Tracing</h2>
+<h2 id="throttling" class="muted">Throttling</h2>
+<h2 id="logging" class="muted">Logging</h2>
+<h2 id="field-timestamps" class="muted">Per-provider field timestamps</h2>
+<h2 id="share-target" class="muted">Share-target</h2>
+<h2 id="viewmodel-state" class="muted">ViewModel state</h2>
+<h2 id="provider-defs" class="muted">Provider definitions</h2>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>

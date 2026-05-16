@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Providers — AI app docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar"><a href="index.html">← Docs</a><span>Providers</span></header>
+<main>
+
+<h1>Providers</h1>
+
+<p>Every provider shipped in <code>assets/providers.json</code>, plus
+the synthetic <em>Local</em> provider added at runtime. The full
+schema is in <a href="datastructures.html#appservice">AppService</a>;
+each card below lists only the fields that differ from the default.</p>
+
+<p>The bundled JSON is a flat <code>{"providers": [...]}</code> array
+— no top-level <code>version</code>. Custom providers added by the
+user persist as <code>ProviderDefinition</code> JSON in the
+<code>provider_registry</code> SharedPreferences file and are merged
+with the bundle at runtime.</p>
+
+<p>The id-unification refactor collapsed the legacy
+<code>displayName</code> and <code>prefsKey</code> fields into
+<code>id</code>. UI shows <code>id</code> directly; SharedPreferences
+key prefixes use <code>id</code> directly (e.g.
+<code>OpenAI_api_key</code>).</p>
+
+<div class="callout">
+<p><strong>Defaults</strong> — <code>apiFormat = OPENAI_COMPATIBLE</code>,
+<code>modelsPath = "v1/models"</code>, <code>chatPath = "v1/chat/completions"</code>,
+<code>seedFieldName = "seed"</code>, <code>modelListFormat = "object"</code>.</p>
+<p>Where a provider declares <code>litellmPrefix</code>, the LiteLLM
+lookup key is <code>&lt;litellmPrefix&gt;/&lt;modelId&gt;</code>.
+Where it declares <code>openRouterName</code>, the OpenRouter key is
+<code>&lt;openRouterName&gt;/&lt;modelId&gt;</code>.</p>
+</div>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#frontier">Frontier vendors</a></li>
+<li><a href="#aggregators">Aggregators &amp; multi-model</a></li>
+<li><a href="#major">Major hosted inference</a></li>
+<li><a href="#regional">Regional &amp; vertical</a></li>
+<li><a href="#field-reference">Field reference</a></li>
+<li><a href="#activation">Activation gating</a></li>
+<li><a href="#local">The synthetic Local provider</a></li>
+</ul>
+</nav>
+
+<p><strong>42 cloud providers total</strong>, plus <em>Local</em>.</p>
+
+<h2 id="frontier">Frontier vendors</h2>
+
+<details class="entity" open>
+<summary>OpenAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.openai.com/</code> · Admin
+<a href="https://platform.openai.com/settings/organization/api-keys">platform.openai.com</a></p>
+<p>Default model <code>gpt-4o-mini</code>.</p>
+<ul>
+<li><code>openRouterName = openai</code></li>
+<li><code>modelFilter = gpt|o1|o3|o4</code></li>
+<li><code>defaultModelSource = API</code></li>
+<li>Hardcoded moderation models (<code>omni-moderation-*</code>,
+<code>text-moderation-*</code>) — <code>/v1/models</code> doesn't
+surface them.</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Anthropic</summary>
+<div class="body">
+<p class="muted">Base <code>api.anthropic.com/</code> · Admin
+<a href="https://console.anthropic.com/settings/keys">console.anthropic.com</a></p>
+<p>Default model <code>claude-haiku-4-5-20251001</code>.</p>
+<ul>
+<li><code>apiFormat = ANTHROPIC</code></li>
+<li><code>typePaths.chat = v1/messages</code></li>
+<li><code>openRouterName = anthropic</code></li>
+<li><code>modelFilter = claude</code></li>
+<li>8 hardcoded models, <code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Google</summary>
+<div class="body">
+<p class="muted">Base <code>generativelanguage.googleapis.com/</code>
+· Admin <a href="https://aistudio.google.com/app/apikey">aistudio.google.com</a></p>
+<p>Default model <code>gemini-2.0-flash</code>.</p>
+<ul>
+<li><code>apiFormat = GOOGLE</code></li>
+<li><code>typePaths.chat = v1beta/models/{model}:generateContent</code></li>
+<li><code>modelsPath = v1beta/models</code></li>
+<li><code>modelListFormat = array</code></li>
+<li><code>openRouterName = google</code>,
+<code>litellmPrefix = gemini</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>xAI</summary>
+<div class="body">
+<p class="muted">Base <code>api.x.ai/</code> · Admin
+<a href="https://console.x.ai/">console.x.ai</a></p>
+<p>Default model <code>grok-3-mini</code>.</p>
+<ul>
+<li><code>openRouterName = x-ai</code>,
+<code>litellmPrefix = xai</code></li>
+<li><code>costTicksDivisor = 1e10</code></li>
+<li><code>modelFilter = grok</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<h2 id="aggregators">Aggregators &amp; multi-model</h2>
+
+<details class="entity">
+<summary>OpenRouter</summary>
+<div class="body">
+<p class="muted">Base <code>openrouter.ai/api/</code> · Admin
+<a href="https://openrouter.ai/keys">openrouter.ai/keys</a></p>
+<p>Default model <code>ibm-granite/granite-4.0-h-micro</code>.</p>
+<ul>
+<li><code>extractApiCost = true</code></li>
+<li><code>defaultModelSource = API</code></li>
+<li><code>crossProviderModelList</code> — its <code>/v1/models</code>
+drives pricing + type fan-out across other providers (final fallback
+in <code>PricingCache</code>).</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Together</summary>
+<div class="body">
+<p class="muted">Base <code>api.together.xyz/</code> · Admin
+<a href="https://api.together.xyz/settings/api-keys">api.together.xyz</a></p>
+<p>Default model <code>meta-llama/Llama-3.3-70B-Instruct-Turbo</code>.</p>
+<ul>
+<li><code>modelListFormat = array</code></li>
+<li><code>litellmPrefix = together_ai</code></li>
+<li><code>modelFilter = chat|instruct|llama</code></li>
+<li><code>pricingFromModelList</code> — provider's
+<code>/v1/models</code> block carries authoritative pricing,
+harvested into the TOGETHER tier on every refresh.</li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Groq</summary>
+<div class="body">
+<p class="muted">Base <code>api.groq.com/openai/</code> · Admin
+<a href="https://console.groq.com/keys">console.groq.com</a></p>
+<p>Default model <code>llama-3.3-70b-versatile</code>.</p>
+<ul>
+<li><code>litellmPrefix = groq</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>DeepSeek</summary>
+<div class="body">
+<p class="muted">Base <code>api.deepseek.com/</code> · Admin
+<a href="https://platform.deepseek.com/api_keys">platform.deepseek.com</a></p>
+<p>Default model <code>deepseek-chat</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code>,
+<code>modelsPath = models</code></li>
+<li><code>openRouterName = deepseek</code>,
+<code>litellmPrefix = deepseek</code></li>
+<li><code>modelFilter = deepseek</code>,
+<code>defaultModelSource = API</code></li>
+<li>2 hardcoded models (<code>deepseek-chat</code>,
+<code>deepseek-reasoner</code>) merged with <code>/models</code>
+because the API list is sometimes missing.</li>
+</ul>
+<div class="callout">
+<p>DeepSeek is the bundled <code>agent</code> pin for the icon
+prompts (<code>internal/icon</code> +
+<code>internal/report_icon_3th</code>) and the chat_title prompt —
+cheap, fast, reliably one-glyph emojis.</p>
+</div>
+</div>
+</details>
+
+<details class="entity">
+<summary>Mistral</summary>
+<div class="body">
+<p class="muted">Base <code>api.mistral.ai/</code> · Admin
+<a href="https://console.mistral.ai/api-keys/">console.mistral.ai</a></p>
+<p>Default model <code>mistral-small-latest</code>.</p>
+<ul>
+<li><code>seedFieldName = random_seed</code> (Mistral is the only
+provider not using <code>seed</code>)</li>
+<li><code>openRouterName = mistralai</code></li>
+<li><code>modelFilter = mistral|open-mistral|codestral|pixtral</code></li>
+<li><code>nativeModerationUrl = api.mistral.ai/v1/moderations</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Perplexity</summary>
+<div class="body">
+<p class="muted">Base <code>api.perplexity.ai/</code> · Admin
+<a href="https://www.perplexity.ai/settings/api">perplexity.ai/settings</a></p>
+<p>Default model <code>sonar</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li><code>openRouterName = perplexity</code></li>
+<li><code>supportsCitations = true</code>,
+<code>supportsSearchRecency = true</code></li>
+<li><code>modelFilter = sonar|llama</code>, 4 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Cohere</summary>
+<div class="body">
+<p class="muted">Base <code>api.cohere.ai/compatibility/</code> · Admin
+<a href="https://dashboard.cohere.com/">dashboard.cohere.com</a></p>
+<p>Default model <code>command-a-03-2025</code>.</p>
+<ul>
+<li><code>openRouterName = cohere</code>, 4 hardcoded models</li>
+<li><code>nativeRerankUrl = api.cohere.com/v2/rerank</code> wired
+for the Rerank flow</li>
+<li><code>nativeCapabilityUrl = api.cohere.com/v1/models</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>AI21</summary>
+<div class="body">
+<p class="muted">Base <code>api.ai21.com/</code> · Admin
+<a href="https://studio.ai21.com/">studio.ai21.com</a></p>
+<p>Default model <code>jamba-mini</code>.</p>
+<ul>
+<li><code>openRouterName = ai21</code>, 4 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<h2 id="major">Major hosted inference</h2>
+
+<details class="entity">
+<summary>SiliconFlow</summary>
+<div class="body">
+<p class="muted">Base <code>api.siliconflow.com/</code> · Admin
+<a href="https://cloud.siliconflow.com/account/ak">cloud.siliconflow.com</a></p>
+<p>Default model <code>Qwen/Qwen2.5-7B-Instruct</code>.</p>
+<ul><li><code>defaultModelSource = API</code>, 9 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Fireworks</summary>
+<div class="body">
+<p class="muted">Base <code>api.fireworks.ai/inference/</code> · Admin
+<a href="https://app.fireworks.ai/">app.fireworks.ai</a></p>
+<p>Default model <code>accounts/fireworks/models/llama-v3p3-70b-instruct</code>.</p>
+<ul><li>4 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Cerebras</summary>
+<div class="body">
+<p class="muted">Base <code>api.cerebras.ai/</code> · Admin
+<a href="https://cloud.cerebras.ai/">cloud.cerebras.ai</a></p>
+<p>Default model <code>llama-3.3-70b</code>.</p>
+<ul><li>5 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>SambaNova</summary>
+<div class="body">
+<p class="muted">Base <code>api.sambanova.ai/</code> · Admin
+<a href="https://cloud.sambanova.ai/">cloud.sambanova.ai</a></p>
+<p>Default model <code>Meta-Llama-3.3-70B-Instruct</code>.</p>
+<ul><li>5 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>DeepInfra</summary>
+<div class="body">
+<p class="muted">Base <code>api.deepinfra.com/v1/openai/</code> · Admin
+<a href="https://deepinfra.com/dash/api_keys">deepinfra.com</a></p>
+<p>Default model <code>meta-llama/Meta-Llama-3.1-70B-Instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code>,
+<code>modelsPath = models</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Replicate</summary>
+<div class="body">
+<p class="muted">Base <code>api.replicate.com/v1/</code> · Admin
+<a href="https://replicate.com/account/api-tokens">replicate.com</a></p>
+<p>Default model <code>meta/meta-llama-3-70b-instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code></li>
+<li>3 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>HuggingFace</summary>
+<div class="body">
+<p class="muted">Base <code>api-inference.huggingface.co/</code> · Admin
+<a href="https://huggingface.co/settings/tokens">huggingface.co/settings/tokens</a></p>
+<p>Default model <code>meta-llama/Llama-3.1-70B-Instruct</code>.</p>
+<ul><li>4 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Lambda</summary>
+<div class="body">
+<p class="muted">Base <code>api.lambdalabs.com/</code> · Admin
+<a href="https://cloud.lambdalabs.com/api-keys">cloud.lambdalabs.com</a></p>
+<p>Default model <code>hermes-3-llama-3.1-405b-fp8</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Lepton</summary>
+<div class="body">
+<p class="muted">Base <code>api.lepton.ai/</code> · Admin
+<a href="https://dashboard.lepton.ai/">dashboard.lepton.ai</a></p>
+<p>Default model <code>llama3-1-70b</code>.</p>
+<ul><li>4 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>NVIDIA</summary>
+<div class="body">
+<p class="muted">Base <code>integrate.api.nvidia.com/</code> · Admin
+<a href="https://build.nvidia.com/">build.nvidia.com</a></p>
+<p>Default model <code>nvidia/llama-3.1-nemotron-70b-instruct</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Hyperbolic</summary>
+<div class="body">
+<p class="muted">Base <code>api.hyperbolic.xyz/</code> · Admin
+<a href="https://app.hyperbolic.xyz/settings">app.hyperbolic.xyz</a></p>
+<p>Default model <code>deepseek-ai/DeepSeek-V3</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Novita.ai</summary>
+<div class="body">
+<p class="muted">Base <code>api.novita.ai/v3/openai/</code> · Admin
+<a href="https://novita.ai/settings/key-management">novita.ai</a></p>
+<p>Default model <code>meta-llama/llama-3.1-70b-instruct</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code>,
+<code>modelsPath = models</code></li>
+<li><code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Featherless.ai</summary>
+<div class="body">
+<p class="muted">Base <code>api.featherless.ai/</code> · Admin
+<a href="https://featherless.ai/account/api-keys">featherless.ai</a></p>
+<p>Default model <code>meta-llama/Meta-Llama-3.1-8B-Instruct</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>LiquidAI</summary>
+<div class="body">
+<p class="muted">Base <code>inference-1.liquid.ai/</code> · Admin
+<a href="https://platform.liquid.ai/">platform.liquid.ai</a></p>
+<p>Default model <code>lfm-7b</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>LlamaAPI</summary>
+<div class="body">
+<p class="muted">Base <code>api.llama.com/compat/</code> · Admin
+<a href="https://llama.developer.meta.com/">llama.developer.meta.com</a></p>
+<p>Default model <code>Llama-4-Maverick-17B-128E-Instruct-FP8</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>NebiusAIStudio</summary>
+<div class="body">
+<p class="muted">Base <code>api.studio.nebius.com/</code> · Admin
+<a href="https://studio.nebius.com/settings/api-keys">studio.nebius.com</a></p>
+<p>Default model <code>meta-llama/Meta-Llama-3.1-70B-Instruct</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Chutes</summary>
+<div class="body">
+<p class="muted">Base <code>llm.chutes.ai/</code> · Admin
+<a href="https://chutes.ai/app/api">chutes.ai/app/api</a></p>
+<p>Default model <code>deepseek-ai/DeepSeek-V3</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Inference.net</summary>
+<div class="body">
+<p class="muted">Base <code>api.inference.net/</code> · Admin
+<a href="https://inference.net/dashboard/api-keys">inference.net</a></p>
+<p>Default model <code>meta-llama/llama-3.3-70b-instruct/fp-8</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>CloudflareWorkersAI</summary>
+<div class="body">
+<p class="muted">Base
+<code class="path">api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/</code>
+· Admin <a href="https://dash.cloudflare.com/">dash.cloudflare.com</a></p>
+<p>Default model <code>@cf/meta/llama-3.3-70b-instruct-fp8-fast</code>.</p>
+<ul>
+<li><code>defaultModelSource = API</code></li>
+<li>Replace <code>YOUR_ACCOUNT_ID</code> in the base URL.</li>
+</ul>
+</div>
+</details>
+
+<h2 id="regional">Regional &amp; vertical</h2>
+
+<details class="entity">
+<summary>Z.AI</summary>
+<div class="body">
+<p class="muted">Base <code>api.z.ai/api/paas/v4/</code> · Admin
+<a href="https://open.bigmodel.cn/usercenter/apikeys">open.bigmodel.cn</a></p>
+<p>Default model <code>glm-4.7-flash</code>.</p>
+<ul>
+<li><code>typePaths.chat = chat/completions</code>,
+<code>modelsPath = models</code></li>
+<li><code>openRouterName = z-ai</code></li>
+<li><code>modelFilter = glm|codegeex|charglm</code></li>
+<li>7 hardcoded models, <code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Moonshot</summary>
+<div class="body">
+<p class="muted">Base <code>api.moonshot.ai/</code> · Admin
+<a href="https://platform.moonshot.ai/console/api-keys">platform.moonshot.ai</a></p>
+<p>Default model <code>kimi-latest</code>.</p>
+<ul>
+<li><code>openRouterName = moonshot</code></li>
+<li>4 hardcoded models, <code>defaultModelSource = API</code></li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>DashScope (Aliyun / Qwen)</summary>
+<div class="body">
+<p class="muted">Base <code>dashscope-intl.aliyuncs.com/compatible-mode/</code>
+· Admin <a href="https://dashscope.console.aliyun.com/">dashscope.console.aliyun.com</a></p>
+<p>Default model <code>qwen-plus</code>.</p>
+<ul><li>6 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Baichuan</summary>
+<div class="body">
+<p class="muted">Base <code>api.baichuan-ai.com/</code> · Admin
+<a href="https://platform.baichuan-ai.com/">platform.baichuan-ai.com</a></p>
+<p>Default model <code>Baichuan4-Turbo</code>.</p>
+<ul><li>5 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>StepFun</summary>
+<div class="body">
+<p class="muted">Base <code>api.stepfun.com/</code> · Admin
+<a href="https://platform.stepfun.com/">platform.stepfun.com</a></p>
+<p>Default model <code>step-2-16k</code>.</p>
+<ul><li>6 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>MiniMax</summary>
+<div class="body">
+<p class="muted">Base <code>api.minimax.io/</code> · Admin
+<a href="https://platform.minimax.io/">platform.minimax.io</a></p>
+<p>Default model <code>MiniMax-M2.1</code>.</p>
+<ul>
+<li><code>openRouterName = minimax</code></li>
+<li>4 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Doubao (ByteDance / Volcengine)</summary>
+<div class="body">
+<p class="muted">Base <code>ark.cn-beijing.volces.com/api/</code>
+· Admin <a href="https://console.volcengine.com/">console.volcengine.com</a></p>
+<p>Default model <code>doubao-pro-32k</code>.</p>
+<ul>
+<li><code>typePaths.chat = v3/chat/completions</code></li>
+<li>4 hardcoded models</li>
+</ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>01.AI</summary>
+<div class="body">
+<p class="muted">Base <code>api.01.ai/</code> · Admin
+<a href="https://platform.01.ai/">platform.01.ai</a></p>
+<p>Default model <code>yi-lightning</code>.</p>
+<ul><li><code>defaultModelSource = API</code>, 4 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Krutrim (Ola)</summary>
+<div class="body">
+<p class="muted">Base <code>cloud.olakrutrim.com/</code> · Admin
+<a href="https://cloud.olakrutrim.com/console">cloud.olakrutrim.com</a></p>
+<p>Default model <code>Meta-Llama-3.1-70B-Instruct</code>.</p>
+<ul><li><code>defaultModelSource = API</code></li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Reka</summary>
+<div class="body">
+<p class="muted">Base <code>api.reka.ai/</code> · Admin
+<a href="https://platform.reka.ai/">platform.reka.ai</a></p>
+<p>Default model <code>reka-flash</code>.</p>
+<ul><li>3 hardcoded models</li></ul>
+</div>
+</details>
+
+<details class="entity">
+<summary>Writer</summary>
+<div class="body">
+<p class="muted">Base <code>api.writer.com/</code> · Admin
+<a href="https://app.writer.com/">app.writer.com</a></p>
+<p>Default model <code>palmyra-x-004</code>.</p>
+<ul><li>2 hardcoded models</li></ul>
+</div>
+</details>
+
+<h2 id="field-reference">Field reference</h2>
+
+<p>A few non-default fields warrant explanation.</p>
+
+<dl class="kv">
+
+<div>
+<dt>apiFormat</dt>
+<dd>Dispatch format. <code>OPENAI_COMPATIBLE</code> (default),
+<code>ANTHROPIC</code> (Claude <code>/v1/messages</code> shape with
+required <code>max_tokens</code>), <code>GOOGLE</code> (Gemini
+<code>:generateContent</code> path-style with <code>?key=</code> auth).</dd>
+</div>
+
+<div>
+<dt>typePaths</dt>
+<dd>Per-model-type API paths overriding the global defaults. Most
+providers only override <code>chat</code>; some (Anthropic) also
+override <code>embedding</code> / <code>rerank</code> / etc.</dd>
+</div>
+
+<div>
+<dt>modelsPath</dt>
+<dd>GET path for the model-list endpoint, relative to
+<code>baseUrl</code>. Default <code>v1/models</code>.</dd>
+</div>
+
+<div>
+<dt>seedFieldName</dt>
+<dd>Name of the seed field in the request body. Mistral calls it
+<code>random_seed</code>; everyone else uses <code>seed</code>.</dd>
+</div>
+
+<div>
+<dt>supportsCitations</dt>
+<dd>Provider returns inline <code>citations</code> (e.g. Perplexity).</dd>
+</div>
+
+<div>
+<dt>supportsSearchRecency</dt>
+<dd>Provider accepts a <code>search_recency</code> parameter.</dd>
+</div>
+
+<div>
+<dt>extractApiCost</dt>
+<dd>Provider's response includes a per-call cost field (e.g.
+OpenRouter); the dispatch layer extracts it instead of computing from
+<code>tokenUsage × unitPrice</code>.</dd>
+</div>
+
+<div>
+<dt>costTicksDivisor</dt>
+<dd>Provider returns cost in ticks rather than dollars (xAI uses
+10¹⁰). Provider-config edit refuses non-positive values.</dd>
+</div>
+
+<div>
+<dt>modelListFormat</dt>
+<dd><code>object</code> (default — wrapped in
+<code>{ "data": [...] }</code>) vs <code>array</code> (Together's
+bare top-level array; Google also returns an array).</dd>
+</div>
+
+<div>
+<dt>modelFilter</dt>
+<dd>Regex applied to model ids during listing — trims out
+internal/test/preview models from a noisy catalog.</dd>
+</div>
+
+<div>
+<dt>litellmPrefix / openRouterName</dt>
+<dd>Composite-key prefixes for the corresponding pricing tier.</dd>
+</div>
+
+<div>
+<dt>hardcodedModels</dt>
+<dd>Fallback list shown when no <code>/models</code> endpoint is
+available, <code>defaultModelSource = MANUAL</code>, <strong>or</strong>
+to reinstate documented-but-unlisted endpoints (OpenAI moderation /
+TTS / transcription / image; merged via the OpenAI-only fallback union
+in <code>Settings.withModels</code>).</dd>
+</div>
+
+<div>
+<dt>defaultModelSource</dt>
+<dd><code>API</code> or <code>MANUAL</code>. Determines whether the
+app fetches a live list or shows the hardcoded fallback.</dd>
+</div>
+
+<div>
+<dt>nativeRerankUrl / nativeModerationUrl / nativeCapabilityUrl</dt>
+<dd>Full URLs the rerank / moderation / capability dispatchers POST to
+instead of building a chat fallback. Cohere ships
+<code>nativeRerankUrl</code> and <code>nativeCapabilityUrl</code>;
+Mistral ships <code>nativeModerationUrl</code>. Others fall through
+to a chat-prompt fallback.</dd>
+</div>
+
+<div>
+<dt>pricingFromModelList <span class="muted">(Together)</span></dt>
+<dd>Provider's <code>/v1/models</code> block carries authoritative
+pricing — harvested into the <code>TOGETHER</code> tier on every
+refresh.</dd>
+</div>
+
+<div>
+<dt>crossProviderModelList <span class="muted">(OpenRouter)</span></dt>
+<dd>Provider's <code>/v1/models</code> drives pricing + type fan-out
+across other providers — the OpenRouter tier is the final
+cross-provider fallback in <code>PricingCache.getPricing</code> for
+non-OpenRouter callers.</dd>
+</div>
+
+<div>
+<dt>mergeHardcodedModels</dt>
+<dd>Union persisted <code>hardcodedModels</code> with the API list
+when the fetcher refreshes — so OpenAI moderation / TTS / image
+models survive a <code>/v1/models</code> call that doesn't enumerate
+them.</dd>
+</div>
+
+<div>
+<dt>externalReasoningSignalUntrusted <span class="muted">(xAI)</span></dt>
+<dd>Ignore the LiteLLM / models.dev "is reasoning" signal because
+xAI's always-on reasoning variants reject the
+<code>reasoning_effort</code> parameter even though they reason
+internally. The 🧠 badge still renders; only the parameter is
+suppressed.</dd>
+</div>
+
+<div>
+<dt>responsesApiPatterns · reasoningModelPatterns ·
+reasoningEffortAcceptPatterns · webSearchModelPatterns ·
+adaptiveThinkingPatterns</dt>
+<dd>Lists of <code>ModelPattern</code>: per-id pattern matchers that
+gate dispatch routing (Responses API), feature badges (🧠, 🌐), the
+<code>reasoning_effort</code> parameter, and Anthropic's
+adaptive-thinking shape. Patterns take <code>prefix</code>,
+<code>contains</code>, or <code>regex</code>.</dd>
+</div>
+
+<div>
+<dt>maxTokensDefaults <span class="muted">(Anthropic)</span></dt>
+<dd><code>[{ match: ModelPattern, value: Int }]</code> — per-family
+default <code>max_tokens</code> when the user hasn't pinned one. First
+match wins; falls back to <code>4096</code>.</dd>
+</div>
+
+<div>
+<dt>builtInEndpoints</dt>
+<dd>Bundled alternate endpoints (DeepSeek main + reasoner, Mistral
+chat + Codestral, Z.AI mainland + international). User picks one on
+the provider edit screen.</dd>
+</div>
+
+<div>
+<dt>auxHosts</dt>
+<dd>Alternate API hostnames besides the <code>baseUrl</code> host.
+The rate-limit-retry interceptor and tracer use this to keep aux-host
+calls grouped under the same logical provider.</dd>
+</div>
+
+</dl>
+
+<h2 id="activation">Activation gating</h2>
+
+<p>Setting an API key on a provider isn't enough to mark it active —
+both the <code>/models</code> fetch and the API-key test must pass. A
+mis-configured provider stays <code>not-used</code> until it can
+prove it actually works. Refresh-all surfaces failed providers with a
+one-tap nav-to-edit so the user can fix bad configurations without
+hunting.</p>
+
+<h2 id="local">The synthetic Local provider</h2>
+
+<details class="entity" open>
+<summary>Local <span class="badge">on-device</span></summary>
+<div class="body">
+<p class="muted">Base <code>local://</code> · Admin (none)</p>
+<p>Default model (empty — depends on what's been imported).</p>
+<p>Routes chat / report / Fan-out / RAG / embedding calls through
+<code>LocalLlm.generate</code> (for <code>.task</code> LLMs) and
+<code>LocalEmbedder.embed</code> (for <code>.tflite</code> text
+embedders). Not registered in <code>ProviderRegistry</code>; surfaces
+only via <code>AppService.findById("Local")</code> (case-insensitive
+— accepts the legacy uppercase <code>LOCAL</code> from persisted
+ChatSessions).</p>
+<p>Model list comes from whatever <code>.task</code> files live under
+<code class="path">&lt;filesDir&gt;/local_llms/</code>; embedder list
+from <code class="path">&lt;filesDir&gt;/local_models/</code>. No
+<code>apiFormat</code> — dispatch is by
+<code>provider.id == "Local"</code>.</p>
+<p>See <a href="local-runtime.html">Local runtime</a>.</p>
+</div>
+</details>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
+</main>
+</body>
+</html>
