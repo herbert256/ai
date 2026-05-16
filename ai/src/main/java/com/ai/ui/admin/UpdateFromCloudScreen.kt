@@ -141,24 +141,6 @@ fun UpdateFromCloudScreen(
                 color = AppColors.TextSecondary, fontSize = 13.sp
             )
 
-            // Drive's Android file-picker integration only exposes My
-            // Drive — files synced via Drive for Desktop land under
-            // "Computers" instead, which isn't reachable from the
-            // picker. Surface the workaround inline so the user
-            // doesn't have to chase it.
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("File in Drive → Computers?", color = AppColors.Orange, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "The Android picker only shows My Drive — Computers (Drive for Desktop) " +
-                            "isn't reachable. Workaround: in Drive web, right-click the APK → " +
-                            "Add shortcut to Drive → pick a folder under My Drive. The shortcut " +
-                            "shows up in the picker; reading it returns the real file.",
-                        color = AppColors.TextTertiary, fontSize = 11.sp
-                    )
-                }
-            }
-
             // Drive status hint. Soft — picker works with any provider,
             // but the user explicitly asked for Drive so we surface the
             // package check.
