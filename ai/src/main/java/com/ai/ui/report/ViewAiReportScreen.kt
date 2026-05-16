@@ -307,8 +307,11 @@ private fun TileCard(tile: ViewTile) {
                 )
             )
         )) {
-            // Count badge — top-right, only when N > 0.
-            if (tile.count > 0) {
+            // Count badge — top-right, only when N ≥ 2. A single-item
+            // kind opens that item directly on tap (no chooser
+            // expansion), so a "1" badge would tell the user nothing
+            // they can't already see from the tile itself.
+            if (tile.count >= 2) {
                 Box(
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                         .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)),
