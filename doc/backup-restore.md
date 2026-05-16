@@ -21,8 +21,7 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── provider_field_timestamps.json
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
-│   ├── huggingface_cache.json
-│   └── model_cooldowns.json
+│   └── huggingface_cache.json
 ├── files/
 │   ├── reports/<reportId>.json
 │   ├── secondary/<reportId>/<resultId>.json
@@ -73,7 +72,6 @@ a 200 GB entry.
 | `pricing_cache` | Timestamps for each pricing tier + the user's manual price overrides. The bulk pricing JSON itself lives in `files/pricing/` (see below) |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). Concurrent load-modify-save is serialised to prevent torn writes |
-| `model_cooldowns` | Auto-bench list for models that returned a long-Retry-After 429 — `(providerId, model)` → epoch-ms expiry plus the trace filename of the originating 429. See [cooldowns.md](cooldowns.md) |
 
 ### Files (under `<filesDir>`)
 

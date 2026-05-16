@@ -25,9 +25,6 @@ The top-level AI configuration object. Persisted in `eval_prefs`.
 | endpoints | `Map<AppService, List<Endpoint>>` | per-provider endpoint URLs |
 | providerStates | `Map<String, String>` | "ok" / "error" / "inactive" / "not-used" per provider id |
 | modelTypeOverrides | `List<ModelTypeOverride>` | manual per-model type assignments |
-| blockedModels | `List<BlockedModel>` | models the Test sweep should treat as failed-by-config (with reason text) |
-| testExcludedModels | `List<TestExcludedModel>` | models the Test sweep should skip entirely (cost > 5¢ + manual). Auto-seeded from `assets/excluded.json` |
-| inaccessibleModels | `List<InaccessibleModel>` | models hidden from every picker (tier-gated catalog entries). Auto-seeded from `assets/inaccessible.json` |
 
 ### `ProviderConfig`
 | Field | Type | Notes |
@@ -155,45 +152,6 @@ for the New Report screen.
 | supportsVision | `Boolean` | wins over per-provider visionModels for this id |
 | supportsWebSearch | `Boolean` | same idea for web-search |
 | supportsReasoning | `Boolean` | same idea for reasoning-capable |
-
-### `BlockedModel`
-| Field | Type | Notes |
-|---|---|---|
-| providerId, model | `String` | identity is `(providerId, model)` |
-| reason | `String` | free-text reason shown in the picker tooltip |
-
-The Test sweep auto-populates this list when a probe fails with an
-HTTP error above the user's threshold; manually editable under
-Settings → AI Setup → AI Models setup → Blocked models. Computed
-`key` is `"$providerId:$model"`.
-
-### `TestExcludedModel`
-| Field | Type | Notes |
-|---|---|---|
-| providerId, model | `String` | identity is `(providerId, model)` |
-
-No reason field — this is a simple "don't probe in Test all models"
-skip-set. Auto-populated by the > 5¢ price guard; seeded from
-`assets/excluded.json` on every cold start via
-[`TestExcludedSeed`](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt).
-Computed `key` is `"$providerId:$model"`. CRUD'd under Settings →
-AI Setup → AI Models setup → Test-excluded models.
-
-### `InaccessibleModel`
-| Field | Type | Notes |
-|---|---|---|
-| providerId, model | `String` | identity is `(providerId, model)` |
-| reason | `String` | typically "Unable to access non-serverless" or the original 4xx body |
-
-**Distinct from `TestExcludedModel`**: inaccessible entries are
-*hidden from every picker* (the user genuinely can't reach them) and
-dropped from sweep results entirely rather than counted as FAIL.
-Auto-populated by the Test sweep when a probe returns tier-gating
-errors; seeded from `assets/inaccessible.json` (64 bundled tier-gated
-entries today) via
-[`InaccessibleSeed`](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt).
-CRUD'd under Settings → AI Setup → AI Models setup → Inaccessible
-models. Computed `key` is `"$providerId:$model"`.
 
 ### `ReportModel`
 Used during the report selection phase.
@@ -363,97 +321,6 @@ present on the report.
 - `Selected(languages: Set<String>)` — restrict to the chosen
   English-name languages (plus the empty string for the original /
   untranslated source).
-
-### `FanOutRunState` + `PairState` + `CombinedReportState`
-([`data/FanOutRunModel.kt`](../ai/src/main/java/com/ai/data/FanOutRunModel.kt))
-
-The canonical per-run snapshot owned by `FanOutEngine`. Each
-transition is an atomic `_runs.update { … }` call, so subscribers see
-exactly one value per pair transition with no flicker.
-
-`PairStatus` enum: `PENDING` 🕓 → `RUNNING` ⏳ → `DONE` ✅ /
-`ERROR` ❌.
-
-**`FanOutRunKey`** = `"${reportId}|${metaPromptId}"`; **`PairKey`** =
-`"${answererAgentId}|${sourceAgentId}"`.
-
-**`FanOutRunState`** fields: `key`, `reportId`, `metaPrompt`,
-`scope` (`SecondaryScope`), `responderIds: Set<String>?` (null = use
-every successful agent), `pairs: Map<PairKey, PairState>`,
-`combinedReports: List<CombinedReportState>`, `cancelled: Boolean`.
-Computed getters: `totalPairs`, `doneCount`, `errorCount`,
-`runningCount`, `queuedCount`, `totalCost`, `answererKeys`
-(deduplicated answerers in first-seen order). Two helpers
-(`effectiveRunningCount`, `effectiveQueuedCount`) take a
-`runningSet: Set<String>` so the L1 stats panel can reflect the live
-in-flight pair set during the migration window.
-
-**`PairState`** fields: `id` (matches `SecondaryResult.id`),
-`answererAgentId`, `sourceAgentId`, `providerId`, `model`, `status`,
-`content?`, `errorMessage?`, `inputCost?`, `outputCost?`,
-`durationMs?`, `tokenUsage?`, `timestamp`, plus the **fan-icons**
-fields: `icon?`, `iconWinningTier?`, `iconInputCost`,
-`iconOutputCost`, `iconErrorMessage?`. `totalCost` sums both the pair
-cost and the icon-chain cost.
-
-**`CombinedReportState`** (Fan-in row attached to the run) carries
-`id`, `fanInPromptId`, `fanInPromptName`, `scopeProviderId?`,
-`scopeModel?` (set on model-scoped fan-in only), `providerId`,
-`model`, `status`, `content?`, `errorMessage?`, `inputCost?`,
-`outputCost?`, `durationMs?`, `tokenUsage?`, `timestamp`. The
-`isModelScoped` getter is true when both scope fields are non-null.
-
-Two reverse-mappers: `SecondaryResult.toPairState(answererAgentId)`
-and `SecondaryResult.toCombinedReportState()` rebuild the in-memory
-state from the canonical on-disk `SecondaryResult` rows on
-hydration.
-
-### `ModelTestRunState` + `ModelTestState` + `TestStatus`
-([`data/ModelTestRunModel.kt`](../ai/src/main/java/com/ai/data/ModelTestRunModel.kt))
-
-The "Test all models" runtime state. Persisted as a single document
-at `<filesDir>/test_run.json` via
-[`ModelTestRunStore`](../ai/src/main/java/com/ai/data/ModelTestRunStore.kt).
-Only one run is ever kept — the latest.
-
-`TestStatus` enum: `PENDING` 🕓 → `RUNNING` ⏳ → `PASS` ✅ /
-`FAIL` ❌.
-
-**`ModelTestKey`** = `"$providerId:$model"` (same shape as
-`ModelCooldownStore`).
-
-**`ModelTestState`** (one per probe) fields: `key`, `providerId`,
-`model`, `status`, `errorMessage?`, `responseText?`, `durationMs?`,
-`inputCost?`, `outputCost?`, `traceFilename?` (deep-link target for
-the trace screen), `timestamp`. `totalCost` sums input + output.
-
-**`ModelTestRunState`** fields: `startedAt`, `items: Map<ModelTestKey,
-ModelTestState>`, plus the catalog-stats snapshot captured at
-`startRun` time: `catalogTotal`, `inaccessibleAtStart`,
-`excludedAtStart`, `noChatAtStart`. The split keeps the L1 top-row
-stats panel stable for the lifetime of the run. Computed getters:
-`total`, `doneCount`, `errorCount`, `runningCount`, `queuedCount`,
-`totalCost`, `forTestingAtStart` (derived so the four catalog buckets
-+ this always sum to `catalogTotal` by construction), `providerIds`
-(LinkedHashSet first-seen order driving the L1 list), and the
-helper `itemsForProvider(providerId)`.
-
-### `GeneralSettings.maxConcurrent*` knobs
-([`viewmodel/AppViewModel.kt`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
-
-Six per-kind concurrency ceilings live alongside the throttle
-fields:
-
-| Field | Default | Use |
-|---|---|---|
-| `maxConcurrentApiCalls` | 50 | Global ceiling. Every dispatcher first acquires from `ApiCallCaps.global` |
-| `maxConcurrentReportCalls` | 15 | Per-agent calls inside one report-gen run |
-| `maxConcurrentTranslationCalls` | 15 | Total across all in-flight Translate runs (not per-model) |
-| `maxConcurrentFanOutCalls` | 15 | Fan-out pair calls. Applied on top of the per-host throttle |
-| `maxConcurrentFanIconsCalls` | 15 | Fan-icons batch — separate budget so it doesn't compete with the parent fan-out |
-| `maxTestApiCalls` | 40 | "Test all models" sweep. Read directly by `ModelTestEngine`; NOT mirrored into `ApiCallCaps` |
-
-Surfaced in **Settings → Network → Maximal API calls**.
 
 ### `RerankApiResult`
 Result of a provider's dedicated rerank endpoint call (e.g.

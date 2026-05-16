@@ -23,12 +23,9 @@ stats, pricing tier blobs).
 │       │                  semantic)                                  │
 │       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
-│       ├── HousekeepingScreen   (full screens per NavCard row)       │
-│       ├── SecondaryResultsScreen + FanOutScreen / FanOutL1/L2/L3    │
-│       │                            FanOutIconsScreens (icons mode)  │
-│       ├── ModelTestScreen + ModelTestSelectScreen +                 │
-│       │   ModelTestL1/L2/L3Screen   (Housekeeping → Test)           │
-│       ├── TranslationCompareScreen / TranslationL1/L2/L3 / …        │
+│       ├── HousekeepingScreen   (six NavCard rows, each its own      │
+│       │                         full screen with help topic)        │
+│       ├── SecondaryResultsScreen / TranslationCompareScreen / …     │
 │       └── HelpScreen / TraceScreen                                  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -37,15 +34,9 @@ stats, pricing tier blobs).
 │  ViewModels                                                         │
 │  ├── AppViewModel       — settings, prefs, model fetching, RAG attach│
 │  ├── ChatViewModel      — chat state and streaming, KB injection    │
-│  ├── ReportViewModel    — report + secondary-result generation,     │
-│  │                        multi-language fan-out, translation runs, │
-│  │                        Fan-in (combine), delegates Fan-out exec  │
-│  │                        to FanOutEngine                           │
-│  ├── FanOutEngine       — canonical Map<FanOutRunKey, FanOutRunState>│
-│  │                        StateFlow; per-pair Job map for safe      │
-│  │                        cancel; fan-icons batch + MAIN/ICONS modes│
-│  └── ModelTestEngine    — "Test all models" runner; throttled-keys  │
-│                           live StateFlow drives the L1 readout      │
+│  └── ReportViewModel    — report + secondary-result generation,     │
+│                           multi-language fan-out, translation runs, │
+│                           Fan-out (per-pair) + Fan-in (combine)     │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -59,8 +50,7 @@ stats, pricing tier blobs).
 │  │                         + in-memory metadata cache               │
 │  │                         + thread-local (reportId, category) tags │
 │  │                         + NetworkSettings + ProviderThrottle     │
-│  │                         + 429 / 529 retry + read-timeout         │
-│  │                           interceptors + ApiCallCaps semaphores  │
+│  │                         + 429 retry + read-timeout interceptors  │
 │  ├── AppLog              — log4j-style file appender + redaction    │
 │  ├── AtomicFileWrite     — fsync + ATOMIC_MOVE atomic writeText     │
 │  ├── EmojiExtract        — grapheme-cluster emoji isolation         │
@@ -68,7 +58,6 @@ stats, pricing tier blobs).
 │  ├── ProviderFieldTimestamps — per-provider per-field user-edit ts  │
 │  ├── PricingCache        — seven-tier pricing + capability lookup   │
 │  │                         (tier blobs in filesDir/pricing/)        │
-│  ├── ModelCooldownStore  — auto-bench on long-Retry-After 429s      │
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — RERANK / META / MODERATION /          │
 │  │                            TRANSLATE persistence                 │
@@ -77,16 +66,8 @@ stats, pricing tier blobs).
 │  ├── BackupManager       — zip-based backup/restore                 │
 │  ├── ModelListCache      — model-list TTL bookkeeping               │
 │  ├── PromptCache         — per-prompt cached responses              │
-│  ├── FanOutRunModel      — PairState / CombinedReportState /        │
-│  │                         FanOutRunState (immutable run snapshot)  │
-│  ├── ModelTestRunModel   — ModelTestState / TestStatus /            │
-│  │                         ModelTestRunState                        │
-│  ├── ModelTestRunStore   — <filesDir>/test_run.json single-doc      │
 │  ├── InternalPromptSeed  — assets/prompts.json loader               │
 │  ├── ExamplePromptSeed   — assets/examples.json loader              │
-│  ├── InaccessibleSeed    — assets/inaccessible.json delta-merge     │
-│  ├── TestExcludedSeed    — assets/excluded.json delta-merge         │
-│  ├── InternalPromptIconCache — per-Meta-prompt emoji cache          │
 │  ├── ImageAttach         — vision-image downscale + JPEG-encode     │
 │  │                                                                  │
 │  │ — RAG —                                                          │
@@ -114,20 +95,17 @@ stats, pricing tier blobs).
 
 ## Codebase shape
 
-~73,900 LOC across 150 Kotlin files:
-- `data/` — 41 files (HTTP, dispatch, streaming, tracer, rate
-  limit / throttle, registry, pricing, cooldowns, storage, RAG,
-  in-app file logger, atomic-write helpers, bundled-asset seeds),
-  including the `data/local/` subpackage (`LocalLlm`, `LocalEmbedder`).
+~60,300 LOC across 123 Kotlin files:
+- `data/` — 34 files (HTTP, dispatch, streaming, tracer, rate
+  limit / throttle, registry, pricing, storage, RAG, in-app file
+  logger, atomic-write helpers, bundled-asset seeds), including
+  the `data/local/` subpackage (`LocalLlm`, `LocalEmbedder`).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 6 files (`AppViewModel`, `ChatViewModel`,
-  `ReportViewModel`, `ReportViewModelHelpers`, `FanOutEngine`,
-  `ModelTestEngine`)
-- `ui/` — 100 files across 13 sub-domains (`hub`, `report` × 37
-  including the FanOut L1/L2/L3 / FanOutIcons / ModelTest L1/L2/L3 /
-  Translation L1/L2/L3 / Find-alternative-icons screens,
+- `viewmodel/` — 4 files (`AppViewModel`, `ChatViewModel`,
+  `ReportViewModel`, `ReportViewModelHelpers`)
+- `ui/` — 82 files across 13 sub-domains (`hub`, `report` × 26,
   `chat` × 5, `knowledge`, `models`, `search` × 4, `history` × 3,
-  `settings` × 17, `admin` × 11 (incl. AppLog), `share`, `shared`,
+  `settings` × 17, `admin` × 10, `share` × 2, `shared` × 9,
   `theme`, `navigation` × 2)
 - `MainActivity.kt`
 
@@ -179,7 +157,7 @@ layer skips Retrofit entirely and calls `LocalLlm.generate` (or
 `LocalEmbedder.embed` for embeddings). It appears in every model
 picker as a normal "Local" provider.
 
-### Five ViewModels
+### Three ViewModels
 
 - **`AppViewModel`** — owns `UiState` (a single bag of every
   UI-relevant field) and `Settings`. Handles bootstrap, model-list
@@ -189,15 +167,10 @@ picker as a normal "Local" provider.
   population) use a CAS-style `compareAndSet` pattern so two
   fan-out updates don't overwrite each other. Also owns the
   in-memory `iconFanOutByReport: Map<reportId,
-  List<IconCandidate>>` map that `FindAlternativeIconsScreens`
+  List<IconCandidate>>` map that `AlternativeIconsScreen`
   consumes, and the `iconRefreshTick` counter on `UiState` that
   forces icon-dependent recompositions when a background icon
-  call settles. `GeneralSettings` now carries the six concurrency
-  ceilings — `maxConcurrentApiCalls` (50), `maxConcurrentReportCalls`
-  (15), `maxConcurrentTranslationCalls` (15),
-  `maxConcurrentFanOutCalls` (15), `maxConcurrentFanIconsCalls` (15),
-  `maxTestApiCalls` (40) — mirrored into `ApiCallCaps` semaphores on
-  every Settings update.
+  call settles.
 - **`ChatViewModel`** — chat session state and streaming, including
   per-turn KB retrieval and context-block injection. Also fires
   the bundled `internal/chat_title` prompt asynchronously after
@@ -205,44 +178,24 @@ picker as a normal "Local" provider.
   with the returned label.
 - **`ReportViewModel`** — report generation, secondary-result flows
   (RERANK / META / MODERATION / TRANSLATE), the multi-language
-  fan-out for chat-type META and TRANSLATE, **Fan-in** (combine),
-  and the per-agent 3-tier report-icon chain. Holds an in-memory
-  `_agentResults` flow separate from `UiState` so per-task
-  completions don't ripple equality checks across the rest of the
-  UiState. Holds a `Map<String, TranslationRun>` keyed by runId so
-  multiple concurrent Translate batches don't overwrite each other.
-  Long-running flows (initial generate, regenerate, secondary
-  launches, report-icon chain) are launched on
+  fan-out for chat-type META and TRANSLATE, the Fan-out /
+  Fan-in flow, **and** the per-agent 3-tier report-icon chain.
+  Holds an in-memory `_agentResults` flow separate from
+  `UiState` so per-task completions don't ripple equality checks
+  across the rest of the UiState. Holds a `Map<String,
+  TranslationRun>` keyed by runId so multiple concurrent Translate
+  batches don't overwrite each other. A separate
+  `_runningFanOutPairs: StateFlow<Set<String>>` carries the hot-
+  mutating per-pair set so 5–15 Hz updates during a fan-out batch
+  don't recompose every consumer that reads any other UiState
+  field. Long-running flows (initial generate, regenerate,
+  secondary launches, report-icon chain) are launched on
   `appViewModel.viewModelScope` rather than the report VM's own
   scope so navigating away from the result screen doesn't cancel
   the work — `_agentResults` and `Report.*` storage keep the
   background results addressable when the screen recomposes
   back. Pure helpers live in `ReportViewModelHelpers.kt`
-  (`providerHost`, `executeSecondaryTask`, etc.).
-- **`FanOutEngine`** — owns the authoritative
-  `_runs: MutableStateFlow<Map<FanOutRunKey, FanOutRunState>>`
-  for every active fan-out run. Each per-pair transition is a single
-  atomic `_runs.update { … }` call, so subscribers see exactly one
-  value per transition with no flicker. Per-pair `Job` map
-  (`fanOutPairJobs`) registered with `CoroutineStart.LAZY` BEFORE
-  `start()` so a destructive path can `cancelAndJoin` a specific
-  pair before deleting its disk row. Sizes its in-flight IO
-  semaphore from `maxConcurrentFanOutCalls`, layered on top of the
-  per-host `ProviderThrottle`. Hosts the **fan-icons** batch (a
-  parallel emoji chain across every completed pair) — same shape,
-  separate budget via `maxConcurrentFanIconsCalls`. Hydrates lazily
-  from disk via `hydrate(context, reportId)` and delegates HTTP +
-  save to `ReportViewModel.executeSecondaryTask`.
-- **`ModelTestEngine`** — "Test all models" runner. Exposes a single
-  `StateFlow<ModelTestRunState?>` keyed off `<filesDir>/test_run.json`
-  and a sibling `throttledKeys: StateFlow<Set<String>>` so the L1
-  page can show which (provider, model) pairs are currently blocked
-  in a `ProviderThrottle.acquire`. Auto-feeds the **Blocked**,
-  **Test-excluded**, and **Inaccessible** lists from probe outcomes
-  (provider-side "Unable to access non-serverless" routes to
-  `inaccessibleModels`, model errors above the user threshold land
-  in `blockedModels`, cost > 5¢ + manual entries are
-  `testExcludedModels`).
+  (`providerHost`, etc.).
 
 ### Two-tier navigation
 
@@ -259,34 +212,28 @@ screen itself is split into three sub-pages (Preferences, Privacy
 dedicated sub-pages — so the user lands on a short list rather
 than a wall of cards.
 
-### TitleBar + green subject row
+### TitleBar action strip
 
-The top bar is a fixed three-section anatomy:
-
-- **Left** — the **AI** logo (vivid Material A700 blue, alpha 0.75 so
-  the bar reads through it; tap → Hub) and the **❓ Help** icon
-  (tap → screen's help topic).
-- **Centre** — the dynamic report icon (when in scope), centred
-  between the left button group and the right title.
-- **Right** — the hardcoded screen title (top-aligned).
-
-Directly below the top bar, every screen routes its dynamic subject
-through the shared `HardcodedSubjectRow` composable
-(`ui/shared/SharedComponents.kt`) — a single green-coloured 26 sp
-SemiBold line, clickable into Model Info when a `(provider, model)`
-is supplied, with an optional trailing slot (Fan-out L3 uses it for
-the answerer / source role indicator). Self-gates on blank text and
-applies a `(-8).dp` offset so it sits tight against the title bar.
-The unification commit (`3143dbc7`) routed every former bespoke
-subject line through this one composable.
-
-Action icons (💬 Chat, ℹ️ Info, 📋 Copy, 📤 Share, 🔄 Refresh,
-🗑 Delete, 🐞 Trace, 📝 Memo) live in a **`BottomIconBar`** pinned
-at the bottom of the screen. Each screen's `TitleBar` publishes its
-callbacks into `LocalBottomIconState`; the global bar at
-AppNavHost scope renders them and survives nav transitions.
-Inactive icons hide; the model-response swipe-nav (left = next,
-right = previous) is wired on top.
+Every screen's `TitleBar` is a standardised action strip — `< Back`
+plus a context-specific subset from {💬 Chat, ℹ️ Info, 📋 Copy,
+📤 Share, 🔄 Refresh, 🗑 Delete, 🐞 Trace, 📝 Memo, 🏠 Home,
+❓ Help}. Inactive icons hide; Home and Help are always last. The
+`< Back` button can be hidden via Settings (the system back /
+gesture back still works). `subjectToTitleBarMode` (tri-state:
+HARDCODED / SUBJECT / BOTH; default BOTH) folds the dynamic
+subject into the title bar in two flavours — SUBJECT replaces
+the static label, BOTH joins them with `/` — and drops the
+green sub-header line in both cases. When BOTH is selected and
+the subject is empty (e.g. a report whose title is still being
+generated), the title bar gracefully falls back to the report's
+title rather than rendering a trailing `/`. The action icons +
+back arrow are always rendered in a bar pinned at the bottom of
+the screen; the top title bar shows only the per-report icon
+(when set) and the title. The bar lives at AppNavHost scope so
+it survives nav transitions. Report-scoped screens get the
+per-report icon as
+the leftmost glyph in the top title bar (propagated via
+`LocalReportIcon` so picker overlays inherit it).
 
 Two master switches drive icon generation:
 
@@ -309,15 +256,15 @@ See [report-icons.md](report-icons.md) for the full flow.
 Two of the most important data flows are layered in fixed order:
 
 - **Pricing** for `(provider, model)`, in `PricingCache.getPricing`:
-  provider self-report (OpenRouter when caller is OpenRouter,
+  provider-self-report (OpenRouter when caller is OpenRouter,
   Together when caller is Together) → manual override → LiteLLM →
   models.dev → llm-prices → Artificial Analysis → OpenRouter
   cross-provider fallback → Helicone → default. The large tier
   blobs live as files under `filesDir/pricing/` (one per tier);
   only timestamps and the small manual-override map stay in
   `pricing_cache.xml`. Manual user overrides win over every
-  curated source — putting them after LiteLLM would silently
-  ignore corrections users add specifically because LiteLLM has
+  curated source — putting them after LITELLM would silently
+  ignore corrections users add specifically because LITELLM has
   stale data. `ensureLoaded` short-circuits on the main thread
   before the preload completes — UI callers get `DEFAULT_PRICING`
   during the cold window and pick up real values on the next
@@ -463,87 +410,50 @@ cascade-on-prompt-change re-runs at the same scope rather than
 silently widening to AllReports. See
 [secondary-results.md](secondary-results.md) for the full flow.
 
-### Fan-out / Fan-in / Fan-icons
+### Fan-out / Fan-in
 
-Fan-out execution is owned by the **`FanOutEngine`** view model
-(`viewmodel/FanOutEngine.kt`). Each pair runs the chosen
-`category="fan_out"` Internal Prompt once per (answerer × source)
-pair, with `@RESPONSE@` in the template replaced by the source
-agent's response body. Fan-in is still routed through
-`ReportViewModel.runFanInPrompt` and combines the per-pair rows
+A separate code path under `ReportViewModel.runFanOutPrompt` /
+`runFanInPrompt`. Fan-out treats each successful agent's response
+as a "source", and runs a configurable Internal Prompt
+(`category = "fan_out"`) once per (answerer model × source agent)
+pair. `@RESPONSE@` in the prompt template is replaced by the
+source response text. Fan-in then combines those per-pair rows
 back into a single combined-report row using a different prompt
-template (`category="fan_in"`) with the iterable
+template (`category = "fan_in"`) with the iterable
 `***Report*** @REPORT@@RESPONSES@` block.
 
-The engine publishes a single
-`StateFlow<Map<FanOutRunKey, FanOutRunState>>` and mutates it via
-atomic `update { … }` calls; subscribers see exactly one value per
-pair transition with no flicker (no polling loop, no
-`recentlySettled` grace window).
+The drill-in is three levels deep:
+- **Level 1** — one row per (answerer, prompt). Action buttons
+  (Resume stale / Restart failed / Rerun complete / Delete) live
+  in a collapsed Actions card. Empty-body successes count as
+  Done, not Queued.
+- **Level 2** — one row per (answerer, source) pair. OnePageView
+  virtualisation keeps long lists scrolling smoothly.
+- **Level 3** — single response detail with a 🐞 link to the
+  original report-model trace.
 
-`FanOutScreen` (`ui/report/FanOutScreen.kt`) is the L1 parent with
-a `FanOutMode` enum (`MAIN` vs `ICONS`); each level is its own file:
-
-- **L1** (`FanOutL1Screen.kt`) — pinned stats panel (Total,
-  Running, Queued, Throttled, Done, Errors, plus per-mode Costs),
-  row per answerer with an in-row progress bar replacing the
-  legacy "6 / 9" line. Action buttons collapse under one row;
-  "Show icons" flips into ICONS mode.
-- **L2** (`FanOutL2Screen.kt`) — one row per (answerer, source)
-  pair, virtualised. Two role flavours via a Switch role button:
-  Responder mode (drill into one answerer) vs Source mode (drill
-  into one source).
-- **L3** (`FanOutL3Screen.kt`) — single-pair detail. The ℹ️ / 🐞
-  icons follow the "other" model in the pair; the trailing divider
-  sits tight against the response.
-
-**Fan-icons mode** runs a parallel 3-tier emoji chain across every
-completed pair. Same screen file structure
-(`FanOutIconsScreens.kt`), separate semaphore from
-`maxConcurrentFanIconsCalls`, separate Costs row tagged
-`fan-icons`, and a **Clear fan-icons** button wipes icon state
-without deleting pairs. When the user opens a report mid-batch the
-icons batch auto-resumes on screen entry.
-
-Concurrency on Fan-out is layered: the per-host `ProviderThrottle`
-caps (default 30 / min × 3 concurrent per hostname) plus an
-engine-level IO semaphore sized from `maxConcurrentFanOutCalls`
-(default 15). 429s with a long Retry-After ≥ 1 h bench the model in
-[`ModelCooldownStore`](cooldowns.md) — the engine then skips it for
-the rest of the run.
+Concurrency on Fan-out is capped at `FAN_OUT_PER_PROVIDER_LIMIT
+= 3` per provider (so 6 reports against a single provider runs
+3 in flight, against 6 different providers all 18 run
+concurrently). The hot per-pair `runningFanOutPairs` flow is
+separate from `UiState`.
 
 ## Concurrency
 
 - Network calls happen on `Dispatchers.IO`.
 - Per-provider rate + concurrency caps are enforced by
   `ProviderThrottle` (one `Semaphore` + one sliding-window
-  `Deque` per hostname). Limits hold across overlapping flows
-  (report + meta + fan-out + chat on the same provider). Caps come
-  from per-provider override → `NetworkSettings` global default
+  `Deque` per hostname). Replaces the prior per-batch fan-out
+  semaphore — limits now hold across overlapping flows (report
+  + meta + fan-out + chat on the same provider). Caps come from
+  per-provider override → `NetworkSettings` global default
   (defaults: 30 calls/min, 3 concurrent). User-tunable from
   Settings → Network and per provider. See
   [throttle.md](throttle.md).
-- Six **per-kind concurrency ceilings** live on `ApiCallCaps`
-  (mirrored from `GeneralSettings` on every Settings update):
-  `global` (50), `report` (15), `translation` (15), `fanOut` (15),
-  `fanIcons` (15), and the test sweep's standalone
-  `maxTestApiCalls` (40, read directly by `ModelTestEngine`).
-  Each request `withPermit`-wraps through the relevant per-kind
-  semaphore before going through the per-host
-  `ProviderThrottle` — a fan-out launched against six providers
-  with 3 in-flight each adds up to 18 in-flight calls, but the
-  fan-out cap clamps that to `fanOut` total across hosts.
-- A 429 whose Retry-After hint exceeds 1 h (Google's
-  "quota exhausted", Cohere's monthly cap, per-day token quotas
-  reset at Pacific midnight) routes through
-  `ModelCooldownStore.markUnavailable(providerId, model,
-  availableAtMs, traceFile)`; pickers dim the row and engines skip
-  it. See [cooldowns.md](cooldowns.md).
-- `FanOutEngine`, the fan-icons batch, the per-agent
-  report-icon chain, and the Find-alternative-icons fan-out all
-  pre-acquire permits on the coroutine side and set
-  `ProviderThrottle.permitPreAcquired` so the OkHttp interceptor
-  doesn't double-count.
+- Fan-out and the per-agent report-icon chain pre-acquire
+  permits on the coroutine side and set
+  `ProviderThrottle.permitPreAcquired` so the OkHttp
+  interceptor doesn't double-count.
 - `ApiTracer` and `ReportStorage` use `ReentrantLock` for thread-safe
   file writes; `KnowledgeStore` does the same for KB manifest +
   chunk files (chunks + manifest are also written atomically as a

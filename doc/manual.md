@@ -259,29 +259,15 @@ in** action once fan-out rows exist).
    in flight; against 6 different providers all 18 run
    concurrently.
 3. **Drill in** — three levels deep:
-   - **Level 1** lists one row per answerer. A pinned stats grid
-     spans **Total / Running / Queued / Throttled / Done / Errors /
-     Costs**; each row's background acts as a per-row progress bar.
-     Empty-body successes count as Done. Action buttons live on one
-     row — **Show icons** flips into fan-icons mode, the **One-page
-     view** drills into a flat per-pair list.
+   - **Level 1** lists one row per answerer with progress bars,
+     ✅/❌ status, per-row cost, and a Total banner. Empty-body
+     successes count as Done. The Actions card collapses
+     Resume stale / Restart failed / Rerun complete / Delete.
    - **Level 2** lists one row per (answerer, source) pair,
-     virtualised. A **Switch role** button toggles between
-     Responder mode (one answerer, list of sources) and Source mode
-     (one source, list of answerers).
-   - **Level 3** is the single-response detail. The ℹ️ / 🐞 icons
-     follow the *other* model in the pair so one tap goes to the
-     right Model Info / trace; left-swipe goes to the next response,
-     right-swipe to the previous.
-4. **Fan-icons mode** — tap **Show icons** on L1 to flip the drill-in
-   into a parallel emoji chain. Each completed pair gets a 3-tier
-   icon-generation run; the icons batch is gated by its own
-   concurrency cap (`maxConcurrentFanIconsCalls`, default 15) and
-   costs surface on a dedicated `fan-icons` row in the Costs view.
-   A **Clear fan-icons** button wipes icon state without deleting
-   pairs. Re-open the report mid-batch and the icons batch
-   auto-resumes on screen entry.
-5. **Run a fan-in** — pick a Fan-in prompt (under AI Setup →
+     virtualised so long lists scroll smoothly.
+   - **Level 3** is the single-response detail with a 🐞 link
+     to the original report-model trace.
+4. **Run a fan-in** — pick a Fan-in prompt (under AI Setup →
    Prompt management → **Fan-in prompts**) to combine every
    per-pair row into a single combined-report row. The
    `***Report*** @REPORT@@RESPONSES@` block in the template
@@ -480,12 +466,9 @@ Info** screen.
 
 ### Model Info
 
-The Model Info page paints immediately and every card loads in
-parallel so a slow external lookup never gates the rest:
+Six cards stacked top-to-bottom:
 
-1. **Actions** — Start AI chat • Create AI Agent • **Test** (fires
-   one probe against this model, captures the trace, and surfaces
-   the response inline).
+1. **Actions** — Start AI chat • Create AI Agent.
 2. **Capabilities** — vision / web-search / function-calling /
    reasoning toggles plus the underlying signals from each layer.
 3. **Provider** — provider's display name links to the per-provider
@@ -501,11 +484,7 @@ parallel so a slow external lookup never gates the rest:
 6. **API Traces** — every API call to this provider+model that's
    still on disk, filtered by hostname so unrelated traces don't
    pollute the count.
-7. **In AI configuration** — Agents whose `(provider, model)` match
-   this entry; tap to edit.
-8. **Workers** — same agent list framed as workers (helps users who
-   build per-flock setups think in terms of who's already wired up).
-9. **Last usage** — running cost+token stats for this model with
+7. **Last usage** — running cost+token stats for this model with
    an AI Usage counter pulled from `usage-stats.json`.
 
 The model name is the page subject; the Provider card sits under
@@ -569,16 +548,15 @@ only the title; tapping expands it.
 
 - **Identity** — name + email (the email pre-fills the export sheet).
 - **Model name layout** — model only / provider and model.
-- **Title bar** — the top bar is the unified three-section layout:
-  the **AI** logo (left, vivid Material A700 blue, alpha 0.75) and
-  the **❓ Help** icon, the centred per-report icon (when in scope),
-  and the hardcoded screen title (right, top-aligned). Below the
-  bar, a single green-coloured 26 sp subject row (the
-  **HARDCODED** subject row, used app-wide via `HardcodedSubjectRow`)
-  shows the dynamic per-screen subject and is clickable into Model
-  Info when a `(provider, model)` is supplied.
+- **Subject to title bar mode** — tri-state. **HARDCODED** keeps
+  the legacy fixed label + green sub-header; **SUBJECT** folds
+  the dynamic subject into the TitleBar and drops the green
+  line; **BOTH** (default) joins them with `/` (and falls back
+  to the title when the subject is blank) and drops the green
+  line.
 - The action icons + back arrow always live in a fixed bar
-  pinned at the bottom of the screen. The bar lives at
+  pinned at the bottom of the screen; the top bar shows only the
+  per-report icon (when set) and the title. The bar lives at
   AppNavHost scope so it survives nav transitions.
 - **Generate report icons** — master switch for the per-report
   emoji. Default on. See [report-icons.md](report-icons.md).
@@ -603,24 +581,9 @@ only the title; tapping expands it.
   [throttle.md](throttle.md).
 - **Max concurrent calls per provider** (default 3) — concurrency
   cap. Applies across overlapping flows (report + meta + chat).
-- **Maximal API calls** — six per-kind concurrency ceilings
-  applied across hosts. Each engine first acquires from its kind's
-  semaphore, then through the per-host throttle.
-
-  | Knob | Default | Use |
-  |---|---|---|
-  | Global API calls | 50 | Hard ceiling for every dispatcher |
-  | Report calls | 15 | Per-agent calls inside one report-gen run |
-  | Translation calls | 15 | Total across all in-flight Translate runs |
-  | Fan-out calls | 15 | Fan-out pair calls |
-  | Fan-icons calls | 15 | Fan-icons batch — independent of Fan-out |
-  | Test sweep calls | 40 | "Test all models" sweep |
-
 - **Max 429 retries** (default 3) — in-line retries on a 429
   response. 0 disables.
 - **429 retry backoff (ms)** (default 1000).
-- **Max 529 retries** / **529 backoff (ms)** — independent budget
-  for "server overloaded" (Anthropic) responses.
 
 Each provider has its own override card on its edit screen that
 inherits these values when left blank.
@@ -640,12 +603,12 @@ doesn't lose typed changes.
 |---|---|
 | Providers | API keys, state, and default model per provider. The list sorts by state, and the **+ Add provider** entry is at the bottom. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
 | Models (sub-hub) | Models / Model Types / Manual model types overrides |
-| AI Models setup (sub-hub) | Local Models / **Model cooldowns** / **Blocked models** / **Test-excluded models** / **Inaccessible models**. Cooldowns + Blocked are auto-populated by the throttle layer + Test sweep; Test-excluded and Inaccessible are also seeded from `assets/excluded.json` and `assets/inaccessible.json` on every cold start |
 | Workers (sub-hub) | Agents / Flocks / Swarms |
 | Prompt management | Top-level page (the legacy Internal Prompts sub-hub was collapsed): System Prompts / Internal Prompts grouped by category (Meta + Fan-out + Fan-in + Other internal — including the icon prompts) / Example prompts. Each row carries a per-card help icon |
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs (collapsed at the bottom) |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
+| Local Models | Local LiteRT models (.tflite) and Local LLMs (.task) |
 | Refresh | Per-tier refresh + Refresh all chain |
 
 > **Note:** Anything user-driven that runs on a report's outputs
@@ -676,7 +639,6 @@ to each other on the landing page.
 | Backup & Restore | Export the entire app to a `.zip`; restore from one. The Restore screen carries a red warning that the zip contains your API keys |
 | Export & Import | Collapsible cards for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / Runtime data / API keys / All (the All bundle has its own card; API keys are a dedicated card so they can be exported and shared separately) |
 | Refresh | Hand-off to the per-tier Refresh screen |
-| Test | Hand-off to the per-provider Test screen + "Test all models" sweep (see [model-test.md](model-test.md)) |
 | Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hides "Trim by age" when there's nothing to trim |
 | Usage statistics | Reset the per-(provider, model, kind) counters |
 | Reset | Five dedicated sub-screens (see below) |
@@ -703,59 +665,6 @@ card, all collapsed by default):
 After any wholesale-state-replace op, a **Restart-app** dialog
 prompts you to relaunch so the in-memory state matches the
 fresh on-disk state.
-
-### Test all models
-
-**Housekeeping → Test → Test all models** probes every model in
-every active provider with a fixed `"Reply with exactly: OK"` prompt,
-in parallel up to the **Maximal API calls → test sweep** cap (default
-40 concurrent). Each result is captured with a trace deep-link, latency,
-and cost.
-
-1. **Select screen** — pick which providers to include (or just hit
-   "Test all models" with no L1 to skip straight to the picker).
-2. **L1** — top stats panel with the catalog partition snapshot
-   (For testing / Inaccessible / Excluded / No-chat) and live
-   progress: Running, Queued, Throttled, Done, Errors. Math
-   reconciles by construction (Queued + Running + Done + Errors =
-   For-testing). Provider rows alphabetical, in-row progress bars,
-   per-provider Test buttons, **Rerun errors** action.
-3. **L2** — per-provider list of models with status icons, error
-   tooltips, cost, latency, and the source prompt at the top.
-4. **L3** — single-model detail with the captured trace, request
-   prompt, response body, and the chevron nav to walk siblings.
-
-The sweep auto-feeds three Settings lists from its results:
-
-- **Inaccessible models** — tier-gated catalog entries (e.g. Together
-  non-serverless) that aren't reachable on the user's account. Hidden
-  from every model picker. Auto-seeded from `assets/inaccessible.json`
-  on every cold start so a clean install doesn't waste 64 sweep slots.
-- **Test-excluded models** — models whose probe cost would exceed 5¢
-  (auto), plus anything the user adds. Skipped by the sweep but still
-  visible in pickers. Auto-seeded from `assets/excluded.json`.
-- **Blocked models** — models that returned an error above the user
-  threshold. Counted as FAIL until manually un-blocked.
-
-All three are CRUD'd under **AI Setup → AI Models setup**
-(Blocked / Test-excluded / Inaccessible). See
-[model-test.md](model-test.md) for the full flow.
-
-### Model cooldowns
-
-When a provider answers a 429 with a Retry-After hint longer than
-**1 hour** (Google quota exhausted, Cohere monthly cap, per-day
-token quotas reset at Pacific midnight), the model is benched in
-the **Model cooldowns** store until the hint expires. Model pickers
-dim the row and show "rate-limited · back HH:mm" (or "back May 15
-14:30" when the cooldown crosses midnight). The Fan-out engine,
-the Test sweep, and the per-agent icon chain all skip the benched
-pair automatically for the rest of the run.
-
-Manage the list under **AI Setup → AI Models setup → Model
-cooldowns** — CRUD entries, clear all, and tap a row to deep-link
-into the API trace whose 429 produced the cooldown. See
-[cooldowns.md](cooldowns.md).
 
 ### Export / Import
 

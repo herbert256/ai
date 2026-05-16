@@ -4,9 +4,9 @@ Everything the app keeps on disk, where it lives, and what's in each
 slot. All of this rounds-trip through `BackupManager` (Settings →
 Housekeeping → Backup & Restore) into a single `.zip`.
 
-## SharedPreferences (7 files)
+## SharedPreferences (6 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`. All seven are
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. All six are
 captured in `BackupManager.PREFS_TO_BACKUP`.
 
 ### `eval_prefs` — main settings
@@ -23,6 +23,7 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
+| `subject_to_title_bar_mode` | String (default `BOTH`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
 | `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
 | `per_model_icon_gen_enabled` | Boolean (default true) | master switch for the per-agent 3-tier icon chain (auto-fires `runReportIconsForAgent` on every successful agent call) |
 | `recent_report_models` | String (newline-separated) | last 3 (provider, model) picks from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings |
@@ -30,12 +31,6 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Default = `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` |
 | `max_calls_per_provider_per_minute` | Int (default 30) | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | `max_concurrent_calls_per_provider` | Int (default 3) | per-host concurrency cap |
-| `max_concurrent_api_calls` | Int (default 50) | global ceiling on in-flight calls across the whole app. Mirrored to `ApiCallCaps.global` |
-| `max_concurrent_report_calls` | Int (default 15) | per-agent calls inside one report-gen run |
-| `max_concurrent_translation_calls` | Int (default 15) | total in-flight Translate calls (across runs) |
-| `max_concurrent_fan_out_calls` | Int (default 15) | fan-out pair calls (`FanOutEngine`) |
-| `max_concurrent_fan_icons_calls` | Int (default 15) | fan-icons batch calls; separate budget from fan-out |
-| `max_test_api_calls` | Int (default 40) | "Test all models" sweep; read directly by `ModelTestEngine`, NOT mirrored into `ApiCallCaps` |
 | `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
 | `retry_backoff_ms_429` | Long (default 1000) | wait between 429 retry attempts in milliseconds |
 | `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
@@ -86,9 +81,6 @@ For every provider id (`<key> = service.id`, e.g. `OpenAI`):
 | `ai_endpoints` | JSON Map<String, List<Endpoint>> | keyed by provider id |
 | `provider_states` | JSON Map<String, String> | "ok"/"error"/"inactive"/"not-used" |
 | `ai_model_type_overrides` | JSON List<ModelTypeOverride> | |
-| `ai_blocked_models` | JSON List<BlockedModel> | Test sweep auto-populates on probe failure above threshold; CRUD'd under AI Setup → AI Models setup → Blocked models |
-| `ai_test_excluded_models` | JSON List<TestExcludedModel> | "skip in Test sweep" set; seeded from `assets/excluded.json` |
-| `ai_inaccessible_models` | JSON List<InaccessibleModel> | hidden-from-every-picker set (tier-gated entries); seeded from `assets/inaccessible.json` |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -165,18 +157,6 @@ keyed on `<providerId>::<modelId>`.
 `info = null` is meaningful — a cached miss that short-circuits the
 network call until the TTL expires. Concurrent load-modify-save
 is serialised so two simultaneous misses don't tear the JSON blob.
-
-### `model_cooldowns`
-Auto-bench list for models that returned a 429 with a long Retry-After
-(see [cooldowns.md](cooldowns.md)). Plain singleton `ModelCooldownStore`
-reads/writes it. Trace filenames are device-local — preserved here so
-the picker can deep-link to the originating trace, but not part of the
-export bundle's public surface.
-
-| Key | Type | Notes |
-|---|---|---|
-| `map` | JSON Map<String, Long> | `"$providerId:$model"` → epoch-ms when the cooldown expires |
-| `traces` | JSON Map<String, String> | `"$providerId:$model"` → filename of the API trace whose 429 produced the cooldown |
 
 ## Files (under `<filesDir>`)
 
