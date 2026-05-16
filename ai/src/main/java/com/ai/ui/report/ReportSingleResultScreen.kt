@@ -19,6 +19,9 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryResult
+import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
@@ -125,14 +128,48 @@ fun ReportSingleResultScreen(
         return
     }
 
-    val traceFilenameState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
+    val agentTraceFilenameState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
                 .filter { it.reportId == reportId && it.model == agent.model }
                 .maxByOrNull { it.timestamp }?.filename
         }
     }
-    val traceFilename = traceFilenameState.value
+    val agentTraceFilename = agentTraceFilenameState.value
+
+    // Load this report's TRANSLATE secondaries — drives the language
+    // icon picker below (same UX as View → Prompt / Model response).
+    // The picker is suppressed when there are no translations.
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), reportId) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter { !it.content.isNullOrBlank() }
+        }
+    }
+    val translates = translatesState.value
+    val langTabs = remember(translates) { buildLangTabs(translates) }
+    var selectedLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    LaunchedEffect(langTabs) {
+        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    }
+    // Pick out the TRANSLATE row that targets the current agent for
+    // the active language. Used both for body substitution and to
+    // re-point 🐞 / 📋 / 📤 at the translation when a non-Original
+    // language is selected.
+    val activeAgentTranslateRow: SecondaryResult? = remember(translates, selectedLangKey, currentAgentId, langTabs) {
+        if (selectedLangKey == LangTab.ORIGINAL_KEY) null
+        else {
+            val tab = langTabs.firstOrNull { it.key == selectedLangKey }
+            val langName = tab?.displayName ?: return@remember null
+            translates.firstOrNull {
+                it.targetLanguage == langName &&
+                    it.translateSourceKind == "AGENT" &&
+                    it.translateSourceTargetId == currentAgentId
+            }
+        }
+    }
+    val displayBody = activeAgentTranslateRow?.content ?: agent.responseBody
+    val traceFilename = activeAgentTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: agentTraceFilename
 
     // For translated reports: load the source agent's response so the
     // "Translation info" button can pop a split-screen original-vs-
@@ -187,10 +224,10 @@ fun ReportSingleResultScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
-            onCopy = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
+            onCopy = displayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "model response") }
             },
-            onShare = agent.responseBody?.takeIf { it.isNotBlank() }?.let { body ->
+            onShare = displayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "Model response — $agentLabel") }
             },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
@@ -202,6 +239,15 @@ fun ReportSingleResultScreen(
             model = agent.model,
             horizontalPadding = 16.dp
         )
+
+        if (langTabs.size > 1) {
+            LanguagePickerRow(
+                langTabs, selectedLangKey,
+                onSelect = { selectedLangKey = it },
+                useIcons = true,
+                originalIcon = report.languageIcon
+            )
+        }
 
         Box(modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)
             .horizontalSwipeNavigation(
@@ -217,7 +263,7 @@ fun ReportSingleResultScreen(
                 }
             )
         ) {
-            val rawBody = agent.responseBody
+            val rawBody = displayBody
             val errorMessage = agent.errorMessage
             when {
                 !errorMessage.isNullOrBlank() -> {
