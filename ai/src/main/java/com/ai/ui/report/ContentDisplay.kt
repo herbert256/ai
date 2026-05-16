@@ -240,8 +240,18 @@ private fun ReportsViewerScreenLoaded(
     // Single-section variants: just the prompt, or just the cost table — no agent picker,
     // no per-agent body. These come from the View row's Prompt / Costs buttons.
     if (initialSection == "prompt" || initialSection == "costs") {
+        // Layered overlay: tapping "All API calls" inside the Cost
+        // view opens the per-call drill-in screen. Leave the Cost
+        // view's flag (initialSection) intact and gate render on
+        // !showAllApi so Android back returns to Costs, not the
+        // View tile screen. See feedback_overlay_back_stack.md.
+        var showAllApi by rememberSaveable { mutableStateOf(false) }
+        if (initialSection == "costs" && showAllApi) {
+            ReportApiCallsScreen(report = report, onBack = { showAllApi = false })
+            return
+        }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            val title = if (initialSection == "prompt") "Prompt" else "Cost summary"
+            val title = if (initialSection == "prompt") "Prompt" else "Report - costs"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
             // Resolve the prompt text up front so the title-bar 📋
             // icon and the body Text below render the same string.
@@ -286,7 +296,7 @@ private fun ReportsViewerScreenLoaded(
                     if (!hasAgentCosts && !hasSecondaryCostsState.value) {
                         Text("(no usage recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {
-                        ReportCostTable(report = report)
+                        ReportCostTable(report = report, onShowAllApi = { showAllApi = true })
                     }
                 }
             }
@@ -656,8 +666,21 @@ private fun OnePageReportView(
 
 // ===== Cost Table =====
 
+internal data class ReportCostData(
+    val rows: List<CostRow>,
+    val byType: List<GroupTotal>,
+    val byModel: List<GroupTotal>,
+    val totalInC: Double,
+    val totalOutC: Double,
+    val deletedCents: Double,
+)
+
+/** Loads + groups every call recorded against [report] (agents +
+ *  secondaries + icon-gen + fan-out / fan-in icon chain). Returns
+ *  null when no usage has been recorded — caller renders an empty
+ *  state. Shared by [ReportCostTable] and [ReportApiCallsScreen]. */
 @Composable
-fun ReportCostTable(report: Report) {
+internal fun rememberReportCostData(report: Report): ReportCostData? {
     val context = LocalContext.current
     val agentsWithCosts = remember(report) {
         report.agents.filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
@@ -668,10 +691,7 @@ fun ReportCostTable(report: Report) {
     val secondary = secondaryState.value
     val hasIconCost = report.iconInputCost > 0.0 || report.iconOutputCost > 0.0
     val hasIconCalls = report.iconCalls.isNotEmpty()
-    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls) return
-
-    // CostRow + GroupTotal moved to top-level (below) so the
-    // out-of-fn card renderers can reference them.
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls) return null
 
     val agentRows = agentsWithCosts.map { agent ->
         val providerEnum = AppService.findById(agent.provider)
@@ -736,8 +756,7 @@ fun ReportCostTable(report: Report) {
         )
     }
     // Rerank / summarize call costs end up alongside the report rows so the
-    // user sees one consolidated breakdown \u2014 distinguished by the new Type
-    // column.
+    // user sees one consolidated breakdown \u2014 distinguished by the Type column.
     val secondaryRows = secondary.mapNotNull { s ->
         val tu = s.tokenUsage ?: return@mapNotNull null
         val providerEnum = AppService.findById(s.providerId)
@@ -794,55 +813,61 @@ fun ReportCostTable(report: Report) {
     val byType = groupByType()
     val byModel = groupByModel()
 
-    var totalIn = 0; var totalOut = 0; var totalInC = 0.0; var totalOutC = 0.0
-    rows.forEach { totalIn += it.inputTokens; totalOut += it.outputTokens; totalInC += it.inputCents; totalOutC += it.outputCents }
+    var totalInC = 0.0; var totalOutC = 0.0
+    rows.forEach { totalInC += it.inputCents; totalOutC += it.outputCents }
     // Costs the user dropped from the report via Delete actions —
-    // surfaces as its own row above each Total, same pattern as
+    // surfaces as its own row above the Total, same pattern as
     // the result-page footer + the HTML export's cost view.
     val deletedCents = report.costsFromDeletedItems * 100
 
-    fun fmtC(v: Double) = "%.2f".format(v)
-    fun fmtS(ms: Long?) = if (ms != null) "%.1f".format(ms / 1000.0) else ""
-    fun fmtT(n: Int) = "%,d".format(n)
+    return ReportCostData(rows, byType, byModel, totalInC, totalOutC, deletedCents)
+}
 
+@Composable
+fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
+    val data = rememberReportCostData(report) ?: return
     val tColor = AppColors.Blue
     var popup by remember { mutableStateOf<CostPopup?>(null) }
 
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Three sortable lists. One line per row; tap = full
-        // breakdown in a dialog. Only "By type" carries the bold
-        // grand-totals row (and the deleted-items orange line) so
-        // we don't triple-count across the three sections.
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // Two sortable lists. One line per row; tap = full breakdown
+        // in a dialog. "By type" carries the bold grand-totals row
+        // (and the deleted-items orange line) so we don't double-
+        // count across the two sections. Per-call detail lives on a
+        // dedicated screen reached via the button below.
         CostRowSection(
             label = "By type",
-            rows = byType,
-            columnLabels = listOf("Type", "Calls", "Total"),
-            columnWeights = listOf(2f, 1f, 1f),
+            rows = data.byType,
+            columnLabels = listOf("Type", "Calls", "Tokens", "Total"),
+            columnWeights = listOf(1.7f, 0.8f, 1.3f, 1.2f),
             keyExtractors = listOf(
                 { (it as GroupTotal).key },
                 { (it as GroupTotal).calls },
+                { (it as GroupTotal).let { g -> g.inputTokens + g.outputTokens } },
                 { (it as GroupTotal).let { g -> g.inputCents + g.outputCents } },
             ),
             renderCells = { g ->
                 listOf(
-                    CostCell(g.key, costTypeColor(g.key), mono = false, end = false, weight = 2f),
-                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 1f),
-                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
+                    CostCell(g.key, costTypeColor(g.key), mono = false, end = false, weight = 1.7f),
+                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 0.8f),
+                    CostCell("%,d".format(g.inputTokens + g.outputTokens), Color.White, mono = true, end = true, weight = 1.3f),
+                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1.2f),
                 )
             },
             onRowTap = { g -> popup = CostPopup.TypeGroup(g) },
-            defaultSortColumn = 2,
+            defaultSortColumn = 3,
             defaultSortDescending = true,
             totalsCells = listOf(
-                CostCell("Total", tColor, mono = false, end = false, weight = 2f, bold = true),
-                CostCell(rows.size.toString(), tColor, mono = true, end = true, weight = 1f, bold = true),
-                CostCell("%.2f ¢".format(totalInC + totalOutC + deletedCents), tColor, mono = true, end = true, weight = 1f, bold = true),
+                CostCell("Total", tColor, mono = false, end = false, weight = 1.7f, bold = true),
+                CostCell(data.rows.size.toString(), tColor, mono = true, end = true, weight = 0.8f, bold = true),
+                CostCell("%,d".format(data.rows.sumOf { it.inputTokens + it.outputTokens }), tColor, mono = true, end = true, weight = 1.3f, bold = true),
+                CostCell("%.2f ¢".format(data.totalInC + data.totalOutC + data.deletedCents), tColor, mono = true, end = true, weight = 1.2f, bold = true),
             ),
-            deletedCents = deletedCents,
+            deletedCents = data.deletedCents,
         )
         CostRowSection(
             label = "By model",
-            rows = byModel,
+            rows = data.byModel,
             columnLabels = listOf("Model", "Calls", "Total"),
             columnWeights = listOf(2f, 1f, 1f),
             keyExtractors = listOf(
@@ -861,30 +886,63 @@ fun ReportCostTable(report: Report) {
             defaultSortColumn = 2,
             defaultSortDescending = true,
         )
-        CostRowSection(
-            label = "All calls",
-            rows = rows,
-            columnLabels = listOf("Type", "Model", "Cost"),
-            columnWeights = listOf(1f, 2f, 1f),
-            keyExtractors = listOf(
-                { (it as CostRow).type },
-                { com.ai.ui.shared.shortModelName((it as CostRow).model) },
-                { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
-            ),
-            renderCells = { r ->
-                listOf(
-                    CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
-                    CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
-                    CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
-                )
-            },
-            onRowTap = { r -> popup = CostPopup.Call(r) },
-            defaultSortColumn = 2,
-            defaultSortDescending = true,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedButton(
+            onClick = onShowAllApi,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("All API calls (${data.rows.size})", color = AppColors.Blue, fontSize = 14.sp)
+        }
     }
 
+    popup?.let { p -> CostDetailDialog(p, onDismiss = { popup = null }) }
+}
+
+/** Full-screen drill-in opened from the cost view's "All API calls"
+ *  button. Renders every single call (agents + secondaries + icon-gen
+ *  + fan-out / fan-in) as one sortable list, tap-to-detail. */
+@Composable
+fun ReportApiCallsScreen(report: Report, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val data = rememberReportCostData(report)
+    val tColor = AppColors.Blue
+    var popup by remember { mutableStateOf<CostPopup?>(null) }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TitleBar(
+            helpTopic = "cost_view",
+            title = "Report - API",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            onBackClick = onBack,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
+        )
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
+            if (data == null || data.rows.isEmpty()) {
+                Text("(no API calls recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
+            } else {
+                CostRowSection(
+                    label = "All API calls",
+                    rows = data.rows,
+                    columnLabels = listOf("Type", "Model", "Cost"),
+                    columnWeights = listOf(1f, 2f, 1f),
+                    keyExtractors = listOf(
+                        { (it as CostRow).type },
+                        { com.ai.ui.shared.shortModelName((it as CostRow).model) },
+                        { (it as CostRow).let { r -> r.inputCents + r.outputCents } },
+                    ),
+                    renderCells = { r ->
+                        listOf(
+                            CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
+                            CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
+                            CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
+                        )
+                    },
+                    onRowTap = { r -> popup = CostPopup.Call(r) },
+                    defaultSortColumn = 2,
+                    defaultSortDescending = true,
+                )
+            }
+        }
+    }
     popup?.let { p -> CostDetailDialog(p, onDismiss = { popup = null }) }
 }
 
@@ -966,10 +1024,10 @@ private fun <T> CostRowSection(
         Text(
             "$label · ${rows.size}",
             fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 4.dp)
+            modifier = Modifier.padding(bottom = 2.dp)
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             columnLabels.forEachIndexed { i, lbl ->
@@ -988,7 +1046,7 @@ private fun <T> CostRowSection(
                             if (sortColumn == i) sortDescending = !sortDescending
                             else { sortColumn = i; sortDescending = true }
                         }
-                        .padding(vertical = 4.dp)
+                        .padding(vertical = 3.dp)
                 )
             }
         }
@@ -997,7 +1055,7 @@ private fun <T> CostRowSection(
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable { onRowTap(item) }
-                    .padding(vertical = 6.dp),
+                    .padding(vertical = 3.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 renderCells(item).forEach { c -> CostCellText(c) }
@@ -1010,27 +1068,28 @@ private fun <T> CostRowSection(
             HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.25f))
             if (deletedCents > 0.0) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "deleted",
                         fontSize = 11.sp, color = AppColors.Orange,
                         fontStyle = FontStyle.Italic,
-                        modifier = Modifier.weight(columnWeights[0])
+                        modifier = Modifier.weight(columnWeights.first())
                     )
-                    Spacer(modifier = Modifier.weight(columnWeights[1]))
+                    val middleSum = columnWeights.drop(1).dropLast(1).sum()
+                    if (middleSum > 0f) Spacer(modifier = Modifier.weight(middleSum))
                     Text(
                         "+%.2f ¢".format(deletedCents),
                         fontSize = 11.sp, color = AppColors.Orange,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                        modifier = Modifier.weight(columnWeights[2])
+                        modifier = Modifier.weight(columnWeights.last())
                     )
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 totalsCells.forEach { c -> CostCellText(c) }
