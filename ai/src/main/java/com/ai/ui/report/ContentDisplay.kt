@@ -106,6 +106,11 @@ internal fun LanguagePickerRow(
     languages: List<LangTab>,
     selectedKey: String,
     onSelect: (String) -> Unit,
+    /** When true, each non-Original tab renders the cached
+     *  `translation_icon` emoji for its language instead of the
+     *  English name (falls back to the name when no cached emoji
+     *  exists). Original always renders as plain text. */
+    useIcons: Boolean = false,
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
 ) {
     if (languages.size <= 1) return
@@ -117,18 +122,29 @@ internal fun LanguagePickerRow(
     ) {
         languages.forEach { lang ->
             val isSelected = lang.key == selectedKey
+            val emoji = if (useIcons && lang.key != LangTab.ORIGINAL_KEY) {
+                com.ai.data.InternalPromptIconCache.get("translation_icon", lang.displayName)
+            } else null
             Button(
                 onClick = { onSelect(lang.key) },
                 colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Green else Color(0xFF3A3A4A)),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 36.dp)
             ) {
-                Text(
-                    lang.displayName,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1, softWrap = false
-                )
+                if (emoji != null) {
+                    Text(
+                        emoji,
+                        fontSize = 18.sp,
+                        maxLines = 1, softWrap = false
+                    )
+                } else {
+                    Text(
+                        lang.displayName,
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1, softWrap = false
+                    )
+                }
             }
         }
     }
@@ -289,7 +305,7 @@ private fun ReportsViewerScreenLoaded(
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
             if (initialSection == "prompt") {
-                LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
+                LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it }, useIcons = true)
             }
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 if (initialSection == "prompt") {
