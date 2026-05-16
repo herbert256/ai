@@ -2445,7 +2445,7 @@ fun ReportsScreen(
         // subject left + "AI Report" right (no separator); HARDCODED
         // keeps just the static label and shows the green line below.
         val promptTitle = uiState.genericPromptTitle
-        val barTitle = if (!isGenerating) "AI Report — Models" else "AI Report"
+        val barTitle = if (!isGenerating) "AI Report — Models" else "AI Report - manage"
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,

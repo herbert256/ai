@@ -138,7 +138,7 @@ internal fun ViewAiReportScreen(
     ) {
         TitleBar(
             helpTopic = "view_ai_report",
-            title = "View AI Report",
+            title = "AI Report - view",
             reportIcon = reportIcon,
             onBackClick = onBack
         )
