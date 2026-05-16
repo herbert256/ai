@@ -6058,7 +6058,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  TRANSLATE row's content) instead of always from Original.
          *  Null preserves the original behavior for the failed-
          *  restart and start-missing callers. */
-        sourceTextOverrides: Map<Pair<String, String>, String>? = null
+        sourceTextOverrides: Map<Pair<String, String>, String>? = null,
+        /** Optional model set to use when the existing target-run
+         *  rows yield no usable (provider, model) tuples — which
+         *  happens when [translateMissingItems] bootstraps a brand-
+         *  new run from blank-provider placeholders. The caller
+         *  picks the models (typically from another existing
+         *  translation run on the same report). Falls back to the
+         *  per-run derivation when null. */
+        modelsOverride: List<Pair<AppService, String>>? = null
     ) {
         if (targetKindPairs.isEmpty()) return
         val translateRows = SecondaryResultStorage
@@ -6077,6 +6085,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val runModels: List<Pair<AppService, String>> = translateRows
             .mapNotNull { r -> AppService.findById(r.providerId)?.let { it to r.model } }
             .distinct()
+            .ifEmpty { modelsOverride ?: emptyList() }
         if (runModels.isEmpty()) return
         // Index BEFORE deletion so a restart-failed flow can read
         // back each failed row's original (provider, model) and
@@ -6415,12 +6424,35 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         if (items.isEmpty()) return null
         return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-            val runId = allSecondaries
+            val existingRunId = allSecondaries
                 .firstOrNull { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == targetLanguageName }
                 ?.let { translationRunGroupingId(it) }
-            if (runId == null) {
-                AppLog.w("Translate-missing", "No existing translation run for $targetLanguageName — skipping ${items.size} item(s)")
-                return@launch
+            // Bootstrap a new run when the target language has none.
+            // This is the "back-translation to Original" case: the
+            // user picked Original on the View screen for a META
+            // they only have in a non-Original language, and the
+            // helper translates into report.languageName which has
+            // no prior run yet. Reuse models from any existing
+            // translation row on the report so the new run inherits
+            // the user's already-trusted translation model choice.
+            val runId: String
+            val modelsOverride: List<Pair<AppService, String>>?
+            if (existingRunId != null) {
+                runId = existingRunId
+                modelsOverride = null
+            } else {
+                val sampleRows = allSecondaries.filter {
+                    it.kind == SecondaryKind.TRANSLATE && it.providerId.isNotBlank()
+                }
+                val mods = sampleRows.mapNotNull { r ->
+                    AppService.findById(r.providerId)?.let { it to r.model }
+                }.distinct()
+                if (mods.isEmpty()) {
+                    AppLog.w("Translate-missing", "No existing translation run for $targetLanguageName and no model to bootstrap from — skipping ${items.size} item(s)")
+                    return@launch
+                }
+                runId = java.util.UUID.randomUUID().toString()
+                modelsOverride = mods
             }
 
             // Persist placeholder TRANSLATE rows — same pattern as
@@ -6450,23 +6482,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             // Reopen the run so the live row reverts to ⏳ while the
             // new items dispatch. Rebuild from disk if the run was
-            // evicted from memory after the original finished.
-            if (_translationRuns.value[runId] != null) {
-                _translationRuns.update { runs ->
-                    val c = runs[runId] ?: return@update runs
-                    runs + (runId to c.copy(finished = false))
+            // evicted from memory after the original finished. For
+            // a brand-new (bootstrapped) run we let
+            // runTranslationSubset seed _translationRuns on first
+            // touch — no pre-flip needed.
+            if (existingRunId != null) {
+                if (_translationRuns.value[runId] != null) {
+                    _translationRuns.update { runs ->
+                        val c = runs[runId] ?: return@update runs
+                        runs + (runId to c.copy(finished = false))
+                    }
+                } else {
+                    val rebuilt = buildPersistedTranslationRunState(context, reportId, runId) ?: run {
+                        AppLog.w("Translate-missing", "Could not rebuild persisted state for run $runId — aborting")
+                        return@launch
+                    }
+                    _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
                 }
-            } else {
-                val rebuilt = buildPersistedTranslationRunState(context, reportId, runId) ?: run {
-                    AppLog.w("Translate-missing", "Could not rebuild persisted state for run $runId — aborting")
-                    return@launch
-                }
-                _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
             }
 
             // Dispatch via runTranslationSubset with per-item source
             // overrides — passes our caller-resolved sourceText
-            // instead of the default Original-derivation.
+            // instead of the default Original-derivation. Pass the
+            // model set for the bootstrapped-new-run case so the
+            // subset helper has something to round-robin items over.
             val pairs = items.map { it.targetId to it.sourceKind }
             val overrides: Map<Pair<String, String>, String> = items.associate {
                 (it.sourceKind to it.targetId) to it.sourceText
@@ -6477,7 +6516,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 runId = runId,
                 targetKindPairs = pairs,
                 deleteRowIds = emptyList(),
-                sourceTextOverrides = overrides
+                sourceTextOverrides = overrides,
+                modelsOverride = modelsOverride
             )
 
             _translationRuns.update { runs ->

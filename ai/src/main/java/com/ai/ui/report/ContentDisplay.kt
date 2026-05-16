@@ -225,13 +225,20 @@ private fun PickerStyleSwitch(
  *  that resolves to "(no content)". */
 internal fun buildLangTabs(
     translates: List<SecondaryResult>,
-    includeOriginal: Boolean = true
+    includeOriginal: Boolean = true,
+    /** Display name of the report's detected source language (e.g.
+     *  "English"). When non-null, TRANSLATE rows whose
+     *  `targetLanguage` matches this string fold into the Original
+     *  tab instead of getting their own duplicate tab — they're
+     *  back-translations TO the report's own source language. */
+    originalAlias: String? = null
 ): List<LangTab> {
     val out = mutableListOf<LangTab>()
     if (includeOriginal) out += LangTab(LangTab.ORIGINAL_KEY, "Original", null)
     val seen = LinkedHashMap<String, String?>()
     translates.forEach { t ->
         val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: return@forEach
+        if (originalAlias != null && lang == originalAlias) return@forEach
         if (lang !in seen) seen[lang] = t.targetLanguageNative
     }
     seen.forEach { (lang, native) ->

@@ -1136,6 +1136,7 @@ fun ReportsScreen(
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,
+            reportLanguageName = languageName,
             onDeleteSecondaryRowById = onDeleteSecondaryWithRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
             onShowAdvancedParametersChange = { showAdvancedParameters = it },
@@ -2665,6 +2666,12 @@ private fun ReportPrimaryOverlays(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
+    /** Detected source-language display name (e.g. "English") from
+     *  the report. Threaded into buildEveryItems so a META back-
+     *  translation TO this language counts toward the meta tile's
+     *  Original-language availability. Null when language detection
+     *  hasn't run yet — the fold then no-ops. */
+    reportLanguageName: String?,
     /** Per-SecondaryResult-id deletion used by the multi-language
      *  delete popup's "Active language only" branch on
      *  ReportSingleResultScreen. Wired to onDeleteSecondaryWithRefresh
@@ -2703,7 +2710,7 @@ private fun ReportPrimaryOverlays(
         && openTranslationRunId == null
         && listKind == null
     ) {
-        val viewEveryItems = remember(secondaryRuns, aiSettings) {
+        val viewEveryItems = remember(secondaryRuns, aiSettings, reportLanguageName) {
             buildEveryItems(
                 secondaryRuns, aiSettings,
                 onOpenSecondaryRun = { id, lang ->
@@ -2714,7 +2721,8 @@ private fun ReportPrimaryOverlays(
                     onListLockedLanguageChange(lang)
                     onListTargetChange(kind, name, false)
                 },
-                onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) }
+                onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) },
+                reportLanguageName = reportLanguageName
             )
         }
         val moderationFlagged = remember(secondaryRuns) {

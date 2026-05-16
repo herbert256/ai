@@ -179,7 +179,16 @@ internal fun ViewAiReportScreen(
     val translates = translatesState.value.list
     val loadedReport = translatesState.value.report
     val originalLanguageIcon = loadedReport?.languageIcon
-    val viewLangTabs = remember(translates) { buildLangTabs(translates) }
+    // The report's detected source-language display name (e.g.
+    // "English"). TRANSLATE rows tagged with this language are
+    // back-translations TO Original — they fold into the Original
+    // tab in the picker and into the "" bucket of per-tile
+    // availability. Null when language detection didn't run yet
+    // (older reports); the fold then no-ops.
+    val reportLanguageName = loadedReport?.languageName?.takeIf { it.isNotBlank() }
+    val viewLangTabs = remember(translates, reportLanguageName) {
+        buildLangTabs(translates, originalAlias = reportLanguageName)
+    }
 
     // Per-kind availability sets. "" = Original (always available;
     // the source prompt / agent responses always exist). Other
@@ -320,14 +329,29 @@ internal fun ViewAiReportScreen(
     // pointing back at the meta in the chosen source).
     fun openMetaMissing(item: EveryItem) {
         val target = currentLanguageState.value ?: ""
-        if (target.isEmpty()) return
+        // When the View picker is on Original we translate INTO the
+        // report's detected source language (e.g. "English"). That
+        // back-translation lands as a normal TRANSLATE row tagged
+        // with reportLanguageName; the View + Detail screens fold
+        // that language back into the Original tab via
+        // buildLangTabs(originalAlias=...) and buildEveryItems'
+        // reportLanguageName fold. If language detection didn't run
+        // there's no sensible Original-as-target to translate into —
+        // skip silently.
+        val effectiveTarget = if (target.isEmpty()) {
+            reportLanguageName ?: return
+        } else target
+        val effectiveTargetNative = nativeNameForLang(effectiveTarget)
         val avail = item.availableLanguages ?: return
         val rows = item.sourceRows ?: return
-        val sourceLangs = avail.filter { it != target }
+        // Source list excludes the active target ("" → reportLanguageName).
+        // Also drop "" itself since for an item that's grayed on
+        // Original there's no Original content to use as source.
+        val sourceLangs = avail.filter { it.isNotEmpty() && it != effectiveTarget }
         missingPopup = MissingPopupCtx(
             tileLabel = item.label,
-            targetLanguageName = target,
-            targetLanguageNative = nativeNameForLang(target),
+            targetLanguageName = effectiveTarget,
+            targetLanguageNative = effectiveTargetNative,
             sources = sourceLangs.map { sourceOption(it) },
             onPick = { src ->
                 val items = rows.mapNotNull { meta ->
@@ -353,7 +377,7 @@ internal fun ViewAiReportScreen(
                     )
                 }
                 if (items.isNotEmpty()) {
-                    onTranslateMissingItems(items, target, nativeNameForLang(target))
+                    onTranslateMissingItems(items, effectiveTarget, effectiveTargetNative)
                 }
             }
         )

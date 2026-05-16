@@ -84,7 +84,14 @@ internal fun buildEveryItems(
     aiSettings: com.ai.model.Settings,
     onOpenSecondaryRun: (String, String?) -> Unit,
     onViewSecondaryName: (String, SecondaryKind, String?) -> Unit,
-    onOpenTranslationRun: (String) -> Unit
+    onOpenTranslationRun: (String) -> Unit,
+    /** Display name of the report's detected source language (e.g.
+     *  "English"). When non-null, any META row whose
+     *  `targetLanguage` matches this — or a META TRANSLATE row
+     *  whose `targetLanguage` matches — counts as Original ("")
+     *  for the per-tile availability check. Lets a back-translation
+     *  populate the Original tab so the meta tile un-grays. */
+    reportLanguageName: String? = null
 ): Map<String, List<EveryItem>> {
     val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
     val promptByName = aiSettings.internalPrompts.associateBy { it.name }
@@ -120,11 +127,17 @@ internal fun buildEveryItems(
             val prompt = promptByName[name]
             // Available languages = union of own targetLanguage of
             // every row in the group (null → "" for Original) and
-            // every cross-translate language for those rows.
+            // every cross-translate language for those rows. A
+            // language matching reportLanguageName collapses to ""
+            // (back-translation) so the Original tab un-grays once
+            // the user has translated this meta back to the source.
+            fun fold(lang: String): String =
+                if (reportLanguageName != null && lang == reportLanguageName) "" else lang
             val langs = mutableSetOf<String>()
             rows.forEach { r ->
-                langs.add(r.targetLanguage?.takeIf { it.isNotBlank() } ?: "")
-                translateByMetaId[r.id]?.let { langs.addAll(it) }
+                val own = r.targetLanguage?.takeIf { it.isNotBlank() } ?: ""
+                langs.add(if (own.isEmpty()) "" else fold(own))
+                translateByMetaId[r.id]?.forEach { trLang -> langs.add(fold(trLang)) }
             }
             if (rows.size == 1) {
                 val row = rows.first()

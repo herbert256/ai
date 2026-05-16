@@ -2409,12 +2409,22 @@ internal fun SecondaryResultDetailScreen(
         }
     }
     val translates = translatesState.value
+    // Pull the parent report — needed both for the title bar icon
+    // below and so we can read languageName here to fold any
+    // back-translation rows into the Original tab.
+    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
+    }
+    val parentReport = parentReportState.value
+    val reportLanguageName = parentReport?.languageName?.takeIf { it.isNotBlank() }
     // Only show language tabs where THIS meta actually has content —
     // either the seed-language row itself (result.targetLanguage) or
     // a cross-translate TRANSLATE row pointing back at it. Include
-    // Original only when this meta was run in Original (otherwise
-    // the Original tab would resolve to "(no content)").
-    val langTabs = remember(translates, result.id, result.targetLanguage) {
+    // Original when this meta was run in Original OR a META TRANSLATE
+    // to reportLanguageName exists (back-translation). reportLanguageName
+    // also folds into Original via buildLangTabs's originalAlias so we
+    // don't show a duplicate "English" tab.
+    val langTabs = remember(translates, result.id, result.targetLanguage, reportLanguageName) {
         val mineTranslates = translates.filter {
             it.translateSourceKind == "META" && it.translateSourceTargetId == result.id
         }
@@ -2430,7 +2440,13 @@ internal fun SecondaryResultDetailScreen(
             )
         }
         val combined = if (seedTab != null) mineTranslates + seedTab else mineTranslates
-        buildLangTabs(combined, includeOriginal = result.targetLanguage.isNullOrBlank())
+        val hasOriginalContent = result.targetLanguage.isNullOrBlank() ||
+            (reportLanguageName != null && mineTranslates.any { it.targetLanguage == reportLanguageName })
+        buildLangTabs(
+            combined,
+            includeOriginal = hasOriginalContent,
+            originalAlias = reportLanguageName
+        )
     }
     // Default the picker to the tab matching the result's own
     // language so opening a French-seed META highlights "French"
@@ -2461,9 +2477,20 @@ internal fun SecondaryResultDetailScreen(
     // result's own language, find the TRANSLATE row that targets this
     // meta in the picked language. Non-META kinds (RERANK / MODERATION)
     // have no language variants — pass-through.
-    val activeTranslateRow: SecondaryResult? = remember(translates, selectedLangKey, result.id, activeLangName) {
+    val activeTranslateRow: SecondaryResult? = remember(translates, selectedLangKey, result.id, activeLangName, reportLanguageName) {
         if (result.kind != SecondaryKind.META) null
         else if (activeLangName == result.targetLanguage) null
+        else if (activeLangName == null) {
+            // Original tab selected. The result itself is in some
+            // non-Original language; look for a back-translation
+            // TRANSLATE row tagged with reportLanguageName.
+            if (reportLanguageName == null) null
+            else translates.firstOrNull {
+                it.translateSourceKind == "META" &&
+                    it.translateSourceTargetId == result.id &&
+                    it.targetLanguage == reportLanguageName
+            }
+        }
         else translates.firstOrNull {
             it.translateSourceKind == "META" &&
                 it.translateSourceTargetId == result.id &&
@@ -2482,12 +2509,8 @@ internal fun SecondaryResultDetailScreen(
     }
     val traceFilename = activeTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: baseTraceFilename
 
-    // Pull the parent report just for its emoji icon — the title bar
-    // prepends it for parity with every other report-scoped screen.
-    val parentReportState = produceState<com.ai.data.Report?>(initialValue = null, result.reportId) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, result.reportId) }
-    }
-    val parentReport = parentReportState.value
+    // (parentReport already loaded above so we could read languageName
+    // for the langTabs fold.)
 
     // Build the same id → "provider / model" map the @RESULTS@ block
     // used (success-ordered, 1-based) so the viewer can show real model
