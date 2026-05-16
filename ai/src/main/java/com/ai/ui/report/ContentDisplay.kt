@@ -326,7 +326,7 @@ private fun ReportsViewerScreenLoaded(
         // View tile screen. See feedback_overlay_back_stack.md.
         var showAllApi by rememberSaveable { mutableStateOf(false) }
         if (initialSection == "costs" && showAllApi) {
-            ReportApiCallsScreen(report = report, onBack = { showAllApi = false })
+            ReportApiCallsScreen(report = report, onBack = { showAllApi = false }, onNavigateToTraceFile = onNavigateToTraceFile)
             return
         }
         // Translation compare overlay for the Prompt section. Fires
@@ -1099,7 +1099,7 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
  *  button. Renders every single call (agents + secondaries + icon-gen
  *  + fan-out / fan-in) as one sortable list, tap-to-detail. */
 @Composable
-fun ReportApiCallsScreen(report: Report, onBack: () -> Unit) {
+fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFile: (String) -> Unit = {}) {
     BackHandler { onBack() }
     val data = rememberReportCostData(report)
     val tColor = AppColors.Blue
@@ -1187,7 +1187,17 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit) {
             }
         }
     }
-    popup?.let { p -> CostDetailDialog(p, onDismiss = { popup = null }) }
+    popup?.let { p ->
+        CostDetailDialog(
+            popup = p,
+            onDismiss = { popup = null },
+            onNavigateToTraceFile = { tf ->
+                popup = null
+                onNavigateToTraceFile(tf)
+            },
+            reportId = report.id
+        )
+    }
 }
 
 @Composable
@@ -1404,7 +1414,12 @@ private fun RowScope.CostCellText(c: CostCell) {
 }
 
 @Composable
-private fun CostDetailDialog(popup: CostPopup, onDismiss: () -> Unit) {
+private fun CostDetailDialog(
+    popup: CostPopup,
+    onDismiss: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit = {},
+    reportId: String? = null
+) {
     val titleText: String
     val titleColor: Color
     val titleMono: Boolean
@@ -1429,17 +1444,41 @@ private fun CostDetailDialog(popup: CostPopup, onDismiss: () -> Unit) {
             body = buildCallBody(popup.r)
         }
     }
+    // 🐞 for per-call popups: find the trace file matching this call's
+    // (reportId, model). When multiple match (e.g. multiple fan-out
+    // pairs on the same model) prefer the most recent — best-effort
+    // since CostRow doesn't carry a per-call trace id.
+    val traceFile: String? = if (popup is CostPopup.Call && reportId != null && ApiTracer.isTracingEnabled) {
+        remember(popup.r.model, reportId) {
+            ApiTracer.getTraceFiles()
+                .asSequence()
+                .filter { it.reportId == reportId && (it.model == popup.r.model || it.model == null) }
+                .maxByOrNull { it.timestamp }
+                ?.filename
+        }
+    } else null
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AppColors.CardBackground,
         title = {
-            Text(
-                titleText,
-                color = titleColor,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                fontFamily = if (titleMono) FontFamily.Monospace else FontFamily.Default,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    titleText,
+                    color = titleColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = if (titleMono) FontFamily.Monospace else FontFamily.Default,
+                    modifier = Modifier.weight(1f)
+                )
+                if (traceFile != null) {
+                    Text(
+                        "🐞", fontSize = 20.sp,
+                        modifier = Modifier
+                            .clickable { onNavigateToTraceFile(traceFile) }
+                            .padding(horizontal = 6.dp)
+                    )
+                }
+            }
         },
         text = {
             Text(
