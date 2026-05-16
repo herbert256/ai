@@ -313,6 +313,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val rapportText = userMatch?.groupValues?.get(1)?.trim() ?: state.externalOpenHtml
             val aiPrompt = if (userMatch != null) prompt.replace(userMatch.value, "").trim() else prompt
 
+            val runId = java.util.UUID.randomUUID().toString()
             val report = ReportStorage.createReportAsync(
                 context = context, title = title.ifBlank { "AI Report" },
                 prompt = aiPrompt, agents = reportTasks.map { it.reportAgent },
@@ -320,7 +321,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 imageBase64 = imageBase64, imageMime = imageMime,
                 webSearchTool = state.reportWebSearchTool,
                 reasoningEffort = state.reportReasoningEffort,
-                knowledgeBaseIds = state.attachedKnowledgeBaseIds
+                knowledgeBaseIds = state.attachedKnowledgeBaseIds,
+                runId = runId
             )
             val reportId = report.id
             val reportStartMs = System.currentTimeMillis()
@@ -330,7 +332,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // context element is applied here rather than at the
             // launch site (cf. reportLogContext used elsewhere).
             withContext(AppLog.currentLogId.asContextElement(reportId)) {
-            withTracerTags(reportId = reportId, category = "Report") {
+            withTracerTags(reportId = reportId, category = "Report", runId = runId) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
@@ -1746,6 +1748,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (existing.isActive) return existing
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        val iconRunId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             try {
                 val state = appViewModel.uiState.value
@@ -1798,7 +1801,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // per-pair coroutines read/write it concurrently.
                 val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
-                withTracerTags(reportId = reportId, category = "Fan-icons: ${metaPrompt.name}") {
+                withTracerTags(reportId = reportId, category = "Fan-icons: ${metaPrompt.name}", runId = iconRunId) {
                     coroutineScope {
                         interleaveByHost(pending) { p ->
                             AppService.findById(p.providerId)?.let { providerHost(it) }
@@ -2124,7 +2127,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         emoji: String, winningTier: Int?
     ) {
         SecondaryResultStorage.setFanOutIconAndTier(
-            context, reportId, pairId, emoji, winningTier
+            context, reportId, pairId, emoji, winningTier,
+            iconRunId = ApiTracer.currentRunId
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -2923,10 +2927,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val fanOutStartMs = System.currentTimeMillis()
+        val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val cat = "Report meta: ${metaPrompt.name}"
             try {
-                withTracerTags(reportId = reportId, category = cat) {
+                withTracerTags(reportId = reportId, category = cat, runId = runId) {
                     val state = appViewModel.uiState.value
                     val aiSettings = state.aiSettings
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -2976,7 +2981,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 it.copy(
                                     metaPromptId = metaPrompt.id,
                                     metaPromptName = metaPrompt.name,
-                                    fanOutSourceAgentId = source.agentId
+                                    fanOutSourceAgentId = source.agentId,
+                                    runId = runId
                                 )
                             }
                             pending.add(PendingPair(answerer, source, placeholder))
@@ -4871,7 +4877,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
             // translated copy to keep traces with.
-            withTracerTags(reportId = sourceReportId, category = "Translation") {
+            withTracerTags(reportId = sourceReportId, category = "Translation", runId = runId) {
                 coroutineScope {
                     distinctModels.map { (p, m) ->
                         val ctx = ctxByKey[p.id to m]
@@ -5268,7 +5274,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             translateSourceTargetId = srcTargetId,
             targetLanguage = run.targetLanguageName,
             targetLanguageNative = run.targetLanguageNative,
-            translationRunId = runId
+            translationRunId = runId,
+            runId = runId
         ))
     }
 
@@ -5767,7 +5774,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         try {
-            withTracerTags(reportId = sourceReportId, category = "Translation") {
+            withTracerTags(reportId = sourceReportId, category = "Translation", runId = runId) {
                 coroutineScope {
                     assignments.map { (item, ctx) ->
                         async {

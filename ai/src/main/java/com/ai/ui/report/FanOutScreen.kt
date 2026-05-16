@@ -114,6 +114,10 @@ data class FanOutActions(
     val onRunModelFanIn: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },
     val onCreateReportFromFanOut: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },
     val onNavigateToTraceFile: (String) -> Unit = {},
+    /** Open the trace list filtered to one batch's runId. Wired
+     *  on the L1 🐞 icon so the user can jump from a run overview
+     *  straight to the API calls that produced it. */
+    val onNavigateToTraceRunList: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     val onNavigateToInternalPromptEdit: (String) -> Unit = {},
     val onOpenSecondary: (String) -> Unit = {}                             // open arbitrary SecondaryResult detail

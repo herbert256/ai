@@ -116,6 +116,15 @@ internal fun FanOutL1Screen(
     fun benched(p: String?, m: String?): Boolean =
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
+    // 🐞 deep-link target: in ICONS mode the L1 spans the most
+    // recent fan-icons sweep on these pairs (iconRunId); in MAIN
+    // mode the run is the fan-out that created the rows (runId).
+    // First non-null wins so a sparse / legacy run still surfaces
+    // the icon for sibling rows that were stamped.
+    val l1RunId = if (isIconsMode)
+        run.pairs.values.firstNotNullOfOrNull { it.iconRunId }
+        else run.pairs.values.firstNotNullOfOrNull { it.runId }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
@@ -123,6 +132,8 @@ internal fun FanOutL1Screen(
             subject = subject,
             onBackClick = onBack,
             onReload = { confirmRerunComplete = true },
+            onTrace = if (l1RunId != null && com.ai.data.ApiTracer.isTracingEnabled)
+                { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
             onDelete = { confirmDelete = true }
         )
         com.ai.ui.shared.HardcodedSubjectRow(subject)

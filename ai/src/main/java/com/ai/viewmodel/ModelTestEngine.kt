@@ -202,6 +202,7 @@ class ModelTestEngine internal constructor(
         val stats = computeCatalogPartition(selectedProviderIds, aiSettings, items.keys)
         _run.value = ModelTestRunState(
             startedAt = System.currentTimeMillis(),
+            runId = java.util.UUID.randomUUID().toString(),
             items = items,
             catalogTotal = stats.total,
             inaccessibleAtStart = stats.inaccessible,
@@ -321,7 +322,7 @@ class ModelTestEngine internal constructor(
     private fun dispatch(context: Context, keys: List<ModelTestKey>) {
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             try {
-                withTracerTags(reportId = null, category = "Test all models") {
+                withTracerTags(reportId = null, category = "Test all models", runId = _run.value?.runId) {
                     _run.value?.let { ModelTestRunStore.save(context, it) }
                     if (keys.isEmpty()) return@withTracerTags
 

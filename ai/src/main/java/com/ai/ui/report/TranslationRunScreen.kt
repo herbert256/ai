@@ -90,6 +90,9 @@ data class TranslationActions(
     val onDeleteSecondaryRow: (reportId: String, rowId: String) -> Unit = { _, _ -> },
     val onNavigateToTraceFile: (String) -> Unit = {},
     val onNavigateToTraceList: () -> Unit = {},
+    /** Open the trace list filtered to one translation run's runId.
+     *  Wired on the L1 🐞 icon. */
+    val onNavigateToTraceRunList: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     val onNavigateHome: () -> Unit = {}
 )

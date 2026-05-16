@@ -58,7 +58,12 @@ fun TraceListScreen(
      *  render so a caller can land on a pre-filtered slice (the
      *  Translation run's Trace button opens the list pre-filtered
      *  to category="Translation"). */
-    initialCategory: String? = null
+    initialCategory: String? = null,
+    /** Run-id filter. When set, the list is scoped to traces that
+     *  carry this runId — every API call produced by one user-
+     *  launched batch (fan-out, fan-icons, translation, model-test,
+     *  report). Wired by the L1 🐞 icon on those screens. */
+    runIdFilter: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -79,9 +84,10 @@ fun TraceListScreen(
     // the cache. Kept on Dispatchers.IO so the cold load can't stall
     // the first open.
     var allTraceFiles by remember { mutableStateOf(emptyList<TraceFileInfo>()) }
-    LaunchedEffect(reportId, modelFilter) {
+    LaunchedEffect(reportId, modelFilter, runIdFilter) {
         allTraceFiles = withContext(Dispatchers.IO) {
             when {
+                runIdFilter != null -> ApiTracer.getTraceFilesForRun(runIdFilter)
                 reportId != null -> ApiTracer.getTraceFilesForReport(reportId)
                 modelFilter != null -> ApiTracer.getTraceFiles().filter { it.model == modelFilter }
                 else -> ApiTracer.getTraceFiles()
@@ -217,11 +223,12 @@ fun TraceListScreen(
         var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
             val subHeader = when {
+                runIdFilter != null -> "Run scope"
                 reportId != null -> "Report scope"
                 modelFilter != null -> modelFilter
                 else -> ""
             }
-            val canClear = reportId == null && modelFilter == null && allTraceFiles.isNotEmpty()
+            val canClear = reportId == null && modelFilter == null && runIdFilter == null && allTraceFiles.isNotEmpty()
             TitleBar(
                 helpTopic = "trace_list",
                 title = "API Traces",

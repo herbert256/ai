@@ -172,6 +172,9 @@ fun ReportsScreenNav(
      *  `search`. Wired by the report screen's View → Log button. */
     onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
+    /** Open the trace list pre-filtered to a single batch's
+     *  runId. Wired on the run-overview 🐞 icons. */
+    onNavigateToTraceRunList: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
@@ -381,6 +384,7 @@ fun ReportsScreenNav(
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToAppLog = onNavigateToAppLog,
         onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
+        onNavigateToTraceRunList = onNavigateToTraceRunList,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onRemoveAgent = { rid, aid -> reportViewModel.removeAgentFromReport(context, rid, aid) },
         onRegenerateAgent = { rid, aid -> reportViewModel.regenerateAgent(context, rid, aid) },
@@ -656,6 +660,7 @@ fun ReportsScreen(
     onNavigateToTraceFile: (String) -> Unit = {},
     onNavigateToAppLog: (filename: String, search: String) -> Unit = { _, _ -> },
     onNavigateToTraceListFiltered: (String, String) -> Unit = { _, _ -> },
+    onNavigateToTraceRunList: (String) -> Unit = {},
     onClearExternalInstructions: () -> Unit = {},
     onEditModels: (String) -> Unit = {},
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
@@ -2125,6 +2130,7 @@ fun ReportsScreen(
                     onDeleteSecondaryRow = { srcRid, resultId -> onDeleteSecondaryWithRefresh(srcRid, resultId) },
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
+                    onNavigateToTraceRunList = onNavigateToTraceRunList,
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     onNavigateHome = onNavigateHome
                 ),
@@ -2169,6 +2175,7 @@ fun ReportsScreen(
             onBulkDeleteSecondaries = onBulkDeleteSecondaries,
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToTraceRunList = onNavigateToTraceRunList,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
             onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory,
@@ -3315,6 +3322,7 @@ private fun SecondaryResultsListMount(
     onBulkDeleteSecondaries: (String, List<String>, () -> Unit) -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
+    onNavigateToTraceRunList: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onNavigateToInternalPromptEdit: (String) -> Unit,
     onNavigateToInternalPromptsByCategory: (String) -> Unit,
@@ -3404,6 +3412,7 @@ private fun SecondaryResultsListMount(
             onBack = { onSecondaryRefresh(); onCloseList() },
             onNavigateHome = onNavigateHome,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToTraceRunList = onNavigateToTraceRunList,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
             onResumeStaleFanOut = { mp -> onResumeStaleFanOut(rid, mp) },

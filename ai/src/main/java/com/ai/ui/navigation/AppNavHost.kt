@@ -399,6 +399,9 @@ fun AppNavHost(
                 onNavigateToTraceListFiltered = { rid, cat ->
                     navController.navigate(NavRoutes.traceListForReportCategory(rid, cat))
                 },
+                onNavigateToTraceRunList = { runId ->
+                    navController.navigate(NavRoutes.traceListForRun(runId))
+                },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToInternalPromptEdit = { id ->
                     navController.navigate(NavRoutes.settingsInternalPromptEdit(id))
@@ -884,6 +887,7 @@ fun AppNavHost(
             com.ai.ui.report.ModelTestScreen(
                 engine = reportViewModel.modelTestEngine,
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToTraceRunList = { runId -> navController.navigate(NavRoutes.traceListForRun(runId)) },
                 onNavigateToModelInfo = { svc, model ->
                     navController.navigate(NavRoutes.aiModelInfo(svc.id, model))
                 },
@@ -1098,6 +1102,14 @@ fun AppNavHost(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, modelFilter = model)
+        }
+        composable(NavRoutes.TRACE_LIST_FOR_RUN) { entry ->
+            val runId = try { java.net.URLDecoder.decode(entry.arguments?.getString("runId") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val uiState by appViewModel.uiState.collectAsState()
+            TraceListScreen(aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId)
         }
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""

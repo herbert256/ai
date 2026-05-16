@@ -93,6 +93,7 @@ internal fun SecondaryResultsScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
+    onNavigateToTraceRunList: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToInternalPromptEdit: (String) -> Unit = {},
     onResumeStaleFanOut: (com.ai.model.InternalPrompt) -> Unit = {},
@@ -546,6 +547,7 @@ internal fun SecondaryResultsScreen(
                 onRunModelFanIn = { _, prov, mdl -> onRunModelFanIn?.invoke(prov, mdl) },
                 onCreateReportFromFanOut = { _, prov, mdl -> onCreateReportFromFanOut?.invoke(prov, mdl) },
                 onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToTraceRunList = onNavigateToTraceRunList,
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
                 onOpenSecondary = { id -> openId = id }

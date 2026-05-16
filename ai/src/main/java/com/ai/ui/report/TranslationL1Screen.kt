@@ -145,7 +145,14 @@ internal fun TranslationL1Screen(
             subject = subject,
             onBackClick = onBack,
             onReload = { confirmReload = true },
-            onTrace = if (ApiTracer.isTracingEnabled) actions.onNavigateToTraceList else null,
+            // Prefer the run-scoped 🐞 (filter the trace list to
+            // exactly this translation run's runId); fall back to the
+            // legacy category filter for legacy runs whose row(s)
+            // don't carry a runId yet.
+            onTrace = if (ApiTracer.isTracingEnabled) ({
+                if (run.runId.isNotBlank()) actions.onNavigateToTraceRunList(run.runId)
+                else actions.onNavigateToTraceList()
+            }) else null,
             onDelete = { confirmDelete = true }
         )
         com.ai.ui.shared.HardcodedSubjectRow(subject)

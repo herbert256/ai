@@ -117,7 +117,20 @@ data class SecondaryResult(
     val iconInputTokens: Int = 0,
     val iconOutputTokens: Int = 0,
     val iconInputCost: Double = 0.0,
-    val iconOutputCost: Double = 0.0
+    val iconOutputCost: Double = 0.0,
+    /** UUID shared by every secondary result produced by a single
+     *  user-launched batch (fan-out, translation, ...). Lets the
+     *  run's L1 screen deep-link the 🐞 trace icon to a trace list
+     *  filtered to exactly this batch's API calls. Null on legacy
+     *  rows written before this field existed. */
+    val runId: String? = null,
+    /** UUID of the most recent fan-icons sweep that touched this
+     *  row. Stamped at icon commit time so the fan-icons L1 screen
+     *  can deep-link 🐞 to that sweep's traces independently from
+     *  the row's own [runId] (which records the fan-out that
+     *  created the row). Null when no icon sweep has run, or on
+     *  legacy rows. */
+    val iconRunId: String? = null
 )
 
 /**
@@ -366,7 +379,7 @@ object SecondaryResultStorage {
      *  when the row was deleted while the chain ran. */
     fun setFanOutIconAndTier(
         context: Context, reportId: String, resultId: String,
-        icon: String, winningTier: Int?
+        icon: String, winningTier: Int?, iconRunId: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -378,7 +391,8 @@ object SecondaryResultStorage {
             val updated = current.copy(
                 icon = icon,
                 iconWinningTier = winningTier,
-                iconErrorMessage = null
+                iconErrorMessage = null,
+                iconRunId = iconRunId ?: current.iconRunId
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

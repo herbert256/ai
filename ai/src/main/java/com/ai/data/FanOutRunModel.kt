@@ -78,7 +78,14 @@ data class PairState(
     val iconOutputCost: Double = 0.0,
     /** Error message from the last fan-icons attempt for this pair.
      *  Non-null only when every tier of the chain failed. */
-    val iconErrorMessage: String? = null
+    val iconErrorMessage: String? = null,
+    /** UUID of the batch that created this pair (the [runFanOutPrompt]
+     *  invocation). Null on legacy rows hydrated from disk before this
+     *  field existed. */
+    val runId: String? = null,
+    /** UUID of the most recent fan-icons sweep on this pair. Null
+     *  when no sweep has run, or on legacy rows. */
+    val iconRunId: String? = null
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     val totalCost: Double get() =
@@ -241,7 +248,9 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         iconWinningTier = iconWinningTier,
         iconInputCost = iconInputCost,
         iconOutputCost = iconOutputCost,
-        iconErrorMessage = iconErrorMessage
+        iconErrorMessage = iconErrorMessage,
+        runId = runId,
+        iconRunId = iconRunId
     )
 }
 

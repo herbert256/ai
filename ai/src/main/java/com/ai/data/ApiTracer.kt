@@ -32,6 +32,13 @@ data class ApiTrace(
      *  the API call runs. Null on traces written before the field
      *  existed or from sites that don't bracket their calls. */
     val category: String? = null,
+    /** Opaque id (UUID) shared by every trace produced by a single
+     *  user-launched batch — a fan-out, a fan-icons sweep, a
+     *  translation, a model-test, a report generation. Lets the L1
+     *  "🐞" icon on those screens deep-link the trace list to exactly
+     *  this batch's traces. Null on legacy traces and on call sites
+     *  that don't bracket their work with [withTracerTags]. */
+    val runId: String? = null,
     val request: TraceRequest, val response: TraceResponse,
     /** True while a streaming response is still being read — the trace
      *  was written speculatively before EOF/close so a process kill
@@ -43,6 +50,7 @@ data class ApiTrace(
 data class TraceFileInfo(
     val filename: String, val hostname: String, val timestamp: Long, val statusCode: Int,
     val reportId: String? = null, val model: String? = null, val category: String? = null,
+    val runId: String? = null,
     val partial: Boolean = false
 )
 
@@ -66,14 +74,15 @@ object ApiTracer {
      *  no longer race a process-wide @Volatile var — each gets its
      *  own ThreadLocal value, copied onto the dispatcher worker
      *  thread when the OkHttp Call's Runnable is submitted. */
-    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?)
-    @PublishedApi internal val currentTags: ThreadLocal<TraceTags> = ThreadLocal.withInitial { TraceTags(null, null) }
+    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?, val runId: String? = null)
+    @PublishedApi internal val currentTags: ThreadLocal<TraceTags> = ThreadLocal.withInitial { TraceTags(null, null, null) }
 
     /** Public accessors — kept for binding-compatibility with read
      *  sites; setters are intentionally absent so callers go through
      *  [withTracerTags]. */
     val currentReportId: String? get() = currentTags.get()?.reportId
     val currentCategory: String? get() = currentTags.get()?.category
+    val currentRunId: String? get() = currentTags.get()?.runId
 
     /** Filename of the most recent trace written on this thread.
      *  [TracingInterceptor] sets it right after persisting a trace;
@@ -168,7 +177,7 @@ object ApiTracer {
                     val info = TraceFileInfo(
                         resolvedFilename, trace.hostname, trace.timestamp,
                         trace.response.statusCode, trace.reportId, trace.model,
-                        trace.category, trace.partial
+                        trace.category, trace.runId, trace.partial
                     )
                     val next = if (isUpdate) {
                         // Streaming partial → final overwrite reuses the
@@ -234,6 +243,7 @@ object ApiTracer {
                 var reportId: String? = null
                 var model: String? = null
                 var category: String? = null
+                var runId: String? = null
                 var statusCode = 0
                 var partial = false
                 reader.beginObject()
@@ -244,6 +254,7 @@ object ApiTracer {
                         "reportId" -> reportId = readNullableString(reader)
                         "model" -> model = readNullableString(reader)
                         "category" -> category = readNullableString(reader)
+                        "runId" -> runId = readNullableString(reader)
                         "partial" -> partial = reader.nextBoolean()
                         "response" -> {
                             reader.beginObject()
@@ -257,7 +268,7 @@ object ApiTracer {
                     }
                 }
                 reader.endObject()
-                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category, partial)
+                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category, runId, partial)
             }
         } catch (_: Exception) { null }
     }
@@ -277,6 +288,8 @@ object ApiTracer {
     }
 
     fun getTraceFilesForReport(reportId: String) = getTraceFiles().filter { it.reportId == reportId }
+
+    fun getTraceFilesForRun(runId: String) = getTraceFiles().filter { it.runId == runId }
 
     fun readTraceFile(filename: String): ApiTrace? = lock.withLock {
         val file = File(traceDir ?: return null, filename)
@@ -414,6 +427,7 @@ class TracingInterceptor : Interceptor {
         // (or no) tags.
         val capturedReportId = ApiTracer.currentReportId
         val capturedCategory = ApiTracer.currentCategory
+        val capturedRunId = ApiTracer.currentRunId
 
         // Wrap chain.proceed so a pre-response network failure still
         // produces a visible trace instead of silently disappearing.
@@ -431,8 +445,9 @@ class TracingInterceptor : Interceptor {
             AppLog.w(tag, "✗ $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)")
             ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
-                traceRequest,
-                TraceResponse(
+                runId = capturedRunId,
+                request = traceRequest,
+                response = TraceResponse(
                     statusCode = 0,
                     headers = emptyMap(),
                     body = "[network failure] ${e.javaClass.simpleName}: ${e.message ?: ""}"
@@ -450,7 +465,8 @@ class TracingInterceptor : Interceptor {
         fun saveWith(body: String?, partial: Boolean = false, filename: String? = null): String? {
             val fn = ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
-                traceRequest, TraceResponse(response.code, responseHeaders, body),
+                runId = capturedRunId,
+                request = traceRequest, response = TraceResponse(response.code, responseHeaders, body),
                 partial = partial
             ), filename = filename)
             // Expose the just-written trace to the outer
@@ -1480,7 +1496,7 @@ class TestCallTimeoutInterceptor : Interceptor {
  *  [withTracerTags]. */
 suspend fun <R> withTraceCategory(category: String, block: suspend () -> R): R {
     val tl = ApiTracer.currentTags
-    val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
+    val previous = tl.get() ?: ApiTracer.TraceTags(null, null, null)
     val newTags = previous.copy(category = category)
     return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
         block()
@@ -1527,13 +1543,15 @@ suspend fun <R> withTraceFilenameSink(
 suspend fun <R> withTracerTags(
     reportId: String? = null,
     category: String? = null,
+    runId: String? = null,
     block: suspend () -> R
 ): R {
     val tl = ApiTracer.currentTags
-    val previous = tl.get() ?: ApiTracer.TraceTags(null, null)
+    val previous = tl.get() ?: ApiTracer.TraceTags(null, null, null)
     val newTags = ApiTracer.TraceTags(
         reportId = reportId ?: previous.reportId,
-        category = category ?: previous.category
+        category = category ?: previous.category,
+        runId = runId ?: previous.runId
     )
     return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
         block()

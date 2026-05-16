@@ -57,6 +57,11 @@ data class ModelTestState(
  *  [FanOutRunState] so the L1 stats panel maps 1:1. */
 data class ModelTestRunState(
     val startedAt: Long = System.currentTimeMillis(),
+    /** UUID shared by every API trace produced during this Test all
+     *  models run — the L1 🐞 icon deep-links the trace list to this
+     *  id so the user sees only the calls this run made. Null on
+     *  states persisted before this field existed. */
+    val runId: String? = null,
     /** Keyed by [ModelTestKey] for O(1) lookup. */
     val items: Map<ModelTestKey, ModelTestState> = emptyMap(),
     /** Catalog snapshot captured at [com.ai.viewmodel.ModelTestEngine.startRun]

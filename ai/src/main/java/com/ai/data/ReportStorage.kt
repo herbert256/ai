@@ -162,7 +162,13 @@ data class Report(
      *  every tier appends one [IconCallRecord]. The export's per-
      *  call All-tab pulls from this list so every attempt (failed
      *  earlier tiers + the one that won) surfaces as its own row. */
-    var iconCalls: MutableList<IconCallRecord> = mutableListOf()
+    var iconCalls: MutableList<IconCallRecord> = mutableListOf(),
+    /** UUID shared by every API trace produced during the initial
+     *  generation of this report — the L1 🐞 icon in the title bar
+     *  deep-links the trace list to this id so the user sees only
+     *  the calls this report's run made. Null on reports persisted
+     *  before this field existed. */
+    var runId: String? = null
 )
 
 /**
@@ -197,14 +203,15 @@ object ReportStorage {
         // report id and don't surface on either report's trace screen.
         explicitId: String? = null,
         sourceReportId: String? = null,
-        knowledgeBaseIds: List<String> = emptyList()
+        knowledgeBaseIds: List<String> = emptyList(),
+        runId: String? = null
     ): Report {
         init(context)
         val report = Report(explicitId ?: UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
             agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
             reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
-            knowledgeBaseIds = knowledgeBaseIds)
+            knowledgeBaseIds = knowledgeBaseIds, runId = runId)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -293,8 +300,9 @@ object ReportStorage {
         reasoningEffort: String? = null,
         explicitId: String? = null,
         sourceReportId: String? = null,
-        knowledgeBaseIds: List<String> = emptyList()
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds) }
+        knowledgeBaseIds: List<String> = emptyList(),
+        runId: String? = null
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds, runId) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }
