@@ -218,10 +218,21 @@ internal fun SecondaryResultsScreen(
             .collect { throttledTick = it }
     }
     LaunchedEffect(reportId, isBatching) {
-        if (!isBatching) return@LaunchedEffect
-        while (true) {
-            throttledTick++
-            delay(500)
+        if (isBatching) {
+            while (true) {
+                throttledTick++
+                delay(500)
+            }
+        } else {
+            // Trailing tail — the very last pairs of a batch often
+            // commit their disk writes a few hundred ms AFTER
+            // isBatching has flipped false. Poll 4 more times so the
+            // L1 stats catch those stragglers instead of leaving them
+            // stuck in "Queued".
+            repeat(4) {
+                delay(500)
+                throttledTick++
+            }
         }
     }
     // Single disk pass per throttledTick. Previously three separate
