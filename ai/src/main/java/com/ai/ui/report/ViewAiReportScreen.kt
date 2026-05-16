@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -14,11 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -145,48 +144,47 @@ internal fun ViewAiReportScreen(
         )
         HardcodedSubjectRow(promptTitle)
 
-        // Body in a single LazyColumn so the tile grid + the optional
-        // inline expansion can scroll together as one surface.
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth(),
+        // Body fills the remaining vertical space between the
+        // green subject row and the bottom icons bar — without
+        // weight(1f) the body would measure to content height
+        // and leave an empty gap below it on tall screens.
+        // verticalScroll is here as a safety net for very small
+        // displays / accessibility scaling; on a normal phone
+        // every tile fits without scrolling.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                SectionLabel("Documents")
-            }
-            item { TileGrid(docTiles) }
+            Spacer(modifier = Modifier.height(4.dp))
+            SectionLabel("Documents")
+            TileFlow(docTiles)
 
             if (computedTiles.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SectionLabel("Computed")
-                }
-                item {
-                    TileGrid(computedTiles.map { it.tile })
-                }
-                // Inline expansion — full-width card listing each item
-                // for the active kind. Anchored under the grid so the
-                // user keeps the rest of the layout in view.
+                Spacer(modifier = Modifier.height(4.dp))
+                SectionLabel("Computed")
+                TileFlow(computedTiles.map { it.tile })
+
+                // Inline expansion — full-width card listing each
+                // item for the active kind. Anchored under the grid
+                // so the user keeps the rest of the layout in view.
                 val open = expandedKind
                 if (open != null) {
                     val active = computedTiles.firstOrNull { it.key == open }
                     if (active != null && active.items.size >= 2) {
-                        item {
-                            ExpandedKindCard(
-                                title = active.tile.label,
-                                items = active.items,
-                                onItemClick = { item ->
-                                    expandedKind = null
-                                    item.open()
-                                    onBack()
-                                }
-                            )
-                        }
+                        ExpandedKindCard(
+                            title = active.tile.label,
+                            items = active.items,
+                            onItemClick = { item ->
+                                expandedKind = null
+                                item.open()
+                                onBack()
+                            }
+                        )
                     }
                 }
             }
-            item { Spacer(modifier = Modifier.height(12.dp)) }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
@@ -220,22 +218,26 @@ private fun SectionLabel(text: String) {
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TileGrid(tiles: List<ViewTile>) {
-    // Render the row of tiles as an adaptive grid. Capped row height by
-    // aspect ratio so every tile is the same square; the LazyColumn
-    // container handles scrolling. Use a nested non-lazy grid (chunked
-    // rows) because nesting LazyVerticalGrid inside LazyColumn requires
-    // a fixed height. Two columns on a phone, three on wider screens
-    // via Adaptive.
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 150.dp),
-        modifier = Modifier.fillMaxWidth()
-            .height(((tiles.size + 1) / 2 * 170).dp),
+private fun TileFlow(tiles: List<ViewTile>) {
+    // FlowRow wraps tiles to as many lines as needed without an outer
+    // fixed-height. Each tile claims an equal share of one row
+    // (`weight(1f)` inside FlowRow) so a row of N tiles divides the
+    // available width N ways — keeping the visual rhythm of the old
+    // LazyVerticalGrid without forcing the parent to hand-allocate
+    // a height. `maxItemsInEachRow = 3` matches the grid's adaptive
+    // 150 dp minSize cell on a typical phone, but bumping a row to 3
+    // when the width allows it stays the user's choice.
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        maxItemsInEachRow = 3
     ) {
-        items(tiles, key = { it.label }) { tile -> TileCard(tile) }
+        tiles.forEach { tile ->
+            Box(modifier = Modifier.weight(1f)) { TileCard(tile) }
+        }
     }
 }
 
