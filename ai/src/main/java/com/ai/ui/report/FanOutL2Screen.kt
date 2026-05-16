@@ -432,51 +432,54 @@ internal fun FanOutL2Screen(
                             .clickable { onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Status glyph — replaced by the pair's own
-                        // icon (when the optional Fan Icons sweep has
-                        // produced one). Long-press the icon to open
-                        // the unified Icon-lookup screen for the pair
-                        // (6th adapter); plain tap on the icon
-                        // forwards to the row's L3 open like the rest
-                        // of the row.
-                        if (!allDone) {
-                            val pairIcon = p.icon
-                            if (!pairIcon.isNullOrBlank()) {
-                                @OptIn(ExperimentalFoundationApi::class)
+                        // Leading cell:
+                        //   - When the pair has its own icon (the
+                        //     optional Fan Icons sweep landed one),
+                        //     always show it — even after every row is
+                        //     done, so the user can long-press to open
+                        //     the unified Icon-lookup screen (the 6th
+                        //     adapter). Tap forwards to the L3 open
+                        //     like the rest of the row.
+                        //   - Otherwise, fall back to the legacy
+                        //     status glyph (✅ / ❌ / ⏳ / 🕓), dropped
+                        //     entirely once every row is DONE to free
+                        //     horizontal space.
+                        val pairIcon = p.icon
+                        if (!pairIcon.isNullOrBlank()) {
+                            @OptIn(ExperimentalFoundationApi::class)
+                            Box(
+                                modifier = Modifier
+                                    .width(20.dp)
+                                    .background(progressColor)
+                                    .combinedClickable(
+                                        onClick = {
+                                            onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
+                                        },
+                                        onLongClick = { actions.onOpenPairIconLookup(p.id) }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(pairIcon, fontSize = 16.sp)
+                            }
+                        } else if (!allDone) {
+                            val icon = when (effStatus) {
+                                PairStatus.ERROR -> "❌"
+                                PairStatus.DONE -> "✅"
+                                PairStatus.RUNNING -> "⏳"
+                                PairStatus.PENDING -> "🕓"
+                            }
+                            if (icon == "⏳") {
                                 Box(
-                                    modifier = Modifier
-                                        .width(20.dp)
-                                        .background(progressColor)
-                                        .combinedClickable(
-                                            onClick = {
-                                                onOpenPair(if (role == "Responder") p.sourceAgentId else p.answererAgentId)
-                                            },
-                                            onLongClick = { actions.onOpenPairIconLookup(p.id) }
-                                        ),
+                                    Modifier.width(20.dp).background(progressColor),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(pairIcon, fontSize = 16.sp)
+                                    AnimatedHourglass(fontSize = 16.sp)
                                 }
                             } else {
-                                val icon = when (effStatus) {
-                                    PairStatus.ERROR -> "❌"
-                                    PairStatus.DONE -> "✅"
-                                    PairStatus.RUNNING -> "⏳"
-                                    PairStatus.PENDING -> "🕓"
-                                }
-                                if (icon == "⏳") {
-                                    Box(
-                                        Modifier.width(20.dp).background(progressColor),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        AnimatedHourglass(fontSize = 16.sp)
-                                    }
-                                } else {
-                                    Text(
-                                        icon, fontSize = 16.sp,
-                                        modifier = Modifier.width(20.dp).background(progressColor)
-                                    )
-                                }
+                                Text(
+                                    icon, fontSize = 16.sp,
+                                    modifier = Modifier.width(20.dp).background(progressColor)
+                                )
                             }
                         }
                         Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
