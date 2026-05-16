@@ -913,6 +913,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot text trim of the bundled `_alt` icon prompts.
+        // Earlier builds shipped each alt prompt as a full copy of its
+        // base + the "pick something distinct" / "no country flag"
+        // nudge appended at the end. The runtime now composes the
+        // base prompt's text + a blank line + the alt at call time,
+        // so the bundled alt only needs to carry the nudge. Rewrite
+        // any persisted row that still carries the OLD long-form
+        // default verbatim to the short nudge-only text. A user's
+        // manual edit (text != old default) is left untouched.
+        // Idempotent: once the row holds the short text the match
+        // misses on subsequent launches.
+        run {
+            val nudgeGeneric = "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+            val nudgeNoFlag = "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+            val oldDefaults = mapOf(
+                "main_alt" to ("Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@\n\n$nudgeGeneric" to nudgeGeneric),
+                "meta_alt" to ("Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@\n\n$nudgeGeneric" to nudgeGeneric),
+                "report_alt" to ("Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\n$nudgeGeneric" to nudgeGeneric),
+                "fan_out_alt" to ("Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\n$nudgeGeneric" to nudgeGeneric),
+                "language_alt" to ("Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!\n\n$nudgeNoFlag" to nudgeNoFlag),
+                "translation_alt" to ("Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!\n\n$nudgeNoFlag" to nudgeNoFlag)
+            )
+            val trimmed = ai.internalPrompts.map { p ->
+                val pair = oldDefaults[p.name.lowercase()]
+                if (pair != null && p.category.equals("icons", ignoreCase = true) && p.text == pair.first)
+                    p.copy(text = pair.second)
+                else p
+            }
+            if (trimmed != ai.internalPrompts) {
+                AppLog.i(tag, "Trimmed ${trimmed.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled `_alt` icon prompt(s) to the nudge-only text")
+                ai = ai.copy(internalPrompts = trimmed)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // One-shot text upgrade: the tier-1 chat-continuation icon
         // prompts (now `fan_out_2` / `report_2` after the strip-`_icon`
         // pass; legacy `_chat` / `_icon_2` names matched here too in

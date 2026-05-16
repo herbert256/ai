@@ -787,10 +787,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         aiSettings: Settings
     ) {
         if (prompt.name.isBlank()) return
-        // Find-alternative-icons uses the `_alt` variant whose text
-        // actively asks the model for something different than the
-        // obvious emoji the base prompt would otherwise return.
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        // Find-alternative-icons composes the base prompt's text with
+        // the `_alt` variant's text (blank line between) so the alt
+        // template only needs to carry the "give me a different
+        // emoji" nudge — no need to duplicate the base wording.
+        val basePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name.equals("meta", ignoreCase = true)
+        } ?: run {
+            AppLog.w("InternalPromptIconAlt", "internal/meta not configured — skipping fan-out")
+            return
+        }
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name.equals("meta_alt", ignoreCase = true)
         } ?: run {
             AppLog.w("InternalPromptIconAlt", "internal/meta_alt not configured — skipping fan-out")
@@ -798,7 +805,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = iconPrompt.text
+        val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
         val key = internalPromptIconKey(prompt)
@@ -1043,9 +1050,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         aiSettings: Settings
     ) {
         if (language.isBlank()) return
-        // Find-alternative-icons uses the `_alt` variant so the
-        // text actively asks for a non-flag, non-obvious alternative.
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        // Find-alternative-icons composes `translation` (the base
+        // template) + blank line + `translation_alt` (the "don't pick
+        // a flag" nudge). The alt template stays short.
+        val basePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name.equals("translation", ignoreCase = true)
+        } ?: run {
+            AppLog.w("TranslationIconAlt", "internal/translation not configured — skipping fan-out")
+            return
+        }
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name.equals("translation_alt", ignoreCase = true)
         } ?: run {
             AppLog.w("TranslationIconAlt", "internal/translation_alt not configured — skipping fan-out")
@@ -1053,7 +1067,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
+        val resolved = (basePrompt.text + "\n\n" + altPrompt.text).replace("@LANGUAGE@", language)
         val key = translationIconKey(language)
 
         appViewModel.updateInternalPromptIconFanOut(key) {
@@ -1191,10 +1205,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
-        // Find-alternative-icons uses the `_alt` variant so the
-        // picked models don't return the same obvious emoji the base
-        // `icon` prompt already produced.
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        // Find-alternative-icons composes `main` (the base template)
+        // + blank line + `main_alt` (the "pick something distinct"
+        // nudge). The alt template stays short.
+        val basePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "main"
+        } ?: return
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "main_alt"
         } ?: return
         // Dedupe by "provider:model" so picking the same pair via two
@@ -1202,7 +1219,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // fires one API call.
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
+        val resolved = (basePrompt.text + "\n\n" + altPrompt.text).replace("@PROMPT@", promptText)
         // Pre-populate Running rows so the Alternative icons screen
         // shows ⏳ for every pair the moment the screen opens, before
         // any throttle permit is acquired.
@@ -1315,12 +1332,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
-        // Find-alternative-icons uses the `_alt` variant whose text
-        // uses @LANGUAGE@ (the language was already detected by the
-        // first call in the two-step language flow). promptText is
-        // ignored — the @PROMPT@ token doesn't exist on the alt
-        // template. Kept in the signature for caller compat.
-        val languagePrompt = aiSettings.internalPrompts.firstOrNull {
+        // Find-alternative-icons composes `language` (the base
+        // template — second-call emoji-pick for a detected language)
+        // + blank line + `language_alt` (the "don't pick a flag"
+        // nudge). The language was detected by the first call in the
+        // two-step language flow. promptText is ignored — the
+        // @PROMPT@ token doesn't exist on either template here. Kept
+        // in the signature for caller compat.
+        val baseLanguagePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "language"
+        } ?: return
+        val altLanguagePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "language_alt"
         } ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
@@ -1332,7 +1354,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         @Suppress("UNUSED_VARIABLE") val _unusedPrompt = promptText
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = languagePrompt.text.replace("@LANGUAGE@", languageName)
+        val resolved = (baseLanguagePrompt.text + "\n\n" + altLanguagePrompt.text).replace("@LANGUAGE@", languageName)
         appViewModel.updateLanguageIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -1442,10 +1464,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
-        // Find-alternative-icons uses the `_alt` variant so the
-        // picked models don't echo the same obvious emoji this agent's
-        // 3-tier chain already produced.
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        // Find-alternative-icons composes `report` (the base
+        // template — tier-2 of the per-agent 3-tier chain, with
+        // @PROMPT@ + @RESPONSE@ slots) + blank line + `report_alt`
+        // (the "pick something distinct" nudge) so the alt stays
+        // short.
+        val basePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "report"
+        } ?: run {
+            AppLog.w("AgentIconAlt", "internal/report prompt not found — skipping (agent=$agentId)")
+            return
+        }
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "report_alt"
         } ?: run {
             AppLog.w("AgentIconAlt", "internal/report_alt prompt not found — skipping (agent=$agentId)")
@@ -1461,7 +1491,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val reportPrompt = report.prompt
             val agentResponse = ra.responseBody.orEmpty()
-            val resolved = iconPrompt.text
+            val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
                 .replace("@PROMPT@", reportPrompt)
                 .replace("@RESPONSE@", agentResponse)
             unique.forEach { item ->

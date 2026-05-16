@@ -165,7 +165,7 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
     "name": "meta_alt",
@@ -173,7 +173,7 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
     "name": "report_alt",
@@ -181,7 +181,7 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
     "name": "fan_out_alt",
@@ -189,7 +189,7 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
     "name": "language_alt",
@@ -197,7 +197,7 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!\n\nDo not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
   },
   {
     "name": "translation_alt",
@@ -205,7 +205,7 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!\n\nDo not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
   },
   {
     "name": "response",
