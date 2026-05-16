@@ -1067,7 +1067,13 @@ fun ReportsScreen(
         selectedParametersIds = selectedParametersIds,
         onModelsChange = { models = it },
         onGenerate = onGenerate,
-        onOpenView = { showViewer = true },
+        onOpenView = {
+            // Report - Manage entry: clear any stale lock left over
+            // from a previous View-tile flow so this open shows the
+            // per-screen language picker as intended.
+            viewerLockedLanguage = null
+            showViewer = true
+        },
         onClearExternalInstructions = onClearExternalInstructions
     )
 
@@ -2152,10 +2158,14 @@ fun ReportsScreen(
         onOpenModerationPicker = { showModerationPicker = true },
         onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
         onViewReports = {
-            selectedAgentForViewer = null; viewerSection = null; showViewer = true
+            selectedAgentForViewer = null; viewerSection = null
+            viewerLockedLanguage = null
+            showViewer = true
         },
         onViewPrompt = {
-            selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
+            selectedAgentForViewer = null; viewerSection = "prompt"
+            viewerLockedLanguage = null
+            showViewer = true
         },
         onViewCosts = {
             selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
@@ -2180,6 +2190,7 @@ fun ReportsScreen(
         onRequestExport = { showExport = true },
         onCancelTranslation = translationLifecycle.onCancelRun,
         onViewSecondaryName = { name, kind ->
+            listLockedLanguage = null
             listKind = kind; listFilterByName = name; listIsFanIcons = false
         },
         onViewFanIcons = { name ->
@@ -2187,7 +2198,10 @@ fun ReportsScreen(
             listFilterByName = name
             listIsFanIcons = true
         },
-        onOpenSecondaryRun = { id -> openMetaResultId = id },
+        onOpenSecondaryRun = { id ->
+            secondaryLockedLanguage = null
+            openMetaResultId = id
+        },
         onOpenTranslationRun = { runId -> openTranslationRunId = runId },
         onOpenMeta = { showMetaScreen = true },
         onNavigateToTraceFile = onNavigateToTraceFile,
