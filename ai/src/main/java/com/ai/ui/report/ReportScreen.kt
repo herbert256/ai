@@ -3517,6 +3517,21 @@ private fun MetaRunScreen(
             title = "Run ${metaPrompt.name}",
             onBackClick = onCancel
         )
+        // Primary CTA hoisted to the top — one tap to advance
+        // regardless of how far the editable prompt has scrolled.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancel, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Cancel", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
+                enabled = editablePrompt.isNotBlank(),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Continue", maxLines = 1, softWrap = false) }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -3535,19 +3550,7 @@ private fun MetaRunScreen(
                 minLines = 8
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel, modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
-                enabled = editablePrompt.isNotBlank(),
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Continue", maxLines = 1, softWrap = false) }
-        }
+        // (Cancel / Continue hoisted to the top — see above.)
     }
 }
 
@@ -3593,6 +3596,25 @@ private fun FanOutConfirmScreen(
             title = "Fan Out - run",
             onBackClick = onCancel
         )
+        // Primary CTA hoisted to the top — pairCount-gated Run +
+        // Cancel sit immediately under the TitleBar so they stay
+        // reachable without scrolling past the initiator / responder
+        // cards and the editable per-run prompt.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onCancel, modifier = Modifier.weight(1f),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Cancel", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
+                },
+                enabled = pairCount > 0,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Run", maxLines = 1, softWrap = false) }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -3681,20 +3703,6 @@ private fun FanOutConfirmScreen(
                 minLines = 4
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel, modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
-                },
-                enabled = pairCount > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Run", maxLines = 1, softWrap = false) }
-        }
+        // (Cancel / Run hoisted to the top — see above.)
     }
 }

@@ -102,6 +102,35 @@ internal fun SecondaryScopeScreen(
             onBackClick = onBack
         )
         com.ai.ui.shared.HardcodedSubjectRow(kindLabel)
+        // Primary CTA hoisted to the top — anchored just below the
+        // green subject row so the "advance" affordance stays one
+        // tap away regardless of how far the scope list scrolls.
+        // Behaviour / colors / gating unchanged from the original
+        // bottom-of-page version.
+        Button(
+            onClick = {
+                val scope = when (scopeMode) {
+                    ScopeMode.ALL -> SecondaryScope.AllReports
+                    ScopeMode.TOP_RANKED -> SecondaryScope.TopRanked(countInt, selectedRerank)
+                    ScopeMode.MANUAL -> SecondaryScope.Manual(
+                        manualPicked.filterValues { it }.keys.toSet()
+                    )
+                }
+                val langScope = if (allLanguages || languages.isEmpty()) SecondaryLanguageScope.AllPresent
+                else {
+                    // The set holds English-name keys for translations
+                    // and "" (the empty string) for the original — see
+                    // SecondaryLanguageScope.Selected's doc comment.
+                    val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
+                    if (pickedOriginal) picked.add("")
+                    SecondaryLanguageScope.Selected(picked)
+                }
+                onContinue(scope, langScope)
+            },
+            enabled = canContinue,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
@@ -283,31 +312,7 @@ internal fun SecondaryScopeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Button(
-            onClick = {
-                val scope = when (scopeMode) {
-                    ScopeMode.ALL -> SecondaryScope.AllReports
-                    ScopeMode.TOP_RANKED -> SecondaryScope.TopRanked(countInt, selectedRerank)
-                    ScopeMode.MANUAL -> SecondaryScope.Manual(
-                        manualPicked.filterValues { it }.keys.toSet()
-                    )
-                }
-                val langScope = if (allLanguages || languages.isEmpty()) SecondaryLanguageScope.AllPresent
-                else {
-                    // The set holds English-name keys for translations
-                    // and "" (the empty string) for the original — see
-                    // SecondaryLanguageScope.Selected's doc comment.
-                    val picked = pickedLanguages.filterValues { it }.keys.toMutableSet()
-                    if (pickedOriginal) picked.add("")
-                    SecondaryLanguageScope.Selected(picked)
-                }
-                onContinue(scope, langScope)
-            },
-            enabled = canContinue,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Continue", maxLines = 1, softWrap = false) }
+        // (Continue button hoisted to the top — see above.)
     }
 }
 
