@@ -4264,32 +4264,47 @@ private fun RenderLanguageDetailOverlay(
             )
         }
     }.value
+    // Re-read the persisted prompt-used + language name so we can
+    // build a richer API-interaction transcript (the bundled
+    // `language` prompt uses @LANGUAGE@; we substitute with the
+    // detected language for the [user] turn).
+    val ctxData = produceState<Pair<String?, String?>>(initialValue = null to null, reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            val r = com.ai.data.ReportStorage.getReport(context, reportId)
+            r?.languageIconPromptUsed to r?.languageName
+        }
+    }.value
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onBack
     ) {
         val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
-        ReportIconDetailScreen(
-            aiSettings = aiSettings,
-            iconPrompt = languagePrompt,
-            iconAgent = languageAgent,
-            reportId = reportId,
-            promptText = promptText,
-            icon = snapshot.icon,
-            errorMessage = snapshot.error,
+        val resolvedPrompt = languagePrompt.text.replace("@LANGUAGE@", ctxData.second.orEmpty())
+        val provider = snapshot.model?.split("/", limit = 2)?.firstOrNull()
+            ?.let { AppService.findById(it) } ?: languageAgent.provider
+        val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
+            ?: aiSettings.getEffectiveModelForAgent(languageAgent)
+        IconLookupScreen(IconLookupContext(
+            subject = ctxData.first ?: "language",
+            provider = provider,
+            model = modelId,
+            pricingTier = "",
             cost = snapshot.cost,
-            title = "Language icon",
-            iconModel = snapshot.model,
-            rawResponse = snapshot.rawResponse,
+            apiInteraction = buildOneShotApiInteraction(
+                resolvedPrompt,
+                snapshot.rawResponse ?: snapshot.icon
+            ),
+            emoji = snapshot.icon,
+            errorMessage = snapshot.error,
             traceFile = snapshot.traceFile,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            continueChat = continueChat,
-            onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
-            onFindAlternativeIcons = onFindAlternativeIcons,
             hasActiveFanOut = hasActiveFanOut,
+            onFindAlternativeIcons = onFindAlternativeIcons,
+            onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
+            onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onBack
-        )
+        ))
     }
 }
 
@@ -4367,30 +4382,42 @@ private fun ReportIconOrLanguageDetailOverlay(
         it.name.equals(iconPrompt.agent, ignoreCase = true)
     } ?: return false
     val hasActiveFanOut = iconFanOutByReport[reportId].orEmpty().isNotEmpty()
+    val context = LocalContext.current
+    // Re-read the persisted prompt-used so the subject row reflects
+    // "main_alt" after a Find-alt pick.
+    val promptUsed = produceState<String?>(initialValue = null, reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, reportId)?.iconPromptUsed
+        }
+    }.value
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onClose
     ) {
         val infoTarget = resolveInfoTarget(reportIconModel, iconAgent, aiSettings)
-        ReportIconDetailScreen(
-            aiSettings = aiSettings,
-            iconPrompt = iconPrompt,
-            iconAgent = iconAgent,
-            reportId = reportId,
-            promptText = promptText,
-            icon = reportIcon,
-            errorMessage = reportIconError,
+        val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
+        val provider = reportIconModel?.split("/", limit = 2)?.firstOrNull()
+            ?.let { AppService.findById(it) } ?: iconAgent.provider
+        val modelId = reportIconModel?.split("/", limit = 2)?.getOrNull(1)
+            ?: aiSettings.getEffectiveModelForAgent(iconAgent)
+        IconLookupScreen(IconLookupContext(
+            subject = promptUsed ?: "main",
+            provider = provider,
+            model = modelId,
+            pricingTier = "",
             cost = reportIconCost,
-            iconModel = reportIconModel,
+            apiInteraction = buildOneShotApiInteraction(resolvedPrompt, reportIcon),
+            emoji = reportIcon,
+            errorMessage = reportIconError,
             traceFile = reportIconTraceFile,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            continueChat = continueChat,
-            onInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } },
-            onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             hasActiveFanOut = hasActiveFanOut,
+            onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
+            onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
+            onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
-        )
+        ))
     }
     return true
 }
