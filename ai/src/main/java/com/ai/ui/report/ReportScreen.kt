@@ -844,6 +844,7 @@ fun ReportsScreen(
     val reportIconModel = runtime.reportIconModel
     val reportIconTraceFile = runtime.reportIconTraceFile
     val languageIconCost = runtime.languageIconCost
+    val languageName = runtime.languageName
     val agentIconRows = runtime.agentIconRows
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
@@ -2200,6 +2201,7 @@ fun ReportsScreen(
         reportIconCost = reportIconCost,
         reportIconModel = reportIconModel,
         languageIconCost = languageIconCost,
+        languageName = languageName,
         agentIconRows = agentIconRows,
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
@@ -2239,6 +2241,7 @@ private data class ReportRuntimeState(
     val reportIconModel: String?,
     val reportIconTraceFile: String?,
     val languageIconCost: Double,
+    val languageName: String?,
     val agentIconRows: Map<String, AgentIconRow>,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
@@ -2276,6 +2279,7 @@ private fun rememberReportRuntimeState(
     var reportIconModel by remember { mutableStateOf<String?>(null) }
     var reportIconTraceFile by remember { mutableStateOf<String?>(null) }
     var languageIconCost by remember { mutableStateOf(0.0) }
+    var languageName by remember { mutableStateOf<String?>(null) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     var loadedReportPrompt by remember { mutableStateOf("") }
@@ -2291,6 +2295,7 @@ private fun rememberReportRuntimeState(
             reportIconModel = null
             reportIconTraceFile = null
             languageIconCost = 0.0
+            languageName = null
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
@@ -2304,6 +2309,7 @@ private fun rememberReportRuntimeState(
             reportIconModel = r?.iconModel
             reportIconTraceFile = r?.iconTraceFile
             languageIconCost = (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
+            languageName = r?.languageName
             agentIconRows = r?.agents?.associate { ra ->
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
             } ?: emptyMap()
@@ -2427,6 +2433,7 @@ private fun rememberReportRuntimeState(
         reportIconModel = reportIconModel,
         reportIconTraceFile = reportIconTraceFile,
         languageIconCost = languageIconCost,
+        languageName = languageName,
         agentIconRows = agentIconRows,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,

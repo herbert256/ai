@@ -233,6 +233,11 @@ internal fun ColumnScope.GenerationPhase(
      *  the report total so the language-detection call is visible
      *  in the grand-total row. */
     languageIconCost: Double = 0.0,
+    /** Report.languageName mirrored from disk. When non-null and the
+     *  report has any TRANSLATE secondaries, untranslated meta rows
+     *  surface this as their "default language" tag so the user can
+     *  tell originals from translations at a glance. */
+    languageName: String? = null,
     /** Per-agent icon results mirrored from disk, keyed by agentId.
      *  The parent screen rebuilds this on every iconRefreshTick bump
      *  so the row picks up new emojis / cleared values without a
@@ -809,7 +814,17 @@ internal fun ColumnScope.GenerationPhase(
                         }
                     }
                     RowTypeCell(typeLabel)
-                    val langSuffix = run.targetLanguage?.let { " · $it" } ?: ""
+                    // Once any translation exists for this report, show
+                    // a language tag on every meta row so the user can
+                    // tell originals from translations at a glance. The
+                    // default (non-translated) rows get the report's
+                    // detected source language (Report.languageName).
+                    val hasAnyTranslation = secondaryRuns.any { it.kind == SecondaryKind.TRANSLATE }
+                    val langSuffix = when {
+                        run.targetLanguage != null -> " · ${run.targetLanguage}"
+                        hasAnyTranslation && !languageName.isNullOrBlank() -> " · $languageName"
+                        else -> ""
+                    }
                     Column(modifier = Modifier.weight(1f)) {
                         // Fan-in rows label by the PROMPT used (its
                         // description / title) rather than the model

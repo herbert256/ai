@@ -49,6 +49,7 @@ internal fun ReportMainContent(
     reportIconCost: Double,
     reportIconModel: String?,
     languageIconCost: Double,
+    languageName: String?,
     agentIconRows: Map<String, AgentIconRow>,
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
@@ -172,6 +173,7 @@ internal fun ReportMainContent(
                 reportIconCost = reportIconCost,
                 reportIconModel = reportIconModel,
                 languageIconCost = languageIconCost,
+                languageName = languageName,
                 agentIconRows = agentIconRows,
                 hasPrevReport = hasPrevReport,
                 hasNextReport = hasNextReport
