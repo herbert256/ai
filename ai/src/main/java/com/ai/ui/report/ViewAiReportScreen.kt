@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -263,22 +265,27 @@ private fun SectionLabel(text: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TileFlow(tiles: List<ViewTile>) {
-    // FlowRow wraps tiles to as many lines as needed without an outer
-    // fixed-height. Each tile claims an equal share of one row
-    // (`weight(1f)` inside FlowRow) so a row of N tiles divides the
-    // available width N ways — keeping the visual rhythm of the old
-    // LazyVerticalGrid without forcing the parent to hand-allocate
-    // a height. `maxItemsInEachRow = 3` matches the grid's adaptive
-    // 150 dp minSize cell on a typical phone, but bumping a row to 3
-    // when the width allows it stays the user's choice.
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        maxItemsInEachRow = 3
-    ) {
-        tiles.forEach { tile ->
-            Box(modifier = Modifier.weight(1f)) { TileCard(tile) }
+    // Every tile is rendered at the SAME fixed width regardless of
+    // how many sit in the last row — previously each tile inside
+    // FlowRow used weight(1f), which spread the trailing row's
+    // tiles across the full container width and made them visibly
+    // larger than tiles in fully-packed rows. Compute the per-tile
+    // width once from the container's maxWidth + a target column
+    // count (2 on a typical phone, 3 on wider screens), then hand
+    // that fixed width to every TileCard.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val spacing = 10.dp
+        val cols = if (maxWidth >= 500.dp) 3 else 2
+        val tileWidth = (maxWidth - spacing * (cols - 1)) / cols
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+            maxItemsInEachRow = cols
+        ) {
+            tiles.forEach { tile ->
+                Box(modifier = Modifier.width(tileWidth)) { TileCard(tile) }
+            }
         }
     }
 }
