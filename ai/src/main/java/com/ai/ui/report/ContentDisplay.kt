@@ -443,7 +443,12 @@ private fun ReportsViewerScreenLoaded(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
-        LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it })
+        LanguagePickerRow(
+            langTabs, selectedLangKey,
+            onSelect = { selectedLangKey = it },
+            useIcons = true,
+            originalIcon = report.languageIcon
+        )
 
         // Agent picker — user-toggled between a FlowRow of buttons
         // (one per model, click to view) and a single dropdown whose
