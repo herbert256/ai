@@ -1452,6 +1452,7 @@ fun ReportsScreen(
                 if (hasActive) showAlternativeIcons = true
                 else showFindIconsPicker = true
             },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onClose = { promptIconDetailForId = null }
         )
         if (handled) return
@@ -1474,6 +1475,7 @@ fun ReportsScreen(
                 if (hasActive) showAlternativeIcons = true
                 else showFindIconsPicker = true
             },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onClose = { translationIconLanguageFor = null }
         )
         return
@@ -2958,25 +2960,46 @@ private fun rememberAgentIconTrace(
     reportId: String?,
     agentModel: String,
     iconKey: String?,
-    winningTier: Int?
+    winningTier: Int?,
+    promptUsed: String?
+): String? = rememberIconTrace(
+    reportId = reportId,
+    model = agentModel,
+    // Prefer the exact `iconPromptUsed` stamp on fresh writes; on
+    // legacy rows (null `iconPromptUsed`) fall back to deriving the
+    // category set from `iconWinningTier`. Always include the alt
+    // category so a user-picked alt still resolves a 🐞 link.
+    categories = when {
+        promptUsed != null -> listOf("icon_$promptUsed")
+        winningTier == 1 -> listOf("icon_report_2", "icon_report_alt")
+        winningTier == 2 -> listOf("icon_report", "icon_report_alt")
+        winningTier == 3 -> listOf("icon_report_3", "icon_report_alt")
+        else -> listOf("icon_report", "icon_report_2", "icon_report_3", "icon_report_alt")
+    }
+)
+
+/** Generic icon-trace lookup — finds the most-recent trace whose
+ *  `category` matches one of [categories], optionally scoped to a
+ *  specific [reportId] and [model]. Pass null for either scope to
+ *  mean "any". Used by every adapter that wants to surface a 🐞
+ *  deep-link on the unified Icon-lookup screen. */
+@Composable
+private fun rememberIconTrace(
+    reportId: String?,
+    model: String?,
+    categories: List<String>
 ): String? {
     val state = androidx.compose.runtime.produceState<String?>(
-        initialValue = null, reportId, agentModel, iconKey, winningTier
+        initialValue = null, reportId, model, categories
     ) {
         value = withContext(Dispatchers.IO) {
-            val candidates = ApiTracer.getTraceFiles().filter {
-                it.reportId == reportId &&
-                    it.category?.startsWith("Report icons ") == true
-            }
-            when (winningTier) {
-                null -> candidates.maxByOrNull { it.timestamp }?.filename
-                3 -> candidates.filter { it.category?.contains("tier 3") == true }
-                    .maxByOrNull { it.timestamp }?.filename
-                else -> candidates.filter {
-                    it.model == agentModel &&
-                        it.category?.contains("tier $winningTier") == true
-                }.maxByOrNull { it.timestamp }?.filename
-            }
+            ApiTracer.getTraceFiles()
+                .filter { tf ->
+                    (reportId == null || tf.reportId == reportId) &&
+                        (model.isNullOrBlank() || tf.model == model) &&
+                        tf.category in categories
+                }
+                .maxByOrNull { it.timestamp }?.filename
         }
     }
     return state.value
@@ -3152,7 +3175,8 @@ private fun AgentIconDetailOverlay(
         reportId = currentReportId,
         agentModel = agent.model,
         iconKey = agent.icon,
-        winningTier = agent.iconWinningTier
+        winningTier = agent.iconWinningTier,
+        promptUsed = agent.iconPromptUsed
     )
     // Subject = bundled prompt name that produced the displayed
     // emoji. Fresh writes stamp `iconPromptUsed`; legacy rows fall
@@ -3230,6 +3254,7 @@ private fun MetaIconDetailOverlay(
     effectiveReportIcon: String?,
     loadedReportTitle: String?,
     onOpenAlternativeIcons: (Boolean) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
     onClose: () -> Unit
 ): Boolean {
     val prompt = internalPrompts.firstOrNull { it.id == promptId } ?: return false
@@ -3244,6 +3269,14 @@ private fun MetaIconDetailOverlay(
         LocalNavigateToCurrentReport provides { onClose() }
     ) {
         val provider = entry?.providerId?.let { AppService.findById(it) } ?: AppService.LOCAL
+        // Meta cache is cross-report so we don't scope by reportId
+        // — match on the cached model + the icon_meta* category set
+        // (base + alt). Newest matching trace wins.
+        val metaTraceFile = rememberIconTrace(
+            reportId = null,
+            model = entry?.model,
+            categories = listOf("icon_meta", "icon_meta_alt")
+        )
         IconLookupScreen(IconLookupContext(
             subject = entry?.promptName ?: "meta",
             provider = provider,
@@ -3256,12 +3289,12 @@ private fun MetaIconDetailOverlay(
             ),
             emoji = entry?.emoji,
             errorMessage = null,
-            traceFile = null,
+            traceFile = metaTraceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
             onContinueChat = null,
             onNavigateToModelInfo = { /* meta-icon flow doesn't wire Model Info nav */ },
-            onNavigateToTraceFile = { /* meta-cache entries don't carry trace */ },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
         ))
     }
@@ -3282,6 +3315,7 @@ private fun TranslationIconDetailOverlay(
     effectiveReportIcon: String?,
     loadedReportTitle: String?,
     onOpenAlternativeIcons: (Boolean) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
     onClose: () -> Unit
 ) {
     val entry = remember(language, iconRefreshTick) {
@@ -3295,6 +3329,11 @@ private fun TranslationIconDetailOverlay(
         LocalNavigateToCurrentReport provides { onClose() }
     ) {
         val provider = entry?.providerId?.let { AppService.findById(it) } ?: AppService.LOCAL
+        val translationTraceFile = rememberIconTrace(
+            reportId = null,
+            model = entry?.model,
+            categories = listOf("icon_translation", "icon_translation_alt")
+        )
         IconLookupScreen(IconLookupContext(
             subject = entry?.promptName ?: "translation",
             provider = provider,
@@ -3307,12 +3346,12 @@ private fun TranslationIconDetailOverlay(
             ),
             emoji = entry?.emoji,
             errorMessage = null,
-            traceFile = null,
+            traceFile = translationTraceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
             onContinueChat = null,
             onNavigateToModelInfo = { /* translation-icon flow doesn't wire Model Info nav */ },
-            onNavigateToTraceFile = { /* translation-cache entries don't carry trace */ },
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
         ))
     }
