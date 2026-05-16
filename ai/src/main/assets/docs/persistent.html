@@ -9,19 +9,714 @@
 <body>
 <header class="topbar"><a href="index.html">← Docs</a><span>Persistent state</span></header>
 <main>
-<h1>Persistent state</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/persistent.md</code> in the repo.</p>
+
+<h1>Persistent storage</h1>
+
+<p>Everything the app keeps on disk, where it lives, and what's in
+each slot. All of this round-trips through <code>BackupManager</code>
+(Settings → Housekeeping → Backup &amp; Restore) into a single
+<code>.zip</code>.</p>
+
+<nav class="toc">
+<strong>Jump to</strong>
+<ul>
+<li><a href="#sharedprefs">SharedPreferences (7 files)</a></li>
+<li><a href="#files">Files (under &lt;filesDir&gt;)</a></li>
+<li><a href="#not-persisted">What's NOT persisted</a></li>
+<li><a href="#not-backed-up">What's NOT in the backup zip</a></li>
+<li><a href="#cleanup">Cleanup paths</a></li>
+</ul>
+</nav>
+
+<h2 id="sharedprefs">SharedPreferences (7 files)</h2>
+
+<p>All under
+<code class="path">/data/data/com.ai/shared_prefs/&lt;name&gt;.xml</code>.
+All seven are captured in
+<code>BackupManager.PREFS_TO_BACKUP</code>.</p>
+
+<details open>
+<summary>eval_prefs — main settings</summary>
+<div class="body">
+<p>By far the largest. Loaded by <code>SettingsPreferences</code>.</p>
+
+<h3>General settings</h3>
+<dl class="kv">
+<div><dt>user_name</dt><div class="meta">String (default <code>"user"</code>)</div>
+<dd>Display name shown in UI.</dd></div>
+<div><dt>huggingface_api_key</dt><div class="meta">String</div>
+<dd>For HF Model Info lookups.</dd></div>
+<div><dt>openrouter_api_key</dt><div class="meta">String</div>
+<dd>For OpenRouter pricing tier.</dd></div>
+<div><dt>artificial_analysis_api_key</dt><div class="meta">String</div>
+<dd>For AA pricing / scores tier.</dd></div>
+<div><dt>default_email</dt><div class="meta">String</div>
+<dd>Default email for the report email export.</dd></div>
+<div><dt>default_type_paths</dt><div class="meta">JSON Map&lt;String,String&gt;</div>
+<dd>Global per-type API path defaults.</dd></div>
+<div><dt>tracing_enabled</dt><div class="meta">Boolean (default true)</div>
+<dd>Master switch for <code>ApiTracer.isTracingEnabled</code>.</dd></div>
+<div><dt>model_name_layout</dt><div class="meta">String</div>
+<dd>Enum name (<code>MODEL_ONLY</code> /
+<code>PROVIDER_AND_MODEL</code>).</dd></div>
+<div><dt>icon_gen_enabled</dt><div class="meta">Boolean (default true)</div>
+<dd>Master switch for the per-report icon-gen feature (background
+<code>internal/icon</code> call on every new report — see
+<a href="report-icons.html">report-icons</a>).</dd></div>
+<div><dt>per_model_icon_gen_enabled</dt><div class="meta">Boolean (default true)</div>
+<dd>Master switch for the per-agent 3-tier icon chain (auto-fires
+<code>runReportIconsForAgent</code> on every successful agent
+call).</dd></div>
+<div><dt>recent_report_models</dt><div class="meta">String (newline-separated)</div>
+<dd>Last 3 (provider, model) picks from the Report section's model
+pickers, most-recent first. Encoded as <code>"providerId|model"</code>
+strings.</dd></div>
+<div><dt>streaming_read_timeout_sec</dt><div class="meta">Int</div>
+<dd>Read timeout for streaming API calls (SSE chat / report).
+Default = <code>BuildConfig.NETWORK_READ_TIMEOUT_SEC</code>.</dd></div>
+<div><dt>nonstreaming_read_timeout_sec</dt><div class="meta">Int</div>
+<dd>Read timeout for non-streaming calls. Default =
+<code>BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC</code>.</dd></div>
+<div><dt>max_calls_per_provider_per_minute</dt><div class="meta">Int (default 30)</div>
+<dd>Per-host sliding-window rate cap mirrored to
+<code>NetworkSettings.maxCallsPerProviderPerMinute</code>. See
+<a href="throttle.html">throttle</a>.</dd></div>
+<div><dt>max_concurrent_calls_per_provider</dt><div class="meta">Int (default 3)</div>
+<dd>Per-host concurrency cap.</dd></div>
+<div><dt>max_concurrent_api_calls</dt><div class="meta">Int (default 50)</div>
+<dd>Global ceiling on in-flight calls across the whole app. Mirrored
+to <code>ApiCallCaps.global</code>.</dd></div>
+<div><dt>max_concurrent_report_calls</dt><div class="meta">Int (default 15)</div>
+<dd>Per-agent calls inside one report-gen run.</dd></div>
+<div><dt>max_concurrent_translation_calls</dt><div class="meta">Int (default 15)</div>
+<dd>Total in-flight Translate calls (across runs).</dd></div>
+<div><dt>max_concurrent_fan_out_calls</dt><div class="meta">Int (default 15)</div>
+<dd>Fan-out pair calls (<code>FanOutEngine</code>).</dd></div>
+<div><dt>max_concurrent_fan_icons_calls</dt><div class="meta">Int (default 15)</div>
+<dd>Fan-icons batch calls; separate budget from fan-out.</dd></div>
+<div><dt>max_test_api_calls</dt><div class="meta">Int (default 40)</div>
+<dd>"Test all models" sweep; read directly by
+<code>ModelTestEngine</code>, NOT mirrored into
+<code>ApiCallCaps</code>.</dd></div>
+<div><dt>max_retries_on_429</dt><div class="meta">Int (default 3)</div>
+<dd>In-line 429 retries; 0 disables.</dd></div>
+<div><dt>retry_backoff_ms_429</dt><div class="meta">Long (default 1000)</div>
+<dd>Wait between 429 retry attempts in ms.</dd></div>
+<div><dt>max_retries_on_529</dt><div class="meta">Int (default 3)</div>
+<dd>In-line 529 (server overloaded) retries; 0 disables.</dd></div>
+<div><dt>retry_backoff_ms_529</dt><div class="meta">Long (default 1000)</div>
+<dd>Wait between 529 retry attempts in ms.</dd></div>
+<div><dt>log_level</dt><div class="meta">String (default INFO)</div>
+<dd>Threshold for the in-app file logger
+(<code>com.ai.data.AppLog</code>). One of <code>TRACE</code> /
+<code>DEBUG</code> / <code>INFO</code> / <code>WARN</code> /
+<code>ERROR</code> / <code>OFF</code>. Read directly by
+<code>AppLog.init</code> from <code>eval_prefs</code> so DEBUG calls
+inside bootstrap are admitted on cold start.</dd></div>
+<div><dt>show_knowledge_card</dt><div class="meta">Boolean (default false)</div>
+<dd>Gates the AI Knowledge card on the home Hub. The Knowledge
+subsystem itself stays fully functional whether the card is visible
+or not.</dd></div>
+<div><dt>first_run_bootstrapped</dt><div class="meta">Boolean</div>
+<dd>Gates the first-run providers + prompts seed (the every-start
+delta-merge still runs on subsequent starts — see
+<a href="architecture.html">architecture</a>).</dd></div>
+</dl>
+
+<div class="callout">
+<p>The intro / model_info / translate / rerank / moderation prompt
+templates that used to live as dedicated <code>*_prompt</code> keys
+now live as <code>InternalPrompt</code> rows under
+<code>ai_meta_prompts</code> (with
+<code>category="internal"</code>) — see below.</p>
 </div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+
+<h3>Per-provider config</h3>
+<p>For every provider id (<code>&lt;key&gt; = service.id</code>, e.g.
+<code>OpenAI</code>):</p>
+<dl class="kv">
+<div><dt>&lt;key&gt;_api_key</dt><div class="meta">String</div>
+<dd>Provider API key.</dd></div>
+<div><dt>&lt;key&gt;_model</dt><div class="meta">String</div>
+<dd>Default model id.</dd></div>
+<div><dt>&lt;key&gt;_model_source</dt><div class="meta">String</div>
+<dd><code>API</code> or <code>MANUAL</code>.</dd></div>
+<div><dt>&lt;key&gt;_manual_models</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Persisted model list.</dd></div>
+<div><dt>&lt;key&gt;_model_types</dt><div class="meta">JSON Map&lt;String,String&gt;</div>
+<dd>id → <code>chat</code> / <code>embedding</code> / …</dd></div>
+<div><dt>&lt;key&gt;_vision_models</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>User-flagged vision-capable ids.</dd></div>
+<div><dt>&lt;key&gt;_web_search_models</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>User-flagged web-search-capable ids.</dd></div>
+<div><dt>&lt;key&gt;_reasoning_models</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>User-flagged reasoning-capable ids.</dd></div>
+<div><dt>&lt;key&gt;_vision_capable_computed</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Precomputed layered lookup result.</dd></div>
+<div><dt>&lt;key&gt;_web_search_capable_computed</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Precomputed layered lookup result.</dd></div>
+<div><dt>&lt;key&gt;_reasoning_capable_computed</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Precomputed layered lookup result.</dd></div>
+<div><dt>&lt;key&gt;_model_pricing</dt><div class="meta">JSON Map&lt;String, ModelPricing&gt;</div>
+<dd>Precomputed prices.</dd></div>
+<div><dt>&lt;key&gt;_model_capabilities</dt><div class="meta">JSON Map&lt;String, ModelCapabilities&gt;</div>
+<dd>Provider self-report.</dd></div>
+<div><dt>&lt;key&gt;_models_response_raw</dt><div class="meta">String</div>
+<dd>Raw last <code>/models</code> response.</dd></div>
+<div><dt>&lt;key&gt;_parameters_id</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Default param presets.</dd></div>
+</dl>
+
+<div class="callout">
+<p>The legacy per-provider <code>_admin_url</code> and
+<code>_model_list_url</code> override keys have been dropped — admin
+URLs come from the bundled provider definition only.</p>
+</div>
+
+<h3>Top-level lists</h3>
+<dl class="kv">
+<div><dt>ai_agents</dt><div class="meta">JSON List&lt;Agent&gt;</div></div>
+<div><dt>ai_flocks</dt><div class="meta">JSON List&lt;Flock&gt;</div></div>
+<div><dt>ai_swarms</dt><div class="meta">JSON List&lt;Swarm&gt;</div></div>
+<div><dt>ai_parameters</dt><div class="meta">JSON List&lt;Parameters&gt;</div></div>
+<div><dt>ai_system_prompts</dt><div class="meta">JSON List&lt;SystemPrompt&gt;</div></div>
+<div><dt>ai_meta_prompts</dt><div class="meta">JSON List&lt;InternalPrompt&gt;</div>
+<dd>Despite the legacy <code>meta</code> name in the key, this holds
+<strong>every</strong> Internal Prompt — Meta / Fan-out / Fan-in /
+Other internal categories — so users who already have seeded entries
+don't lose them across the rename to InternalPrompt.</dd></div>
+<div><dt>ai_example_prompts</dt><div class="meta">JSON List&lt;ExamplePrompt&gt;</div>
+<dd>Starter library for the New Report flow.</dd></div>
+<div><dt>ai_endpoints</dt><div class="meta">JSON Map&lt;String, List&lt;Endpoint&gt;&gt;</div>
+<dd>Keyed by provider id.</dd></div>
+<div><dt>provider_states</dt><div class="meta">JSON Map&lt;String, String&gt;</div>
+<dd><code>ok</code> / <code>error</code> / <code>inactive</code> /
+<code>not-used</code>.</dd></div>
+<div><dt>ai_model_type_overrides</dt><div class="meta">JSON List&lt;ModelTypeOverride&gt;</div></div>
+<div><dt>ai_blocked_models</dt><div class="meta">JSON List&lt;BlockedModel&gt;</div>
+<dd>Test sweep auto-populates on probe failure above threshold; CRUD'd
+under AI Setup → AI Models setup → Blocked models.</dd></div>
+<div><dt>ai_test_excluded_models</dt><div class="meta">JSON List&lt;TestExcludedModel&gt;</div>
+<dd>"Skip in Test sweep" set; seeded from
+<code>assets/excluded.json</code>.</dd></div>
+<div><dt>ai_inaccessible_models</dt><div class="meta">JSON List&lt;InaccessibleModel&gt;</div>
+<dd>Hidden-from-every-picker set (tier-gated entries); seeded from
+<code>assets/inaccessible.json</code>.</dd></div>
+</dl>
+
+<h3>Caches and bookkeeping</h3>
+<dl class="kv">
+<div><dt>model_list_timestamp_&lt;providerId&gt;</dt><div class="meta">Long</div>
+<dd>Last successful <code>/models</code> fetch — drives 24h cache
+validity.</dd></div>
+<div><dt>caps_precomputed_version</dt><div class="meta">Int</div>
+<dd>Bootstrap-migration version flag for the precompute pass.</dd></div>
+<div><dt>ai_report_agents_v2</dt><div class="meta">StringSet</div>
+<dd>Last-used agent selection for the Reports flow.</dd></div>
+<div><dt>ai_report_models_v2</dt><div class="meta">StringSet</div>
+<dd>Last-used direct-model selection for the Reports flow.</dd></div>
+<div><dt>secondary_last_&lt;promptId&gt;_&lt;reportId&gt;</dt><div class="meta">StringSet</div>
+<dd>Per-(report, prompt) last-selected models for the Meta /
+Translate pickers.</dd></div>
+<div><dt>last_ai_report_title</dt><div class="meta">String</div>
+<dd>Most recent report title (used by external-intent flows).</dd></div>
+<div><dt>last_ai_report_prompt</dt><div class="meta">String</div>
+<dd>Most recent report prompt.</dd></div>
+</dl>
+</div>
+</details>
+
+<details>
+<summary>provider_registry</summary>
+<div class="body">
+<p>Custom provider definitions added by the user (or imported via
+<code>assets/providers.json</code>). Keyed by provider id; serialized
+as <code>ProviderDefinition</code> JSON. Read by
+<code>ProviderRegistry</code> at startup; merges with the bundled
+<code>assets/providers.json</code> definitions.</p>
+</div>
+</details>
+
+<details>
+<summary>provider_field_timestamps</summary>
+<div class="body">
+<p>Per-provider, per-field "user-touched-at" timestamps that the
+every-start <code>assets/providers.json</code> sync consults to
+decide which fields to refresh.</p>
+<dl class="kv">
+<div><dt>ts</dt><div class="meta">JSON Map&lt;String, Map&lt;String, Long&gt;&gt;</div>
+<dd><code>{ "OpenAI": { "baseUrl": 1715…, "modelFilter": 1716… }, … }</code>.
+Set by <code>ProviderRegistry.update</code> whenever the new value
+differs from the existing one; asset-driven paths don't bump.</dd></div>
+</dl>
+<p>Field names match <code>AppService</code> property names. A null
+lookup means "never user-touched, refresh on next start"; a non-null
+timestamp means "user edited this field, the asset sync should leave
+it alone". See <a href="throttle.html">throttle</a> and
+<a href="architecture.html">architecture</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>pricing_cache</summary>
+<div class="body">
+<p>Bookkeeping (timestamps) plus the small manual-override map. The
+large tier blobs themselves used to live here but were moved to
+<code class="path">&lt;filesDir&gt;/pricing/</code> (see below) —
+SharedPreferences loads its entire map into memory at process start
+and keeps it there for the lifetime of the process, so a multi-MB
+JSON string in a prefs file pays that cost forever even though it's
+only consulted on demand.</p>
+<dl class="kv">
+<div><dt>litellm_timestamp</dt><div class="meta">Long</div>
+<dd>Last LiteLLM fetch ms.</dd></div>
+<div><dt>openrouter_timestamp</dt><div class="meta">Long</div>
+<dd>Last OpenRouter fetch ms.</dd></div>
+<div><dt>together_timestamp</dt><div class="meta">Long</div>
+<dd>Last Together native fetch ms.</dd></div>
+<div><dt>models_dev_timestamp</dt><div class="meta">Long</div>
+<dd>Last models.dev fetch ms.</dd></div>
+<div><dt>helicone_timestamp</dt><div class="meta">Long</div>
+<dd>Last Helicone fetch ms.</dd></div>
+<div><dt>llmprices_timestamp</dt><div class="meta">Long</div>
+<dd>Last llm-prices.com fetch ms.</dd></div>
+<div><dt>aa_timestamp_v2</dt><div class="meta">Long</div>
+<dd>Last Artificial Analysis fetch ms. The <code>_v2</code> suffix
+exists to invalidate older UUID-keyed entries from a previous parser
+revision.</dd></div>
+<div><dt>manual_pricing</dt><div class="meta">JSON Map&lt;String, ModelPricing&gt;</div>
+<dd>Per-(provider, model) user overrides.</dd></div>
+</dl>
+</div>
+</details>
+
+<details>
+<summary>dual_chat_prefs</summary>
+<div class="body">
+<p>Last-used Dual Chat configuration.</p>
+<dl class="kv">
+<div><dt>config_v1</dt><div class="meta">JSON DualChatConfig</div></div>
+<div><dt>subjects_recent</dt><div class="meta">JSON List&lt;String&gt;</div>
+<dd>Recent subjects.</dd></div>
+<div><dt>prompts_first_recent, prompts_second_recent</dt><div class="meta">JSON List&lt;String&gt;</div></div>
+</dl>
+</div>
+</details>
+
+<details>
+<summary>huggingface_cache</summary>
+<div class="body">
+<p>Cached HuggingFace model-info lookups (positive + negative). 7-day
+TTL keyed on <code>&lt;providerId&gt;::&lt;modelId&gt;</code>.</p>
+<dl class="kv">
+<div><dt>entries_json</dt><div class="meta">JSON Map&lt;String, Entry(ts, info?)&gt;</div></div>
+</dl>
+<p><code>info = null</code> is meaningful — a cached miss that
+short-circuits the network call until the TTL expires. Concurrent
+load-modify-save is serialised so two simultaneous misses don't tear
+the JSON blob.</p>
+</div>
+</details>
+
+<details>
+<summary>model_cooldowns</summary>
+<div class="body">
+<p>Auto-bench list for models that returned a 429 with a long
+Retry-After (see <a href="cooldowns.html">cooldowns</a>). Plain
+singleton <code>ModelCooldownStore</code> reads / writes it. Trace
+filenames are device-local — preserved here so the picker can
+deep-link to the originating trace, but not part of the export
+bundle's public surface.</p>
+<dl class="kv">
+<div><dt>map</dt><div class="meta">JSON Map&lt;String, Long&gt;</div>
+<dd><code>"$providerId:$model"</code> → epoch-ms when the cooldown
+expires.</dd></div>
+<div><dt>traces</dt><div class="meta">JSON Map&lt;String, String&gt;</div>
+<dd><code>"$providerId:$model"</code> → filename of the API trace
+whose 429 produced the cooldown.</dd></div>
+</dl>
+</div>
+</details>
+
+<h2 id="files">Files (under &lt;filesDir&gt;)</h2>
+
+<p>The app's <code>filesDir</code> is
+<code class="path">/data/data/com.ai/files/</code>. The tree is
+captured by the backup zip with two top-level exceptions —
+<code>local_llms/</code> and <code>local_models/</code>, which hold
+user-supplied multi-GB on-device model bundles. See
+<a href="backup-restore.html">backup-restore</a> for the
+exclude-and-preserve contract.</p>
+
+<p>Almost every JSON write goes through
+<code>AtomicFileWrite.writeTextAtomic</code> — a
+<code>Files.move(ATOMIC_MOVE)</code> of an fsync'd temp file, with
+parent-dir auto-mkdir. Most writes are also wrapped in a
+<code>ReentrantLock</code> per storage object.</p>
+
+<details open>
+<summary>pricing/&lt;key&gt;.json</summary>
+<div class="body">
+<p>Tier blobs for <code>PricingCache</code>. One file per (tier,
+payload):</p>
+<dl class="kv">
+<div><dt>openrouter_pricing.json</dt><dd>OpenRouter</dd></div>
+<div><dt>together_pricing.json</dt><dd>Together AI native</dd></div>
+<div><dt>litellm_pricing.json</dt><dd>LiteLLM (BerriAI)</dd></div>
+<div><dt>litellm_meta.json</dt><dd>LiteLLM capabilities sidecar</dd></div>
+<div><dt>models_dev_pricing.json</dt><dd>models.dev</dd></div>
+<div><dt>models_dev_meta.json</dt><dd>models.dev capabilities sidecar</dd></div>
+<div><dt>helicone_pricing.json</dt><dd>Helicone exact-match prices</dd></div>
+<div><dt>helicone_patterns.json</dt><dd>Helicone pattern rules
+(<code>startsWith</code> / <code>includes</code>)</dd></div>
+<div><dt>llmprices_pricing.json</dt><dd>llm-prices.com</dd></div>
+<div><dt>aa_pricing_v2.json</dt><dd>Artificial Analysis</dd></div>
+<div><dt>aa_meta_v2.json</dt><dd>Artificial Analysis
+intelligence / speed scores</dd></div>
+</dl>
+<p>Reads go through <code>PricingCache.loadBlob</code>, which falls
+back to the legacy <code>pricing_cache</code> SharedPreferences key
+once on the first read after the upgrade, copies the JSON to the
+file, and removes the prefs entry. Subsequent reads hit the file
+directly. Saves go straight to disk via <code>writeTextAtomic</code>
+and clear the legacy prefs key as a belt-and-braces guard.</p>
+</div>
+</details>
+
+<details>
+<summary>reports/&lt;reportId&gt;.json</summary>
+<div class="body">
+<p>One file per generated report. Holds the prompt, every agent's
+request / response / headers / usage / citations / cost, status,
+durations, plus <code>knowledgeBaseIds</code>,
+<code>imageBase64 / Mime</code> (vision),
+<code>webSearchTool</code> / <code>reasoningEffort</code> (regen
+state), <code>sourceReportId</code> (translated copies), and
+<code>pinned</code>. Written atomically; protected by
+<code>ReportStorage</code>'s <code>ReentrantLock</code>. Save failures
+log a warning instead of being silently swallowed.</p>
+</div>
+</details>
+
+<details>
+<summary>secondary/&lt;reportId&gt;/&lt;resultId&gt;.json</summary>
+<div class="body">
+<p>One file per <code>SecondaryResult</code> row — RERANK, META
+(every chat-type Meta / Fan-out / Fan-in prompt), MODERATION, or
+TRANSLATE. META rows carry the user-given <code>metaPromptName</code>
+(and <code>metaPromptId</code>) so the UI / exports group them under
+the prompt name regardless of how many or which prompts the user has
+configured. The <code>secondaryScope</code> field encodes the
+SecondaryScope used at run time so a cascade re-runs at the same
+scope. Subdirectory per parent report so deleting a report cascades
+cleanly. Translate rows additionally carry
+<code>translateSourceTargetId/Kind</code>,
+<code>targetLanguage/Native</code>, and a shared
+<code>translationRunId</code>. Fan-out rows carry
+<code>fanOutSourceAgentId</code>; Fan-in rows carry
+<code>fanInOf</code>.</p>
+<p><code>SecondaryResultStorage.save</code> validates that the
+resolved file path stays inside the configured directory (defence
+against <code>..</code>-traversal in a corrupt id), keeps a
+per-(reportId) fingerprint cache (<code>(name, mtime, length)</code>
+joined across every JSON file) to catch in-place edits, and
+invalidates the cache on delete.</p>
+</div>
+</details>
+
+<details>
+<summary>applog/applog_&lt;yyyyMMdd&gt;.log</summary>
+<div class="body">
+<p>Daily-rotating plain-text log files produced by
+<code>com.ai.data.AppLog</code>. One line per call, format:</p>
+<pre><code>yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message</code></pre>
+<p>The writer is held open across calls and flushed per line so a
+process kill never loses the last few lines. Sensitive headers
+(<code>Bearer …</code>, raw <code>sk- / xai- / gsk_ / key-</code>
+keys, Google <code>?key=</code> params) are redacted inline before
+write. An in-memory <code>AppLog.cachedFiles</code> list mirrors the
+directory listing so the viewer's list screen is O(1) once warm.</p>
+<p>Reachable from Hub → AI App log. Threshold persisted in
+<code>eval_prefs</code> as <code>log_level</code>. See
+<a href="applog.html">applog</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>trace/&lt;hostname&gt;_&lt;timestamp&gt;_&lt;seq&gt;.json</summary>
+<div class="body">
+<p>One file per outbound API call (when
+<code>ApiTracer.isTracingEnabled</code> is true — on by default;
+toggleable in Settings). Each holds the full request (URL, method,
+headers, body) and the response (status, headers, body — except
+streaming responses, which note that they were not captured to avoid
+breaking the response stream). Tagged with the <code>reportId</code>
+and <code>model</code> of the originating call where applicable.</p>
+<p>Auth headers are redacted at write time, not just on Copy / Share
+— a leaked filesystem dump never carries plain keys. Body capture
+caps at 8 MiB so a runaway streaming response doesn't blow up.
+Hostnames are sanitised before being used as filename components (no
+path-traversal injection from a malicious URL).</p>
+<p>On-device LLM (<code>LocalLlm.generate</code>) and on-device
+embedder (<code>LocalEmbedder.embed</code>) calls write traces too,
+with <code>hostname = "local"</code> and url like
+<code>local://generate/&lt;modelFile&gt;</code> or
+<code>local://embed/&lt;modelFile&gt;</code>.</p>
+<p><code>ApiTracer</code> keeps an in-memory
+<code>cachedTraceFiles</code> list, prewarmed off the main thread on
+<code>init</code>, so the Trace list / detail prev-next nav is O(1)
+once the cache is populated.</p>
+</div>
+</details>
+
+<details>
+<summary>chat-history.json</summary>
+<div class="body">
+<p>Single JSON file with every persisted chat session. Managed by
+<code>ChatHistoryManager</code>. Sessions are auto-saved as messages
+arrive. Holds <code>pinned</code> and <code>knowledgeBaseIds</code>
+per session. Atomic writes; delete + cache invalidation are taken
+under a single lock.</p>
+</div>
+</details>
+
+<details>
+<summary>prompt-history.json</summary>
+<div class="body">
+<p>Up to 100 most-recently-used report prompts. Managed by
+<code>SettingsPreferences.savePromptHistory</code>. The Hub's
+"Prompt history" card reads it.</p>
+</div>
+</details>
+
+<details>
+<summary>usage-stats.json</summary>
+<div class="body">
+<p>List of <code>UsageStats</code> entries — one per
+<code>(provider, model, kind)</code> triple. Updated in-memory by
+every successful API call; disk-flushed on a 2-second debounce.
+<code>ViewModel.onCleared</code> forces a flush off the main thread
+on <code>NonCancellable</code> so a Refresh-all auto-restart can't
+drop in-flight stats. Read by the AI Usage screen.</p>
+</div>
+</details>
+
+<details>
+<summary>test_run.json</summary>
+<div class="body">
+<p>The single most-recent "Test all models" run (Housekeeping → Test
+→ Test all models). One JSON document — <code>ModelTestRunState</code>
+with a per-<code>(provider, model)</code> <code>ModelTestState</code>
+map. Managed by <code>ModelTestRunStore</code>: the
+<code>ModelTestEngine</code> flushes it on each item completion
+(crash-safe partial results) and once on run end. A fresh run
+overwrites it; Housekeeping → Reset → Clear runtime data drops it.
+Atomic writes under a <code>ReentrantLock</code>. Not in
+<code>FILES_DIR_BACKUP_EXCLUDES</code>, so it round-trips through
+backup / restore.</p>
+</div>
+</details>
+
+<details>
+<summary>prompt_cache/</summary>
+<div class="body">
+<p>Cached <code>PromptCache</code> entries — per-prompt cached
+responses with TTL. Used by <code>PromptCache</code> to short-circuit
+repeat lookups (e.g. the Model Info "model info" prompt). Cache keys
+are length-prefixed hashes so a <code>|</code> separator collision
+can't conflate two distinct keys.</p>
+</div>
+</details>
+
+<details>
+<summary>model_lists/&lt;providerId&gt;.json</summary>
+<div class="body">
+<p>Most recent <code>/models</code> raw JSON per provider. Used by the
+Model Info screen and by <code>ModelListCache</code>. Atomic writes;
+provider id is sanitised before use as a filename.</p>
+</div>
+</details>
+
+<details>
+<summary>model_pricing.json, model_supported_parameters.json</summary>
+<div class="body">
+<p>Supplementary catalogs (atomic writes).</p>
+</div>
+</details>
+
+<details>
+<summary>knowledge/&lt;kbId&gt;/</summary>
+<div class="body">
+<p>Knowledge base data. Per-KB layout:</p>
+<ul class="tree">
+<li>knowledge/&lt;kbId&gt;/
+  <ul>
+    <li>manifest.json <span class="note">— KnowledgeBase + KnowledgeSource[] list</span></li>
+    <li>chunks/
+      <ul>
+        <li>&lt;sourceId&gt;.json <span class="note">— JSON array of KnowledgeChunk</span></li>
+      </ul>
+    </li>
+    <li>files/
+      <ul>
+        <li>&lt;localCopy&gt; <span class="note">— locally-persisted source file</span></li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+<p>One JSON file per source keeps add / remove / re-index cheap (no
+full-KB rewrite for a single-source change), while loading a whole
+KB for retrieval still scans only one directory. Chunk + manifest
+writes are taken under a single lock so a crash mid-write can't leave
+the manifest pointing at half a chunk file. <code>clearAll</code> and
+<code>deleteKnowledgeBase</code> also take the store lock so a
+full-reset and an in-flight ingest can't race. See
+<a href="knowledge.html">knowledge</a>.</p>
+</div>
+</details>
+
+<details>
+<summary>embeddings/&lt;sha256&gt;.json</summary>
+<div class="body">
+<p>Per-document embedding cache, keyed by SHA-256 of
+<code>(providerId, model, docId, contentHash)</code>. Used by the
+layered Local / Remote semantic search screens to short-circuit
+re-embedding. Dim mismatches log a warning instead of silently
+zeroing.</p>
+</div>
+</details>
+
+<details>
+<summary>local_models/&lt;name&gt;.tflite</summary>
+<div class="body">
+<p>On-device text-embedder models for <code>LocalEmbedder</code>.
+The default Universal Sentence Encoder is downloaded on first use of
+the Local Semantic Search screen. Custom user-supplied
+<code>.tflite</code> files (with proper MediaPipe Tasks metadata) can
+be added via the SAF picker on <strong>AI Setup → Local Models →
+Local LiteRT models</strong>.</p>
+<div class="callout warn">
+<p><strong>Backup behaviour:</strong> this directory is in
+<code>BackupManager.FILES_DIR_BACKUP_EXCLUDES</code> — its contents
+are skipped by the backup zip and preserved through the restore
+wipe. See <a href="backup-restore.html">backup-restore</a>.</p>
+</div>
+</div>
+</details>
+
+<details>
+<summary>local_llms/&lt;name&gt;.task</summary>
+<div class="body">
+<p>On-device LLM bundles for <code>LocalLlm</code>. User-supplied —
+most models require accepting model-card terms in a browser before
+download. The <strong>AI Setup → Local Models → Local LLMs</strong>
+card carries hand-off links and a SAF picker that accepts
+<code>.task</code>, <code>.zip</code>, <code>.tar.gz</code>,
+<code>.tgz</code>, and <code>.tar</code> archives.</p>
+<div class="callout warn">
+<p><strong>Backup behaviour:</strong> same as
+<code>local_models/</code> above — excluded from the backup zip,
+preserved through the restore wipe.</p>
+</div>
+</div>
+</details>
+
+<h2 id="not-persisted">What's NOT persisted</h2>
+
+<ul>
+<li>Raw streaming SSE bodies (response body in trace files reads
+<code>[streaming response - not captured]</code>).</li>
+<li>WebView Chromium cookies and process state — intentionally
+excluded from the backup zip; doesn't make sense to restore on a
+different device.</li>
+<li>The <code>assets/providers.json</code> provider catalog — this
+ships in the APK and is consumed once at first run; the merged
+result lives in <code>provider_registry</code> prefs from then on.
+Restore re-reads the asset and grafts in any provider id missing
+from the restored prefs (handles "old backup, new app version, new
+provider").</li>
+</ul>
+
+<h2 id="not-backed-up">What's NOT in the backup zip</h2>
+
+<ul>
+<li><code class="path">local_llms/&lt;name&gt;.task</code> and
+<code class="path">local_models/&lt;name&gt;.tflite</code> —
+user-supplied multi-GB on-device model bundles. Listed in
+<code>BackupManager.FILES_DIR_BACKUP_EXCLUDES</code>; skipped on
+backup, preserved through the restore wipe so a settings / data
+restore doesn't destroy them.</li>
+<li>In-flight cacheDir temp files matching
+<code>CACHE_TOPLEVEL_SKIP_PREFIXES</code> (<code>ai-restore-</code>,
+<code>reset_keys_</code>, <code>ai-backup-</code>) — these would
+self-contain the in-flight backup, yank the file out from under the
+in-flight restore, or leak API keys.</li>
+</ul>
+
+<p><code>cacheDir</code> itself <strong>is</strong> mirrored into the
+backup zip (<code>cache/...</code>) so exports / shared-trace
+handoffs / camera captures round-trip — only the in-flight temp
+prefixes are skipped.</p>
+
+<p>See <a href="backup-restore.html">backup-restore</a> for the full
+backup format and restore semantics.</p>
+
+<h2 id="cleanup">Cleanup paths</h2>
+
+<p><code>SettingsPreferences</code> exposes:</p>
+<ul>
+<li><code>clearPromptHistory()</code> — empties
+<code>prompt-history.json</code>.</li>
+<li><code>clearLastReportPrompt()</code> — clears the two
+<code>last_ai_report_*</code> keys.</li>
+<li><code>clearUsageStats()</code> — empties
+<code>usage-stats.json</code> and the in-memory cache.</li>
+<li><code>clearTraces()</code> — <code>ApiTracer.clearTraces()</code>
+deletes every file under <code>trace/</code>.</li>
+<li><code>AppLog.clearLogs()</code> — deletes every file under
+<code>applog/</code>.</li>
+</ul>
+
+<p><strong>Housekeeping → Reset</strong> is split into five dedicated
+sub-screens (each in its own <code>CollapsibleCard</code>, collapsed
+by default):</p>
+
+<dl class="kv">
+<div><dt>Clear all runtime data</dt>
+<dd>Wipes logs, chats, traces, usage stats, plus AI reports and
+prompt history. Narrower than the legacy single button: knowledge /
+pricing / model-list caches stay put.</dd></div>
+<div><dt>Clear Info providers</dt>
+<dd>Wipes the seven external-info repository caches (LiteLLM,
+OpenRouter, models.dev, Helicone, llm-prices, Artificial Analysis,
+HuggingFace) and their per-tier timestamps in
+<code>pricing_cache</code>.</dd></div>
+<div><dt>Clear all configuration</dt>
+<dd>Wipes provider config, prompts, Local LLMs, LiteRT models. Asks
+before destructive actions.</dd></div>
+<div><dt>Restore bundled assets</dt>
+<dd>Re-merges <code>providers.json</code> / <code>prompts.json</code>
+/ <code>examples.json</code> from the APK. User edits on existing
+rows are preserved.</dd></div>
+<div><dt>Reset application</dt>
+<dd>Factory-style reset that preserves API keys (written to a temp
+file under <code>cacheDir/reset_keys_*</code>, restored after the
+wipe). No longer runs a trailing Refresh-all chain; the user can fire
+it from the Refresh screen if they want it.</dd></div>
+</dl>
+
+<p>After any wholesale-state-replace op, the <strong>Restart-app
+dialog</strong> prompts the user to relaunch so the in-memory state
+matches the freshly written on-disk state.</p>
+
+<p>None of these touch the on-device <code>.task</code> /
+<code>.tflite</code> files unless the "Clear all configuration" path
+is taken — those persist across runtime resets and have their own
+per-row Remove on the matching Local LLMs / Local Models cards.</p>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>

@@ -3,25 +3,392 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Backup & restore — AI app docs</title>
+<title>Backup &amp; restore — AI app docs</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar"><a href="index.html">← Docs</a><span>Backup & restore</span></header>
+<header class="topbar"><a href="index.html">← Docs</a><span>Backup &amp; restore</span></header>
 <main>
-<h1>Backup & restore</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/backup-restore.md</code> in the repo.</p>
+
+<h1>Backup &amp; restore</h1>
+
+<p><code>BackupManager</code> round-trips the entire app — settings,
+chat history, reports, knowledge bases, traces, pricing snapshots, and
+all the bookkeeping that makes a restored install pick up exactly
+where the source install left off — into a single <code>.zip</code>
+file.</p>
+
+<p>The user opens it from <strong>Settings → Housekeeping → Backup
+&amp; Restore → Backup</strong> (write to a SAF-picked location) and
+<strong>Restore</strong> (read from a SAF-picked location). One
+Activity, one <code>BackupManager</code> object, no service.</p>
+
+<h2>Zip layout</h2>
+
+<ul class="tree">
+<li>ai-backup-YYYYMMDD-HHMMSS.zip
+  <ul>
+    <li>manifest.json</li>
+    <li>prefs/
+      <ul>
+        <li>eval_prefs.json</li>
+        <li>provider_registry.json</li>
+        <li>provider_field_timestamps.json</li>
+        <li>pricing_cache.json</li>
+        <li>dual_chat_prefs.json</li>
+        <li>huggingface_cache.json</li>
+        <li>model_cooldowns.json</li>
+      </ul>
+    </li>
+    <li>files/
+      <ul>
+        <li>reports/&lt;reportId&gt;.json</li>
+        <li>secondary/&lt;reportId&gt;/&lt;resultId&gt;.json</li>
+        <li>chat-history.json</li>
+        <li>trace/&lt;hostname&gt;_&lt;ts&gt;_&lt;seq&gt;.json</li>
+        <li>applog/applog_&lt;yyyyMMdd&gt;.log</li>
+        <li>knowledge/&lt;kbId&gt;/manifest.json</li>
+        <li>knowledge/&lt;kbId&gt;/files/&lt;localCopy&gt;</li>
+        <li>knowledge/&lt;kbId&gt;/chunks/&lt;sourceId&gt;.json</li>
+        <li>embeddings/&lt;sha256&gt;.json</li>
+        <li>model_lists/&lt;providerId&gt;.json</li>
+        <li>pricing/&lt;key&gt;.json</li>
+        <li>prompt-history.json</li>
+        <li>prompt_cache/…</li>
+        <li>usage-stats.json</li>
+        <li>test_run.json</li>
+      </ul>
+    </li>
+    <li>cache/
+      <ul>
+        <li>exports, shared traces, camera captures <span class="note">— except in-flight temp files matching CACHE_TOPLEVEL_SKIP_PREFIXES</span></li>
+      </ul>
+    </li>
+  </ul>
+</li>
+</ul>
+
+<p>Files are written verbatim. Prefs are encoded as a list of
+<code>{k, t, v}</code> objects — <code>t</code> is a one-letter type
+discriminator (<code>s</code> String, <code>b</code> Boolean,
+<code>i</code> Int, <code>l</code> Long, <code>f</code> Float,
+<code>ss</code> String set) so values round-trip through Gson without
+an Int silently coming back as a Double. Unknown type tags log a
+warning instead of silently dropping the entry.</p>
+
+<p>Symlinks under <code>filesDir</code> are skipped on backup so a
+maliciously linked external file can't end up in the zip. The skip
+is applied by canonical-path comparison against the parent dir, so a
+directory whose child happens to be a regular file is not itself
+mistakenly dropped (an earlier bug).</p>
+
+<p>Restore caps both per-entry and total uncompressed bytes — a
+malformed zip can't blow up <code>filesDir</code> or
+<code>cacheDir</code> by claiming a 200 GB entry.</p>
+
+<h2>What's included</h2>
+
+<h3>Prefs (PREFS_TO_BACKUP)</h3>
+
+<dl class="kv">
+<div>
+<dt>eval_prefs</dt>
+<dd>All user-curated settings: API keys, per-provider model + endpoint
+config, agents / flocks / swarms / parameters / system prompts /
+internal prompts (the legacy <code>ai_meta_prompts</code> key, kept
+for compat) / example prompts, and the various per-screen recents
+(last selections for Reports, the report title / prompt, the
+secondary-pickers per-(report, prompt) state).</dd>
 </div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+<div>
+<dt>provider_registry</dt>
+<dd>Custom provider definitions added or imported by the user — keyed
+by provider id, merged with <code>assets/providers.json</code> at
+runtime.</dd>
+</div>
+<div>
+<dt>provider_field_timestamps</dt>
+<dd>Per-provider per-field "user-touched-at" timestamps so the
+every-start <code>providers.json</code> sync knows which fields the
+user has edited. Loss here turns user edits into "asset values
+overwritten on next boot", so this prefs file is in the backup
+set.</dd>
+</div>
+<div>
+<dt>pricing_cache</dt>
+<dd>Timestamps for each pricing tier + the user's manual price
+overrides. The bulk pricing JSON itself lives in
+<code>files/pricing/</code>.</dd>
+</div>
+<div>
+<dt>dual_chat_prefs</dt>
+<dd>Last-used Dual Chat configuration plus the recent-subjects /
+recent-prompts ring buffers.</dd>
+</div>
+<div>
+<dt>huggingface_cache</dt>
+<dd>7-day-TTL HuggingFace model-info lookups (positive
+<strong>and</strong> negative — a cached miss avoids a re-fetch storm
+on a model HF doesn't have). Concurrent load-modify-save is serialised
+to prevent torn writes.</dd>
+</div>
+<div>
+<dt>model_cooldowns</dt>
+<dd>Auto-bench list for models that returned a long-Retry-After 429 —
+<code>(providerId, model)</code> → epoch-ms expiry plus the trace
+filename of the originating 429. See
+<a href="cooldowns.html">cooldowns</a>.</dd>
+</div>
+</dl>
+
+<h3>Files (under &lt;filesDir&gt;)</h3>
+
+<p>Everything in <code>&lt;filesDir&gt;</code> except the two
+top-level entries listed in <code>FILES_DIR_BACKUP_EXCLUDES</code>
+(see next section). Notable contents:</p>
+
+<ul>
+<li><code>reports/</code>, <code>secondary/</code>,
+<code>chat-history.json</code>, <code>prompt-history.json</code> —
+the user's content.</li>
+<li><code>trace/</code> — captured API traces (subject to whatever
+cutoff the user set). Auth headers redacted at write time.</li>
+<li><code>applog/applog_&lt;yyyyMMdd&gt;.log</code> —
+daily-rotating app log produced by <code>com.ai.data.AppLog</code>.
+Sensitive headers + raw API keys are redacted inline before write so
+the backed-up logs never carry plain secrets.</li>
+<li><code>knowledge/&lt;kbId&gt;/</code> — KB manifests, chunk JSONs
+(with <code>FloatArray</code> embeddings serialised as numeric
+arrays), and the locally-persisted source files.</li>
+<li><code>embeddings/</code> — the per-document embedding cache that
+backs Local / Remote semantic search.</li>
+<li><code>pricing/</code> — the LiteLLM, models.dev, OpenRouter,
+Together, Helicone, llm-prices and Artificial Analysis tier
+blobs.</li>
+<li><code>model_lists/</code> — the most recent <code>/models</code>
+raw JSON per provider, used by the Model Info screen.</li>
+<li><code>model_pricing.json</code>,
+<code>model_supported_parameters.json</code> — supplementary catalogs
+(atomic writes).</li>
+<li><code>prompt_cache/</code> — <code>PromptCache</code> entries
+(Model Info "model info" prompt and similar TTL-cached
+responses).</li>
+<li><code>usage-stats.json</code> — per-(provider, model, kind)
+cumulative costs that drive the AI Usage screen.</li>
+<li><code>test_run.json</code> — the single most-recent "Test all
+models" run (<code>ModelTestRunStore</code>); not excluded, so it
+round-trips.</li>
+</ul>
+
+<h3>Cache (under &lt;cacheDir&gt;)</h3>
+
+<p>The backup also mirrors <code>cacheDir</code> (exports,
+shared-trace handoffs, camera captures, bulk-export staging) but
+<strong>skips</strong> in-flight temp files whose names match
+<code>CACHE_TOPLEVEL_SKIP_PREFIXES</code>:</p>
+
+<ul>
+<li><code>ai-restore-</code> — the temp zip the current restore is
+reading.</li>
+<li><code>reset_keys_</code> — API keys in plaintext written by the
+reset orchestrator (would leak keys if archived).</li>
+<li><code>ai-backup-</code> — defensive — should the backup ever
+stage a temp file, exclude it.</li>
+</ul>
+
+<h2>What's excluded</h2>
+
+<h3>FILES_DIR_BACKUP_EXCLUDES</h3>
+
+<pre><code>internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")</code></pre>
+
+<p>Both directories hold user-supplied on-device model bundles:</p>
+
+<ul>
+<li><code class="path">local_llms/&lt;name&gt;.task</code> — Gemma /
+Phi / Llama and similar bundles for <code>LocalLlm</code>. Hundreds
+of MB to several GB each. Sourced via SAF after the user accepts the
+model card terms in a browser — see
+<a href="local-runtime.html">local-runtime</a>.</li>
+<li><code class="path">local_models/&lt;name&gt;.tflite</code> —
+MediaPipe Tasks TextEmbedder models for <code>LocalEmbedder</code>.
+Tens to hundreds of MB each.</li>
+</ul>
+
+<p>Excluding them from backup keeps the zip small (a settings backup
+measured in MB instead of GB) and avoids redistributing weights the
+user provisioned through the original hand-off flow. They're also
+<strong>preserved</strong> on restore (see below) so the user doesn't
+lose them when restoring a backup that didn't ship with them.</p>
+
+<h3>Other things deliberately not in the zip</h3>
+
+<ul>
+<li><code>WebViewChromiumPrefs</code> — Chromium cookies and
+web-process state. Doesn't make sense across devices.</li>
+<li>Any SharedPreferences file not in <code>PREFS_TO_BACKUP</code>.
+New prefs files added to the app must be added explicitly.</li>
+</ul>
+
+<h2>Restore: validate-then-write</h2>
+
+<p><code>restore(context, input)</code> is two-pass:</p>
+
+<ol>
+<li><strong>Validate</strong> —
+<code>readAllEntriesValidated</code> copies the SAF stream into a
+temp file in <code>cacheDir</code>, then walks every zip entry,
+decompresses it into memory, and stages it in a
+<code>LinkedHashMap&lt;String, ByteArray&gt;</code>. Any read or
+truncation failure throws here, <strong>before</strong> the
+destructive wipe step. Path-traversal guard: every
+<code>files/&lt;rel&gt;</code> entry has its resolved canonical path
+checked against the canonical <code>filesDir</code> root; entries
+that escape are dropped with a <code>Log.w</code>.</li>
+<li><strong>Apply prefs</strong> — <code>applyPrefsOnly</code>
+commits every <code>prefs/&lt;name&gt;.json</code> entry into
+SharedPreferences. Prefs go first so a process death between writes
+leaves prefs valid + filesDir empty (re-restorable), rather than the
+inverse where filesDir is partially written and prefs still point at
+the pre-restore state.</li>
+<li><strong>Apply files</strong> —
+<code>clearFilesDirForRestore</code> wipes filesDir (preserving
+<code>FILES_DIR_BACKUP_EXCLUDES</code>) plus the staged cache
+entries, then writes the staged map to disk. Each restored file is
+<strong>fsync'd</strong> before the caller is allowed to kill the
+process.</li>
+<li><strong>Merge providers</strong> —
+<code>mergeMissingProvidersFromSetup</code> reads
+<code>assets/providers.json</code> and grafts in any provider id the
+running build has but the restored prefs don't (handles "old backup,
+new app version, new provider").</li>
+</ol>
+
+<p>The manifest's <code>version</code> field is <strong>read
+first</strong> — a missing or unparseable manifest fails fast
+(sentinel −1) so a random zip can't accidentally trigger the
+destructive wipe. Reject also fires if the manifest version exceeds
+the running build's <code>MANIFEST_VERSION</code> (currently
+<code>1</code>).</p>
+
+<p>Memory cost: full uncompressed payload during the staging pass.
+Acceptable because backups are typically 10–50 MB, and the SAF copy
+already held that much in cacheDir.</p>
+
+<h2>Preservation across the restore wipe</h2>
+
+<p><code>clearFilesDirForRestore</code> skips the same
+<code>FILES_DIR_BACKUP_EXCLUDES</code> set when wiping:</p>
+
+<pre><code>filesDir.listFiles()?.forEach {
+    if (it.name !in FILES_DIR_BACKUP_EXCLUDES) it.deleteRecursively()
+}</code></pre>
+
+<p>Effect: a backup taken on Device A (with no local LLMs) restored
+to Device B (with a multi-GB Gemma 3 install in
+<code>local_llms/</code>) keeps Device B's local models in place.
+Without this guard the restore would silently destroy them — the
+backup didn't include them, the wipe took them out, and the user
+would have to re-import the multi-GB bundle.</p>
+
+<p>A unit test
+(<code>BackupManagerRestoreTest.clearFilesDirForRestore_preserves_local_model_dirs</code>)
+seeds both directories, runs the wipe, and asserts both are still
+there.</p>
+
+<h2>Provider catalog merge</h2>
+
+<p><code>mergeMissingProvidersFromSetup</code> runs after the prefs
+and files have been written. It reads the bundled
+<code>assets/providers.json</code>, parses every provider definition,
+and adds any whose <code>id</code> isn't already in the restored
+<code>provider_registry</code> prefs. The number of new providers is
+returned in <code>RestoreSummary.newProviders</code> and shown to the
+user.</p>
+
+<p>This handles the otherwise-confusing "old backup, new app version"
+case: backup was taken when only N providers shipped, the new app
+version added Cloudflare / DeepInfra / Nebius / etc., the restore
+would otherwise leave them invisible until a manual prefs wipe.</p>
+
+<h2>Manifest version</h2>
+
+<pre><code>private const val MANIFEST_VERSION = 1</code></pre>
+
+<p><code>restore</code> reads the manifest's <code>version</code>
+field. Bumps:</p>
+
+<ul>
+<li><code>version &gt; MANIFEST_VERSION</code> →
+<code>IllegalStateException</code> ("Backup is from a newer app
+version (N). Please update the app.")</li>
+<li><code>version &lt; 1</code> (missing or unparseable) →
+<code>IllegalStateException</code> ("Backup is missing a recognizable
+manifest.json — refusing to restore.") — defensive guard so a random
+zip doesn't trigger the destructive wipe.</li>
+</ul>
+
+<p>Bump <code>MANIFEST_VERSION</code> only when the format changes in
+a way an old restore can't read.</p>
+
+<h2>Singleton staleness after restore</h2>
+
+<p>Restoring writes everything to disk, but the running process holds
+in-memory copies that are now out of sync:</p>
+
+<ul>
+<li><code>ProviderRegistry</code> — provider list cached at
+startup.</li>
+<li><code>ApiTracer</code> — <code>cachedTraceFiles</code>,
+<code>currentReportId</code>, <code>currentCategory</code>.</li>
+<li><code>PromptCache</code> — entries map.</li>
+<li><code>ReportStorage</code>, <code>ChatHistoryManager</code> —
+file caches.</li>
+<li><code>PricingCache</code> — every tier map.</li>
+<li><code>AppViewModel.UiState</code> — agents, flocks, swarms,
+parameters.</li>
+</ul>
+
+<p>Rather than reload each one in place (lots of moving parts, lots
+of recompositions to coordinate), the restore flow asks the user to
+restart the app. The restart gate that the Refresh-all flow uses
+applies here too:</p>
+
+<pre><code>val launch = context.packageManager.getLaunchIntentForPackage(...)
+launch?.flags = FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_CLEAR_TASK
+context.startActivity(launch)
+Runtime.getRuntime().exit(0)</code></pre>
+
+<p>The next launch re-reads everything from disk and ends up exactly
+where the source install left off (modulo running coroutines and
+StateFlow subscribers).</p>
+
+<h2>Code &amp; tests</h2>
+
+<p>Implementation: <code>data/BackupManager.kt</code>. Entry points:
+Housekeeping screen's Backup &amp; Restore card → Backup / Restore
+buttons.</p>
+
+<p>Tests:</p>
+
+<ul>
+<li><code class="path">ai/src/test/java/com/ai/data/BackupManagerRestoreTest.kt</code>
+— unit tests for <code>clearFilesDirForRestore</code> (wipes content,
+creates missing dir, <strong>preserves</strong>
+<code>local_llms/</code> and <code>local_models/</code>).</li>
+<li><code class="path">ai/src/androidTest/java/com/ai/data/ApiTracerInstrumentedTest.kt</code>
+— full-cycle <code>saveTrace</code> / <code>getTraceFiles</code> /
+<code>clearTraces</code> / <code>deleteTracesOlderThan</code>
+(relevant because trace files round-trip through the backup zip).</li>
+</ul>
+
+<p>When changing what's in the backup, update both
+<code>PREFS_TO_BACKUP</code> (if a prefs file is added) and the
+<a href="persistent.html">persistent state</a> "What's NOT in the
+backup zip" section.</p>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>

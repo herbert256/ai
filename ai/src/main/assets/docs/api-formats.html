@@ -9,19 +9,307 @@
 <body>
 <header class="topbar"><a href="index.html">← Docs</a><span>API formats</span></header>
 <main>
+
 <h1>API formats</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/api-formats.md</code> in the repo.</p>
+
+<p>Three dispatch paths cover all 42 default cloud providers. Identity
+is <strong>always</strong> keyed off <code>service.apiFormat</code> —
+never off provider id — which is why adding an OpenAI-compatible
+provider is usually a single JSON entry in
+<code>assets/providers.json</code>.</p>
+
+<pre><code>enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }</code></pre>
+
+<p>Dispatch lives in <code>com.ai.data.ApiDispatch</code>; streaming
+in <code>com.ai.data.ApiStreaming</code>.</p>
+
+<p>In addition there is a <strong>synthetic on-device path</strong>
+routed via <code>AppService.LOCAL</code> (<code>id = "Local"</code>).
+It does not use <code>ApiFormat</code> at all — when an agent's
+provider is <code>Local</code>, the dispatch layer skips Retrofit
+entirely and calls <code>LocalLlm.generate()</code> (chat / report /
+fan-out) or <code>LocalEmbedder.embed()</code> (embeddings). See
+<a href="local-runtime.html">Local runtime</a>.</p>
+
+<h2>OPENAI_COMPATIBLE (default — 40 of 42)</h2>
+
+<p>The familiar OpenAI Chat Completions wire format. Bearer-token
+auth. Same request / response shape as <code>OpenAiRequest</code> /
+<code>OpenAiResponse</code> in <code>ApiModels.kt</code>.</p>
+
+<dl class="kv">
+<div><dt>Auth</dt>
+<dd><code>Authorization: Bearer &lt;key&gt;</code></dd></div>
+<div><dt>Path</dt>
+<dd><code>chat/completions</code> (default
+<code>v1/chat/completions</code>). Per-provider override via
+<code>typePaths.chat</code>.</dd></div>
+<div><dt>Streaming</dt>
+<dd>SSE — <code>data: {...}\n\ndata: {...}\n\n…\ndata: [DONE]</code>.
+Parsed by <code>ApiStreaming.streamOpenAiCompatible</code>. Data lines
+are buffered per W3C spec — multi-line <code>data:</code> chunks are
+concatenated before the blank-line dispatch.</dd></div>
+<div><dt>Tool descriptors</dt>
+<dd>Provider-specific; the dispatch layer attaches
+<code>web_search_preview</code> for OpenAI Responses-API models (gated
+by <code>provider.webSearchModelPatterns</code>), falls back to no-tool
+on a 400 tool-rejection.</dd></div>
+<div><dt>Reasoning effort</dt>
+<dd>When the agent's parameters set <code>reasoningEffort</code>
+(<code>"low"</code> / <code>"medium"</code> / <code>"high"</code>),
+the dispatch layer attaches <code>reasoning_effort</code> to the
+request when
+<code>inferAcceptsReasoningEffortParam(provider, model)</code> is
+true. Chat Completions silently ignores it on older models; the
+Responses API takes it natively. xAI's always-on reasoning variants
+are filtered out via <code>provider.reasoningEffortAcceptPatterns</code>
+so the parameter isn't attached even though the 🧠 badge is set.</dd></div>
+</dl>
+
+<h3>OpenAI's dual API split</h3>
+
+<p>OpenAI uses two separate endpoints depending on the model family:</p>
+
+<dl class="kv">
+<div>
+<dt>Chat Completions <span class="muted">(v1/chat/completions)</span></dt>
+<dd><code>gpt-4o</code>, <code>gpt-4</code>, <code>gpt-3.5-turbo</code>,
+<code>o1</code>-mini, etc.</dd>
 </div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+<div>
+<dt>Responses API <span class="muted">(v1/responses)</span></dt>
+<dd><code>gpt-5</code>, <code>gpt-5-mini</code>, <code>o3*</code>,
+<code>o4*</code>, <code>gpt-4.1*</code>. Different request shape
+(<code>OpenAiResponsesRequest</code>), different response shape
+(<code>OpenAiResponsesApiResponse</code>).</dd>
+</div>
+</dl>
+
+<p>Routing is done by <code>usesResponsesApi()</code> against the
+provider's <code>responsesApiPatterns</code> from
+<code>providers.json</code>. Other providers don't share this split —
+only OpenAI. Multi-text Responses-API output blocks are
+<strong>concatenated</strong> by the dispatch layer rather than only
+the first block being surfaced. The Chat path forwards image content
+blocks unchanged.</p>
+
+<p>The Responses API also surfaces
+<code>OpenAiResponsesAnnotation</code>
+(<code>url_citation</code> annotations the dispatch layer maps onto
+<code>AnalysisResponse.citations</code>) and
+<code>OpenAiResponsesAction</code> (<code>web_search_call</code>
+queries) — see <code>ApiModels.kt</code> for the wire shapes.</p>
+
+<h3>Quirks worth knowing</h3>
+<ul>
+<li><strong>Mistral</strong> uses <code>random_seed</code> instead of
+<code>seed</code>. Driven by <code>service.seedFieldName</code>.</li>
+<li><strong>Perplexity</strong> sets
+<code>supportsCitations = true</code> and
+<code>supportsSearchRecency = true</code> — its responses carry inline
+<code>citations</code> and accept a <code>search_recency</code>
+parameter the dispatch layer threads through.</li>
+<li><strong>OpenRouter</strong> sets <code>extractApiCost = true</code>
+— its responses include a per-call cost (<code>usage.cost</code>). The
+dispatch layer pulls that directly rather than computing from
+<code>tokens × unitPrice</code>.</li>
+<li><strong>xAI</strong> sets <code>costTicksDivisor = 1e10</code> —
+its returned costs are in ticks, not dollars. Provider-config edit
+refuses non-positive divisors.</li>
+<li><strong>Together</strong> and <strong>Google</strong> set
+<code>modelListFormat = array</code> because their
+<code>/models</code> endpoints return a bare array instead of
+<code>{ "data": [...] }</code>.</li>
+<li><strong>Cloudflare Workers AI</strong> has
+<code>YOUR_ACCOUNT_ID</code> in its base URL — the user replaces it
+before the provider becomes useful.</li>
+</ul>
+
+<h2>ANTHROPIC (Claude — 1 provider)</h2>
+
+<p>Claude's <code>/v1/messages</code> API has its own
+request / response shape.</p>
+
+<dl class="kv">
+<div><dt>Auth</dt>
+<dd><code>x-api-key: &lt;key&gt;</code> +
+<code>anthropic-version: 2023-06-01</code>.</dd></div>
+<div><dt>Path</dt>
+<dd><code>v1/messages</code> (override on Anthropic via
+<code>typePaths.chat</code>).</dd></div>
+<div><dt>max_tokens is required</dt>
+<dd>The dispatch layer defaults to <code>4096</code> if the user
+didn't set one. The dispatcher logs the override when reasoning is
+on.</dd></div>
+<div><dt>Vision</dt>
+<dd>Image content as a base64 <code>image</code> block in the
+<code>content</code> array.</dd></div>
+<div><dt>Streaming</dt>
+<dd>SSE with both <code>event:</code> and <code>data:</code> framing.
+Parsed by <code>ApiStreaming.streamAnthropic</code>. Error responses on
+streaming endpoints have their body drained and surfaced rather than
+left half-consumed.</dd></div>
+<div><dt>Web search tool</dt>
+<dd><code>web_search_20250305</code> injected when the user toggles 🌐
+and the model matches <code>provider.webSearchModelPatterns</code>
+(Claude 3.5+ / 4.x).</dd></div>
+<div><dt>Thinking / reasoning</dt>
+<dd>When the agent's parameters set <code>reasoningEffort</code> and
+the model matches <code>provider.reasoningModelPatterns</code>, the
+dispatch layer attaches a <code>thinking</code> block with
+<code>budget_tokens</code> translated from the effort level.
+Anthropic's adaptive-thinking opt-in shape (<code>claude-opus-4.6</code>
+/ <code>4.7</code>) is gated by
+<code>provider.adaptiveThinkingPatterns</code>.</dd></div>
+<div><dt>Native PDF input</dt>
+<dd><code>ModelCapabilities.supportsPdfInput</code> (from Anthropic
+<code>capabilities.pdf_input.supported</code>) lets a chat session
+attach a PDF as a <code>document</code> content block instead of
+relying on client-side OCR.</dd></div>
+</dl>
+
+<p>Models list at <code>v1/models</code>. Hardcoded fallback ships in
+<code>providers.json</code>. The provider's per-family
+<code>maxTokensDefaults</code> list determines the default
+<code>max_tokens</code> when the user hasn't pinned one (first match
+wins, default 4096).</p>
+
+<h2>GOOGLE (Gemini — 1 provider)</h2>
+
+<p>Gemini's <code>:generateContent</code> path-style API.</p>
+
+<dl class="kv">
+<div><dt>Auth</dt>
+<dd><code>?key=&lt;key&gt;</code> query parameter (URL-encoded; not a
+Bearer token).</dd></div>
+<div><dt>Path</dt>
+<dd><code>v1beta/models/{model}:generateContent</code> — the model id
+is in the path, not the body. The dispatcher substitutes it. For
+streaming, the path becomes
+<code>:streamGenerateContent</code>.</dd></div>
+<div><dt>role mapping</dt>
+<dd>Gemini uses <code>user</code> / <code>model</code>, not
+<code>user</code> / <code>assistant</code>. Translated by the dispatch
+layer.</dd></div>
+<div><dt>System prompt</dt>
+<dd>Separate <code>systemInstruction</code> field rather than a
+message with <code>role=system</code>.</dd></div>
+<div><dt>Vision</dt>
+<dd>Image content as <code>inlineData(mimeType, data)</code>
+parts.</dd></div>
+<div><dt>Streaming</dt>
+<dd>Chunked-JSON (each line is a complete JSON object). Parsed by
+<code>ApiStreaming.streamGoogle</code>.</dd></div>
+<div><dt>Web search tool</dt>
+<dd><code>google_search</code> tool descriptor for Gemini 1.5+ and
+2.x (gated by <code>provider.webSearchModelPatterns</code>).</dd></div>
+<div><dt>Thinking / reasoning</dt>
+<dd>Gemini exposes a <code>thinkingConfig</code> field with
+<code>thinkingBudget</code> (the dispatcher translates
+<code>reasoningEffort</code> → budget) and
+<code>includeThoughts</code>. The provider's
+<code>reasoningModelPatterns</code> gates whether the field is
+sent.</dd></div>
+</dl>
+
+<p>Models list at <code>v1beta/models</code> with
+<code>modelListFormat = array</code>. Path-encoded model ids mean the
+trace file shows the model in the URL, which the
+<code>TracingInterceptor</code> extracts into <code>trace.model</code>
+for non-body-encoded providers.</p>
+
+<h2>Adding an ApiFormat</h2>
+
+<p>If you ever need a fourth format:</p>
+
+<ol>
+<li>Add the enum value to <code>ApiFormat</code>.</li>
+<li>In <code>ApiDispatch.kt</code>, add a <code>when</code> branch in
+every dispatch function (<code>analyze</code>,
+<code>analyzeStreaming</code>, <code>fetchModels</code>,
+<code>testModel</code>).</li>
+<li>In <code>ApiStreaming.kt</code>, add an SSE / chunked-JSON parser
+branch.</li>
+<li>In <code>ApiModels.kt</code>, add the wire-format request /
+response data classes — Gson handles the (de)serialisation as long as
+the field names match.</li>
+<li>Set <code>apiFormat</code> on the new provider's entry in
+<code>providers.json</code>.</li>
+</ol>
+
+<p>The 40-of-42 ratio of <code>OPENAI_COMPATIBLE</code> providers means
+you almost never need to do this — it's worth pushing back on the
+third party to add an OpenAI-compatible endpoint before reaching for a
+new format.</p>
+
+<h2>Native non-chat endpoints</h2>
+
+<p>A handful of providers ship dedicated non-chat endpoints the
+dispatch layer routes to instead of building a chat-prompt fallback:</p>
+
+<dl class="kv">
+<div>
+<dt>AppService.nativeRerankUrl</dt>
+<dd>Cohere <code>/v2/rerank</code>. The Rerank flow POSTs
+<code>{model, query, documents}</code> and converts the response into
+the <code>[{id, rank, score, reason}, ...]</code> JSON shape the chat
+rerank flow already produces. See
+<a href="secondary-results.html">secondary-results</a>.</dd>
+</div>
+<div>
+<dt>AppService.nativeModerationUrl</dt>
+<dd>Mistral <code>/v1/moderations</code>. The Moderate flow POSTs
+<code>{model, input: [...]}</code> and lifts <code>tokenUsage</code>
+from the response so cost attribution matches chat-driven Meta
+runs.</dd>
+</div>
+<div>
+<dt>AppService.nativeCapabilityUrl</dt>
+<dd>Cohere-style <code>/v1/models</code> capability listing. Drives
+the per-model context-length / vision flags during a refresh.</dd>
+</div>
+</dl>
+
+<p>Providers without these URLs fall through to chat-prompt rerank /
+moderation with an explanatory error if the picked model isn't
+chat-capable.</p>
+
+<h2>A note on OpenAI moderation models</h2>
+
+<p>The OpenAI <code>omni-moderation-*</code> and
+<code>text-moderation-*</code> model ids do <strong>not</strong> show
+up in <code>/v1/models</code>. They ship in the OpenAI provider's
+<code>hardcodedModels</code> list in <code>providers.json</code> so the
+moderation flow can still pick them. The OpenAI-only fallback union in
+<code>Settings.withModels</code> preserves them across
+<code>/models</code> refreshes — every other provider's API list is
+canonical (merging hardcoded ids in would resurrect retired model ids
+the API correctly omitted, e.g. Anthropic's claude-3.x).</p>
+
+<h2>Streaming hardening</h2>
+
+<p>A few cross-format hardening passes:</p>
+<ul>
+<li><strong>W3C SSE buffering</strong> — multi-line <code>data:</code>
+chunks per spec.</li>
+<li><strong>Error-body drain</strong> — unsuccessful streaming
+responses have their body drained and surfaced with the HTTP status,
+instead of leaving the response half-consumed.</li>
+<li><strong>UTF-8 explicit</strong> — <code>ApiStreaming</code> reads
+bodies as UTF-8 to dodge platform-locale surprises.</li>
+<li><strong>Cancellation propagation</strong> —
+<code>RateLimitRetryInterceptor</code> bails on cancellation rather
+than retrying through a cancelled coroutine.</li>
+<li><strong>Permanent 4xx skip</strong> — <code>withRetry</code> skips
+retries on permanent 4xx failures.</li>
+<li><strong>Tracing tags propagate</strong> —
+<code>(reportId, category)</code> are thread-locals that propagate
+through OkHttp's dispatcher so retries and cancellations preserve the
+originating call's identity.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>

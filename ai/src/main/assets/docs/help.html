@@ -9,19 +9,118 @@
 <body>
 <header class="topbar"><a href="index.html">← Docs</a><span>Help system</span></header>
 <main>
-<h1>Help system</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/help.md</code> in the repo.</p>
-</div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+
+<h1>In-app help system</h1>
+
+<p>Every screen in the app carries a TitleBar with a ❓ icon that
+opens a per-screen help topic. Provider cards on Model Info / Trace
+detail / Costs carry ℹ buttons that deep-link to per-provider help
+pages. The Help home page surfaces an icon legend rendered as a
+3-column table — every TitleBar icon you'll see in the app, with a
+one-line description.</p>
+
+<p>Code lives in <code>ui/admin/HelpContent.kt</code> (the topic
+catalog — ~190 topics, one per full-screen overlay) and
+<code>ui/admin/HelpScreen.kt</code> (renderer + <code>HelpResolver</code>).
+The <code>helpForTopic(topicId)</code> route helper is in
+<code>ui/navigation/NavRoutes.kt</code>.</p>
+
+<h2>Topic catalog</h2>
+
+<p>Topics group into:</p>
+
+<dl class="kv">
+<div><dt>Hub</dt>
+<dd>What the home screen does, what each card means.</dd></div>
+<div><dt>Reports flow</dt>
+<dd>New AI Report, the model selection screen, the result screen,
+the secondary-result flows, exports.</dd></div>
+<div><dt>Chat flow</dt>
+<dd>Chat hub, configure-on-the-fly, chat session, Dual Chat, RAG
+attachment.</dd></div>
+<div><dt>Knowledge</dt>
+<dd>KB list, KB detail, source types, retrieval.</dd></div>
+<div><dt>Settings → AI Setup</dt>
+<dd>Every sub-card has a topic. Sub-hubs (Models, Workers, Prompt
+management, Local Models) have their own overview topic plus per-card
+detail topics.</dd></div>
+<div><dt>Housekeeping</dt>
+<dd>Backup &amp; Restore, Export &amp; Import, Refresh, Trim by age,
+Usage statistics, Reset.</dd></div>
+<div><dt>Trace</dt>
+<dd>Trace list, Trace detail, the captured-call detail view.</dd></div>
+<div><dt>Help</dt>
+<dd>The home help page, including the icon legend.</dd></div>
+<div><dt>Per-provider</dt>
+<dd>One page per active provider with setup, capabilities, quirks,
+and known issues. Reachable from every ℹ icon next to a provider
+name.</dd></div>
+<div><dt>Per-repository</dt>
+<dd>One page per external metadata source (LiteLLM / OpenRouter /
+models.dev / Helicone / llm-prices / Artificial Analysis /
+HuggingFace) with endpoint, auth, what it provides, when fetched,
+where cached. Reachable from every Source button on Model Info.</dd></div>
+</dl>
+
+<h2>Topic shape</h2>
+
+<p>A help topic on the screen is a series of <code>HelpCard</code>
+rows:</p>
+
+<pre><code>HelpCard("Overview", "What this screen does, in one paragraph.")
+HelpCard("Add card", "How to use the Add button, where it lands…")
+HelpCard("Tips", "Small surprises worth knowing.")
+HelpCard("Pitfalls", "Common mistakes / edge cases to avoid.")</code></pre>
+
+<p>Each card is a (title, body) pair; the body is plain text or
+markdown-flavoured. The "Related" card pattern was dropped across
+the catalog — link by deep-linking from the rest of the UI instead,
+so users discover related screens from where they actually are
+rather than from a list inside Help.</p>
+
+<h2>Routing</h2>
+
+<ul>
+<li><code>helpForTopic(topicId)</code> builds the route string. The
+topicId is URL-encoded so it can carry colons / slashes / spaces.</li>
+<li>Every TitleBar takes a <code>helpTopic: String</code> arg.
+Tapping ❓ navigates to <code>help/{topicId}</code>.</li>
+<li>The Trace detail screen's ℹ icon resolves the trace's URL +
+category to one of the 7 repository topics via
+<code>HelpResolver</code> — the resolver is gated on a small
+<code>INFO_FETCH_CATEGORIES</code> set so unrelated traces don't get
+a misleading provider help.</li>
+<li>The home Help page (<code>/help</code>) surfaces the icon legend
+at the top and topic-group navigation below.</li>
+</ul>
+
+<h2>Authoring guidance</h2>
+
+<ul>
+<li>Reuse common card patterns (Overview / Add / Tips / Pitfalls) so
+users learn the structure once. Don't bring back "Related" cards.</li>
+<li>Match the topic IDs in <code>NavRoutes</code> to the help
+screen's switch.</li>
+<li>Per-provider pages share an infrastructure helper so each
+provider card has a uniform layout.</li>
+<li>The topic catalog (~190 entries) is rewritten end-to-end with
+code-accurate detail and tips — when changing a flow, the help text
+deserves the same edit so the in-app docs stay in sync. In
+particular, every full-screen overlay (model picker, scope picker,
+viewer detail, agent icon detail, alternative-icons list, icons
+grid, Find icons picker, etc.) gets its own dedicated topic so help
+is always one tap away.</li>
+</ul>
+
+<h2>Icon legend</h2>
+
+<p>Rendered as a 3-column table on the Help home page. Every TitleBar
+icon used across the app is listed once, with a one-line description.
+The icon legend is the canonical reference for the TitleBar action
+strip.</p>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>

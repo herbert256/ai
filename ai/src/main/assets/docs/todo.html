@@ -9,19 +9,73 @@
 <body>
 <header class="topbar"><a href="index.html">← Docs</a><span>TODO</span></header>
 <main>
+
 <h1>TODO</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/todo.md</code> in the repo.</p>
-</div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+
+<p>Future work that's been discussed but not scheduled. Add new items
+at the top; move resolved items to a commit message and delete the
+entry.</p>
+
+<h2>Foreground service for AI Report API calls</h2>
+
+<p>Today every long-running AI Report API call (report generation,
+regenerate, secondaries: rerank / fan-out / fan-in / meta / translate)
+launches on <code>appViewModel.viewModelScope</code>. That makes the
+work survive in-app navigation, configuration changes, and short
+backgrounding — but it does <strong>not</strong> survive:</p>
+
+<ul>
+<li>The user swiping the app away from Recents.</li>
+<li>The OS killing the process under memory pressure.</li>
+<li>A long phone-locked / Doze period.</li>
+</ul>
+
+<p>When the process dies mid-call the on-disk rows stay as blank
+placeholders; <code>recoverStaleSecondariesAsync</code> /
+<code>resumeStaleFanOutPairs</code> mark them "Interrupted by app
+restart" or re-enqueue, which is a recovery, not real background
+continuation.</p>
+
+<p>For genuinely OS-backgrounded work we would need a foreground
+Service: an ongoing notification ("AI Report running — N agents left")
+that gives the process a much higher kill priority and gives the user
+a way to dismiss / cancel.</p>
+
+<h3>Sketch</h3>
+<ul>
+<li>New <code>ReportForegroundService</code> (one instance per active
+job set, not per-job — simpler notification UX).</li>
+<li>Start when <code>generateGenericReports</code> /
+<code>regenerateReport</code> / <code>runMetaPrompt</code> / etc.
+kicks off; stop when the last in-flight job finishes
+(<code>reportGenerationJob</code> + <code>fanOutJobs</code> +
+translation jobs all idle).</li>
+<li>Notification body: count of active agents / pairs / translations.</li>
+<li>Tap → open the relevant Report screen.</li>
+<li><code>POST_NOTIFICATIONS</code> permission prompt on Android 13+.</li>
+<li>Service runs the coroutines on its own scope; the ViewModel
+drives state via the same <code>_agentResults</code> /
+<code>_translationRuns</code> flows it already exposes.</li>
+</ul>
+
+<h3>Tradeoffs &amp; open questions</h3>
+<ul>
+<li>Notification UX: one persistent notification is OK; we should
+not spam one per agent.</li>
+<li>Cancellation: notification action button to Stop?</li>
+<li>Battery: Doze whitelisting is <em>not</em> needed — foreground
+Services are exempt while the notification is showing.</li>
+<li>Cost-of-failure: if the user dismisses the notification mid-run
+on Android 14+ (where users can dismiss FGS notifications), the
+Service stops and we're back to today's behaviour. Acceptable.</li>
+</ul>
+
+<p>Estimated effort: a day or two, including the notification UI
+and the per-screen "is something running?" hook so the Service starts
+/ stops at the right boundaries.</p>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>

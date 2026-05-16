@@ -9,19 +9,206 @@
 <body>
 <header class="topbar"><a href="index.html">← Docs</a><span>Translation</span></header>
 <main>
+
 <h1>Translation</h1>
-<div class="callout warn">
-<p><strong>Pass 1 stub.</strong> This page is rewritten in Pass 2 of
-the docs project. The source until then is
-<code class="path">doc/translation.md</code> in the repo.</p>
+
+<p>The Translate flow is a <code>SecondaryKind</code>
+(<code>TRANSLATE</code>) that operates on a finished report's content
+— translating the original prompt and every successful agent response
+(plus any chat-type Meta rows in scope) into one or more target
+languages, fanning out one API call per (source × language) pair.</p>
+
+<h2>Triggering a Translate run</h2>
+
+<p>From the result-phase Actions row on a finished report, tap
+<strong>Translate</strong>. The flow:</p>
+
+<ol>
+<li><strong>Language picker</strong>
+(<code>ui/report/LanguageSelectionScreen.kt</code>) — pick one or
+more target languages from a comprehensive English-name list (with
+native renderings as subtitles, e.g. "Dutch / Nederlands").
+Multi-select.</li>
+<li><strong>Scope picker</strong>
+(<code>ui/report/SecondaryScopeScreen.kt</code>) — same scope screen
+the chat-type Meta runs use:
+  <ul>
+    <li>All model reports</li>
+    <li>Top-N from a chosen rerank</li>
+    <li>Manual selection</li>
+  </ul>
+</li>
+<li><strong>Model picker</strong> — pick the chat model(s) to do the
+translating (any provider; the synthetic Local provider works too if
+a <code>.task</code> LLM is installed).</li>
+<li><strong>Run</strong> — fans out one batch per (language,
+model-pick) and one API call per (source × language) within that
+batch. Each <code>executeSecondaryTask</code> call writes a
+<code>SecondaryResult</code> with <code>kind = TRANSLATE</code>. Each
+item is <strong>persisted as it settles</strong>, not in one bulk
+flush at the end, so a crash mid-run keeps the completed
+translations.</li>
+</ol>
+
+<h2>Multiple concurrent translation runs</h2>
+
+<p>Each Translate batch gets its own <code>translationRunId</code> (a
+UUID shared by every row of one click). The Result screen renders one
+aggregate "run" row per batch under the Translations block,
+expandable into the individual per-(source, language) rows.</p>
+
+<p><code>ReportViewModel</code> tracks active Translate batches in a
+<code>Map&lt;String, TranslationRun&gt;</code> keyed by
+<code>runId</code>, so firing off a second Translate batch while the
+first is still in flight doesn't overwrite the first's progress
+state.</p>
+
+<h2>What gets translated</h2>
+
+<p>For each selected language, one TRANSLATE call is made per:</p>
+
+<dl class="kv">
+<div>
+<dt>The prompt</dt>
+<dd><code>translateSourceKind = "PROMPT"</code>,
+<code>translateSourceTargetId = "prompt"</code>.</dd>
 </div>
-<p>This is part of the <a href="index.html">AI app documentation</a>
-mobile rewrite. The design language (CSS, accordions, cards, trees,
-definition lists) is being validated against
-<a href="providers.html">providers</a>,
-<a href="architecture.html">architecture</a>, and
-<a href="datastructures.html">data structures</a> first.</p>
-<p class="backtop"><a href="index.html">↑ Back to docs</a></p>
+<div>
+<dt>Each in-scope agent response</dt>
+<dd><code>translateSourceKind = "AGENT"</code>,
+<code>translateSourceTargetId = agent.agentId</code>.</dd>
+</div>
+<div>
+<dt>Each in-scope chat-type Meta result</dt>
+<dd>E.g. a "Compare" / "Critique" / "Synthesize" row — anything with
+<code>kind = META</code> — when included via language scope.
+<code>translateSourceKind = "META"</code>,
+<code>translateSourceTargetId = secondary.id</code>. Rerank and
+Moderation rows are never translated; their content is structured
+JSON.</dd>
+</div>
+</dl>
+
+<p>The TRANSLATE prompt template lives as the
+<code>InternalPrompt</code> row named <code>"translate"</code> in the
+<code>internal</code> category (seeded from
+<code>assets/prompts.json</code> on fresh install, editable thereafter
+via Settings → AI Setup → Prompt management → Other internal). It
+substitutes:</p>
+
+<dl class="kv">
+<div><dt>@LANGUAGE@</dt>
+<dd>English name of the target language.</dd></div>
+<div><dt>@TEXT@</dt>
+<dd>The source text being translated.</dd></div>
+</dl>
+
+<p>The default prompt asks for: <em>"Translate the following text to
+@LANGUAGE@. Preserve markdown formatting (headings, bold, italic,
+lists, code blocks, tables) exactly. Preserve citation references like
+[1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add
+commentary, preface, or explanation — output only the
+translation."</em></p>
+
+<h2>Multi-language fan-out for chat-type Meta runs</h2>
+
+<p>When a report has TRANSLATE rows, <strong>any chat-type Meta
+prompt</strong> — "Compare", "Critique", "Synthesize", whatever the
+user has named it in the Meta-prompt CRUD — can also fan out across
+the present languages. The scope screen picks up a
+<code>SecondaryLanguageScope</code> (<code>AllPresent</code> or
+<code>Selected(...)</code>) and the run produces one batch per
+language; inside each batch, the agent response bodies are pulled
+from the matching TRANSLATE rows (falling back to the original text
+per-item if a translation is missing) and the prompt-side
+<code>@QUESTION@</code> is the translated prompt.</p>
+
+<p>The result is one Meta row per (language, model-pick) — so asking
+for a "Compare" in three languages from two models gives you six
+Compare rows. Each row carries the same <code>metaPromptName</code> so
+the UI and exports group them under the user-given name regardless of
+language.</p>
+
+<h2>UI screens</h2>
+
+<ul>
+<li><strong>LanguageSelectionScreen</strong> — multi-select language
+picker, feeds into the Translate flow.</li>
+<li><strong>SecondaryResultsScreen</strong> — list of every meta row
+on the report, scoped to whichever Meta-prompt name (or structured
+kind: Rerank / Moderation / Translate) the user tapped on the View
+row. The Translations branch groups rows by
+<code>translationRunId</code>; each group surfaces as a single "run"
+row with the model name, the language list, and the count.</li>
+<li><strong>TranslationRunScreen</strong> +
+<strong>TranslationL1Screen</strong> /
+<strong>TranslationL2Screen</strong> /
+<strong>TranslationL3Screen</strong> — three-level drill-in into a
+run: L1 lists languages, L2 lists per-(source, language) calls within
+a language, L3 is the single-call detail. An <strong>Actions</strong>
+card on each level carries <em>Restart failed</em> / <em>Start
+missing</em> buttons that re-run only the rows that need it.
+Translation runs use a shared work queue with cross-model retry,
+share the per-host throttle but live under the
+<code>maxConcurrentTranslationCalls</code> ceiling. A
+<code>delete-run</code> blocks on <code>cancelAndJoin</code> before
+dropping rows, so an in-flight call can't land after delete.</li>
+<li><strong>TranslationCompareScreen</strong> — side-by-side
+comparison view of the same source across multiple translations /
+languages.</li>
+</ul>
+
+<p>The Translate detail Actions card uses the layout setting (Model
+only / Provider and model) to derive row labels, and pending / live
+translation rows on the Report Result are clickable.</p>
+
+<h2>Viewing a translated report</h2>
+
+<p>A translated report is <strong>the same <code>Report</code>
+object</strong> as the original — translations are stored as
+TRANSLATE secondaries, not as a copy. The Result screen surfaces:</p>
+
+<ul>
+<li>A language pulldown at the top — switching it re-renders agent
+bodies and chat-type Meta rows from the matching TRANSLATE rows for
+that language.</li>
+<li>The original (<code>null</code>) language option always renders
+the untranslated content.</li>
+<li>The Zipped HTML export creates one folder per language plus a
+<code>source/</code> folder with the originals; cross-anchored links
+navigate between languages.</li>
+</ul>
+
+<h2>Cost tracking</h2>
+
+<p>Every TRANSLATE call is tagged <code>kind = "translate"</code> in
+<code>usage-stats.json</code> and surfaces with its own pill on the AI
+Usage screen + its own row colour in the Report cost table.</p>
+
+<h2>Editing the translation prompt</h2>
+
+<p>Settings → AI Setup → <strong>Prompt management → Other
+internal</strong> lists the five fixed-name internal templates
+(intro / model_info / translate / rerank / moderation). Edit the
+<code>text</code> field of the <code>translate</code> row. Defaults
+are seeded from <code>assets/prompts.json</code> on a fresh install;
+existing entries are never overwritten by re-seeds unless the user
+runs Housekeeping → Reset → "Reset Internal Prompts to
+assets/prompts.json".</p>
+
+<h2>See also</h2>
+
+<ul>
+<li><a href="secondary-results.html">secondary-results</a> — full
+secondary-result lifecycle, prompt resolution, and the
+<code>@RESULTS@</code> block.</li>
+<li><a href="datastructures.html">datastructures</a> — the
+<code>SecondaryResult</code> translate-only fields and
+<code>SecondaryLanguageScope</code>.</li>
+</ul>
+
+<p class="backtop"><a href="#">↑ Top</a></p>
+
 </main>
 </body>
 </html>
