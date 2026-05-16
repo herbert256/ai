@@ -290,13 +290,15 @@ internal fun SecondaryResultsScreen(
 
     // For chat-type META: a non-Original language view shows two
     // sources of translated content side by side:
-    //   1. Per-language rows tagged with targetLanguage = X (produced
-    //      by the multi-language Meta batch flow).
-    //   2. Original rows (targetLanguage == null) whose content has
-    //      been overlaid by a TRANSLATE row pointing at them
-    //      (Translate-only flow). The overlay copies the translated
-    //      content onto the Original row so the user sees the
+    //   1. Per-language rows tagged with targetLanguage = X.
+    //   2. Rows in a DIFFERENT language (Original or a different
+    //      seed) whose content has been overlaid by a TRANSLATE row
+    //      pointing at them. The overlay copies the translated
+    //      content onto the source row so the user sees the
     //      translated text without losing the row's metadata.
+    //      Covers both the translate-only flow (Original → X) and
+    //      the multi-language meta cross-translate flow (French
+    //      seed → Dutch translation).
     // The Original view shows untagged rows only; non-META kinds skip
     // the overlay path entirely (rerank / moderation are structured
     // JSON, not narrative translatable text).
@@ -313,7 +315,7 @@ internal fun SecondaryResultsScreen(
             }
             .associateBy { it.translateSourceTargetId ?: "" }
         val overlaid = results.mapNotNull { s ->
-            if (s.targetLanguage != null) return@mapNotNull null
+            if (s.targetLanguage == selectedLanguageName) return@mapNotNull null
             val tx = txByTarget[s.id] ?: return@mapNotNull null
             s.copy(content = tx.content)
         }

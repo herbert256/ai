@@ -4532,26 +4532,84 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // flag is on. Computed once per batch.
                 val referenceLegend = if (metaPrompt.reference)
                     buildReferenceLegend(report, includeIds) else null
-                coroutineScope {
-                    languages.flatMap { (lang, langNative) ->
-                        val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
-                        val resolvedPrompt = resolveSecondaryPrompt(
-                            metaPrompt.text, question = translatedPrompt, results = resultsBlock,
-                            count = successfulCount, title = report.title
+
+                // Multi-language meta: instead of fanning out N×M
+                // independent META rows (one per language × pick), run
+                // the meta ONCE in a single "seed" language and then
+                // append cross-translation items to each other
+                // selected language's existing translation run. The
+                // seed prefers Original when it's in the selection,
+                // otherwise the first non-original language. Picks
+                // still produce M META rows in the seed language.
+                if (languages.isEmpty()) return@withTracerTags
+                val seedLang: Pair<String?, String?> =
+                    if (languages.any { it.first == null }) null to null
+                    else languages.first()
+                val nonSeedLanguages = languages.filter { it != seedLang }
+
+                // Phase 1: seed-language meta run (the only META rows
+                // produced by this invocation).
+                val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, seedLang.first, includeIds)
+                val resolvedPrompt = resolveSecondaryPrompt(
+                    metaPrompt.text, question = translatedPrompt, results = resultsBlock,
+                    count = successfulCount, title = report.title
+                )
+                // Pre-create placeholders so we know each row's id up
+                // front — needed for phase 2's cross-translate items
+                // which reference these rows by id.
+                val seedPlaceholders: List<SecondaryResult> = picks.map { (provider, model) ->
+                    val langSuffix = seedLang.first?.let { " [$it]" } ?: ""
+                    val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
+                    SecondaryResultStorage.create(
+                        context, reportId, kind, provider.id, model, agentName
+                    ) {
+                        it.copy(
+                            targetLanguage = seedLang.first,
+                            targetLanguageNative = seedLang.second,
+                            metaPromptId = metaPrompt.id,
+                            metaPromptName = metaPrompt.name,
+                            secondaryScope = scopeChoice.encode()
                         )
-                        picks.map { (provider, model) ->
-                            async {
-                                ApiCallCaps.global.withPermit {
-                                    executeSecondaryTask(
-                                        context, reportId, kind, metaPrompt,
-                                        provider, model, resolvedPrompt, aiSettings, report,
-                                        lang, langNative, referenceLegend,
-                                        scopeEncoded = scopeChoice.encode()
-                                    )
-                                }
+                    }
+                }
+                coroutineScope {
+                    picks.zip(seedPlaceholders).map { (pick, ph) ->
+                        async {
+                            ApiCallCaps.global.withPermit {
+                                executeSecondaryTask(
+                                    context, reportId, kind, metaPrompt,
+                                    pick.first, pick.second, resolvedPrompt, aiSettings, report,
+                                    seedLang.first, seedLang.second, referenceLegend,
+                                    existingPlaceholder = ph,
+                                    scopeEncoded = scopeChoice.encode()
+                                )
                             }
                         }
                     }.awaitAll()
+                }
+
+                // Phase 2: cross-translate the seed METAs to each
+                // non-seed language. Re-read each placeholder from disk
+                // so we pick up the now-saved content / errorMessage.
+                // Errored seed rows are skipped — nothing useful to
+                // cross-translate.
+                if (nonSeedLanguages.isNotEmpty()) {
+                    val completedSeedMetas = seedPlaceholders.mapNotNull { ph ->
+                        SecondaryResultStorage.get(context, reportId, ph.id)
+                    }.filter { !it.content.isNullOrBlank() && it.errorMessage == null }
+                    if (completedSeedMetas.isNotEmpty()) {
+                        val secondariesAfter = SecondaryResultStorage.listForReport(context, reportId)
+                        for ((lang, langNative) in nonSeedLanguages) {
+                            if (lang == null) continue
+                            addCrossTranslationItems(
+                                context, reportId,
+                                targetLanguageName = lang,
+                                targetLanguageNative = langNative ?: lang,
+                                sourceMetas = completedSeedMetas,
+                                allSecondaries = secondariesAfter
+                            )
+                        }
+                    }
                 }
               }
             } finally {
@@ -6161,5 +6219,108 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
             }
         }
+    }
+
+    /** Multi-language meta cross-translate dispatch. For each non-seed
+     *  language, append one TRANSLATE item per just-completed seed META
+     *  to that language's existing translation run, reopen the run
+     *  (`finished = false`), dispatch via [runTranslationSubset], and
+     *  close it again. The seed META rows aren't touched — only the
+     *  target-language translation runs are reopened. The translate
+     *  prompt (`internal/translate`) has only `@LANGUAGE@` / `@TEXT@`,
+     *  no source-language placeholder, so cross-language source text
+     *  (French → Dutch in the canonical scenario) works without any
+     *  prompt change — the model auto-detects the source. */
+    private suspend fun addCrossTranslationItems(
+        context: Context,
+        reportId: String,
+        targetLanguageName: String,
+        targetLanguageNative: String,
+        sourceMetas: List<SecondaryResult>,
+        allSecondaries: List<SecondaryResult>
+    ) {
+        if (sourceMetas.isEmpty()) return
+        // The meta language picker only offers languages that already
+        // have a translation run, so a missing runId here means
+        // something raced (e.g. the run was deleted between picker
+        // open and meta execution). Skip rather than synthesising a
+        // fresh run — that would surface as an unexpected new run
+        // row in the manage list.
+        val runId = allSecondaries
+            .firstOrNull { it.kind == SecondaryKind.TRANSLATE && it.targetLanguage == targetLanguageName }
+            ?.let { translationRunGroupingId(it) }
+        if (runId == null) {
+            AppLog.w("Meta-xlate", "No existing translation run for $targetLanguageName — skipping cross-translate")
+            return
+        }
+
+        // Build placeholder TRANSLATE rows on disk so a process kill
+        // mid-cross-translate leaves rows that startMissingTranslations
+        // can pick up on resume — same pattern as startTranslation's
+        // up-front placeholder persistence.
+        val placeholders = sourceMetas.map { meta ->
+            val prov = AppService.findById(meta.providerId)?.id ?: meta.providerId
+            val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
+                ?: com.ai.data.legacyKindDisplayName(meta.kind)
+            val label = "$name: $prov / ${shortModelName(meta.model)}"
+            val placeholderId = java.util.UUID.randomUUID().toString()
+            SecondaryResultStorage.save(context, SecondaryResult(
+                id = placeholderId,
+                reportId = reportId,
+                kind = SecondaryKind.TRANSLATE,
+                providerId = "",
+                model = "",
+                agentName = "Translate: $label",
+                timestamp = System.currentTimeMillis(),
+                content = null,
+                errorMessage = null,
+                translateSourceKind = "META",
+                translateSourceTargetId = meta.id,
+                targetLanguage = targetLanguageName,
+                targetLanguageNative = targetLanguageNative,
+                translationRunId = runId,
+                runId = runId,
+            ))
+            meta.id
+        }
+
+        // Reopen the run: flip `finished` to false so the manage screen
+        // (which filters by !it.isFinished && !it.cancelled) surfaces
+        // the live ⏳ row again. Rebuild from disk if the run was
+        // already evicted from memory (consumeTranslationRun after the
+        // original run completed).
+        val current = _translationRuns.value[runId]
+        if (current != null) {
+            _translationRuns.update { runs ->
+                val c = runs[runId] ?: return@update runs
+                runs + (runId to c.copy(finished = false))
+            }
+        } else {
+            val rebuilt = buildPersistedTranslationRunState(context, reportId, runId) ?: run {
+                AppLog.w("Meta-xlate", "Could not rebuild persisted state for run $runId — aborting cross-translate")
+                return
+            }
+            _translationRuns.update { it + (runId to rebuilt.copy(finished = false)) }
+        }
+
+        // runTranslationSubset reads the placeholders (rowByKindTarget
+        // lookup), builds the TranslationItems from the seed metas in
+        // `secondaries`, merges them into _translationRuns, and
+        // dispatches. It awaits all items before returning.
+        runTranslationSubset(
+            context = context,
+            sourceReportId = reportId,
+            runId = runId,
+            targetKindPairs = placeholders.map { it to "META" },
+            deleteRowIds = emptyList()
+        )
+
+        // All cross-translate items have settled — close the run again
+        // so the manage row reverts from live ⏳ to summary.
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            runs + (runId to cur.copy(finished = true))
+        }
+        ReportStorage.bumpReportTimestamp(context, reportId)
     }
 }
