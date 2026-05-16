@@ -94,13 +94,18 @@ object BackupManager {
      *  Worth preserving across a restore — a restored device should
      *  keep skipping a model that's still inside its quota window. */
     private const val MODEL_COOLDOWNS_PREFS = "model_cooldowns"
+    /** View screen's reorderable tile order — single string key
+     *  `tile_order` holding a comma-separated list of tile ids. The
+     *  user explicitly arranged the grid (e.g. "Costs first"), so the
+     *  order should survive backup/restore. */
+    private const val VIEW_SCREEN_PREFS = "view_screen_prefs"
 
     /** Every SharedPreferences file we round-trip through backup/restore.
      *  WebViewChromiumPrefs (cookies, web-process state) is intentionally
      *  excluded — it doesn't make sense to restore on a different device. */
     private val PREFS_TO_BACKUP = listOf(
         MAIN_PREFS, PROVIDER_REGISTRY_PREFS, PRICING_CACHE_PREFS, DUAL_CHAT_PREFS, HUGGINGFACE_CACHE_PREFS,
-        MODEL_COOLDOWNS_PREFS
+        MODEL_COOLDOWNS_PREFS, VIEW_SCREEN_PREFS
     )
 
     /** Top-level filesDir subdirs we never copy into a backup zip and never

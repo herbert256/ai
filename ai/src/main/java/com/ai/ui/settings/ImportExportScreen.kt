@@ -232,8 +232,14 @@ private fun buildWorkersTree(settings: Settings): JsonObject {
 /** JSON tree of [GeneralSettings] *minus* the three info-provider API
  *  keys (huggingFaceApiKey / openRouterApiKey / artificialAnalysisApiKey).
  *  Those three round-trip through the API Keys export so we don't
- *  double-emit them. */
-private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObject().apply {
+ *  double-emit them.
+ *
+ *  Also carries the View screen's reorderable tile order
+ *  (`view_screen_prefs`/`tile_order`) — it's a UI preference the user
+ *  explicitly arranged, so it travels with the rest of the settings.
+ *  Stored as a comma-separated string of tile ids; absent when the
+ *  user never reordered. */
+private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): JsonObject = JsonObject().apply {
     addProperty("userName", g.userName)
     addProperty("defaultEmail", g.defaultEmail)
     add("defaultTypePaths", JsonObject().apply {
@@ -245,13 +251,20 @@ private fun buildGeneralSettingsTree(g: GeneralSettings): JsonObject = JsonObjec
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
+    context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
+        .getString("tile_order", null)
+        ?.let { addProperty("viewTileOrder", it) }
 }
 
 /** Apply each present field of a Settings export onto [current],
  *  leaving fields the file omitted untouched. The three info-provider
  *  API keys are deliberately not carried by this shape — they live in
- *  the API Keys export. */
-private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): GeneralSettings {
+ *  the API Keys export.
+ *
+ *  `viewTileOrder` is a side-effect write into `view_screen_prefs`
+ *  (not part of the returned [GeneralSettings] object); kept in this
+ *  function so settings import/all-bundle import both pick it up. */
+private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, context: Context): GeneralSettings {
     fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
     fun bool(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
     val typePaths: Map<String, String>? = obj.getAsJsonObject("defaultTypePaths")?.let { o ->
@@ -261,6 +274,10 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings): Gen
     }
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
+    }
+    str("viewTileOrder")?.let { order ->
+        context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
+            .edit().putString("tile_order", order).apply()
     }
     return current.copy(
         userName = str("userName") ?: current.userName,
@@ -550,7 +567,7 @@ private fun buildAllBundle(
     bundle.add("examples", gson.toJsonTree(examples))
     val workers = buildWorkersTree(aiSettings)
     workers.entrySet().forEach { (k, v) -> bundle.add(k, v) }
-    bundle.add("settings", buildGeneralSettingsTree(generalSettings))
+    bundle.add("settings", buildGeneralSettingsTree(generalSettings, context))
     bundle.add("modelLists", buildModelListsTree(aiSettings))
     bundle.add("endpoints", buildEndpointsTree(aiSettings))
     bundle.add("parameters", buildParametersTree(aiSettings))
@@ -717,7 +734,7 @@ fun ImportExportScreen(
     fun exportSettings() {
         // GeneralSettings minus the three info-provider API keys (those
         // already round-trip through the API Keys export).
-        val tree = buildGeneralSettingsTree(generalSettings)
+        val tree = buildGeneralSettingsTree(generalSettings, context)
         shareExportText(context, "ai_settings-${exportTimestamp()}.json", "application/json", "Share settings",
             createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(context, "Settings ready to share", Toast.LENGTH_SHORT).show()
@@ -994,7 +1011,7 @@ fun ImportExportScreen(
                     Toast.makeText(context, "Settings file is not a JSON object", Toast.LENGTH_LONG).show()
                     return@rememberLauncherForActivityResult
                 }
-                onSaveGeneral(applyGeneralSettings(obj, generalSettings))
+                onSaveGeneral(applyGeneralSettings(obj, generalSettings, context))
                 Toast.makeText(context, "Settings imported", Toast.LENGTH_SHORT).show()
             }
             "modelLists" -> {
@@ -1277,7 +1294,7 @@ fun ImportExportScreen(
                 }
 
                 root.getAsJsonObject("settings")?.let { obj ->
-                    workingGs = applyGeneralSettings(obj, workingGs)
+                    workingGs = applyGeneralSettings(obj, workingGs, context)
                     parts.add("settings")
                 }
 
