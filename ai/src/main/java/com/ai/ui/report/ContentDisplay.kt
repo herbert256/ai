@@ -115,7 +115,16 @@ internal fun LanguagePickerRow(
      *  emoji); otherwise falls back to the plain "Original" text. */
     useIcons: Boolean = false,
     originalIcon: String? = null,
-    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+    // Icon-mode children carry their own 6dp left padding (tap-area
+    // headroom), so the FlowRow's own start padding is dropped to
+    // 10dp — the first glyph then lands at 10 + 6 = 16dp, lined up
+    // with the body text below. Button mode keeps the full 16dp so
+    // buttons themselves start at 16dp.
+    modifier: Modifier = Modifier.fillMaxWidth().padding(
+        start = if (useIcons) 10.dp else 16.dp,
+        end = 16.dp,
+        top = 8.dp, bottom = 8.dp
+    )
 ) {
     if (languages.size <= 1) return
     @OptIn(ExperimentalLayoutApi::class)
