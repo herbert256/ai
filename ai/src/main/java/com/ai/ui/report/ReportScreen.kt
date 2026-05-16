@@ -1552,11 +1552,18 @@ fun ReportsScreen(
     // rows exist, which target languages to fan out to.
     val scopeMetaPrompt = secondaryScopeMetaPrompt
     // Hidden while Run / model picker is active — layered state so
-    // Android back unwinds one step at a time.
+    // Android back unwinds one step at a time. Rerank and Moderation
+    // also need to suppress Scope once their picker fires: their
+    // `onContinue` arms set `showRerankPicker` / `showModerationPicker`
+    // without clearing `secondaryScopeMetaPrompt` (so back unwinds
+    // cleanly), so without these guards the scope screen out-renders
+    // the picker block further down and Continue looks dead.
     if (scopeMetaPrompt != null && currentReportId != null
         && fanOutConfirmMetaPrompt == null
         && metaRunScreenPrompt == null
-        && secondaryPickerMetaPrompt == null) {
+        && secondaryPickerMetaPrompt == null
+        && !showRerankPicker
+        && !showModerationPicker) {
         val rid = currentReportId
         data class ScopeData(
             val agents: List<com.ai.data.ReportAgent>,
