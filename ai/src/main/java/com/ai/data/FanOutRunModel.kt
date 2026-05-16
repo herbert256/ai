@@ -85,7 +85,13 @@ data class PairState(
     val runId: String? = null,
     /** UUID of the most recent fan-icons sweep on this pair. Null
      *  when no sweep has run, or on legacy rows. */
-    val iconRunId: String? = null
+    val iconRunId: String? = null,
+    /** Bundled prompt name that produced the currently-displayed
+     *  [icon] — "fan_out_2" / "fan_out" / "fan_out_3" per the
+     *  winning tier; "fan_out_alt" after a Find-alt pick. Null on
+     *  legacy rows or when no icon has been generated. Drives the
+     *  green subject row on the unified Icon-lookup screen. */
+    val iconPromptUsed: String? = null
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     val totalCost: Double get() =
@@ -255,7 +261,8 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         iconOutputCost = iconOutputCost,
         iconErrorMessage = iconErrorMessage,
         runId = runId,
-        iconRunId = iconRunId
+        iconRunId = iconRunId,
+        iconPromptUsed = iconPromptUsed
     )
 }
 

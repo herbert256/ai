@@ -198,6 +198,7 @@ fun ReportsScreenNav(
     val throttledFanIconsPairs by viewModel.throttledFanIconsPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
+    val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -304,6 +305,16 @@ fun ReportsScreenNav(
         onRestartAgentIconFanOut = { rid, agentId ->
             reportViewModel.restartAgentIconFanOut(rid, agentId)
         },
+        onStartPairIconFanOut = { rid, pairId, models ->
+            reportViewModel.startPairIconFanOut(context, rid, pairId, models, aiSettings)
+        },
+        onPickPairIcon = { rid, pairId, emoji ->
+            reportViewModel.pickPairIconAlternative(context, rid, pairId, emoji)
+        },
+        onRestartPairIconFanOut = { rid, pairId ->
+            reportViewModel.restartPairIconFanOut(rid, pairId)
+        },
+        pairIconFanOutByPair = pairIconFanOutByPair,
         promptIconCallbacks = InternalPromptIconCallbacks(
             onKickoff = { prompt ->
                 reportViewModel.kickOffInternalPromptIcon(context, prompt, aiSettings)
@@ -685,6 +696,19 @@ fun ReportsScreen(
      *  Alternative icons screen reads from here when the active flow
      *  is per-agent (i.e. [fanOutTargetAgentId] is non-null). */
     agentIconFanOutByAgent: Map<String, List<IconCandidate>> = emptyMap(),
+    /** Per-fan-out-pair counterparts of the three icon-fan-out
+     *  callbacks. Same shape but routed to
+     *  [ReportViewModel.startPairIconFanOut /
+     *  pickPairIconAlternative / restartPairIconFanOut]. */
+    onStartPairIconFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onPickPairIcon: (reportId: String, pairId: String, emoji: String) -> Unit = { _, _, _ -> },
+    onRestartPairIconFanOut: (reportId: String, pairId: String) -> Unit = { _, _ -> },
+    /** Per-pair alternative-icons candidate state mirrored from
+     *  [AppViewModel.pairIconFanOutByPair], keyed by the
+     *  SecondaryResult id of the pair the alt run was launched on.
+     *  Read by AlternativeIconsRouter when [pairIconDetailFor] is
+     *  non-null. */
+    pairIconFanOutByPair: Map<String, List<IconCandidate>> = emptyMap(),
     /** Navigate to the surrounding AI report on disk — sorted
      *  newest-first like the hub. hasPrevReport / hasNextReport
      *  gate the chevron icons' enabled state. */
@@ -936,6 +960,13 @@ fun ReportsScreen(
     // level ones, and to read from agentIconFanOutByAgent instead of
     // iconFanOutByReport. Cleared on pick or on agent detail back.
     var fanOutTargetAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Per-fan-out-pair icon detail (6th adapter). When non-null the
+    // user tapped a fan-out pair's icon (L2 long-press / L3 big icon)
+    // and is now on the unified Icon-lookup screen for that pair.
+    // Routes the Find / View alternative icons blocks through
+    // pairIconFanOutByPair + the per-pair start/pick/restart
+    // callbacks.
+    var pairIconDetailFor by rememberSaveable { mutableStateOf<String?>(null) }
     var findIconsModels by rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     // Accumulator for the Translate model picker — same +Agent /
     // +Flock / +Swarm / +Report / +Model affordances as Find icons,
@@ -1292,17 +1323,21 @@ fun ReportsScreen(
             translationIconLanguageFor = translationIconLanguageFor,
             promptIconDetailForId = promptIconDetailForId,
             fanOutTargetAgentId = fanOutTargetAgentId,
+            pairIconDetailFor = pairIconDetailFor,
             targetLanguageIcon = targetLanguageIcon,
             internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
             agentIconFanOutByAgent = agentIconFanOutByAgent,
+            pairIconFanOutByPair = pairIconFanOutByPair,
             iconFanOutByReport = iconFanOutByReport,
             translationIconCallbacks = translationIconCallbacks,
             languageIconCallbacks = languageIconCallbacks,
             onPickInternalPromptIcon = promptIconCallbacks.onPick,
             onPickAgentIcon = onPickAgentIcon,
+            onPickPairIcon = onPickPairIcon,
             onPickAlternativeIcon = onPickAlternativeIcon,
             onRestartInternalPromptIconFanOut = promptIconCallbacks.onRestartFanOut,
             onRestartAgentIconFanOut = onRestartAgentIconFanOut,
+            onRestartPairIconFanOut = onRestartPairIconFanOut,
             onRestartIconFanOut = onRestartIconFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onCloseAll = {
@@ -1313,6 +1348,7 @@ fun ReportsScreen(
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
                 translationIconLanguageFor = null
+                pairIconDetailFor = null
                 targetLanguageIcon = false
             },
             onRestartReopenPicker = {
@@ -1336,6 +1372,7 @@ fun ReportsScreen(
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
                 translationIconLanguageFor = null
+                pairIconDetailFor = null
                 targetLanguageIcon = false
             }
         ) {
@@ -1344,6 +1381,7 @@ fun ReportsScreen(
                 targetLanguage = translationIconLanguageFor,
                 targetPromptId = promptIconDetailForId,
                 targetAgentId = fanOutTargetAgentId,
+                targetPairId = pairIconDetailFor,
                 targetLanguageIcon = targetLanguageIcon,
                 internalPrompts = aiSettings.internalPrompts,
                 aiSettings = aiSettings,
@@ -1353,6 +1391,7 @@ fun ReportsScreen(
                 languageIconCallbacks = languageIconCallbacks,
                 onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
                 onStartAgentIconFanOut = onStartAgentIconFanOut,
+                onStartPairIconFanOut = onStartPairIconFanOut,
                 onStartIconFanOut = onStartIconFanOut,
                 onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
                 onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
@@ -1435,6 +1474,32 @@ fun ReportsScreen(
         )
         if (handled) return
         agentIconDetailFor = null
+    }
+
+    // 6th adapter — per-fan-out-pair icon detail. Triggered by
+    // L2 long-press / L3 big-icon tap inside FanOutScreen; the
+    // SR id is stamped on `pairIconDetailFor` by the
+    // onOpenPairIconLookup callback wired further down.
+    if (pairIconDetailFor != null && currentReportId != null) {
+        val handled = PairIconDetailOverlay(
+            pairId = pairIconDetailFor!!,
+            reportId = currentReportId,
+            aiSettings = aiSettings,
+            iconRefreshTick = uiState.iconRefreshTick,
+            loadedReportPrompt = loadedReportPrompt,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            agentRecordsByAgentId = agentRecordsByAgentId,
+            pairIconFanOutByPair = pairIconFanOutByPair,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onFindAlternativeIcons = { hasActive ->
+                if (hasActive) showAlternativeIcons = true
+                else showFindIconsPicker = true
+            },
+            onClose = { pairIconDetailFor = null }
+        )
+        if (handled) return
+        pairIconDetailFor = null
     }
 
     // Per-prompt Meta-icon detail — extracted to MetaIconDetailOverlay
@@ -2030,7 +2095,8 @@ fun ReportsScreen(
             onRerunCompleteFanOut = onRerunCompleteFanOut,
             onRerunFanOutPair = onRerunFanOutPair,
             onDeleteFanOutModel = onDeleteFanOutModel,
-            forcedLanguage = listLockedLanguage
+            forcedLanguage = listLockedLanguage,
+            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId }
         )
         return
     }
@@ -3015,6 +3081,7 @@ private fun FindIconsPickerRouter(
     targetLanguage: String?,
     targetPromptId: String?,
     targetAgentId: String?,
+    targetPairId: String?,
     targetLanguageIcon: Boolean,
     internalPrompts: List<com.ai.model.InternalPrompt>,
     aiSettings: Settings,
@@ -3024,6 +3091,7 @@ private fun FindIconsPickerRouter(
     languageIconCallbacks: LanguageIconCallbacks,
     onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit,
     onStartAgentIconFanOut: (String, String, List<ReportModel>) -> Unit,
+    onStartPairIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onAddAgent: () -> Unit,
     onAddFlock: () -> Unit,
@@ -3053,6 +3121,7 @@ private fun FindIconsPickerRouter(
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models)
+                targetPairId != null -> onStartPairIconFanOut(reportId, targetPairId, models)
                 targetAgentId != null -> onStartAgentIconFanOut(reportId, targetAgentId, models)
                 else -> onStartIconFanOut(reportId, genericPromptText, models)
             }
@@ -3074,18 +3143,22 @@ private fun AlternativeIconsRouter(
     targetLanguage: String?,
     targetPromptId: String?,
     targetAgentId: String?,
+    targetPairId: String?,
     targetLanguageIcon: Boolean,
     internalPrompts: List<com.ai.model.InternalPrompt>,
     internalPromptIconFanOutByPrompt: Map<String, List<IconCandidate>>,
     agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
+    pairIconFanOutByPair: Map<String, List<IconCandidate>>,
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
     onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
     onPickAgentIcon: (String, String, String) -> Unit,
+    onPickPairIcon: (String, String, String) -> Unit,
     onPickAlternativeIcon: (String, String, String) -> Unit,
     onRestartInternalPromptIconFanOut: (com.ai.model.InternalPrompt) -> Unit,
     onRestartAgentIconFanOut: (String, String) -> Unit,
+    onRestartPairIconFanOut: (String, String) -> Unit,
     onRestartIconFanOut: (String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onCloseAll: () -> Unit,
@@ -3101,6 +3174,7 @@ private fun AlternativeIconsRouter(
         targetLanguageIcon -> languageIconCallbacks.fanOutByReport[reportId].orEmpty()
         translationKey != null -> internalPromptIconFanOutByPrompt[translationKey].orEmpty()
         promptKey != null -> internalPromptIconFanOutByPrompt[promptKey].orEmpty()
+        targetPairId != null -> pairIconFanOutByPair[targetPairId].orEmpty()
         targetAgentId != null -> agentIconFanOutByAgent[targetAgentId].orEmpty()
         else -> iconFanOutByReport[reportId].orEmpty()
     }
@@ -3120,6 +3194,7 @@ private fun AlternativeIconsRouter(
                         .firstOrNull { "${it.provider.id}/${it.model}" == iconModel }
                     if (cand != null) onPickInternalPromptIcon(targetPrompt, cand)
                 }
+                targetPairId != null -> onPickPairIcon(reportId, targetPairId, emoji)
                 targetAgentId != null -> onPickAgentIcon(reportId, targetAgentId, emoji)
                 else -> onPickAlternativeIcon(reportId, emoji, iconModel)
             }
@@ -3130,6 +3205,7 @@ private fun AlternativeIconsRouter(
                 targetLanguageIcon -> languageIconCallbacks.onRestartFanOut(reportId)
                 targetLanguage != null -> translationIconCallbacks.onRestartFanOut(targetLanguage)
                 targetPrompt != null -> onRestartInternalPromptIconFanOut(targetPrompt)
+                targetPairId != null -> onRestartPairIconFanOut(reportId, targetPairId)
                 targetAgentId != null -> onRestartAgentIconFanOut(reportId, targetAgentId)
                 else -> onRestartIconFanOut(reportId)
             }
@@ -3231,6 +3307,130 @@ private fun AgentIconDetailOverlay(
             traceFile = agentIconTraceFilename,
             hasActiveFanOut = hasActiveAgentFanOut,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
+            onContinueChat = null,
+            onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onBack = onClose
+        ))
+    }
+    return true
+}
+
+/** 6th adapter — unified Icon lookup for the per-fan-out-pair
+ *  icon. Reached by long-pressing a pair's icon cell on
+ *  FanOutL2Screen (MAIN mode) or tapping the big centred icon on
+ *  FanOutL3Screen. Reads the pair's row off
+ *  [SecondaryResultStorage] (re-reads on every iconRefreshTick so
+ *  a Find-alt pick refreshes the displayed emoji + cost without a
+ *  manual reload). Returns true when the overlay rendered, false
+ *  when the pair id no longer resolves on disk. */
+@Composable
+private fun PairIconDetailOverlay(
+    pairId: String,
+    reportId: String,
+    aiSettings: com.ai.model.Settings,
+    iconRefreshTick: Int,
+    loadedReportPrompt: String,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
+    pairIconFanOutByPair: Map<String, List<IconCandidate>>,
+    onNavigateToTraceFile: (String) -> Unit,
+    onFindAlternativeIcons: (Boolean) -> Unit,
+    onClose: () -> Unit
+): Boolean {
+    val context = LocalContext.current
+    // Re-read the SR on each iconRefreshTick so a fan-icons
+    // run / Find-alt pick reflects immediately. Returns null on
+    // first composition; the overlay falls through to a brief
+    // "loading" branch then re-renders.
+    val pairState = androidx.compose.runtime.produceState<com.ai.data.SecondaryResult?>(
+        initialValue = null, pairId, reportId, iconRefreshTick
+    ) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.SecondaryResultStorage.listForReport(context, reportId)
+                .firstOrNull { it.id == pairId }
+        }
+    }
+    val pair = pairState.value ?: return false
+    val provider = AppService.findById(pair.providerId) ?: return false
+    val chatPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "fan_out_2"
+    }
+    val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "fan_out"
+    }
+    val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "icons" && it.name == "fan_out_3"
+    }
+    val metaPrompt = pair.metaPromptId?.let { mid ->
+        aiSettings.internalPrompts.firstOrNull { it.id == mid }
+    }
+    val sourceAgent = pair.fanOutSourceAgentId?.let { agentRecordsByAgentId[it] }
+    val hasActivePairFanOut = pairIconFanOutByPair[pairId].orEmpty().isNotEmpty()
+    val pairIconTraceFile = rememberIconTrace(
+        reportId = reportId,
+        model = pair.model,
+        categories = listOf(
+            "icon_fan_out", "icon_fan_out_2", "icon_fan_out_3",
+            "icon_fan_out_alt"
+        )
+    )
+    val subject = pair.iconPromptUsed
+        ?: when (pair.iconWinningTier) {
+            1 -> "fan_out_2"; 2 -> "fan_out"; 3 -> "fan_out_3"
+            else -> "fan_out"
+        }
+    val apiInteraction = when (pair.iconWinningTier) {
+        1 -> buildFanOutTier1ApiInteraction(
+            reportPrompt = loadedReportPrompt,
+            sourceResponse = sourceAgent?.responseBody,
+            metaPromptText = metaPrompt?.text.orEmpty(),
+            pairContent = pair.content,
+            chatPrompt = chatPrompt?.text.orEmpty(),
+            iconResponse = pair.icon
+        )
+        2 -> {
+            val resolved = (tier2Prompt?.text.orEmpty())
+                .replace("@QUESTION@", loadedReportPrompt)
+                .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
+                .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
+                .replace("@RESPONSE@", pair.content.orEmpty())
+            buildOneShotApiInteraction(resolved, pair.icon)
+        }
+        3 -> {
+            val resolved = (tier3Prompt?.text.orEmpty())
+                .replace("@RESPONSE@", pair.content.orEmpty())
+            buildOneShotApiInteraction(resolved, pair.icon)
+        }
+        else -> {
+            // Alt-pick or unknown tier — show the base tier-2
+            // template as a sensible default.
+            val resolved = (tier2Prompt?.text.orEmpty())
+                .replace("@QUESTION@", loadedReportPrompt)
+                .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
+                .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
+                .replace("@RESPONSE@", pair.content.orEmpty())
+            buildOneShotApiInteraction(resolved, pair.icon)
+        }
+    }
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+        com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+        LocalNavigateToCurrentReport provides onClose
+    ) {
+        IconLookupScreen(IconLookupContext(
+            subject = subject,
+            provider = provider,
+            model = pair.model,
+            pricingTier = "",
+            cost = pair.iconInputCost + pair.iconOutputCost,
+            apiInteraction = apiInteraction,
+            emoji = pair.icon,
+            errorMessage = pair.iconErrorMessage,
+            traceFile = pairIconTraceFile,
+            hasActiveFanOut = hasActivePairFanOut,
+            onFindAlternativeIcons = { onFindAlternativeIcons(hasActivePairFanOut) },
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -3483,7 +3683,11 @@ private fun SecondaryResultsListMount(
     onRerunCompleteFanOut: (String, InternalPrompt) -> Unit,
     onRerunFanOutPair: (String, InternalPrompt, SecondaryResult) -> Unit,
     onDeleteFanOutModel: (String, String, String, String) -> Unit,
-    forcedLanguage: String? = null
+    forcedLanguage: String? = null,
+    /** Plumbed all the way down to [FanOutActions.onOpenPairIconLookup]
+     *  — set by the parent ReportsScreen to flip
+     *  `pairIconDetailFor = pairId`. */
+    onOpenPairIconLookup: (String) -> Unit = {}
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
@@ -3602,7 +3806,8 @@ private fun SecondaryResultsListMount(
                 onDeleteFanOutModel(rid, mpid, prov, model)
                 onSecondaryRefresh()
             },
-            forcedLanguage = forcedLanguage
+            forcedLanguage = forcedLanguage,
+            onOpenPairIconLookup = onOpenPairIconLookup
         )
     }
 }
@@ -4025,17 +4230,21 @@ private fun AlternativeIconsOverlayHost(
     translationIconLanguageFor: String?,
     promptIconDetailForId: String?,
     fanOutTargetAgentId: String?,
+    pairIconDetailFor: String?,
     targetLanguageIcon: Boolean,
     internalPromptIconFanOutByPrompt: Map<String, List<IconCandidate>>,
     agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
+    pairIconFanOutByPair: Map<String, List<IconCandidate>>,
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
     onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
     onPickAgentIcon: (String, String, String) -> Unit,
+    onPickPairIcon: (String, String, String) -> Unit,
     onPickAlternativeIcon: (String, String, String) -> Unit,
     onRestartInternalPromptIconFanOut: (com.ai.model.InternalPrompt) -> Unit,
     onRestartAgentIconFanOut: (String, String) -> Unit,
+    onRestartPairIconFanOut: (String, String) -> Unit,
     onRestartIconFanOut: (String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onCloseAll: () -> Unit,
@@ -4047,18 +4256,22 @@ private fun AlternativeIconsOverlayHost(
         targetLanguage = translationIconLanguageFor,
         targetPromptId = promptIconDetailForId,
         targetAgentId = fanOutTargetAgentId,
+        targetPairId = pairIconDetailFor,
         targetLanguageIcon = targetLanguageIcon,
         internalPrompts = aiSettings.internalPrompts,
         internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
         agentIconFanOutByAgent = agentIconFanOutByAgent,
+        pairIconFanOutByPair = pairIconFanOutByPair,
         iconFanOutByReport = iconFanOutByReport,
         translationIconCallbacks = translationIconCallbacks,
         languageIconCallbacks = languageIconCallbacks,
         onPickInternalPromptIcon = onPickInternalPromptIcon,
         onPickAgentIcon = onPickAgentIcon,
+        onPickPairIcon = onPickPairIcon,
         onPickAlternativeIcon = onPickAlternativeIcon,
         onRestartInternalPromptIconFanOut = onRestartInternalPromptIconFanOut,
         onRestartAgentIconFanOut = onRestartAgentIconFanOut,
+        onRestartPairIconFanOut = onRestartPairIconFanOut,
         onRestartIconFanOut = onRestartIconFanOut,
         onNavigateToTraceFile = onNavigateToTraceFile,
         onCloseAll = onCloseAll,

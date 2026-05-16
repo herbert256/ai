@@ -114,7 +114,11 @@ internal fun SecondaryResultsScreen(
      *  every content lookup is locked to this language. Same convention
      *  as ReportsViewerScreen: null = picker mode (Report - Manage
      *  path), "" = locked to Original, non-empty = locked displayName. */
-    forcedLanguage: String? = null
+    forcedLanguage: String? = null,
+    /** Open the unified Icon-lookup screen for a fan-out pair.
+     *  Plumbed through to [FanOutActions.onOpenPairIconLookup]
+     *  for the L2 long-press / L3 big-icon entry points. */
+    onOpenPairIconLookup: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -601,7 +605,8 @@ internal fun SecondaryResultsScreen(
                 onNavigateToTraceRunList = onNavigateToTraceRunList,
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
-                onOpenSecondary = { id -> openId = id }
+                onOpenSecondary = { id -> openId = id },
+                onOpenPairIconLookup = onOpenPairIconLookup
             )
             FanOutScreen(
                 engine = fanOutEngine,

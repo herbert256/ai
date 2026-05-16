@@ -202,6 +202,22 @@ internal fun FanOutL3Screen(
                     modifier = Modifier.padding(start = 8.dp)
                 )
             }
+            // Big centred pair icon — only when the optional Fan
+            // Icons sweep has produced one and we're in MAIN mode
+            // (the ICONS-mode L3 is itself an icon-focused view, so
+            // a second copy would just be noise). Tap → opens the
+            // unified Icon-lookup screen for this pair (6th adapter).
+            if (!pair.icon.isNullOrBlank() && mode == FanOutMode.MAIN) {
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { actions.onOpenPairIconLookup(pair.id) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(pair.icon!!, fontSize = 64.sp, color = Color.White)
+                }
+            }
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 

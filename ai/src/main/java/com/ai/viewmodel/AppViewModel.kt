@@ -544,6 +544,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .forEach { internalPromptIconCallTexts.remove(it) }
     }
 
+    /** Per-fan-out-pair Find-alt candidate state — same shape as
+     *  [internalPromptIconFanOutByPrompt] but keyed by the
+     *  SecondaryResult id of the specific pair the user launched
+     *  the alt run on. Drives the per-pair "View alternative
+     *  icons" overlay. */
+    private val _pairIconFanOutByPair =
+        MutableStateFlow<Map<String, List<IconCandidate>>>(emptyMap())
+    val pairIconFanOutByPair: StateFlow<Map<String, List<IconCandidate>>> =
+        _pairIconFanOutByPair.asStateFlow()
+    internal fun updatePairIconFanOut(
+        pairId: String,
+        mutator: (List<IconCandidate>) -> List<IconCandidate>
+    ) {
+        _pairIconFanOutByPair.update { current ->
+            val next = mutator(current[pairId].orEmpty())
+            current + (pairId to next)
+        }
+    }
+    internal fun clearPairIconFanOut(pairId: String) {
+        _pairIconFanOutByPair.update { it - pairId }
+    }
+
     /** Per-candidate `(promptText, responseText)` capture used by
      *  [com.ai.viewmodel.ReportViewModel.pickInternalPromptIcon] —
      *  the picked candidate's request + reply land in

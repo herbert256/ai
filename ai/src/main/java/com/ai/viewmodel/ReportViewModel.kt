@@ -990,6 +990,182 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.clearInternalPromptIconFanOut(key)
     }
 
+    // ── Per-fan-out-pair icon Find-alt ──────────────────────────
+    // Mirrors startAgentIconFanOut for fan-out pairs. Composes the
+    // bundled `fan_out` (one-shot template) with `fan_out_alt` (the
+    // nudge), substitutes @QUESTION@ / @SOURCE_RESPONSE@ /
+    // @META_PROMPT@ / @RESPONSE@, fires one call per picked
+    // (provider, model), attributes cost to the pair's SR + the
+    // report's iconCalls audit log, and commits the picked emoji
+    // via setFanOutIconAndTier with promptUsed = "fan_out_alt".
+    private val pairIconFanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private fun pairIconJobKey(reportId: String, pairId: String): String =
+        "$reportId|$pairId"
+
+    fun startPairIconFanOut(
+        context: Context,
+        reportId: String,
+        pairId: String,
+        models: List<ReportModel>,
+        aiSettings: Settings
+    ) {
+        val basePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "fan_out"
+        } ?: run {
+            AppLog.w("PairIconAlt", "internal/fan_out prompt not found — skipping (pair=$pairId)")
+            return
+        }
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "icons" && it.name == "fan_out_alt"
+        } ?: run {
+            AppLog.w("PairIconAlt", "internal/fan_out_alt prompt not found — skipping (pair=$pairId)")
+            return
+        }
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        appViewModel.updatePairIconFanOut(pairId) {
+            unique.map { IconCandidate.Running(it.provider, it.model) }
+        }
+        val outer = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val pair = SecondaryResultStorage.listForReport(context, reportId)
+                .firstOrNull { it.id == pairId } ?: return@launch
+            val sourceAgentId = pair.fanOutSourceAgentId ?: return@launch
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val sourceAgent = report.agents.firstOrNull { it.agentId == sourceAgentId }
+            val metaPrompt = pair.metaPromptId?.let { mid ->
+                aiSettings.internalPrompts.firstOrNull { it.id == mid }
+            }
+            val resolved = (basePrompt.text + "\n\n" + altPrompt.text)
+                .replace("@QUESTION@", report.prompt)
+                .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
+                .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
+                .replace("@RESPONSE@", pair.content.orEmpty())
+            unique.forEach { item ->
+                launch {
+                    val host = providerHost(item.provider)
+                    val releaser = ProviderThrottle.acquire(host)
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "icon_fan_out_alt") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "pair-icon-alt-${pairId}-${item.provider.id}-${item.model}",
+                                        name = item.model,
+                                        provider = item.provider,
+                                        model = item.model,
+                                        apiKey = aiSettings.getApiKey(item.provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, AgentParameters(),
+                                        null, context, baseUrl
+                                    )
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    if (inT > 0 || outT > 0) {
+                                        // Bump the pair's per-icon cost
+                                        // counters so the L2/L3 row total +
+                                        // Icon-lookup "Cost" line reflect
+                                        // every alt attempt.
+                                        SecondaryResultStorage.bumpFanOutIconCost(
+                                            context, reportId, pairId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                            item.provider, item.model, inT, outT, kind = "icon"
+                                        )
+                                        // Per-call audit row labelled
+                                        // `icon_fan_out_alt`, attributed to
+                                        // the SR so the cost-table per-call
+                                        // breakdown shows alt rows on the
+                                        // owning pair.
+                                        ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                            agentId = pairId, tier = 0,
+                                            provider = item.provider.id, model = item.model,
+                                            pricingTier = pricing.source,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            success = response.error == null,
+                                            type = "icon_fan_out_alt",
+                                            attributedToSecondaryId = pairId
+                                        ))
+                                    }
+                                    val totalCost = inC + outC
+                                    if (response.error == null) {
+                                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                                        appViewModel.updatePairIconFanOut(pairId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Done(item.provider, item.model, emoji, totalCost)
+                                                else c
+                                            }
+                                        }
+                                    } else {
+                                        appViewModel.updatePairIconFanOut(pairId) { list ->
+                                            list.map { c ->
+                                                if (c.provider.id == item.provider.id && c.model == item.model)
+                                                    IconCandidate.Error(item.provider, item.model, response.error, totalCost)
+                                                else c
+                                            }
+                                        }
+                                    }
+                                    appViewModel.updateUiState {
+                                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                                    }
+                                }.onFailure { e ->
+                                    appViewModel.updatePairIconFanOut(pairId) { list ->
+                                        list.map { c ->
+                                            if (c.provider.id == item.provider.id && c.model == item.model)
+                                                IconCandidate.Error(item.provider, item.model, e.message ?: "icon-gen failed", 0.0)
+                                            else c
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        val key = pairIconJobKey(reportId, pairId)
+        pairIconFanOutJobs.put(key, outer)?.cancel()
+        outer.invokeOnCompletion { pairIconFanOutJobs.remove(key, outer) }
+    }
+
+    /** Commit a user-picked alt emoji to the fan-out pair. winningTier
+     *  stays null — the alt isn't a tier-N hit; the `fan_out_alt`
+     *  promptUsed stamp is the source-of-truth label for the Icon
+     *  lookup screen's subject row. */
+    fun pickPairIconAlternative(
+        context: Context,
+        reportId: String,
+        pairId: String,
+        emoji: String
+    ) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            SecondaryResultStorage.setFanOutIconAndTier(
+                context, reportId, pairId,
+                icon = emoji, winningTier = null,
+                promptUsed = "fan_out_alt"
+            )
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
+
+    fun restartPairIconFanOut(reportId: String, pairId: String) {
+        pairIconFanOutJobs.remove(pairIconJobKey(reportId, pairId))?.cancel()
+        appViewModel.clearPairIconFanOut(pairId)
+    }
+
     // ── Translation icons ───────────────────────────────────────
     // Sibling flow to the per-`InternalPrompt` icon flow above.
     // Stores per-language entries in [InternalPromptIconCache]
@@ -3130,6 +3306,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // drop the per-agent candidate map slot too.
                 val agentId = entry.key.removePrefix(fanOutPrefix)
                 appViewModel.clearAgentIconFanOut(agentId)
+            }
+        // Same shape as agentIconFanOutJobs above but keyed by
+        // pair (SecondaryResult) id under the report.
+        pairIconFanOutJobs.entries
+            .filter { it.key.startsWith(fanOutPrefix) }
+            .forEach { entry ->
+                entry.value.cancel()
+                val pairId = entry.key.removePrefix(fanOutPrefix)
+                appViewModel.clearPairIconFanOut(pairId)
             }
         appViewModel.clearIconFanOut(reportId)
         ReportStorage.deleteReport(context, reportId)

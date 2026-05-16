@@ -120,7 +120,12 @@ data class FanOutActions(
     val onNavigateToTraceRunList: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     val onNavigateToInternalPromptEdit: (String) -> Unit = {},
-    val onOpenSecondary: (String) -> Unit = {}                             // open arbitrary SecondaryResult detail
+    val onOpenSecondary: (String) -> Unit = {},                            // open arbitrary SecondaryResult detail
+    /** Open the unified Icon-lookup screen for a fan-out pair —
+     *  the 6th adapter. Wired on the L2 row long-press and the
+     *  L3 big centred icon. Argument is the pair's
+     *  [com.ai.data.SecondaryResult.id]. */
+    val onOpenPairIconLookup: (String) -> Unit = {}
 )
 
 /**
