@@ -614,7 +614,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
         renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
     }
     if (showModerations) views += View("moderations", "Moderations") {
-        renderMetaItemsView(sb, "moderations", moderations, maxAnchor)
+        renderMetaItemsView(sb, "moderations", moderations, maxAnchor, agentsByAnchor)
     }
     if (hasPrompt) views += View("prompt", "Prompt") {
         sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
@@ -759,6 +759,14 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
     } else if (!item.content.isNullOrBlank()) {
         when (item.kind) {
             SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor, agentsByAnchor)}</div>")
+            SecondaryKind.MODERATION -> {
+                // Structured renderer with per-model picker + a full
+                // per-category table for the picked model. Falls
+                // through to the raw markdown path on parse failure.
+                val rendered = renderModerationContent(item.content, item.id, agentsByAnchor)
+                if (rendered != null) sb.append("<div class='secondary-body'>$rendered</div>")
+                else sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(item.content)}</div>")
+            }
             SecondaryKind.META -> {
                 // Chat-type Meta content can reference report rows via
                 // bracketed [N] tags. Linkify them so a "Compare" /
@@ -1101,6 +1109,66 @@ private fun renderRerankContent(content: String, maxAnchor: Int, agentsByAnchor:
     return linkifyAnchorRefs(convertMarkdownToHtmlForExport(content), maxAnchor)
 }
 
+/** Structured renderer for a moderation SecondaryResult's content
+ *  JSON. Emits a per-model button row (one button per moderated
+ *  agent) plus a hidden detail pane per model with that model's
+ *  full per-category table. The matching button + pane share a
+ *  unique `[contextId]-[rowId]` data-mod key so multiple moderation
+ *  cards on the same page don't cross-trigger. Returns null on
+ *  parse failure so the caller can fall back to the raw markdown
+ *  path. Mirrors the in-app `ModerationCallDetailScreen` shape. */
+private fun renderModerationContent(content: String, contextId: String, agentsByAnchor: Map<Int, String>): String? {
+    val rows = parseModerationRows(content) ?: return null
+    val sb = StringBuilder()
+    sb.append("<div class='moderation-block'>")
+    sb.append("<div class='moderation-buttons'>")
+    rows.forEachIndexed { i, r ->
+        val label = agentsByAnchor[r.id] ?: "[${r.id}]"
+        val flagPrefix = if (r.flagged) "🚩 " else "✓ "
+        val color = if (r.flagged) "#ff7a7a" else "#7fdc7f"
+        val active = if (i == 0) " active" else ""
+        sb.append(
+            "<button class='mod-btn$active' data-mod='${escId(contextId)}-${r.id}'" +
+            " onclick=\"showModRow(this,'${escId(contextId)}-${r.id}')\"" +
+            " style='color:$color'>$flagPrefix${esc(label)}</button>"
+        )
+    }
+    sb.append("</div>")
+
+    rows.forEachIndexed { i, r ->
+        val active = if (i == 0) " active" else ""
+        val style = if (i == 0) "" else " style='display:none'"
+        sb.append("<div class='mod-row$active' data-mod='${escId(contextId)}-${r.id}'$style>")
+        val verdictColor = if (r.flagged) "#ff7a7a" else "#7fdc7f"
+        val verdictText = if (r.flagged) "🚩 Flagged" else "✓ Clean"
+        sb.append("<div class='mod-verdict' style='color:$verdictColor;font-weight:600;margin-bottom:6px'>$verdictText</div>")
+
+        // Categories table — every category the API returned,
+        // sorted by score desc. Fired rows in red.
+        val cats = (r.allCategories.keys + r.allScores.keys).distinct()
+            .sortedWith(compareByDescending<String> { r.allScores[it] ?: -1.0 }.thenBy { it.lowercase() })
+        if (cats.isEmpty()) {
+            sb.append("<div style='color:#888'>(no categories returned)</div>")
+        } else {
+            sb.append("<table class='mod-cats'>")
+            sb.append("<tr><th></th><th>Category</th><th>Score</th></tr>")
+            cats.forEach { cat ->
+                val fired = r.allCategories[cat] == true
+                val score = r.allScores[cat]
+                val rowStyle = if (fired) " style='color:#ff7a7a'" else ""
+                val flagCell = if (fired) "🚩" else "·"
+                val scoreCell = score?.let { "%.4f".format(it) } ?: "—"
+                sb.append("<tr$rowStyle><td>$flagCell</td><td>${esc(cat)}</td><td class='num'>$scoreCell</td></tr>")
+            }
+            sb.append("</table>")
+        }
+        sb.append("</div>")
+    }
+
+    sb.append("</div>")
+    return sb.toString()
+}
+
 /** Replace bracketed `[N]` references in already-rendered HTML with
  *  `<a href='#result-N'>[N]</a>` anchors. Operates post-conversion
  *  so the markdown pass's HTML-escape doesn't shred the inserted
@@ -1294,6 +1362,15 @@ ul{padding-left:20px}li{margin:4px 0}
 .rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
 .rerank-table .num{text-align:right;font-family:monospace}
 .rerank-table a{color:#64B5F6;text-decoration:none;font-family:monospace}
+.moderation-block{margin-top:4px}
+.moderation-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.mod-btn{background:transparent;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
+.mod-btn.active{background:#333;border-color:#888}
+.mod-row{display:none}.mod-row.active{display:block}
+.mod-cats{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.mod-cats th{color:#6B9BFF;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
+.mod-cats td{padding:4px 8px;border-bottom:1px solid #333}
+.mod-cats .num{text-align:right;font-family:monospace}
 .secondary-body a{color:#64B5F6;text-decoration:none;font-family:monospace}
 </style></head>
 """
@@ -1305,6 +1382,7 @@ function showView(btn,id){var scope=btn.closest('.lang-block')||document;scope.q
 function showLayout(btn,mode){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll(':scope > .layout').forEach(function(l){l.style.display=(l.getAttribute('data-layout')===mode)?'block':'none';});scope.querySelectorAll(':scope > .layout-toggle .layout-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
 function showAgent(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.agent-result').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.agent-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.agent-result[data-agent="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
 function showItem(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.item-content').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.item-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.item-content[data-item="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
+function showModRow(btn,id){var scope=btn.closest('.moderation-block');if(!scope)return;scope.querySelectorAll('.mod-row').forEach(function(e){e.classList.remove('active');e.style.display='none';});scope.querySelectorAll('.mod-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.mod-row[data-mod="'+id+'"]');if(el){el.classList.add('active');el.style.display='block';}btn.classList.add('active');}
 function showCat(cid){document.querySelectorAll('.cat-block').forEach(e=>e.style.display='none');document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('cat-'+cid);var btn=document.getElementById('cat-btn-'+cid);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
 function showCostsScope(scope){var ids=['all','types','models'];ids.forEach(function(s){var pane=document.getElementById('cost-pane-'+s);var btn=document.getElementById('cost-btn-'+s);if(pane)pane.style.display=(s===scope)?'block':'none';if(btn){if(s===scope){btn.classList.add('active')}else{btn.classList.remove('active')}}});}
 function showTrace(cid,id){document.querySelectorAll('.trace-pane[data-cat="'+cid+'"]').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn[data-cat="'+cid+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
