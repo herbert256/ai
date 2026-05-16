@@ -36,6 +36,7 @@ enum class SettingsSubScreen {
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_PROMPTS_SETUP,
+    AI_INTERNAL_PROMPTS_HUB,
     AI_LOCAL_MODELS_SETUP,
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
@@ -193,18 +194,22 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENTS, SettingsSubScreen.AI_FLOCKS,
             SettingsSubScreen.AI_SWARMS -> currentSubScreen = SettingsSubScreen.AI_WORKERS_SETUP
             SettingsSubScreen.AI_SYSTEM_PROMPTS,
-            SettingsSubScreen.AI_EXAMPLE_PROMPTS,
-            SettingsSubScreen.AI_FAN_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_EXAMPLE_PROMPTS -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            // The Internal prompts hub now sits between Prompt
+            // management and the per-category lists; the Fan out/in
+            // sub-hub is a child of the Internal prompts hub.
+            SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_PROMPTS_SETUP
+            SettingsSubScreen.AI_FAN_PROMPTS_HUB -> currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
             // Back from a per-category list lands on whichever hub
             // owns that category — Fan out/in for any of the fan-*
-            // buckets, Prompt management for meta / internal.
+            // buckets, Internal prompts for meta / internal / icons.
             // selectedInternalCategory is set when the list is opened,
             // so it's authoritative here.
             SettingsSubScreen.AI_INTERNAL_PROMPTS -> currentSubScreen =
                 if (selectedInternalCategory in setOf("fan_out", "fan_in", "fan-in-model"))
                     SettingsSubScreen.AI_FAN_PROMPTS_HUB
                 else
-                    SettingsSubScreen.AI_PROMPTS_SETUP
+                    SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
             SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
             SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS,
@@ -360,6 +365,13 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it },
+                onOpenInternalPromptsHub = { currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB }
+            )
+        }
+        SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB -> {
+            InternalPromptsHubScreen(
+                aiSettings = aiSettings,
+                onBack = goBack, onBackToHome = onNavigateHome,
                 onOpenInternalPrompts = { cat ->
                     selectedInternalCategory = cat
                     currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS

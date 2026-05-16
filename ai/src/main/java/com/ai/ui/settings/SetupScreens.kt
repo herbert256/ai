@@ -203,6 +203,44 @@ fun PromptsSetupScreen(
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
+    /** Forward to the Internal prompts hub (Meta / Fan out/in /
+     *  Icons / Other internal prompts). The old per-category cards
+     *  used to live on this page; they moved to the hub so the top
+     *  page stays a short nav list. */
+    onOpenInternalPromptsHub: () -> Unit
+) {
+    BackHandler { onBack() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
+
+        fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
+        val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
+            countByCategory("fan_in") + countByCategory("fan-in-model") +
+            countByCategory("icons") + countByCategory("internal")
+
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
+            ModelsSetupNavCard("🧠", "Internal prompts", "Meta, Fan out/in, Icons, and Other internal templates consumed by app features", "$internalTotal",
+                onClick = onOpenInternalPromptsHub)
+            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
+        }
+    }
+}
+
+/** Sub-hub reached from "Prompt management" → "Internal prompts".
+ *  Hosts the four cards that used to live on the Prompt management
+ *  page: Meta prompts, Fan out/in prompts, Icons prompts, and
+ *  (last) Other internal prompts. */
+@Composable
+fun InternalPromptsHubScreen(
+    aiSettings: Settings,
+    onBack: () -> Unit,
+    onBackToHome: () -> Unit,
     /** Set the category that the AI_INTERNAL_PROMPTS list + edit
      *  screens filter on, then navigate to the list. */
     onOpenInternalPrompts: (String) -> Unit,
@@ -214,25 +252,21 @@ fun PromptsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
+        TitleBar(helpTopic = "internal_prompts_hub", title = "Internal prompts", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
             countByCategory("fan-in-model")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs, combined reports, and per-model variants", "$fanTotal",
                 onClick = onOpenFanInOutHub)
-            ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
-                onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard("🎨", "Icons prompts", "Bundled prompts the icon chains use (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be removed or added to.", "${countByCategory("icons")}",
                 onClick = { onOpenInternalPrompts("icons") })
-            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
-                onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
+            ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
+                onClick = { onOpenInternalPrompts("internal") })
         }
     }
 }
