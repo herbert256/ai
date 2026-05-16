@@ -37,7 +37,7 @@ object ModelType {
      *  all models sweep to skip these at enumeration, and by the main
      *  model pickers (AI Report, AI Chat) to dim them — selecting one
      *  for a chat flow will fail at runtime. */
-    val NON_TESTABLE_TYPES: Set<String> = setOf(IMAGE, TTS, STT, MODERATION, CLASSIFY, OCR)
+    val NON_TESTABLE_TYPES: Set<String> = setOf(IMAGE, TTS, STT, CLASSIFY, OCR)
 
     /** User-supplied global defaults from AI Setup → Model Types. Sits between the
      *  per-provider override and the hardcoded DEFAULT_PATHS. AppViewModel keeps

@@ -7,6 +7,7 @@ import com.ai.data.AnalysisRepository
 import com.ai.data.ApiCallCaps
 import com.ai.data.ModelType
 import com.ai.data.TokenUsage
+import com.ai.data.callModerationApi
 import com.ai.data.callRerankApi
 import com.ai.data.embedWithStatus
 import com.ai.data.AppLog
@@ -496,6 +497,7 @@ class ModelTestEngine internal constructor(
                                         when (type) {
                                             ModelType.EMBEDDING -> probeEmbedding(service, apiKey, item.model)
                                             ModelType.RERANK -> probeRerank(service, apiKey, item.model)
+                                            ModelType.MODERATION -> probeModeration(service, apiKey, item.model)
                                             // CHAT, RESPONSES, UNKNOWN, null →
                                             // the existing chat-completions probe.
                                             else -> probeChat(service, apiKey, item.model)
@@ -694,6 +696,32 @@ class ModelTestEngine internal constructor(
             responseText = r.content,
             durationMs = r.durationMs,
             tokenUsage = null
+        )
+    }
+
+    /** Moderation probe — calls the provider's native moderation
+     *  endpoint ([com.ai.data.callModerationApi]) with a single
+     *  innocuous input. PASS = a parseable result (flagged or not is
+     *  irrelevant — the API answered). Providers without
+     *  `nativeModerationUrl` configured fail with an explanatory
+     *  message, matching the rerank probe's shape. */
+    private suspend fun probeModeration(service: AppService, apiKey: String, model: String): ProbeResult {
+        val start = System.currentTimeMillis()
+        val (results, apiResult) = callModerationApi(
+            service, apiKey, model, listOf(AnalysisRepository.TEST_PROMPT)
+        )
+        val first = results?.firstOrNull()
+        val resp = first?.let {
+            "flagged=${it.flagged}" + (if (it.firedCategories.isNotEmpty())
+                " · ${it.firedCategories.joinToString(",")}" else "")
+        }
+        return ProbeResult(
+            isSuccess = apiResult.errorMessage == null && first != null,
+            errorMessage = apiResult.errorMessage,
+            responseText = resp,
+            durationMs = if (apiResult.durationMs > 0) apiResult.durationMs
+                         else System.currentTimeMillis() - start,
+            tokenUsage = apiResult.tokenUsage
         )
     }
 
