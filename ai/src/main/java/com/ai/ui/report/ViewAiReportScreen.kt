@@ -3,6 +3,8 @@ package com.ai.ui.report
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import android.content.Context
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +22,17 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -121,6 +134,18 @@ internal fun ViewAiReportScreen(
     // so a rotation doesn't snap the list shut mid-read.
     var expandedKind by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Persisted tile-order — survives reports / restarts. Stored as
+    // a comma-separated list of tile identifiers under SharedPreferences
+    // 'view_screen_prefs'. Tiles whose id isn't in the list fall to
+    // the end of the grid in their default declaration order; user
+    // reorders patch the persisted list keeping non-current tiles
+    // in their previous relative positions.
+    val viewPrefsCtx = LocalContext.current
+    val tileOrderPrefs = remember { viewPrefsCtx.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE) }
+    var savedOrder by remember {
+        mutableStateOf(loadTileOrder(tileOrderPrefs))
+    }
+
     // Documents tiles — fixed set, Icons only when the per-model
     // icon chain is enabled in Settings. The tile only OPENS the
     // destination; the View screen itself stays in the back-stack
@@ -128,16 +153,16 @@ internal fun ViewAiReportScreen(
     // to the View grid rather than the report page.
     val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         buildList {
-            add(ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt() })
-            add(ViewTile("Reports", "📊", AppColors.Blue) { onViewReports() })
-            add(ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() })
-            add(ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() })
-            add(ViewTile("Log", "📜", AppColors.Brown) { onViewLog() })
+            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt() }))
+            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue) { onViewReports() }))
+            add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() }))
+            add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
+            add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
             // 🐞 mirrors the title-bar trace icon — opens the API
             // trace list pre-filtered to this report.
-            add(ViewTile("Trace", "🐞", AppColors.Red) { onViewTrace() })
+            add(IdentifiedTile("doc:Trace", ViewTile("Trace", "🐞", AppColors.Red) { onViewTrace() }))
             if (perModelIconGenEnabled) {
-                add(ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() })
+                add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
             }
         }
     }
@@ -172,12 +197,15 @@ internal fun ViewAiReportScreen(
                 if (e == null) onMissingTranslationIcon(lang)
                 e
             } else null
-            ViewTile(
-                label = item.label,
-                emoji = promptEmoji ?: "🧠",
-                accent = AppColors.Purple,
-                secondaryEmoji = translationEmoji,
-                onClick = { item.open() }
+            IdentifiedTile(
+                id = "meta:${item.label}",
+                tile = ViewTile(
+                    label = item.label,
+                    emoji = promptEmoji ?: "🧠",
+                    accent = AppColors.Purple,
+                    secondaryEmoji = translationEmoji,
+                    onClick = { item.open() }
+                )
             )
         }
     }
@@ -246,8 +274,38 @@ internal fun ViewAiReportScreen(
             // computed tiles all flow together as one continuous
             // grid. The meta items get an entry each per the user
             // request; the other computed kinds stay aggregated
-            // with their count badge.
-            TileFlow(docTiles + metaTiles + computedTiles.map { it.tile })
+            // with their count badge. Each carries a stable
+            // identifier so the persisted tile order survives
+            // per-report variability.
+            val combinedTiles = docTiles + metaTiles +
+                computedTiles.map { IdentifiedTile("computed:${it.key}", it.tile) }
+            val sortedTiles = remember(combinedTiles, savedOrder) {
+                val rankOf = savedOrder.withIndex().associate { it.value to it.index }
+                combinedTiles.sortedBy { rankOf[it.id] ?: Int.MAX_VALUE }
+            }
+            ReorderableTileFlow(
+                items = sortedTiles,
+                onReorder = { fromId, toId ->
+                    val current = sortedTiles.map { it.id }.toMutableList()
+                    val fromIdx = current.indexOf(fromId)
+                    val toIdx = current.indexOf(toId)
+                    if (fromIdx >= 0 && toIdx >= 0 && fromIdx != toIdx) {
+                        current.removeAt(fromIdx)
+                        current.add(toIdx, fromId)
+                        // Patch persisted: replace current-visible
+                        // segment with the new local order, keep
+                        // any non-current ids (from other reports)
+                        // in their previous relative positions at
+                        // the tail.
+                        val currentSet = current.toSet()
+                        val newSaved = current + savedOrder.filter { it !in currentSet }
+                        savedOrder = newSaved
+                        tileOrderPrefs.edit()
+                            .putString("tile_order", newSaved.joinToString(","))
+                            .apply()
+                    }
+                }
+            )
 
             // Inline expansion — full-width card listing each
             // item for the active non-meta computed kind (rerank /
@@ -272,6 +330,14 @@ internal fun ViewAiReportScreen(
         }
     }
 }
+
+/** A tile + its stable identifier — used to map the on-screen
+ *  tile back to a persisted-order entry. Identifier format:
+ *  `doc:<label>` for always-on Documents tiles, `meta:<promptName>`
+ *  for individual Meta items, `computed:<key>` for the aggregated
+ *  Computed kinds (rerank, moderation, fan_out, fan_in,
+ *  fan-in-model, translate). */
+private data class IdentifiedTile(val id: String, val tile: ViewTile)
 
 /** Visual descriptor for one launcher tile. */
 private data class ViewTile(
@@ -305,6 +371,104 @@ private fun SectionLabel(text: String) {
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold
     )
+}
+
+/** Read the persisted comma-separated tile-order list from
+ *  SharedPreferences. Blank / missing → empty list (every tile
+ *  falls back to its declaration order). */
+private fun loadTileOrder(prefs: android.content.SharedPreferences): List<String> =
+    prefs.getString("tile_order", null)
+        ?.split(",")
+        ?.filter { it.isNotBlank() }
+        ?: emptyList()
+
+/** Reorderable tile grid. Identical visual layout to [TileFlow]
+ *  (3 cols, fixed tile width, 10 dp spacing) plus per-tile
+ *  long-press-and-drag handling. Short taps still fire the tile's
+ *  onClick; only long-press (~500 ms) starts a drag.
+ *
+ *  Drop target = whichever tile's recorded layout rect contains
+ *  the dragged tile's translated center point on release. When the
+ *  drop hits a different tile, [onReorder] fires with the source
+ *  and target identifiers; the parent computes the new ordering
+ *  and updates the persisted state. Tiles other than the dragged
+ *  one stay in place during the drag — no slide animation in v1. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReorderableTileFlow(
+    items: List<IdentifiedTile>,
+    onReorder: (fromId: String, toId: String) -> Unit
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val spacing = 10.dp
+        val cols = 3
+        val tileWidth = ((maxWidth - spacing * (cols - 1)) / cols) - 0.5.dp
+
+        var draggedId by remember { mutableStateOf<String?>(null) }
+        var dragOffset by remember { mutableStateOf(Offset.Zero) }
+        val positions = remember { mutableStateMapOf<String, Rect>() }
+        val haptic = LocalHapticFeedback.current
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+            maxItemsInEachRow = cols
+        ) {
+            items.forEach { item ->
+                val id = item.id
+                val isDragged = draggedId == id
+                Box(
+                    modifier = Modifier
+                        .width(tileWidth)
+                        .onGloballyPositioned { coords ->
+                            positions[id] = coords.boundsInParent()
+                        }
+                        .then(
+                            if (isDragged) Modifier
+                                .zIndex(1f)
+                                .graphicsLayer {
+                                    translationX = dragOffset.x
+                                    translationY = dragOffset.y
+                                }
+                            else Modifier
+                        )
+                        .pointerInput(id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggedId = id
+                                    dragOffset = Offset.Zero
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                                onDrag = { change, drag ->
+                                    change.consume()
+                                    dragOffset += drag
+                                },
+                                onDragEnd = {
+                                    val src = draggedId
+                                    val srcRect = src?.let { positions[it] }
+                                    if (src != null && srcRect != null) {
+                                        val dropPoint = srcRect.center + dragOffset
+                                        val dstId = positions.entries
+                                            .firstOrNull { it.value.contains(dropPoint) }
+                                            ?.key
+                                        if (dstId != null && dstId != src) {
+                                            onReorder(src, dstId)
+                                        }
+                                    }
+                                    draggedId = null
+                                    dragOffset = Offset.Zero
+                                },
+                                onDragCancel = {
+                                    draggedId = null
+                                    dragOffset = Offset.Zero
+                                }
+                            )
+                        }
+                ) { TileCard(item.tile) }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

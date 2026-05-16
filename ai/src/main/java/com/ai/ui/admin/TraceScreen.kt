@@ -751,6 +751,21 @@ fun TraceDetailScreen(
         }
     }
 
+    // Wire the title-bar report-icon tap to the same destination as
+    // the bottom-row 📝 button (restore the report into UiState, then
+    // navigate to AI_REPORTS). Without this wrap the trace-detail
+    // route renders at the top-level NavHost scope, where
+    // LocalNavigateToCurrentReport defaults to null and the icon tap
+    // is a no-op. Only wrap when we actually know the report id —
+    // hides the icon below also gate on the same field, so the
+    // provider would be unused otherwise.
+    val tracedReportId = t?.reportId
+    val reportIconNav: () -> Unit = remember(tracedReportId) {
+        { tracedReportId?.let(onOpenReport) }
+    }
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalNavigateToCurrentReport provides reportIconNav
+    ) {
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
             helpTopic = "trace_detail",
@@ -986,6 +1001,7 @@ fun TraceDetailScreen(
             }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Edit", maxLines = 1, softWrap = false) }
         }
     }
+    } // close CompositionLocalProvider wrap added above
 }
 
 
