@@ -1012,8 +1012,7 @@ internal fun ColumnScope.GenerationPhase(
                     }
                     if (run.totalCostDollars > 0.0) {
                         Text(formatCents(run.totalCostDollars), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(end = 6.dp))
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
