@@ -4808,15 +4808,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     fun deleteSecondaryResult(context: Context, reportId: String, resultId: String) {
-        // Read the row's cost BEFORE deleting so we can carry it
-        // into the report's costsFromDeletedItems tally. The user
-        // dropped the row from the report; the API spend is real
-        // and should still surface on the result page.
-        val cost = SecondaryResultStorage.get(context, reportId, resultId)?.let {
-            (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
-        } ?: 0.0
+        // Read the row's cost + kind BEFORE deleting so we can carry
+        // the cost into the report's costsFromDeletedItems tally and
+        // decide whether to cascade. The user dropped the row from
+        // the report; the API spend is real and should still surface
+        // on the result page.
+        val deleted = SecondaryResultStorage.get(context, reportId, resultId)
+        var costDelta = deleted?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
         SecondaryResultStorage.delete(context, reportId, resultId)
-        if (cost > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, cost)
+        // Cascade: when a META row is deleted, its cross-translate
+        // TRANSLATE rows (translateSourceKind = "META",
+        // translateSourceTargetId = this meta id) become orphans —
+        // they'd still surface as language tabs on the View screen but
+        // no longer reachable through any meta tile. Drop them too so
+        // the on-disk state stays consistent.
+        if (deleted?.kind == SecondaryKind.META) {
+            val orphans = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter { it.translateSourceKind == "META" && it.translateSourceTargetId == resultId }
+            orphans.forEach { tr ->
+                costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                SecondaryResultStorage.delete(context, reportId, tr.id)
+            }
+        }
+        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         // Bump the parent report's timestamp — removing a meta /
         // translation row is a real change to what the report contains
         // and should sort the report to the top of History, same as an
@@ -4831,15 +4846,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  during a Fan-out delete. Returns once the sweep finishes. */
     fun bulkDeleteSecondaryResults(context: Context, reportId: String, resultIds: List<String>, onComplete: () -> Unit = {}) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            // Snapshot the per-id costs before deleting so we can
-            // bump costsFromDeletedItems with the total.
+            // Snapshot the per-id costs + kinds before deleting so we
+            // can bump costsFromDeletedItems with the total and
+            // cascade-delete META cross-translate orphans.
             var costDelta = 0.0
+            val deletedMetaIds = mutableSetOf<String>()
             resultIds.forEach { id ->
                 runCatching {
                     SecondaryResultStorage.get(context, reportId, id)?.let { r ->
                         costDelta += (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+                        if (r.kind == SecondaryKind.META) deletedMetaIds.add(id)
                     }
                     SecondaryResultStorage.delete(context, reportId, id)
+                }
+            }
+            // Cascade: every TRANSLATE row pointing back at a
+            // just-deleted META row is now an orphan; drop it too.
+            if (deletedMetaIds.isNotEmpty()) {
+                val orphans = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                    .filter { it.translateSourceKind == "META" && it.translateSourceTargetId in deletedMetaIds }
+                orphans.forEach { tr ->
+                    costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                    SecondaryResultStorage.delete(context, reportId, tr.id)
                 }
             }
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
