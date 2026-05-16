@@ -2699,7 +2699,6 @@ private fun ReportPrimaryOverlays(
                 useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
-                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
                 onViewPrompt = { lang ->
                     onSelectedAgentForViewerChange(null)
