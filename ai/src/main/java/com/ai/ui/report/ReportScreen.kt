@@ -439,7 +439,14 @@ fun ReportsScreenNav(
         onExportAll = { rid, onProgress ->
             bulkExportAndShare(context, rid, onProgress)
         },
-        translationRuns = reportViewModel.translationRuns.collectAsState().value.values.toList(),
+        // Filter to the current report — _translationRuns is keyed by
+        // runId across every report's batches; without the filter, an
+        // older report's in-flight (or never-cleared) translation runs
+        // would show as live "translate" rows on every other report's
+        // manage screen.
+        translationRuns = reportViewModel.translationRuns.collectAsState().value.values
+            .filter { it.sourceReportId == uiState.currentReportId }
+            .toList(),
         onStartTranslation = { sourceId, langName, langNative, models ->
             reportViewModel.startTranslation(context, sourceId, langName, langNative, models)
         },
