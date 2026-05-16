@@ -883,7 +883,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val iconRow: CostRow? = if (report.iconInputCost > 0.0 || report.iconOutputCost > 0.0) {
         val ai = com.ai.model.SettingsHolder.current
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "main_icon"
+            it.category == "icons" && it.name == "main"
         }
         val iconAgent = iconPrompt?.let { p ->
             ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
@@ -938,7 +938,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     } else null
     val languageIconRow: CostRow? = if (hasLanguageIconCost) {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "language_icon"
+            it.category == "icons" && it.name == "language"
         }
         val iconAgent = iconPrompt?.let { p ->
             ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }

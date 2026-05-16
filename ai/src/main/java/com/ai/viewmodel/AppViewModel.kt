@@ -89,7 +89,7 @@ data class GeneralSettings(
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a
      *  leading emoji generated once via the bundled
-     *  `internal/meta_icon` prompt and persisted in
+     *  `icons/meta` prompt and persisted in
      *  [com.ai.data.InternalPromptIconCache]. The cache is keyed on
      *  `(InternalPrompt.name, InternalPrompt.title)` so editing
      *  either field re-fires generation; cache hits cost nothing.
@@ -806,7 +806,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 "meta_icon", "main_icon", "report_icon_2", "report_icon_3",
                 "fan_out_icon_2", "fan_out_icon_3",
                 "icon_alt", "main_icon_alt", "meta_icon_alt", "report_icon_alt",
-                "fan_out_icon_alt", "language_icon_alt", "translation_icon_alt"
+                "fan_out_icon_alt", "language_icon_alt", "translation_icon_alt",
+                // post-strip-`_icon` names (Internal-prompts hub already
+                // labels these with the "icons" category badge; the
+                // suffix is pure redundancy and got dropped).
+                "main", "meta", "report", "report_2", "report_3",
+                "fan_out", "fan_out_2", "fan_out_3", "translation",
+                "main_alt", "meta_alt", "report_alt", "fan_out_alt",
+                "language_alt", "translation_alt"
+                // NB: `language` is NOT in this set — the detection
+                // prompt lives in category "internal" (text helper, not
+                // an icon picker); the icons-category emoji-pick prompt
+                // also called `language` is migrated by the strip pass
+                // below, not by this category guard.
             )
             val migrated = ai.internalPrompts.map { p ->
                 if (p.category.equals("internal", ignoreCase = true) &&
@@ -819,29 +831,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // One-shot rename of bundled icon prompts. The user-facing
-        // names changed from inconsistent suffixes (`_chat` / `_3th` /
-        // `prompt_icon`) to a uniform `_2` / `_3` / `meta_icon` scheme,
-        // and `language_icon` was split into two prompts: the old one
-        // becomes `language` (detection only, under category "internal")
-        // and a NEW `language_icon` (copied from `translation_icon`,
-        // stays under "icons") handles the second call. Rewrite any
-        // persisted row that still carries an old name so the
-        // delta-merge below doesn't append a duplicate next to the
-        // user's customised copy. Manual edits to `text` survive —
-        // only the `name` (and for `language`, the `category`) is
-        // rewritten. Idempotent.
+        // One-shot rename of bundled icon prompts from PRE-rename
+        // legacy names directly to the FINAL stripped names. Catches
+        // users who skipped one or more intermediate builds — e.g.
+        // someone coming from a build that still had `prompt_icon`
+        // jumps straight to `meta` here. The strip-`_icon` pass below
+        // then catches everything else (users coming from a more
+        // recent build where the intermediate `meta_icon` /
+        // `main_icon` / `report_icon_2` etc. names are still
+        // persisted). Both passes guard on category="icons" so the
+        // `internal/language` detection prompt is never touched.
+        // Idempotent.
         run {
             data class Rename(val newName: String, val newCategory: String? = null)
             val rename = mapOf(
-                "prompt_icon" to Rename("meta_icon"),
-                "icon" to Rename("main_icon"),
-                "icon_alt" to Rename("main_icon_alt"),
+                "prompt_icon" to Rename("meta"),
+                "icon" to Rename("main"),
+                "icon_alt" to Rename("main_alt"),
+                // The OLD combined detection+icon prompt is migrated to
+                // category "internal" with name `language` (the
+                // detection prompt). The NEW icons-category second-call
+                // emoji prompt arrives via delta-merge of the bundled
+                // prompts.json with name `language`.
                 "language_icon" to Rename("language", newCategory = "internal"),
-                "report_icon_chat" to Rename("report_icon_2"),
-                "report_icon_3th" to Rename("report_icon_3"),
-                "fan_out_icon_chat" to Rename("fan_out_icon_2"),
-                "fan_out_icon_3th" to Rename("fan_out_icon_3")
+                "report_icon_chat" to Rename("report_2"),
+                "report_icon_3th" to Rename("report_3"),
+                "fan_out_icon_chat" to Rename("fan_out_2"),
+                "fan_out_icon_3th" to Rename("fan_out_3")
             )
             val migrated = ai.internalPrompts.map { p ->
                 val r = rename[p.name.lowercase()]
@@ -856,38 +872,65 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // One-shot move of the `language` prompt from category "icons"
-        // (its initial post-rename home) to "internal" — it's a text
-        // helper, not an icon picker. Catches users who upgraded in the
-        // brief window before this move. Idempotent.
+        // One-shot strip of the now-redundant `_icon` suffix on every
+        // icons-category row. The Internal-prompts hub already labels
+        // these with the "icons" category badge, so the suffix on the
+        // name is pure noise. Strict: only icons-category rows are
+        // touched, so `internal/language` (detection) is safe. The
+        // strip turns `icons/language_icon` (the second-call emoji
+        // prompt) into `icons/language` — a visual collision with the
+        // detection prompt that's acceptable (different categories).
+        // Idempotent: once a row's name has no `_icon`, no rewrite.
         run {
+            val strip = mapOf(
+                "main_icon" to "main",
+                "meta_icon" to "meta",
+                "report_icon" to "report",
+                "report_icon_2" to "report_2",
+                "report_icon_3" to "report_3",
+                "fan_out_icon" to "fan_out",
+                "fan_out_icon_2" to "fan_out_2",
+                "fan_out_icon_3" to "fan_out_3",
+                "translation_icon" to "translation",
+                "language_icon" to "language",
+                "main_icon_alt" to "main_alt",
+                "meta_icon_alt" to "meta_alt",
+                "report_icon_alt" to "report_alt",
+                "fan_out_icon_alt" to "fan_out_alt",
+                "language_icon_alt" to "language_alt",
+                "translation_icon_alt" to "translation_alt"
+            )
             val migrated = ai.internalPrompts.map { p ->
-                if (p.name.equals("language", ignoreCase = true) &&
-                    p.category.equals("icons", ignoreCase = true))
-                    p.copy(category = "internal")
+                val newName = strip[p.name.lowercase()]
+                if (newName != null && p.category.equals("icons", ignoreCase = true))
+                    p.copy(name = newName)
                 else p
             }
             if (migrated != ai.internalPrompts) {
-                AppLog.i(tag, "Moved `language` prompt from category 'icons' to 'internal'")
+                AppLog.i(tag, "Stripped `_icon` from ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} icons-category prompt name(s)")
                 ai = ai.copy(internalPrompts = migrated)
                 settingsPrefs.saveSettings(ai)
             }
         }
 
         // One-shot text upgrade: the tier-1 chat-continuation icon
-        // prompts (now `fan_out_icon_2` / `report_icon_2` after the
-        // rename pass above; legacy `_chat` names matched here too in
-        // case the rename hasn't run yet) used to say "give your
-        // previous response back as an emoji" — models read that
-        // literally and echoed the prior content instead of producing
-        // a fitting emoji. The delta-merge below only appends missing
-        // rows, never overwrites, so rewrite any persisted row that
-        // still carries the verbatim old default. A user's manual edit
+        // prompts (now `fan_out_2` / `report_2` after the strip-`_icon`
+        // pass; legacy `_chat` / `_icon_2` names matched here too in
+        // case a rename hasn't run yet) used to say "give your previous
+        // response back as an emoji" — models read that literally and
+        // echoed the prior content instead of producing a fitting
+        // emoji. The delta-merge below only appends missing rows,
+        // never overwrites, so rewrite any persisted row that still
+        // carries the verbatim old default. A user's manual edit
         // (text != old default) is left untouched. Idempotent.
         run {
             val oldText = "Please give your previous response back as an emoji, just one emoji, nothing more."
             val newText = "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
-            val targets = setOf("fan_out_icon_chat", "report_icon_chat", "fan_out_icon_2", "report_icon_2")
+            val targets = setOf(
+                "fan_out_icon_chat", "report_icon_chat",
+                "fan_out_icon_2", "report_icon_2",
+                "fan_out_2", "report_2"
+            )
             val upgraded = ai.internalPrompts.map { p ->
                 if (p.name.lowercase() in targets && p.text == oldText) p.copy(text = newText) else p
             }

@@ -64,7 +64,7 @@
     "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
   },
   {
-    "name": "main_icon",
+    "name": "main",
     "title": "Find a fitting title for a report",
     "reference": false,
     "category": "icons",
@@ -72,7 +72,7 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
   },
   {
-    "name": "report_icon",
+    "name": "report",
     "title": "Find a fitting emoji for a model report",
     "reference": false,
     "category": "icons",
@@ -80,7 +80,7 @@
     "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
   },
   {
-    "name": "report_icon_2",
+    "name": "report_2",
     "title": "Find a fitting emoji for a report, chat version",
     "reference": false,
     "category": "icons",
@@ -88,7 +88,7 @@
     "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
   },
   {
-    "name": "report_icon_3",
+    "name": "report_3",
     "title": "Find a fitting emoji for a report, 3rd try",
     "reference": false,
     "category": "icons",
@@ -96,7 +96,7 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
   },
   {
-    "name": "fan_out_icon_2",
+    "name": "fan_out_2",
     "title": "Find a fitting emoji for a fan-out pair response, chat version",
     "reference": false,
     "category": "icons",
@@ -104,7 +104,7 @@
     "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
   },
   {
-    "name": "fan_out_icon",
+    "name": "fan_out",
     "title": "Find a fitting emoji for a fan-out pair response",
     "reference": false,
     "category": "icons",
@@ -112,7 +112,7 @@
     "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
   },
   {
-    "name": "fan_out_icon_3",
+    "name": "fan_out_3",
     "title": "Find a fitting emoji for a fan-out pair response, 3rd try",
     "reference": false,
     "category": "icons",
@@ -128,7 +128,7 @@
     "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
   },
   {
-    "name": "meta_icon",
+    "name": "meta",
     "title": "Find a fitting emoji for an internal prompt",
     "reference": false,
     "category": "icons",
@@ -136,7 +136,7 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
   },
   {
-    "name": "translation_icon",
+    "name": "translation",
     "title": "Find a fitting emoji for a translation",
     "reference": false,
     "category": "icons",
@@ -152,7 +152,7 @@
     "text": "Identify the language of the text below. Reply with EXACTLY one line and nothing else, in this format:\n\nlanguage: <English name of the language>\n\nTEXT:\n@PROMPT@"
   },
   {
-    "name": "language_icon",
+    "name": "language",
     "title": "Find a fitting emoji for the report's detected language",
     "reference": false,
     "category": "icons",
@@ -160,7 +160,7 @@
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
-    "name": "main_icon_alt",
+    "name": "main_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a report title",
     "reference": false,
     "category": "icons",
@@ -168,7 +168,7 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
-    "name": "meta_icon_alt",
+    "name": "meta_alt",
     "title": "Find an ALTERNATIVE fitting emoji for an internal prompt",
     "reference": false,
     "category": "icons",
@@ -176,7 +176,7 @@
     "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
-    "name": "report_icon_alt",
+    "name": "report_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a model report",
     "reference": false,
     "category": "icons",
@@ -184,7 +184,7 @@
     "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
-    "name": "fan_out_icon_alt",
+    "name": "fan_out_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a fan-out pair response",
     "reference": false,
     "category": "icons",
@@ -192,7 +192,7 @@
     "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@\n\nDo not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
   },
   {
-    "name": "language_icon_alt",
+    "name": "language_alt",
     "title": "Find an ALTERNATIVE fitting emoji for the report's detected language",
     "reference": false,
     "category": "icons",
@@ -200,7 +200,7 @@
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!\n\nDo not use a country flag emoji, be creative and find an alternative emoji that fits this text."
   },
   {
-    "name": "translation_icon_alt",
+    "name": "translation_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a translation",
     "reference": false,
     "category": "icons",

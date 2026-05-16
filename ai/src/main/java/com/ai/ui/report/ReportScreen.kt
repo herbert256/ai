@@ -3470,13 +3470,13 @@ private fun AgentIconDetailOverlay(
     onClose: () -> Unit,
 ): Boolean {
     val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_icon_2"
+        it.category == "icons" && it.name == "report_2"
     }
     val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_icon"
+        it.category == "icons" && it.name == "report"
     }
     val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_icon_3"
+        it.category == "icons" && it.name == "report_3"
     }
     val agent = agentRecordsByAgentId[agentId] ?: return false
     val provider = AppService.findById(agent.provider) ?: return false
@@ -4176,7 +4176,7 @@ private fun RenderLanguageDetailOverlay(
     onBack: () -> Unit,
 ) {
     val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "language_icon"
+        it.category == "icons" && it.name == "language"
     } ?: return
     val languageAgent = aiSettings.agents.firstOrNull {
         it.name.equals(languagePrompt.agent, ignoreCase = true)
@@ -4298,7 +4298,7 @@ private fun ReportIconOrLanguageDetailOverlay(
         return true
     }
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "main_icon"
+        it.category == "icons" && it.name == "main"
     } ?: return false
     val iconAgent = aiSettings.agents.firstOrNull {
         it.name.equals(iconPrompt.agent, ignoreCase = true)
