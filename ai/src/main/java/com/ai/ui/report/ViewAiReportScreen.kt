@@ -308,7 +308,13 @@ private fun TileFlow(tiles: List<ViewTile>) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val spacing = 10.dp
         val cols = 3
-        val tileWidth = (maxWidth - spacing * (cols - 1)) / cols
+        // Subtract a sub-pixel safety margin from the ideal tile
+        // width: pixel rounding (Dp → px) on an exact-fit 3-up
+        // layout can land 1 px over the container on certain
+        // densities, which makes FlowRow wrap to 2 tiles per row
+        // even though we asked for 3. 0.5 dp of slack absorbs that
+        // rounding without being visible.
+        val tileWidth = ((maxWidth - spacing * (cols - 1)) / cols) - 0.5.dp
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(spacing),
