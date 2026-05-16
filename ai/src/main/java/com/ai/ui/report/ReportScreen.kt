@@ -3493,29 +3493,64 @@ private fun AgentIconDetailOverlay(
         iconKey = agent.icon,
         winningTier = agent.iconWinningTier
     )
+    // Subject = bundled prompt name that produced the displayed
+    // emoji. Fresh writes stamp `iconPromptUsed`; legacy rows fall
+    // back to deriving from `iconWinningTier`.
+    val subject = agent.iconPromptUsed
+        ?: when (agent.iconWinningTier) {
+            1 -> "report_2"; 2 -> "report"; 3 -> "report_3"
+            else -> "report"
+        }
+    // API interaction transcript varies with tier — chat-continuation
+    // is a 4-message exchange; tier 2 / 3 are one-shot dual /
+    // single-substitution prompts.
+    val apiInteraction = when (agent.iconWinningTier) {
+        1 -> {
+            val txt = chatPrompt?.text.orEmpty()
+            buildChatContinuationApiInteraction(loadedReportPrompt, agent.responseBody, txt, agent.icon)
+        }
+        2 -> {
+            val resolved = (tier2Prompt?.text.orEmpty())
+                .replace("@PROMPT@", loadedReportPrompt)
+                .replace("@RESPONSE@", agent.responseBody.orEmpty())
+            buildOneShotApiInteraction(resolved, agent.icon)
+        }
+        3 -> {
+            val resolved = (tier3Prompt?.text.orEmpty())
+                .replace("@RESPONSE@", agent.responseBody.orEmpty())
+            buildOneShotApiInteraction(resolved, agent.icon)
+        }
+        else -> {
+            // Manual alt pick or no successful tier — show the
+            // base report prompt + emoji as a 2-turn approximation.
+            val resolved = (tier2Prompt?.text.orEmpty())
+                .replace("@PROMPT@", loadedReportPrompt)
+                .replace("@RESPONSE@", agent.responseBody.orEmpty())
+            buildOneShotApiInteraction(resolved, agent.icon)
+        }
+    }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides onClose
     ) {
-        AgentIconDetailScreen(
-            chatPrompt = chatPrompt,
-            tier2Prompt = tier2Prompt,
-            tier3Prompt = tier3Prompt,
-            agentProvider = provider,
-            agentModel = agent.model,
-            reportPrompt = loadedReportPrompt,
-            agentResponse = agent.responseBody.orEmpty(),
-            icon = agent.icon,
-            errorMessage = agent.iconErrorMessage,
+        IconLookupScreen(IconLookupContext(
+            subject = subject,
+            provider = provider,
+            model = agent.model,
+            pricingTier = "",
             cost = agent.iconInputCost + agent.iconOutputCost,
-            winningTier = agent.iconWinningTier,
-            onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
+            apiInteraction = apiInteraction,
+            emoji = agent.icon,
+            errorMessage = agent.iconErrorMessage,
+            traceFile = agentIconTraceFilename,
             hasActiveFanOut = hasActiveAgentFanOut,
-            traceFilename = agentIconTraceFilename,
+            onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
+            onContinueChat = null,
+            onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
-        )
+        ))
     }
     return true
 }
@@ -3547,16 +3582,27 @@ private fun MetaIconDetailOverlay(
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides { onClose() }
     ) {
-        InternalPromptIconDetailScreen(
-            subject = prompt.name,
-            title = "Meta icon",
-            helpTopic = "internal_prompt_icon_detail",
-            promptCardLabel = "Prompt — internal/prompt_icon",
-            entry = entry,
+        val provider = entry?.providerId?.let { AppService.findById(it) } ?: AppService.LOCAL
+        IconLookupScreen(IconLookupContext(
+            subject = entry?.promptName ?: "meta",
+            provider = provider,
+            model = entry?.model.orEmpty(),
+            pricingTier = "",
+            cost = (entry?.inputCost ?: 0.0) + (entry?.outputCost ?: 0.0),
+            apiInteraction = buildOneShotApiInteraction(
+                entry?.promptText.orEmpty(),
+                entry?.responseText ?: entry?.emoji
+            ),
+            emoji = entry?.emoji,
+            errorMessage = null,
+            traceFile = null,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
+            onContinueChat = null,
+            onNavigateToModelInfo = { /* meta-icon flow doesn't wire Model Info nav */ },
+            onNavigateToTraceFile = { /* meta-cache entries don't carry trace */ },
             onBack = onClose
-        )
+        ))
     }
     return true
 }
@@ -3587,16 +3633,27 @@ private fun TranslationIconDetailOverlay(
         com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
         LocalNavigateToCurrentReport provides { onClose() }
     ) {
-        InternalPromptIconDetailScreen(
-            subject = language,
-            title = "Translation icon",
-            helpTopic = "translation_icon_detail",
-            promptCardLabel = "Prompt — internal/translation_icon",
-            entry = entry,
+        val provider = entry?.providerId?.let { AppService.findById(it) } ?: AppService.LOCAL
+        IconLookupScreen(IconLookupContext(
+            subject = entry?.promptName ?: "translation",
+            provider = provider,
+            model = entry?.model.orEmpty(),
+            pricingTier = "",
+            cost = (entry?.inputCost ?: 0.0) + (entry?.outputCost ?: 0.0),
+            apiInteraction = buildOneShotApiInteraction(
+                entry?.promptText.orEmpty(),
+                entry?.responseText ?: entry?.emoji
+            ),
+            emoji = entry?.emoji,
+            errorMessage = null,
+            traceFile = null,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
+            onContinueChat = null,
+            onNavigateToModelInfo = { /* translation-icon flow doesn't wire Model Info nav */ },
+            onNavigateToTraceFile = { /* translation-cache entries don't carry trace */ },
             onBack = onClose
-        )
+        ))
     }
 }
 
