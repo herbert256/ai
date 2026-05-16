@@ -5058,14 +5058,46 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                 }
 
+            // Stamp each item with the SecondaryResultStorage row id it
+            // will eventually write to. Persisting an empty placeholder
+            // for that id up front records the run's original target
+            // list on disk — startMissingTranslations later compares
+            // against THIS set rather than recomputing from current
+            // report state, so items added to the report AFTER this
+            // run completes don't get spuriously translated.
+            val itemsWithIds = items.map { it.copy(persistedRowId = java.util.UUID.randomUUID().toString()) }
+            itemsWithIds.forEach { item ->
+                val (srcKind, srcTargetId) = when (item.kind) {
+                    TranslationKind.PROMPT -> "PROMPT" to "prompt"
+                    TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
+                    TranslationKind.META -> "META" to (item.target ?: "")
+                }
+                SecondaryResultStorage.save(context, SecondaryResult(
+                    id = item.persistedRowId!!,
+                    reportId = sourceReportId,
+                    kind = SecondaryKind.TRANSLATE,
+                    providerId = "",
+                    model = "",
+                    agentName = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}",
+                    timestamp = System.currentTimeMillis(),
+                    content = null,
+                    errorMessage = null,
+                    translateSourceKind = srcKind,
+                    translateSourceTargetId = srcTargetId,
+                    targetLanguage = targetLanguageName,
+                    targetLanguageNative = targetLanguageNative,
+                    translationRunId = runId,
+                    runId = runId,
+                ))
+            }
             _translationRuns.update { it + (runId to TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
-                items = items
+                items = itemsWithIds
             )) }
-            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${items.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
+            AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
             val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
 
@@ -5114,8 +5146,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // still counted — `remaining` can't hit 0 while one is in
             // flight, so the requeue `trySend` always lands.
             val itemQueue = Channel<TranslationItem>(Channel.UNLIMITED)
-            items.forEach { itemQueue.trySend(it) }
-            val remaining = java.util.concurrent.atomic.AtomicInteger(items.size)
+            itemsWithIds.forEach { itemQueue.trySend(it) }
+            val remaining = java.util.concurrent.atomic.AtomicInteger(itemsWithIds.size)
             val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
             val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
             val distinctModels = models.distinctBy { (p, m) -> p.id to m }
@@ -5545,7 +5577,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             TranslationKind.META -> "META" to (item.target ?: "")
         }
         SecondaryResultStorage.save(context, SecondaryResult(
-            id = java.util.UUID.randomUUID().toString(),
+            // Reuse the placeholder's id (stashed at startTranslation /
+            // restart time) so this save OVERWRITES the placeholder
+            // row instead of creating a parallel record. That keeps
+            // exactly one row per (runId, kind, targetId) so the
+            // auto-resume can tell "originally targeted" from "newly
+            // added to the report later".
+            id = item.persistedRowId ?: java.util.UUID.randomUUID().toString(),
             reportId = run.sourceReportId,
             kind = SecondaryKind.TRANSLATE,
             providerId = translateProvider.id,
@@ -5778,10 +5816,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
     }
 
-    /** Run every expected translation item that has no row in [runId]
-     *  yet: prompt + each successful agent + each chat-type Meta row.
-     *  Used after an interrupted batch to fill in the items that
-     *  never got persisted. */
+    /** Re-dispatch translation items whose placeholder rows are
+     *  still empty (no content, no error, no durationMs). The
+     *  original target set lives on disk as one row per item
+     *  (written up-front by [startTranslation] / [runTranslationSubset])
+     *  so we never extend coverage to items added to the report
+     *  AFTER the run completed — those have no placeholder for
+     *  this runId and are intentionally skipped. */
     fun startMissingTranslations(
         context: Context,
         sourceReportId: String,
@@ -5790,22 +5831,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val existing = SecondaryResultStorage
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId }
-        // Each existing row covers one (kind, target) pair — even
-        // errored ones count as "covered" since they're addressed by
-        // restartFailedTranslations.
-        val covered = existing.map { (it.translateSourceKind.orEmpty()) to (it.translateSourceTargetId.orEmpty()) }.toSet()
-        val report = ReportStorage.getReport(context, sourceReportId) ?: return@launch
-        val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
-        val expected = mutableListOf<Pair<String, String>>()
-        expected += "PROMPT" to "prompt"
-        report.agents
-            .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-            .forEach { expected += "AGENT" to it.agentId }
-        secondaries.filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
-            .forEach { expected += "META" to it.id }
-        val missing = expected.filterNot { it.first to it.second in covered }
-            .map { it.second to it.first } // (target, kind) tuples — runTranslationSubset wants that order
-        if (missing.isEmpty()) return@launch
+        // Only placeholders need re-dispatch — completed (has content)
+        // and errored (errorMessage non-null) rows are terminal. The
+        // ERROR rows are addressed separately by
+        // restartFailedTranslations when the user opts in.
+        val placeholders = existing.filter {
+            it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+        }
+        if (placeholders.isEmpty()) return@launch
+        val missing = placeholders.map {
+            (it.translateSourceTargetId.orEmpty()) to (it.translateSourceKind.orEmpty())
+        }
         runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
     }
 
@@ -5943,10 +5979,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
 
         val items = targetKindPairs.mapNotNull { (targetId, kind) ->
+            // Reuse the existing row's id as the item's persistedRowId
+            // so the re-dispatch's save overwrites the placeholder
+            // (or the prior failed row, in the restart-failed flow)
+            // rather than spawning a parallel record.
+            val rowId = rowByKindTarget[(kind to targetId)]?.id
             when (kind) {
                 "PROMPT" -> TranslationItem(
                     id = "prompt", label = "Report prompt",
-                    kind = TranslationKind.PROMPT, sourceText = report.prompt
+                    kind = TranslationKind.PROMPT, sourceText = report.prompt,
+                    persistedRowId = rowId
                 )
                 "AGENT" -> {
                     val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
@@ -5956,7 +5998,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         label = "$prov / ${ag.model}",
                         kind = TranslationKind.AGENT_RESPONSE,
                         sourceText = ag.responseBody.orEmpty(),
-                        target = ag.agentId
+                        target = ag.agentId,
+                        persistedRowId = rowId
                     )
                 }
                 "META" -> {
@@ -5967,7 +6010,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     TranslationItem(
                         id = "meta:${s.id}", label = "$name: $prov / ${s.model}",
                         kind = TranslationKind.META, sourceText = s.content.orEmpty(),
-                        target = s.id
+                        target = s.id,
+                        persistedRowId = rowId
                     )
                 }
                 else -> null
