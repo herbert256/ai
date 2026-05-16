@@ -3351,6 +3351,12 @@ private fun PairIconDetailOverlay(
     // run / Find-alt pick reflects immediately. Returns null on
     // first composition; the overlay falls through to a brief
     // "loading" branch then re-renders.
+    // Async disk read — the pair lives on SecondaryResultStorage.
+    // `loaded` flips true once the produceState block has run at
+    // least once, so we can distinguish "still loading" (return
+    // true with an empty placeholder, keep the overlay state) from
+    // "pair gone from disk" (return false → caller clears state).
+    val loaded = remember { mutableStateOf(false) }
     val pairState = androidx.compose.runtime.produceState<com.ai.data.SecondaryResult?>(
         initialValue = null, pairId, reportId, iconRefreshTick
     ) {
@@ -3358,8 +3364,24 @@ private fun PairIconDetailOverlay(
             com.ai.data.SecondaryResultStorage.listForReport(context, reportId)
                 .firstOrNull { it.id == pairId }
         }
+        loaded.value = true
     }
-    val pair = pairState.value ?: return false
+    val pair = pairState.value
+    if (pair == null) {
+        if (!loaded.value) {
+            // Still loading — render a blank fullscreen so nothing
+            // beneath bleeds through; keep the overlay state alive.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {}
+            return true
+        }
+        // Loaded but no row found — pair was deleted. Tell the
+        // caller to drop the overlay state.
+        return false
+    }
     val provider = AppService.findById(pair.providerId) ?: return false
     val chatPrompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "icons" && it.name == "fan_out_2"
