@@ -95,7 +95,7 @@ fun AboutScreen(
             // page; mirrors the home-help Copyright card wording so
             // both surfaces agree.
             Text(
-                "Copyright © Herbert Jebbink.",
+                "Copyright © Herbert Groot Jebbink.",
                 fontSize = 12.sp, color = AppColors.TextTertiary,
                 fontWeight = FontWeight.SemiBold
             )

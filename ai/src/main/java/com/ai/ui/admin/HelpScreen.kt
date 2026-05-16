@@ -125,7 +125,7 @@ private fun CompactOverview(
     )
     HelpSection(
         "Copyright",
-        "Copyright © Herbert Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
+        "Copyright © Herbert Groot Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
     )
     // About link on the home help page — per-topic pages get this
     // plus a Help-home link via HelpFooter; the home page only
