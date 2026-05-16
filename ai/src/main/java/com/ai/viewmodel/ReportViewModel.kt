@@ -2892,6 +2892,57 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Run a moderation pass on this report — classifies every
+     *  successful agent's response via the provider's native
+     *  /v1/moderations endpoint (Mistral compatible). One batch
+     *  call, one persisted SecondaryResult with structured JSON
+     *  content (per-input flagged + categories + scores).
+     *
+     *  executeSecondaryTask short-circuits on `kind == MODERATION`
+     *  and routes through [com.ai.data.callModerationApi] rather
+     *  than the chat path, so the [resolvedPrompt] arg here is
+     *  unused at runtime — a stub InternalPrompt covers the
+     *  metaPromptId / metaPromptName columns on the persisted row. */
+    fun runModeration(
+        context: Context,
+        reportId: String,
+        pick: Pair<AppService, String>
+    ): Job? {
+        val (provider, model) = pick
+        AppLog.i("Moderation", "→ start report=$reportId via ${provider.id}/$model")
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        // Stub prompt — moderation is a fixed-API call; the
+        // InternalPrompt is only used to label the persisted row.
+        // If the user has a custom "moderation" prompt configured
+        // (legacy), use it; otherwise mint a synthetic one.
+        val moderationPrompt = aiSettings.getInternalPromptByName("moderation")
+            ?: com.ai.model.InternalPrompt(
+                id = "moderation",
+                name = "Moderation",
+                category = "moderation",
+                text = ""
+            )
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        return appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                withTracerTags(reportId = reportId, category = "Report moderation") {
+                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    ReportStorage.bumpReportTimestamp(context, reportId)
+                    val successfulCount = report.agents.count {
+                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+                    }
+                    if (successfulCount == 0) return@withTracerTags
+                    executeSecondaryTask(
+                        context, reportId, SecondaryKind.MODERATION, moderationPrompt,
+                        provider, model, resolvedPrompt = "", aiSettings = aiSettings, report = report
+                    )
+                }
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
+        }
+    }
+
     /** Fan-out Meta runner: for each successful report-model
      *  (the "answerer") and each source model in [scopeChoice], runs
      *  the prompt with `@RESPONSE@` substituted by the source's

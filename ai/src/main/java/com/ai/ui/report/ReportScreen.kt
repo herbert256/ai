@@ -358,6 +358,9 @@ fun ReportsScreenNav(
         onRunRerank = { reportId, pick ->
             reportViewModel.runRerank(context, reportId, pick)
         },
+        onRunModeration = { reportId, pick ->
+            reportViewModel.runModeration(context, reportId, pick)
+        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -686,6 +689,7 @@ fun ReportsScreen(
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
+    onRunModeration: (String, Pair<AppService, String>) -> Unit = { _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -1141,6 +1145,7 @@ fun ReportsScreen(
     var showMetaPicker by rememberSaveable { mutableStateOf(false) }
     var showFanOutPicker by rememberSaveable { mutableStateOf(false) }
     var showRerankPicker by rememberSaveable { mutableStateOf(false) }
+    var showModerationPicker by rememberSaveable { mutableStateOf(false) }
 
     // One-shot consumer: when ReportViewModel (Edit models / Regenerate flows) drops a
     // pre-built model list into uiState.pendingReportModels, copy it into the local
@@ -2176,6 +2181,30 @@ fun ReportsScreen(
         return
     }
 
+    if (showModerationPicker && currentReportId != null) {
+        val rid = currentReportId
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { showModerationPicker = false }
+        ) {
+            ReportSelectModelsScreen(
+                aiSettings = aiSettings,
+                titleText = "Pick moderation model",
+                recentEntries = recentReportPairs,
+                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
+                onConfirm = { pick ->
+                    showModerationPicker = false
+                    onRunModeration(rid, pick)
+                },
+                onBack = { showModerationPicker = false },
+                onNavigateHome = onNavigateHome,
+                modelTypeFilter = com.ai.data.ModelType.MODERATION
+            )
+        }
+        return
+    }
+
     // Per-meta-run detail overlay reached from a Meta row in the
     // result list. Routes through the same SecondaryResultDetailScreen
     // the Meta hub uses, so navigation / delete behave identically.
@@ -2595,6 +2624,7 @@ fun ReportsScreen(
                 onOpenMetaPicker = { showMetaPicker = true },
                 onOpenFanOutPicker = { showFanOutPicker = true },
                 onOpenRerankPicker = { showRerankPicker = true },
+                onOpenModerationPicker = { showModerationPicker = true },
                 onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
                 onViewReports = {
                     selectedAgentForViewer = null; viewerSection = null; showViewer = true

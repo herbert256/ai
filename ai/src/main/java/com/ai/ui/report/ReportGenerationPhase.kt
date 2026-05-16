@@ -131,6 +131,7 @@ internal data class GenerationPhaseHandlers(
     val onOpenMetaPicker: () -> Unit = {},
     val onOpenFanOutPicker: () -> Unit = {},
     val onOpenRerankPicker: () -> Unit = {},
+    val onOpenModerationPicker: () -> Unit = {},
     val onOpenHtmlPreview: () -> Unit = {},
     val onViewReports: () -> Unit = {},
     val onViewPrompt: () -> Unit = {},
@@ -223,6 +224,7 @@ internal fun ColumnScope.GenerationPhase(
     val onOpenMetaPicker = handlers.onOpenMetaPicker
     val onOpenFanOutPicker = handlers.onOpenFanOutPicker
     val onOpenRerankPicker = handlers.onOpenRerankPicker
+    val onOpenModerationPicker = handlers.onOpenModerationPicker
     val onOpenHtmlPreview = handlers.onOpenHtmlPreview
     val onViewReports = handlers.onViewReports
     val onViewPrompt = handlers.onViewPrompt
@@ -420,6 +422,13 @@ internal fun ColumnScope.GenerationPhase(
                     android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
                     close(); onOpenRerankPicker()
                 }, color = createColor, text = "Rerank")
+                CompactButton(onClick = {
+                    // Same loading-toast rationale as rerank — the
+                    // moderation picker filters every provider's
+                    // catalog down to MODERATION-typed entries.
+                    android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
+                    close(); onOpenModerationPicker()
+                }, color = createColor, text = "Moderation")
                 CompactButton(
                     onClick = { close(); onOpenFanOutPicker() },
                     color = createColor, text = "Fan out",
