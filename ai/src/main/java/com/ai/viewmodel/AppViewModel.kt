@@ -792,6 +792,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // "report_icon") and the user would see a duplicate.
         // Idempotent: a no-op once every row already reads "icons".
         run {
+            // `language` is intentionally NOT in this set — the bundled
+            // detection prompt lives under category "internal" (it's a
+            // text helper, not an icon picker), so it must not be
+            // flipped from "internal" → "icons".
             val iconNames = setOf(
                 "icon", "report_icon", "report_icon_chat", "report_icon_3th",
                 "fan_out_icon", "fan_out_icon_chat", "fan_out_icon_3th",
@@ -799,7 +803,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // post-rename names — covered here so a fresh install
                 // that somehow shipped them under "internal" still gets
                 // re-categorised.
-                "meta_icon", "language", "report_icon_2", "report_icon_3",
+                "meta_icon", "report_icon_2", "report_icon_3",
                 "fan_out_icon_2", "fan_out_icon_3",
                 "icon_alt", "meta_icon_alt", "report_icon_alt",
                 "fan_out_icon_alt", "language_icon_alt", "translation_icon_alt"
@@ -819,27 +823,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // names changed from inconsistent suffixes (`_chat` / `_3th` /
         // `prompt_icon`) to a uniform `_2` / `_3` / `meta_icon` scheme,
         // and `language_icon` was split into two prompts: the old one
-        // becomes `language` (detection only) and a NEW `language_icon`
-        // (copied from `translation_icon`) handles the second call.
-        // Rewrite any persisted row that still carries an old name so
-        // the delta-merge below doesn't append a duplicate next to the
-        // user's customised copy. Manual edits to `text` survive — only
-        // the `name` is rewritten. Idempotent.
+        // becomes `language` (detection only, under category "internal")
+        // and a NEW `language_icon` (copied from `translation_icon`,
+        // stays under "icons") handles the second call. Rewrite any
+        // persisted row that still carries an old name so the
+        // delta-merge below doesn't append a duplicate next to the
+        // user's customised copy. Manual edits to `text` survive —
+        // only the `name` (and for `language`, the `category`) is
+        // rewritten. Idempotent.
         run {
+            data class Rename(val newName: String, val newCategory: String? = null)
             val rename = mapOf(
-                "prompt_icon" to "meta_icon",
-                "language_icon" to "language",
-                "report_icon_chat" to "report_icon_2",
-                "report_icon_3th" to "report_icon_3",
-                "fan_out_icon_chat" to "fan_out_icon_2",
-                "fan_out_icon_3th" to "fan_out_icon_3"
+                "prompt_icon" to Rename("meta_icon"),
+                "language_icon" to Rename("language", newCategory = "internal"),
+                "report_icon_chat" to Rename("report_icon_2"),
+                "report_icon_3th" to Rename("report_icon_3"),
+                "fan_out_icon_chat" to Rename("fan_out_icon_2"),
+                "fan_out_icon_3th" to Rename("fan_out_icon_3")
             )
             val migrated = ai.internalPrompts.map { p ->
-                val newName = rename[p.name.lowercase()]
-                if (newName != null && p.category.equals("icons", ignoreCase = true)) p.copy(name = newName) else p
+                val r = rename[p.name.lowercase()]
+                if (r != null && p.category.equals("icons", ignoreCase = true))
+                    p.copy(name = r.newName, category = r.newCategory ?: p.category)
+                else p
             }
             if (migrated != ai.internalPrompts) {
                 AppLog.i(tag, "Renamed ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled icon prompts to the new naming scheme")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
+        // One-shot move of the `language` prompt from category "icons"
+        // (its initial post-rename home) to "internal" — it's a text
+        // helper, not an icon picker. Catches users who upgraded in the
+        // brief window before this move. Idempotent.
+        run {
+            val migrated = ai.internalPrompts.map { p ->
+                if (p.name.equals("language", ignoreCase = true) &&
+                    p.category.equals("icons", ignoreCase = true))
+                    p.copy(category = "internal")
+                else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Moved `language` prompt from category 'icons' to 'internal'")
                 ai = ai.copy(internalPrompts = migrated)
                 settingsPrefs.saveSettings(ai)
             }

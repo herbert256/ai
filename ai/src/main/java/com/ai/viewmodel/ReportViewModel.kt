@@ -517,7 +517,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "language"
+            it.category == "internal" && it.name == "language"
         } ?: return
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(languagePrompt.agent, ignoreCase = true)

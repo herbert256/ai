@@ -147,9 +147,9 @@
     "name": "language",
     "title": "Detect a prompt's language",
     "reference": false,
-    "category": "icons",
+    "category": "internal",
     "agent": "DeepSeek",
-    "text": "Identify the language of the text below.\n\nReply with EXACTLY one line and nothing else:\nlanguage: <English name of the language>\n\nTEXT:\n@PROMPT@"
+    "text": "Identify the language of the text below. Reply with EXACTLY one line and nothing else, in this format:\n\nlanguage: <English name of the language>\n\nTEXT:\n@PROMPT@"
   },
   {
     "name": "language_icon",

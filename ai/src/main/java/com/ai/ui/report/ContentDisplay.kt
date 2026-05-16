@@ -916,7 +916,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val ai = com.ai.model.SettingsHolder.current
     val languageDetectRow: CostRow? = if (hasLanguageDetectCost) {
         val detectPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "language"
+            it.category == "internal" && it.name == "language"
         }
         val agent = detectPrompt?.let { p ->
             ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
