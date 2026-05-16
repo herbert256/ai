@@ -3,6 +3,12 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Self-update: the "Update from cloud" flow in Housekeeping
+         reads an APK from a user-picked storage location (typically
+         a Drive sync folder) and fires the system PackageInstaller.
+         The user still has to confirm in the system Install dialog
+         — this permission only lets us BRING UP the dialog. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"

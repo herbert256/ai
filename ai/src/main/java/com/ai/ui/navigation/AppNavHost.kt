@@ -874,8 +874,12 @@ fun AppNavHost(
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
                 onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
-                onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) }
+                onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
+                onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) }
             )
+        }
+        composable(NavRoutes.AI_UPDATE_FROM_CLOUD) {
+            com.ai.ui.admin.UpdateFromCloudScreen(onBack = safePopBack)
         }
         composable(NavRoutes.AI_TEST) {
             com.ai.ui.admin.TestScreen(

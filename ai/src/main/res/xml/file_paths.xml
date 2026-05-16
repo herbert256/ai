@@ -3,6 +3,7 @@
     <cache-path name="ai_analysis" path="ai_analysis/" />
     <cache-path name="shared_traces" path="shared_traces/" />
     <cache-path name="exports" path="exports/" />
+    <cache-path name="updates" path="updates/" />
     <cache-path name="camera_captures" path="camera_captures/" />
     <files-path name="reports" path="reports/" />
 </paths>

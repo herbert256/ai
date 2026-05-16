@@ -41,7 +41,8 @@ fun HousekeepingScreen(
     onNavigateToTrimByAge: () -> Unit = {},
     onNavigateToReset: () -> Unit = {},
     onNavigateToAppLog: () -> Unit = {},
-    onNavigateToTest: () -> Unit = {}
+    onNavigateToTest: () -> Unit = {},
+    onNavigateToUpdateFromCloud: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
 
@@ -66,6 +67,11 @@ fun HousekeepingScreen(
             NavCard("Application log", onClick = onNavigateToAppLog)
             // Diagnostic test flows — currently "Test all models".
             NavCard("Test", onClick = onNavigateToTest)
+            // Self-update: reads an APK from a user-picked storage
+            // location (typically a Drive sync folder) and fires the
+            // system PackageInstaller. One-time setup picks the file;
+            // every subsequent tap installs whatever's currently there.
+            NavCard("Update from cloud", onClick = onNavigateToUpdateFromCloud)
             // Refresh and Reset live together at the bottom — both
             // wholesale-state operations that finish with a forced app
             // restart popup.

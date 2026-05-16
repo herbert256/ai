@@ -49,6 +49,7 @@ object NavRoutes {
     const val AI_BACKUP_RESTORE = "ai_backup_restore"
     const val AI_IMPORT_EXPORT = "ai_import_export"
     const val AI_TRIM_BY_AGE = "ai_trim_by_age"
+    const val AI_UPDATE_FROM_CLOUD = "ai_update_from_cloud"
     const val AI_RESET = "ai_reset"
     const val AI_RESET_RUNTIME = "ai_reset_runtime"
     const val AI_RESET_INFO_PROVIDERS = "ai_reset_info_providers"

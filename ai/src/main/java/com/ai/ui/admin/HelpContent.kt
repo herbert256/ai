@@ -251,6 +251,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
         )
     ),
+    "update_from_cloud" to HelpContent(
+        title = "Update from cloud",
+        cards = listOf(
+            HelpCard("Overview", "Installs the app's latest APK from a file you've already synced to this phone — typically a Drive sync folder where a new build lands automatically. Replaces the manual flow (open Drive → wait for download → tap APK → install) with two taps: Update in this screen, then Install in the system dialog."),
+            HelpCard("One-time setup", "Tap Pick APK source. The system file picker opens — navigate to your Drive folder (or any storage location), select the APK file. The selection is persisted; you only do this once. Drive's local file provider fetches the latest cloud copy on each read, so re-picking after every update isn't needed."),
+            HelpCard("Updating", "Tap Update. The app reads the current bytes of the picked file, copies them to its cache, and fires the system PackageInstaller. The system shows its standard Install dialog — confirm there. The Install dialog is mandatory for security and can't be skipped without device admin privileges the app doesn't have."),
+            HelpCard("Source file display", "Shows the picked file's name + size + last-modified time so you can confirm you're about to install the right build. When the source is gone (file deleted, permission revoked) the row turns orange and a re-pick is required."),
+            HelpCard("Drive check", "A status line shows whether the Google Drive app is installed. Drive isn't required — the picker works with any storage provider (local files, Dropbox, …) — but if you're updating from a Drive-synced folder, Drive being installed is what makes the URI resolve to the up-to-date cloud copy."),
+            HelpCard("Permission", "Adds `REQUEST_INSTALL_PACKAGES` to the manifest. On Android 8+ the OS also requires \"Install unknown apps\" enabled for this app the first time — the system Install dialog deep-links there if it isn't.")
+        )
+    ),
     "moderation_call_detail" to HelpContent(
         title = "Moderation result",
         cards = listOf(
