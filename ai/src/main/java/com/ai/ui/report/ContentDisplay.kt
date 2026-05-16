@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -129,19 +130,31 @@ internal fun LanguagePickerRow(
                 if (lang.key == LangTab.ORIGINAL_KEY) originalIcon?.takeIf { it.isNotBlank() }
                 else com.ai.data.InternalPromptIconCache.get("translation_icon", lang.displayName)
             } else null
-            Button(
-                onClick = { onSelect(lang.key) },
-                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Green else Color(0xFF3A3A4A)),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                modifier = Modifier.heightIn(min = 36.dp)
-            ) {
-                if (emoji != null) {
-                    Text(
-                        emoji,
-                        fontSize = 18.sp,
-                        maxLines = 1, softWrap = false
-                    )
-                } else {
+            if (useIcons) {
+                // Icon mode: no Button chrome — just the emoji (or
+                // the fallback name) with brightness signalling
+                // active vs inactive. Full alpha on the selected tab,
+                // dimmed on the others.
+                val content = emoji ?: lang.displayName
+                val isEmoji = emoji != null
+                Text(
+                    content,
+                    fontSize = if (isEmoji) 28.sp else 12.sp,
+                    color = if (isEmoji) Color.Unspecified else Color.White,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1, softWrap = false,
+                    modifier = Modifier
+                        .alpha(if (isSelected) 1f else 0.4f)
+                        .clickable { onSelect(lang.key) }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                )
+            } else {
+                Button(
+                    onClick = { onSelect(lang.key) },
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Green else Color(0xFF3A3A4A)),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.heightIn(min = 36.dp)
+                ) {
                     Text(
                         lang.displayName,
                         fontSize = 12.sp,
