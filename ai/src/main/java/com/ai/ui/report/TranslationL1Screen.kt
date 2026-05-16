@@ -230,11 +230,12 @@ internal fun TranslationL1Screen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Per-model rows. The background bar is each model's items-done
-        // relative to the busiest model — that model gets a full-width
-        // bar, the rest are proportional. Bars stay after the run is
-        // done. A per-model progress bar isn't possible: the work queue
-        // doesn't pre-assign, so a model's eventual total is unknown.
+        // Per-model rows. While the run is still pending, each model
+        // gets a green background bar proportional to its items-done
+        // relative to the busiest model. Once the run finishes (no
+        // queued or running items) the bars are dropped — a completed
+        // run shouldn't keep wearing in-flight progress chrome.
+        val showModelBars = pending > 0 && !run.cancelled
         if (modelRows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
@@ -251,7 +252,7 @@ internal fun TranslationL1Screen(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
-                                if (barFrac > 0f) {
+                                if (showModelBars && barFrac > 0f) {
                                     drawRect(
                                         color = barColor,
                                         size = Size(size.width * barFrac, size.height)
