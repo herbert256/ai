@@ -109,8 +109,11 @@ internal fun LanguagePickerRow(
     /** When true, each non-Original tab renders the cached
      *  `translation_icon` emoji for its language instead of the
      *  English name (falls back to the name when no cached emoji
-     *  exists). Original always renders as plain text. */
+     *  exists). The Original tab uses [originalIcon] when supplied
+     *  (typically Report.languageIcon, the detected source-language
+     *  emoji); otherwise falls back to the plain "Original" text. */
     useIcons: Boolean = false,
+    originalIcon: String? = null,
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
 ) {
     if (languages.size <= 1) return
@@ -122,8 +125,9 @@ internal fun LanguagePickerRow(
     ) {
         languages.forEach { lang ->
             val isSelected = lang.key == selectedKey
-            val emoji = if (useIcons && lang.key != LangTab.ORIGINAL_KEY) {
-                com.ai.data.InternalPromptIconCache.get("translation_icon", lang.displayName)
+            val emoji = if (useIcons) {
+                if (lang.key == LangTab.ORIGINAL_KEY) originalIcon?.takeIf { it.isNotBlank() }
+                else com.ai.data.InternalPromptIconCache.get("translation_icon", lang.displayName)
             } else null
             Button(
                 onClick = { onSelect(lang.key) },
@@ -305,7 +309,12 @@ private fun ReportsViewerScreenLoaded(
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
             if (initialSection == "prompt") {
-                LanguagePickerRow(langTabs, selectedLangKey, onSelect = { selectedLangKey = it }, useIcons = true)
+                LanguagePickerRow(
+                    langTabs, selectedLangKey,
+                    onSelect = { selectedLangKey = it },
+                    useIcons = true,
+                    originalIcon = report.languageIcon
+                )
             }
             Column(modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState())) {
                 if (initialSection == "prompt") {
