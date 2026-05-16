@@ -104,12 +104,27 @@ internal fun ViewAiReportScreen(
         }
     }
 
-    // Computed kinds — only the ones with ≥ 1 row. Each tile knows
-    // its key so a ≥ 2-item tap can flip [expandedKind].
+    // Meta is special-cased: one tile per persisted Meta row (e.g.
+    // a Compare run, a Summary run) so the user can jump straight
+    // into a specific result instead of going through an
+    // aggregated "Meta (N)" tile and a follow-up picker. Each
+    // tile's label = the meta prompt name; tap opens that row's
+    // detail directly.
+    val metaTiles = remember(everyItems, onBack) {
+        everyItems["meta"].orEmpty().map { item ->
+            ViewTile(item.label, "🧠", AppColors.Purple) {
+                item.open(); onBack()
+            }
+        }
+    }
+
+    // Other computed kinds — one tile per kind. Tap with N=1
+    // opens the only item; N≥2 flips [expandedKind] which renders
+    // an inline list below the tiles. (Meta is excluded; it's
+    // handled by [metaTiles] above.)
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
     val computedTiles = remember(everyItems) {
         val specs = listOf(
-            ComputedSpec("meta", "Meta", "🧠", AppColors.Purple),
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
             ComputedSpec("fan_out", "Fan-out", "🌀", AppColors.Indigo),
             ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
@@ -157,30 +172,31 @@ internal fun ViewAiReportScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
-            TileFlow(docTiles)
+            // Always-on tiles + per-meta-item tiles + other grouped
+            // computed tiles all flow together as one continuous
+            // grid. The meta items get an entry each per the user
+            // request; the other computed kinds stay aggregated
+            // with their count badge.
+            TileFlow(docTiles + metaTiles + computedTiles.map { it.tile })
 
-            if (computedTiles.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                SectionLabel("Computed")
-                TileFlow(computedTiles.map { it.tile })
-
-                // Inline expansion — full-width card listing each
-                // item for the active kind. Anchored under the grid
-                // so the user keeps the rest of the layout in view.
-                val open = expandedKind
-                if (open != null) {
-                    val active = computedTiles.firstOrNull { it.key == open }
-                    if (active != null && active.items.size >= 2) {
-                        ExpandedKindCard(
-                            title = active.tile.label,
-                            items = active.items,
-                            onItemClick = { item ->
-                                expandedKind = null
-                                item.open()
-                                onBack()
-                            }
-                        )
-                    }
+            // Inline expansion — full-width card listing each
+            // item for the active non-meta computed kind (rerank /
+            // fan_out / fan_in / fan-in-model / translate with
+            // N≥2 items). Anchored under the grid so the user
+            // keeps the rest of the layout in view.
+            val open = expandedKind
+            if (open != null) {
+                val active = computedTiles.firstOrNull { it.key == open }
+                if (active != null && active.items.size >= 2) {
+                    ExpandedKindCard(
+                        title = active.tile.label,
+                        items = active.items,
+                        onItemClick = { item ->
+                            expandedKind = null
+                            item.open()
+                            onBack()
+                        }
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
