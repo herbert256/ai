@@ -2592,6 +2592,18 @@ internal data class ModerationRow(
     val allScores: Map<String, Double> = emptyMap()
 )
 
+/** True when at least one moderation row across [rows] has at
+ *  least one fired category. Walks every MODERATION secondary's
+ *  content through [parseModerationRows] and short-circuits on
+ *  the first flagged hit. Used by the View screen to flip the
+ *  moderation tile's accent red ↔ green. */
+internal fun anyModerationFlagged(rows: List<SecondaryResult>): Boolean =
+    rows.filter { it.kind == SecondaryKind.MODERATION }
+        .any { row ->
+            val content = row.content ?: return@any false
+            parseModerationRows(content)?.any { it.flagged } == true
+        }
+
 /** Parse the JSON [callModerationApi] writes into the SecondaryResult.
  *  Same `[{id, flagged, categories, scores}, …]` shape callRerankApi
  *  uses; tolerates ``` fences. Returns null on bad input. */

@@ -1366,6 +1366,14 @@ fun ReportsScreen(
                 onOpenTranslationRun = { runId -> openTranslationRunId = runId }
             )
         }
+        // True when ANY persisted moderation row has AT LEAST one
+        // fired category. Drives the moderation tile's red-vs-green
+        // colour on the View screen. Helper is top-level so its
+        // bytecode lives in its own method — the ReportsScreen
+        // Composable is already brushing the JVM 64 KB limit.
+        val moderationFlagged = remember(secondaryRuns) {
+            anyModerationFlagged(secondaryRuns)
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
@@ -1380,6 +1388,7 @@ fun ReportsScreen(
                 useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                moderationFlagged = moderationFlagged,
                 // Each handler launches its destination without
                 // tearing down `showViewReportScreen` — the View
                 // screen stays in the back-stack underneath so

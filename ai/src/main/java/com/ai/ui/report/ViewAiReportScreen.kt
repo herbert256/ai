@@ -94,6 +94,12 @@ internal fun ViewAiReportScreen(
      *  cached emoji yet. Same one-shot generation path the result
      *  list's per-row emoji uses. */
     onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** True when ANY persisted moderation row on this report has
+     *  AT LEAST one fired category. Flips the moderation tile's
+     *  accent to red (flag set somewhere) vs the default green
+     *  (every run came back clean). The 🚩 emoji is rendered on
+     *  both — the tile colour carries the verdict. */
+    moderationFlagged: Boolean = false,
     onViewPrompt: () -> Unit,
     onViewCosts: () -> Unit,
     onViewReports: () -> Unit,
@@ -153,10 +159,15 @@ internal fun ViewAiReportScreen(
     // an inline list below the tiles. (Meta is excluded; it's
     // handled by [metaTiles] above.)
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
-    val computedTiles = remember(everyItems) {
+    val computedTiles = remember(everyItems, moderationFlagged) {
+        // Moderation accent flips red ↔ green based on whether any
+        // moderation row on this report flagged anything; the 🚩
+        // emoji is the same either way so the flag motif stays
+        // consistent across both states.
+        val moderationColor = if (moderationFlagged) AppColors.Red else AppColors.Green
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
-            ComputedSpec("moderation", "Moderation", "🛡", AppColors.Red),
+            ComputedSpec("moderation", "Moderation", "🚩", moderationColor),
             ComputedSpec("fan_out", "Fan-out", "🌀", AppColors.Indigo),
             ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
             ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
