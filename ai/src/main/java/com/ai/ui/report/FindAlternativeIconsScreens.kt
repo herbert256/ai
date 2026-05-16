@@ -45,7 +45,7 @@ fun ModelSelectionScreen(
     title: String = "Find icons",
     subject: String? = null,
     actionLabel: String = "Find Icons",
-    actionColor: Color = AppColors.Purple,
+    actionColor: Color = AppColors.Green,
     helpTopic: String = "find_icons_selection"
 ) {
     BackHandler { onBack() }

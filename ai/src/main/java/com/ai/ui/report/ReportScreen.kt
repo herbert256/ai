@@ -2084,7 +2084,7 @@ fun ReportsScreen(
                 subject = "${pickingTranslateModelFor.name} (${pickingTranslateModelFor.native})",
                 actionLabel = if (translationModels.size <= 1) "Start translation"
                               else "Start translation — ${translationModels.size} models",
-                actionColor = AppColors.Indigo,
+                actionColor = AppColors.Green,
                 helpTopic = "translation_models",
                 onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
                 onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },

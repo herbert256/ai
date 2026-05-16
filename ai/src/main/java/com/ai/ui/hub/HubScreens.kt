@@ -601,7 +601,7 @@ fun NewReportScreen(
                 },
             enabled = title.isNotBlank() && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
         ) {
             if (isModerating) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)

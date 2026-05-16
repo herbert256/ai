@@ -78,7 +78,7 @@ internal fun ColumnScope.SelectionPhase(
             onClick = { onGenerate(ReportType.CLASSIC) },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
         ) { Text("Generate", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))
