@@ -106,16 +106,19 @@ internal fun ViewAiReportScreen(
     var expandedKind by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Documents tiles — fixed set, Icons only when the per-model
-    // icon chain is enabled in Settings.
+    // icon chain is enabled in Settings. The tile only OPENS the
+    // destination; the View screen itself stays in the back-stack
+    // underneath so Android-back from the destination falls back
+    // to the View grid rather than the report page.
     val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons) {
         buildList {
-            add(ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt(); onBack() })
-            add(ViewTile("Reports", "📊", AppColors.Blue) { onViewReports(); onBack() })
-            add(ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts(); onBack() })
-            add(ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview(); onBack() })
-            add(ViewTile("Log", "📜", AppColors.Brown) { onViewLog(); onBack() })
+            add(ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt() })
+            add(ViewTile("Reports", "📊", AppColors.Blue) { onViewReports() })
+            add(ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() })
+            add(ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() })
+            add(ViewTile("Log", "📜", AppColors.Brown) { onViewLog() })
             if (perModelIconGenEnabled) {
-                add(ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons(); onBack() })
+                add(ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() })
             }
         }
     }
@@ -138,7 +141,7 @@ internal fun ViewAiReportScreen(
                 emoji
             } else null
             ViewTile(item.label, cached ?: "🧠", AppColors.Purple) {
-                item.open(); onBack()
+                item.open()
             }
         }
     }
@@ -164,7 +167,7 @@ internal fun ViewAiReportScreen(
                 items = items,
                 tile = ViewTile(s.label, s.emoji, s.color, count = items.size) {
                     when (items.size) {
-                        1 -> { items[0].open(); onBack() }
+                        1 -> items[0].open()
                         else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                     }
                 }
@@ -219,7 +222,6 @@ internal fun ViewAiReportScreen(
                         onItemClick = { item ->
                             expandedKind = null
                             item.open()
-                            onBack()
                         }
                     )
                 }

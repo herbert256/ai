@@ -1334,7 +1334,22 @@ fun ReportsScreen(
         }
         return
     }
-    if (showViewReportScreen && currentReportId != null) {
+    // Yield to any destination overlay opened FROM the View screen
+    // (Prompt / Costs / Reports → showViewer · HTML →
+    // htmlPreviewDetail · Icons → showIconsView · Meta item →
+    // openMetaResultId · Fan-out/-in/-in-model → listKind ·
+    // Translation run → openTranslationRunId). All those guards
+    // are below this one in the if-chain, so without suppressing
+    // here the View screen would render on top of the destination
+    // it just launched. The flag stays true behind the destination
+    // so Android-back from the destination falls back to the View
+    // grid rather than the report page.
+    if (showViewReportScreen && currentReportId != null
+        && !showViewer && !showIconsView
+        && htmlPreviewDetail == null
+        && openMetaResultId == null
+        && openTranslationRunId == null
+        && listKind == null) {
         // Build the conditional Computed-section item map from the
         // same secondaryRuns + aiSettings inputs the legacy View row
         // used. The lambdas mirror the [GenerationPhaseHandlers]
@@ -1365,30 +1380,34 @@ fun ReportsScreen(
                 useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                // Each handler launches its destination without
+                // tearing down `showViewReportScreen` — the View
+                // screen stays in the back-stack underneath so
+                // Android-back from the destination falls back to
+                // the View grid. The destination's own overlay
+                // (showViewer / showIconsView / htmlPreviewDetail /
+                // …) renders ABOVE the View screen render block in
+                // this file's if-chain so the user sees the
+                // destination on top.
                 onViewPrompt = {
-                    showViewReportScreen = false
                     selectedAgentForViewer = null
                     viewerSection = "prompt"
                     showViewer = true
                 },
                 onViewCosts = {
-                    showViewReportScreen = false
                     selectedAgentForViewer = null
                     viewerSection = "costs"
                     showViewer = true
                 },
                 onViewReports = {
-                    showViewReportScreen = false
                     selectedAgentForViewer = null
                     viewerSection = null
                     showViewer = true
                 },
                 onOpenHtmlPreview = {
-                    showViewReportScreen = false
                     htmlPreviewDetail = ReportExportDetail.COMPLETE
                 },
                 onViewLog = {
-                    showViewReportScreen = false
                     val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
                         .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
                     val filename = "applog_" +
@@ -1396,7 +1415,6 @@ fun ReportsScreen(
                     onNavigateToAppLog(filename, "#$currentReportId")
                 },
                 onViewIcons = {
-                    showViewReportScreen = false
                     showIconsView = true
                 },
                 onBack = { showViewReportScreen = false }
