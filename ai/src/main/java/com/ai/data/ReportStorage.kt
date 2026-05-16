@@ -150,6 +150,12 @@ data class Report(
     var iconOutputTokens: Int = 0,
     var iconInputCost: Double = 0.0,
     var iconOutputCost: Double = 0.0,
+    /** Trace filename captured for the report-icon call (the bundled
+     *  internal/icon prompt run). Lets the icon detail screen wire
+     *  its 🐞 directly to that trace. Null when tracing is off, on
+     *  legacy reports, or during the cold window before the call
+     *  returned. */
+    var iconTraceFile: String? = null,
     /** When non-null, the model that produced the currently displayed
      *  icon (set by "Find alternative icons" — the user picked a
      *  fan-out result over the bundled-agent default). When null, the
@@ -205,7 +211,18 @@ data class Report(
     var languageIconInputTokens: Int = 0,
     var languageIconOutputTokens: Int = 0,
     var languageIconInputCost: Double = 0.0,
-    var languageIconOutputCost: Double = 0.0
+    var languageIconOutputCost: Double = 0.0,
+    /** Trace filename of the language-icon API call. Wires 🐞 on
+     *  the language detail screen. Null when tracing is off, on
+     *  legacy reports, or during the cold window. */
+    var languageIconTraceFile: String? = null,
+    /** Raw assistant text returned by the language-icon model
+     *  (typically two lines, "language: …" / "icon: …"). The
+     *  language detail screen renders this verbatim so the user
+     *  sees exactly what the model said, then the parsed icon at
+     *  large size below. Null on legacy reports / before the call
+     *  returned. */
+    var languageIconRawResponse: String? = null
 )
 
 /**
@@ -527,7 +544,8 @@ object ReportStorage {
     fun updateReportIcon(
         context: Context, reportId: String, icon: String,
         inputTokens: Int, outputTokens: Int,
-        inputCost: Double, outputCost: Double
+        inputCost: Double, outputCost: Double,
+        traceFile: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -536,6 +554,7 @@ object ReportStorage {
                 icon = icon, iconErrorMessage = null,
                 iconInputTokens = inputTokens, iconOutputTokens = outputTokens,
                 iconInputCost = inputCost, iconOutputCost = outputCost,
+                iconTraceFile = traceFile,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -610,7 +629,9 @@ object ReportStorage {
         name: String?, icon: String?,
         model: String? = null,
         inputTokens: Int = 0, outputTokens: Int = 0,
-        inputCost: Double = 0.0, outputCost: Double = 0.0
+        inputCost: Double = 0.0, outputCost: Double = 0.0,
+        traceFile: String? = null,
+        rawResponse: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -624,6 +645,8 @@ object ReportStorage {
                 languageIconOutputTokens = outputTokens,
                 languageIconInputCost = inputCost,
                 languageIconOutputCost = outputCost,
+                languageIconTraceFile = traceFile,
+                languageIconRawResponse = rawResponse,
                 timestamp = System.currentTimeMillis()
             ))
             true

@@ -455,12 +455,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Report icon") {
+                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val response = appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, AgentParameters(),
-                        null, context, baseUrl
-                    )
+                    val response = withTraceFilenameSink(traceSink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                    }
                     // Always end with exactly one emoji glyph:
                     //  - many emojis: pick the first one.
                     //  - emoji + extra text: strip the prose.
@@ -477,7 +480,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         ReportStorage.updateReportIcon(
                             context, reportId, emoji,
                             inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC
+                            inputCost = inC, outputCost = outC,
+                            traceFile = traceSink.get()
                         )
                     } else {
                         ReportStorage.updateReportIconError(
@@ -522,12 +526,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Language icon") {
+                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val response = appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, AgentParameters(),
-                        null, context, baseUrl
-                    )
+                    val response = withTraceFilenameSink(traceSink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                    }
                     if (response.error == null) {
                         val (name, icon) = parseLanguageDetectionResponse(response.analysis)
                         val tu = response.tokenUsage
@@ -541,7 +548,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 context, reportId,
                                 name = name, icon = icon ?: "🌐",
                                 inputTokens = inT, outputTokens = outT,
-                                inputCost = inC, outputCost = outC
+                                inputCost = inC, outputCost = outC,
+                                traceFile = traceSink.get(),
+                                rawResponse = response.analysis
                             )
                         } else {
                             ReportStorage.updateReportLanguageError(

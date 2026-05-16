@@ -842,6 +842,7 @@ fun ReportsScreen(
     val reportIconError = runtime.reportIconError
     val reportIconCost = runtime.reportIconCost
     val reportIconModel = runtime.reportIconModel
+    val reportIconTraceFile = runtime.reportIconTraceFile
     val languageIconCost = runtime.languageIconCost
     val agentIconRows = runtime.agentIconRows
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
@@ -1338,8 +1339,10 @@ fun ReportsScreen(
             reportIconError = reportIconError,
             reportIconCost = reportIconCost,
             reportIconModel = reportIconModel,
+            reportIconTraceFile = reportIconTraceFile,
             iconFanOutByReport = iconFanOutByReport,
             languageIconCallbacks = languageIconCallbacks,
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
             onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
             onClose = { showIconDetail = false; targetLanguageIcon = false }
@@ -2228,6 +2231,7 @@ private data class ReportRuntimeState(
     val reportIconError: String?,
     val reportIconCost: Double,
     val reportIconModel: String?,
+    val reportIconTraceFile: String?,
     val languageIconCost: Double,
     val agentIconRows: Map<String, AgentIconRow>,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
@@ -2264,6 +2268,7 @@ private fun rememberReportRuntimeState(
     var reportIconError by remember { mutableStateOf<String?>(null) }
     var reportIconCost by remember { mutableStateOf(0.0) }
     var reportIconModel by remember { mutableStateOf<String?>(null) }
+    var reportIconTraceFile by remember { mutableStateOf<String?>(null) }
     var languageIconCost by remember { mutableStateOf(0.0) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
@@ -2278,6 +2283,7 @@ private fun rememberReportRuntimeState(
             reportIconError = null
             reportIconCost = 0.0
             reportIconModel = null
+            reportIconTraceFile = null
             languageIconCost = 0.0
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
@@ -2290,6 +2296,7 @@ private fun rememberReportRuntimeState(
             reportIconError = r?.iconErrorMessage
             reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
             reportIconModel = r?.iconModel
+            reportIconTraceFile = r?.iconTraceFile
             languageIconCost = (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
             agentIconRows = r?.agents?.associate { ra ->
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
@@ -2412,6 +2419,7 @@ private fun rememberReportRuntimeState(
         reportIconError = reportIconError,
         reportIconCost = reportIconCost,
         reportIconModel = reportIconModel,
+        reportIconTraceFile = reportIconTraceFile,
         languageIconCost = languageIconCost,
         agentIconRows = agentIconRows,
         agentRecordsByAgentId = agentRecordsByAgentId,
@@ -2765,6 +2773,17 @@ private fun ReportIconDetailScreen(
      *  alternative icons" — show this label instead of the bundled
      *  pinned agent's model. */
     iconModel: String?,
+    /** When non-null, the Response card renders [rawResponse] verbatim
+     *  first then the resolved [icon] at large size below. Wired by
+     *  the language detail (where the model's reply is structured
+     *  text the user wants to see). For the report-icon flow null,
+     *  so the card behaves as before (just the icon). */
+    rawResponse: String? = null,
+    /** Trace filename of the API call that produced [icon]. When
+     *  non-null the title bar shows 🐞 that opens the trace detail
+     *  via [onNavigateToTraceFile]. */
+    traceFile: String? = null,
+    onNavigateToTraceFile: (String) -> Unit = { _ -> },
     /** Fires either the picker overlay (no active fan-out) or jumps
      *  straight to the live "Alternative icons" list (active /
      *  completed fan-out — see [hasActiveFanOut]). */
@@ -2784,7 +2803,8 @@ private fun ReportIconDetailScreen(
         TitleBar(
             helpTopic = "report_icon_detail",
             title = "Icon",
-            onBackClick = onBack
+            onBackClick = onBack,
+            onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } }
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2826,7 +2846,17 @@ private fun ReportIconDetailScreen(
                             fontSize = 13.sp, color = AppColors.Red, lineHeight = 18.sp)
                         running -> Text("(running…)",
                             fontSize = 13.sp, color = AppColors.TextTertiary)
-                        icon != null -> Text(icon, fontSize = 36.sp, color = Color.White)
+                        rawResponse != null -> {
+                            // Language flow: show raw model reply verbatim,
+                            // then the parsed icon at large size below.
+                            Text(rawResponse, fontSize = 13.sp, color = Color.White,
+                                fontFamily = FontFamily.Monospace, lineHeight = 18.sp)
+                            if (icon != null) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(icon, fontSize = 72.sp, color = Color.White)
+                            }
+                        }
+                        icon != null -> Text(icon, fontSize = 72.sp, color = Color.White)
                         else -> Text("(no response)",
                             fontSize = 13.sp, color = AppColors.TextTertiary)
                     }
@@ -3905,6 +3935,7 @@ private fun RenderLanguageDetailOverlay(
     loadedReportTitle: String?,
     iconRefreshTick: Int,
     hasActiveFanOut: Boolean,
+    onNavigateToTraceFile: (String) -> Unit,
     onFindAlternativeIcons: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -3919,11 +3950,19 @@ private fun RenderLanguageDetailOverlay(
     // the parent's bytecode stays under the JVM 64 KB per-method
     // ceiling. Re-read on every iconRefreshTick bump so a fresh
     // detection result lands in the open detail screen too.
-    data class LangSnapshot(val icon: String?, val error: String?, val model: String?)
-    val snapshot = produceState(initialValue = LangSnapshot(null, null, null), reportId, iconRefreshTick) {
+    data class LangSnapshot(
+        val icon: String?, val error: String?, val model: String?,
+        val rawResponse: String?, val cost: Double, val traceFile: String?
+    )
+    val snapshot = produceState(initialValue = LangSnapshot(null, null, null, null, 0.0, null), reportId, iconRefreshTick) {
         value = withContext(Dispatchers.IO) {
             val r = com.ai.data.ReportStorage.getReport(context, reportId)
-            LangSnapshot(r?.languageIcon, r?.languageIconErrorMessage, r?.languageIconModel)
+            LangSnapshot(
+                r?.languageIcon, r?.languageIconErrorMessage, r?.languageIconModel,
+                r?.languageIconRawResponse,
+                (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0),
+                r?.languageIconTraceFile
+            )
         }
     }.value
     CompositionLocalProvider(
@@ -3938,8 +3977,11 @@ private fun RenderLanguageDetailOverlay(
             promptText = promptText,
             icon = snapshot.icon,
             errorMessage = snapshot.error,
-            cost = 0.0,
+            cost = snapshot.cost,
             iconModel = snapshot.model,
+            rawResponse = snapshot.rawResponse,
+            traceFile = snapshot.traceFile,
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onFindAlternativeIcons = onFindAlternativeIcons,
             hasActiveFanOut = hasActiveFanOut,
             onBack = onBack
@@ -3976,8 +4018,10 @@ private fun ReportIconOrLanguageDetailOverlay(
     reportIconError: String?,
     reportIconCost: Double,
     reportIconModel: String?,
+    reportIconTraceFile: String?,
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     languageIconCallbacks: LanguageIconCallbacks,
+    onNavigateToTraceFile: (String) -> Unit,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
     onClose: () -> Unit,
@@ -3992,6 +4036,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             loadedReportTitle = loadedReportTitle,
             iconRefreshTick = iconRefreshTick,
             hasActiveFanOut = hasLangFanOut,
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
             onBack = onClose
         )
@@ -4018,6 +4063,8 @@ private fun ReportIconOrLanguageDetailOverlay(
             errorMessage = reportIconError,
             cost = reportIconCost,
             iconModel = reportIconModel,
+            traceFile = reportIconTraceFile,
+            onNavigateToTraceFile = onNavigateToTraceFile,
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             hasActiveFanOut = hasActiveFanOut,
             onBack = onClose
