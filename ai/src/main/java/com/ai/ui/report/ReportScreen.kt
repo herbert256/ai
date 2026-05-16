@@ -1343,6 +1343,7 @@ fun ReportsScreen(
             iconFanOutByReport = iconFanOutByReport,
             languageIconCallbacks = languageIconCallbacks,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onChat = uiState.genericPromptText.takeIf { it.isNotBlank() }?.let { p -> { onChatWithReportPrompt(p) } },
             onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
             onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
             onClose = { showIconDetail = false; targetLanguageIcon = false }
@@ -2788,6 +2789,10 @@ private fun ReportIconDetailScreen(
      *  via [onNavigateToTraceFile]. */
     traceFile: String? = null,
     onNavigateToTraceFile: (String) -> Unit = { _ -> },
+    /** Optional 💬 chat handler. When non-null the title bar shows
+     *  the chat icon; tap opens a fresh chat seeded by the caller
+     *  (typically with the report's prompt text). */
+    onChat: (() -> Unit)? = null,
     /** Fires either the picker overlay (no active fan-out) or jumps
      *  straight to the live "Alternative icons" list (active /
      *  completed fan-out — see [hasActiveFanOut]). */
@@ -2808,7 +2813,8 @@ private fun ReportIconDetailScreen(
             helpTopic = "report_icon_detail",
             title = title,
             onBackClick = onBack,
-            onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } }
+            onTrace = traceFile?.takeIf { it.isNotBlank() }?.let { tf -> { onNavigateToTraceFile(tf) } },
+            onChat = onChat
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -3946,6 +3952,7 @@ private fun RenderLanguageDetailOverlay(
     iconRefreshTick: Int,
     hasActiveFanOut: Boolean,
     onNavigateToTraceFile: (String) -> Unit,
+    onChat: (() -> Unit)?,
     onFindAlternativeIcons: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -3993,6 +4000,7 @@ private fun RenderLanguageDetailOverlay(
             rawResponse = snapshot.rawResponse,
             traceFile = snapshot.traceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onChat = onChat,
             onFindAlternativeIcons = onFindAlternativeIcons,
             hasActiveFanOut = hasActiveFanOut,
             onBack = onBack
@@ -4033,6 +4041,7 @@ private fun ReportIconOrLanguageDetailOverlay(
     iconFanOutByReport: Map<String, List<IconCandidate>>,
     languageIconCallbacks: LanguageIconCallbacks,
     onNavigateToTraceFile: (String) -> Unit,
+    onChat: (() -> Unit)?,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
     onClose: () -> Unit,
@@ -4048,6 +4057,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             iconRefreshTick = iconRefreshTick,
             hasActiveFanOut = hasLangFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onChat = onChat,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
             onBack = onClose
         )
@@ -4076,6 +4086,7 @@ private fun ReportIconOrLanguageDetailOverlay(
             iconModel = reportIconModel,
             traceFile = reportIconTraceFile,
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onChat = onChat,
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             hasActiveFanOut = hasActiveFanOut,
             onBack = onClose
