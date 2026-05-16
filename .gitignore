@@ -42,3 +42,6 @@ xcuserdata/
 DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 .build/
+
+# claude worktrees
+.claude/worktrees/
