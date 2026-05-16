@@ -218,8 +218,13 @@ fun ReportsScreenNav(
         }
     }
     val currentIdx = reportIdsNewestFirst.indexOf(uiState.currentReportId)
-    val hasPrevReport = currentIdx > 0
-    val hasNextReport = currentIdx >= 0 && currentIdx < reportIdsNewestFirst.size - 1
+    // `<` = chronologically previous = OLDER (further down the
+    // newest-first list, so higher index). `>` = chronologically
+    // next = NEWER (lower index). Swapped from the original wiring
+    // which had `<` jumping to a newer report and `>` to an older
+    // one — the user reported them backwards.
+    val hasPrevReport = currentIdx >= 0 && currentIdx < reportIdsNewestFirst.size - 1
+    val hasNextReport = currentIdx > 0
 
     // If we re-enter the screen on a finished report whose in-memory agent results were
     // lost (Activity recreation, process death), rebuild them from ReportStorage so the
@@ -353,13 +358,15 @@ fun ReportsScreenNav(
         agentIconFanOutByAgent = agentIconFanOutByAgent,
         onPrevReport = {
             if (hasPrevReport) {
-                val targetId = reportIdsNewestFirst[currentIdx - 1]
+                // OLDER = higher index in newest-first list.
+                val targetId = reportIdsNewestFirst[currentIdx + 1]
                 scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
             }
         },
         onNextReport = {
             if (hasNextReport) {
-                val targetId = reportIdsNewestFirst[currentIdx + 1]
+                // NEWER = lower index in newest-first list.
+                val targetId = reportIdsNewestFirst[currentIdx - 1]
                 scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
             }
         },
