@@ -122,10 +122,8 @@ internal fun ReportMainContent(
             )
         }
 
-        if (isGenerating) {
-            com.ai.ui.shared.HardcodedSubjectRow(uiState.genericPromptTitle)
-            Spacer(modifier = Modifier.height(2.dp))
-        }
+        // Generation-phase green subject row moved into GenerationPhase
+        // so it can carry the running total cost on the right.
 
         if (!isGenerating) {
             SelectionPhase(

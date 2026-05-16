@@ -682,6 +682,27 @@ internal fun ColumnScope.GenerationPhase(
     // LazyListScope DSL inside the LazyColumn below can gate the icon
     // row without invoking @Composable functions.
     val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
+
+    // Green subject row carries the total cost on the right (💰 +
+    // cents + ¢). Replaces the old "footer-total" row at the bottom
+    // of the LazyColumn so the running cost stays visible while
+    // scrolling.
+    com.ai.ui.shared.HardcodedSubjectRow(
+        text = uiState.genericPromptTitle,
+        trailing = {
+            if (showTotals) {
+                Text(
+                    text = "💰 ${formatCents(totalCost)} ¢",
+                    fontSize = 14.sp, color = AppColors.Blue,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    )
+    Spacer(modifier = Modifier.height(2.dp))
+
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
@@ -1226,29 +1247,8 @@ internal fun ColumnScope.GenerationPhase(
         // [icon 24dp][type cell][label weight 1f][cost on right].
         // Σ stands in for the per-row status icon; the type cell reads
         // "total" to keep the column alignment.
-        if (showTotals) {
-            item(key = "footer-total") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("💰", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                    RowTypeCell("total")
-                    Text(
-                        "$totalInputTokens / $totalOutputTokens tok",
-                        fontSize = 13.sp, color = AppColors.Blue,
-                        modifier = Modifier.weight(1f)
-                    )
-                    // No "¢" suffix here so the right-hand column
-                    // aligns with the per-row cost cells, which print
-                    // formatCents(cost) raw.
-                    Text(
-                        formatCents(totalCost),
-                        fontSize = 10.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace
-                    )
-                }
-            }
-        }
+        // Totals moved to the green subject row above — see the
+        // HardcodedSubjectRow call before this LazyColumn.
     }
 }
 
