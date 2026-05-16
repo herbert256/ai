@@ -275,7 +275,7 @@ private fun TileFlow(tiles: List<ViewTile>) {
     // that fixed width to every TileCard.
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val spacing = 10.dp
-        val cols = if (maxWidth >= 500.dp) 3 else 2
+        val cols = 3
         val tileWidth = (maxWidth - spacing * (cols - 1)) / cols
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
