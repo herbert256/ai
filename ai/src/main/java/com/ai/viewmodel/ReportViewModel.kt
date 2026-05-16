@@ -530,10 +530,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     )
                     if (response.error == null) {
                         val (name, icon) = parseLanguageDetectionResponse(response.analysis)
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
                         if (name != null || icon != null) {
                             ReportStorage.updateReportLanguage(
                                 context, reportId,
-                                name = name, icon = icon ?: "🌐"
+                                name = name, icon = icon ?: "🌐",
+                                inputTokens = inT, outputTokens = outT,
+                                inputCost = inC, outputCost = outC
                             )
                         } else {
                             ReportStorage.updateReportLanguageError(
@@ -1255,8 +1263,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     val emoji = icon ?: response.analysis?.trim().orEmpty().take(8)
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
-                                    val totalCost = (tu?.inputTokens ?: 0) * pricing.promptPrice +
-                                        (tu?.outputTokens ?: 0) * pricing.completionPrice
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    val totalCost = inC + outC
+                                    // Cost bump is unconditional — every call
+                                    // the user paid for adds to the language-
+                                    // icon cost line, whether or not its
+                                    // returned emoji was usable.
+                                    if (inT > 0 || outT > 0) {
+                                        ReportStorage.bumpReportLanguageIconCost(
+                                            context, reportId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC
+                                        )
+                                    }
                                     if (response.error == null && emoji.isNotEmpty()) {
                                         appViewModel.updateLanguageIconFanOut(reportId) { list ->
                                             list.map { c ->

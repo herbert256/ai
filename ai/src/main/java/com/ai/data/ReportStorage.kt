@@ -193,7 +193,19 @@ data class Report(
      *  running, on success, or when the call was never kicked off.
      *  Surfaces on the manage-screen row as a ❌ + message and on
      *  the detail screen's Response card. */
-    var languageIconErrorMessage: String? = null
+    var languageIconErrorMessage: String? = null,
+    /** Token usage + USD cost of the language-icon call(s), split
+     *  input vs output so the call surfaces as its own row in the
+     *  per-call cost tables (View → Costs and the HTML export's
+     *  "By type" view show it as type = "language"). Mirrors the
+     *  icon-gen cost fields above. All zero while running, on
+     *  missing pricing, or on legacy reports written before this
+     *  field existed. Bumped per-call when "Find alternative
+     *  icons" runs a language fan-out. */
+    var languageIconInputTokens: Int = 0,
+    var languageIconOutputTokens: Int = 0,
+    var languageIconInputCost: Double = 0.0,
+    var languageIconOutputCost: Double = 0.0
 )
 
 /**
@@ -588,13 +600,17 @@ object ReportStorage {
     }
 
     /** Persist a successful language-detection result: the English
-     *  language name + a fitting emoji + optional model attribution.
-     *  Clears any prior [Report.languageIconErrorMessage]. Parallel
-     *  to [updateReportIcon] but for the language pair. */
+     *  language name + a fitting emoji + optional model attribution
+     *  + token usage / cost so the call shows up as its own row in
+     *  the per-call cost view (type = "language"). Clears any prior
+     *  [Report.languageIconErrorMessage]. Parallel to
+     *  [updateReportIcon]. */
     fun updateReportLanguage(
         context: Context, reportId: String,
         name: String?, icon: String?,
-        model: String? = null
+        model: String? = null,
+        inputTokens: Int = 0, outputTokens: Int = 0,
+        inputCost: Double = 0.0, outputCost: Double = 0.0
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -604,6 +620,34 @@ object ReportStorage {
                 languageIcon = icon,
                 languageIconModel = model,
                 languageIconErrorMessage = null,
+                languageIconInputTokens = inputTokens,
+                languageIconOutputTokens = outputTokens,
+                languageIconInputCost = inputCost,
+                languageIconOutputCost = outputCost,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Additive cost bump for language-icon "Find alternative icons"
+     *  fan-out calls. Every per-(provider, model) call adds to the
+     *  report's language-icon cost so the row reflects total tokens
+     *  spent searching for an icon for this language. Mirrors
+     *  [bumpReportIconCost]. */
+    fun bumpReportLanguageIconCost(
+        context: Context, reportId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                languageIconInputTokens = report.languageIconInputTokens + inputTokens,
+                languageIconOutputTokens = report.languageIconOutputTokens + outputTokens,
+                languageIconInputCost = report.languageIconInputCost + inputCost,
+                languageIconOutputCost = report.languageIconOutputCost + outputCost,
                 timestamp = System.currentTimeMillis()
             ))
             true

@@ -818,252 +818,39 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
-    // Per-kind row counts + the actual meta-run list for the result
-    // page. The list drives the per-run rows shown below the agent
-    // rows. Polled while a meta batch is in flight so newly added
-    // rows / status changes surface promptly without the user
-    // bouncing in/out of the screen.
-    var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0)) }
-    var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
-    var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
-    var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
-    var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
-    // Carried straight from Report.costsFromDeletedItems on disk —
-    // bumped by every user-initiated delete on this report (rows,
-    // fan-out pairs, secondaries, translations). Surfaces as its own
-    // line above the Total footer when non-zero.
-    var costsFromDeletedItems by remember { mutableStateOf(0.0) }
-    // Mirrored from Report.icon / Report.iconErrorMessage on disk so
-    // the inline 'icon' row can render ⏳ / emoji / ❌ without the
-    // composable having to subscribe to the whole Report object.
-    // Re-fetched on every uiState.iconRefreshTick bump (fired by
-    // ReportViewModel.kickOffIconGeneration when it writes either
-    // field) so a mid-flight resolution flips the row in real time.
-    var reportIcon by remember { mutableStateOf<String?>(null) }
-    var reportIconError by remember { mutableStateOf<String?>(null) }
-    var reportIconCost by remember { mutableStateOf(0.0) }
-    var reportIconModel by remember { mutableStateOf<String?>(null) }
-    // Per-agent snapshot for the inline result list and the
-    // per-agent icon detail overlay. Sourced from each ReportAgent
-    // on disk, keyed by agentId. Same iconRefreshTick gates this
-    // and the report-level mirror above so a single ViewModel ping
-    // picks up both — Create → Report icons writes through
-    // updateReportAgentIcon and bumps the tick, which rebuilds this
-    // map. agentIconRows + agentRecordsByAgentId share the same
-    // disk read so we don't double-IO when the overlay opens.
-    var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
-    var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
-    // The saved Report's prompt — source of truth for the @PROMPT@
-    // substitution on the per-agent icon detail. Pulled from the same
-    // IO read so the overlay doesn't have to refetch.
-    var loadedReportPrompt by remember { mutableStateOf("") }
-    // Report title — provided down the composition tree via
-    // LocalReportTitle so deep TitleBars in BOTH-mode without a
-    // per-screen subject can fall back to it.
-    var loadedReportTitle by remember { mutableStateOf<String?>(null) }
-    // Report creation timestamp — drives the View → Log button's
-    // applog filename ("applog_<yyyyMMdd>.log" for the report's day).
-    var loadedReportTimestamp by remember { mutableStateOf(0L) }
-    LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
-        val rid = currentReportId
-        if (rid == null) {
-            reportIcon = null
-            reportIconError = null
-            reportIconCost = 0.0
-            reportIconModel = null
-            agentIconRows = emptyMap()
-            agentRecordsByAgentId = emptyMap()
-            loadedReportPrompt = ""
-            loadedReportTitle = null
-            loadedReportTimestamp = 0L
-        } else {
-            val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
-            reportIcon = r?.icon
-            reportIconError = r?.iconErrorMessage
-            reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
-            reportIconModel = r?.iconModel
-            agentIconRows = r?.agents?.associate { ra ->
-                ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
-            } ?: emptyMap()
-            agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
-            loadedReportPrompt = r?.prompt.orEmpty()
-            loadedReportTitle = r?.title
-            loadedReportTimestamp = r?.timestamp ?: 0L
-        }
-    }
-    // Provided to every inline overlay below via LocalReportIcon so
-    // pickers / viewer / detail screens (which don't have the Report
-    // object in scope) can still render the leftmost report-icon glyph
-    // in their TitleBar. Falls back to 📝 while icon-gen is in flight
-    // or after it errored. Null when there's no current report OR the
-    // user disabled the icon-gen feature entirely.
     val iconGenEnabled = uiState.generalSettings.iconGenEnabled
-    val effectiveReportIcon = if (iconGenEnabled && currentReportId != null) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null
-    // Bumped from every overlay-driven delete so the parent screen's
-    // counts / row list re-read from disk on the way back. Without
-    // this the LaunchedEffect below has no reason to refire (the user
-    // didn't change report id, completion state, or batch count) and
-    // the deleted row keeps showing in the inline meta-runs list and
-    // the View counters above it.
-    var secondaryRefreshTick by remember { mutableStateOf(0) }
-    // Auto-resume sweep per report open. Re-launches every Translation
-    // run, Fan-out pair, and single-call Meta/Rerank/Moderation row
-    // that an app kill left mid-flight (blank content, null
-    // errorMessage, null durationMs, no in-memory claim). Anything we
-    // can't reconstruct from disk (legacy rows missing fields, prompts
-    // since deleted, fan-in single rows) falls back to the "Interrupted
-    // by app restart" marker so it stops spinning. The bump on
-    // secondaryRefreshTick forces the polling LaunchedEffect below to
-    // immediately re-read disk and pick up both the new ⏳ placeholders
-    // (fresh dispatch) and any ❌ markers.
-    LaunchedEffect(currentReportId) {
-        val rid = currentReportId ?: return@LaunchedEffect
-        onResumeStaleRuns(rid)
-        kotlinx.coroutines.delay(150)
-        secondaryRefreshTick++
-    }
-    // Auto-resume an interrupted fan-icons batch. Find Icons runs
-    // in-memory on viewModelScope with no disk-resume, so an app
-    // kill / redeploy / long background leaves the leftover pairs
-    // stuck PENDING. On report open, for every fan-out whose pairs
-    // already carry at least one icon / icon-error (i.e. the user
-    // *did* launch Find Icons at some point — never auto-fires for
-    // an untouched fan-out), re-kick the batch. runFanIconsBatch
-    // self-guards: it skips when a job is already in flight and
-    // no-ops when nothing is left pending.
-    LaunchedEffect(currentReportId) {
-        val rid = currentReportId ?: return@LaunchedEffect
-        kotlinx.coroutines.delay(800)
-        val pairs = withContext(Dispatchers.IO) {
-            SecondaryResultStorage.listForReport(context, rid)
-                .filter { it.fanOutSourceAgentId != null }
-        }
-        pairs.groupBy { it.metaPromptId }
-            .forEach { (metaPromptId, rows) ->
-                if (metaPromptId == null) return@forEach
-                val started = rows.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
-                if (started) fanRuntime.onLaunchFanIconsBatch(rid, metaPromptId)
-            }
-    }
-    // Bump the polling-effect tick whenever the engine's set of
-    // run keys for THIS report changes (add or remove). Without
-    // this, deleting a fan-out run via the L1 trash icon left the
-    // summary row on the main page until the next manual refresh —
-    // engine.deleteRun removes the run from engine.runs but
-    // fanOutSummaries rebuilds from disk on the tick. Per-pair
-    // status transitions during a live batch don't change the
-    // key set so this stays quiet during normal execution.
-    if (fanOutEngine != null) {
-        val engineRuns by fanOutEngine.runs.collectAsState()
-        val ridForKeys = currentReportId
-        val currentRunKeys = remember(engineRuns, ridForKeys) {
-            if (ridForKeys == null) emptySet()
-            else engineRuns.keys.filter { it.startsWith("$ridForKeys|") }.toSet()
-        }
-        LaunchedEffect(currentRunKeys) {
-            secondaryRefreshTick++
-        }
-    }
-    val onDeleteSecondaryWithRefresh: (String, String) -> Unit = { rid, sid ->
-        onDeleteSecondary(rid, sid)
-        secondaryRefreshTick++
-    }
-    // Recompute when any translation run finishes — the persisted
-    // summary appears in translationRunSummaries on the next reload,
-    // which is what flips the live row to the static one.
-    val anyTranslationFinished = translationRuns.any { it.isFinished }
-    val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick) {
-        val rid = currentReportId ?: run {
-            secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
-            secondaryRuns = emptyList()
-            translationRunSummaries = emptyList()
-            fanOutSummaries = emptyList()
-            secondaryTotals = SecondaryTotals.ZERO
-            costsFromDeletedItems = 0.0
-            return@LaunchedEffect
-        }
-        costsFromDeletedItems = withContext(Dispatchers.IO) {
-            com.ai.data.ReportStorage.getReport(context, rid)?.costsFromDeletedItems ?: 0.0
-        }
-        suspend fun reload() {
-            withContext(Dispatchers.IO) {
-                val all = SecondaryResultStorage.listForReport(context, rid)
-                // Fan-out pair rows (N×(M-1) per-(answerer, source)
-                // responses) collapse into a single summary row per
-                // fan out prompt, mirroring how Translation collapses N
-                // per-call rows. Fan_in combine-reports rows do
-                // NOT fold — each run is a standalone meta call so it
-                // keeps its own row in secondaryRuns alongside Compare /
-                // Summarize / etc.
-                secondaryRuns = all
-                    .filter { it.kind != SecondaryKind.TRANSLATE }
-                    .filter { it.fanOutSourceAgentId == null }
-                    .sortedByDescending { it.timestamp }
-                translationRunSummaries = buildTranslationRunSummaries(
-                    all.filter { it.kind == SecondaryKind.TRANSLATE }
-                )
-                fanOutSummaries = buildFanOutSummaries(
-                    all.filter { it.fanOutSourceAgentId != null }
-                )
-                // Derive counts from `all` instead of calling
-                // SecondaryResultStorage.countForReport — that function
-                // does its own listFiles + per-file Gson parse, so on
-                // the 500ms batching tick we'd be re-parsing every
-                // file twice (once via the cached listForReport above,
-                // once for counts). The counts are pure projections
-                // of the same data.
-                secondaryCounts = SecondaryResultStorage.Counts(
-                    rerank = all.count { it.kind == SecondaryKind.RERANK },
-                    meta = all.count { it.kind == SecondaryKind.META },
-                    moderation = all.count { it.kind == SecondaryKind.MODERATION },
-                    translate = all.count { it.kind == SecondaryKind.TRANSLATE }
-                )
-                // Totals span every persisted secondary including
-                // TRANSLATE rows — those translation calls show up
-                // in the cost table as separate rows and should sum
-                // into the bottom-line total here too.
-                secondaryTotals = SecondaryTotals(
-                    inputTokens = all.sumOf { it.tokenUsage?.inputTokens ?: 0 },
-                    outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
-                    inputCost = all.sumOf { it.inputCost ?: 0.0 },
-                    outputCost = all.sumOf { it.outputCost ?: 0.0 }
-                )
-            }
-        }
-        reload()
-        if (uiState.activeSecondaryBatches > 0) {
-            // While any batch is in flight repoll every 500 ms so
-            // brand-new ⏳ rows appear and finished rows flip to ✅/❌
-            // in place. The loop self-cancels when the LaunchedEffect
-            // re-keys (batch count back to 0).
-            while (true) {
-                delay(500)
-                reload()
-            }
-        }
-    }
-
-    // Once any individual run flips to finished, fold its rows into
-    // the persisted summary and consume just that run so its live row
-    // gives way to the static one. Other in-flight runs keep going.
-    LaunchedEffect(finishedSignature) {
-        if (finishedSignature.isNotEmpty()) {
-            // Allow the LaunchedEffect above (keyed on the same
-            // signature) to reload and append the persisted secondary
-            // first; 200 ms is long enough for the IO read to publish
-            // the new translationRunSummaries before we drop the live row.
-            // Wrap the consume in NonCancellable so navigating away
-            // (or another translation finishing in the same window
-            // and re-keying this effect) can't cancel the consume
-            // mid-call — that previously left the live row stranded
-            // alongside the persisted summary, producing a duplicate.
-            delay(200)
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                finishedSignature.forEach { translationLifecycle.onConsumeRun(it) }
-            }
-        }
-    }
+    val runtime = rememberReportRuntimeState(
+        context = context,
+        currentReportId = currentReportId,
+        uiState = uiState,
+        isComplete = isComplete,
+        iconGenEnabled = iconGenEnabled,
+        translationRuns = translationRuns,
+        fanRuntime = fanRuntime,
+        fanOutEngine = fanOutEngine,
+        translationLifecycle = translationLifecycle,
+        onResumeStaleRuns = onResumeStaleRuns,
+        onDeleteSecondary = onDeleteSecondary
+    )
+    val secondaryCounts = runtime.secondaryCounts
+    val secondaryRuns = runtime.secondaryRuns
+    val translationRunSummaries = runtime.translationRunSummaries
+    val fanOutSummaries = runtime.fanOutSummaries
+    val secondaryTotals = runtime.secondaryTotals
+    val costsFromDeletedItems = runtime.costsFromDeletedItems
+    val reportIcon = runtime.reportIcon
+    val reportIconError = runtime.reportIconError
+    val reportIconCost = runtime.reportIconCost
+    val reportIconModel = runtime.reportIconModel
+    val languageIconCost = runtime.languageIconCost
+    val agentIconRows = runtime.agentIconRows
+    val agentRecordsByAgentId = runtime.agentRecordsByAgentId
+    val loadedReportPrompt = runtime.loadedReportPrompt
+    val loadedReportTitle = runtime.loadedReportTitle
+    val loadedReportTimestamp = runtime.loadedReportTimestamp
+    val effectiveReportIcon = runtime.effectiveReportIcon
+    val onDeleteSecondaryWithRefresh = runtime.onDeleteSecondaryWithRefresh
+    val onSecondaryRefresh = runtime.onSecondaryRefresh
     // Overlay state for any flow that can hand off to a Compose
     // Navigation destination (trace detail, model info, …) needs to
     // be saveable: the AI_REPORTS Composable is removed from
@@ -1195,7 +982,6 @@ fun ReportsScreen(
     var showSelectAllModels by rememberSaveable { mutableStateOf(false) }
     var showSelectFromReport by rememberSaveable { mutableStateOf(false) }
     var selectedParametersIds by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var externalAutoGenerated by rememberSaveable { mutableStateOf(false) }
     // Meta prompt state — replaces the old kind-specific state. The
     // user picks one Meta prompt at a time from the new Meta card or
     // the unified Meta hub; type=chat goes through the scope screen
@@ -1251,282 +1037,75 @@ fun ReportsScreen(
         onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
     }
 
-    // External model resolution. Tracks unresolved entries so a
-    // share-target that mistypes a name (or omits the provider slash
-    // on a model spec) doesn't silently drop the entry — a Toast
-    // below names the unresolved entries so the user can fix the
-    // intent and retry.
-    data class ExternalResolution(val resolved: List<ReportModel>, val unresolved: List<String>)
-    val externalRes = remember(uiState.externalAgentNames, uiState.externalFlockNames, uiState.externalSwarmNames, uiState.externalModelSpecs) {
-        val result = mutableListOf<ReportModel>()
-        val missing = mutableListOf<String>()
-        uiState.externalAgentNames.forEach { name ->
-            val a = aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }
-            val rm = a?.let { expandAgentToModel(it, aiSettings) }
-            if (rm != null) result.add(rm) else missing.add("agent: $name")
-        }
-        uiState.externalFlockNames.forEach { name ->
-            val f = aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }
-            if (f != null) result.addAll(expandFlockToModels(f, aiSettings)) else missing.add("flock: $name")
-        }
-        uiState.externalSwarmNames.forEach { name ->
-            val s = aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }
-            if (s != null) result.addAll(expandSwarmToModels(s, aiSettings)) else missing.add("swarm: $name")
-        }
-        uiState.externalModelSpecs.forEach { spec ->
-            val parts = spec.split("/", limit = 2)
-            val provider = AppService.findById(parts.getOrNull(0) ?: "") ?: AppService.entries.find { it.id.equals(parts.getOrNull(0), ignoreCase = true) }
-            val model = parts.getOrNull(1)
-            if (provider != null && model != null) result.add(toReportModel(provider, model))
-            else missing.add("model: $spec")
-        }
-        ExternalResolution(deduplicateModels(result), missing)
-    }
-    val externalModels = externalRes.resolved
-    LaunchedEffect(externalRes.unresolved) {
-        if (externalRes.unresolved.isNotEmpty()) {
-            android.widget.Toast.makeText(
-                context,
-                "Unresolved external entries: ${externalRes.unresolved.joinToString(", ")}",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
-    }
+    HandleExternalReportInstructions(
+        context = context,
+        activity = activity,
+        uiState = uiState,
+        aiSettings = aiSettings,
+        isGenerating = isGenerating,
+        isComplete = isComplete,
+        currentReportId = currentReportId,
+        models = models,
+        selectedParametersIds = selectedParametersIds,
+        onModelsChange = { models = it },
+        onGenerate = onGenerate,
+        onOpenView = { showViewer = true },
+        onClearExternalInstructions = onClearExternalInstructions
+    )
 
-    // Auto-generate for external models
-    LaunchedEffect(externalModels, uiState.externalReportType) {
-        if (externalModels.isNotEmpty() && !externalAutoGenerated && !isGenerating && uiState.externalReportType != null && !uiState.externalSelect) {
-            externalAutoGenerated = true
-            val updatedModels = deduplicateModels(models + externalModels)
-            models = updatedModels
-            val type = if (uiState.externalReportType.equals("table", ignoreCase = true)) ReportType.TABLE else ReportType.CLASSIC
-            onGenerate(updatedModels, selectedParametersIds, type)
-        }
-    }
-
-    // Apply external models to selection
-    LaunchedEffect(externalModels) {
-        if (externalModels.isNotEmpty() && !externalAutoGenerated) {
-            models = deduplicateModels(models + externalModels)
-        }
-    }
-
-    // Auto email on completion
-    LaunchedEffect(isComplete, currentReportId) {
-        if (isComplete && currentReportId != null) {
-            val email = uiState.externalEmail
-            if (email != null && email.isNotBlank()) {
-                emailReportAsHtml(context, currentReportId, email)
-                if (uiState.externalReturn) activity?.finish()
-            }
-            val next = uiState.externalNextAction
-            if (next != null) {
-                delay(500)
-                when (next.lowercase()) {
-                    "view" -> showViewer = true
-                    "share" -> shareReportAsHtml(context, currentReportId)
-                    "browser" -> openReportInChrome(context, currentReportId)
-                    "email" -> if (uiState.generalSettings.defaultEmail.isNotBlank()) emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail)
-                }
-                if (uiState.externalReturn) { delay(1000); activity?.finish() }
-            }
-            if (
-                uiState.externalEmail != null ||
-                uiState.externalNextAction != null ||
-                uiState.externalReturn ||
-                uiState.externalReportType != null ||
-                uiState.externalAgentNames.isNotEmpty() ||
-                uiState.externalFlockNames.isNotEmpty() ||
-                uiState.externalSwarmNames.isNotEmpty() ||
-                uiState.externalModelSpecs.isNotEmpty()
-            ) {
-                onClearExternalInstructions()
-            }
-        }
-    }
-
-    // Full-screen overlays
-    // Grid render is gated on singleResultAgentId == null so a tap on
-    // an icon (which sets singleResultAgentId without clearing
-    // showIconsView) falls through to the Model response overlay
-    // below. Back from Model response clears singleResultAgentId and
-    // the grid re-renders — Android back lands on the grid instead of
-    // popping all the way out to the result screen.
-    if (showIconsView && singleResultAgentId == null && currentReportId != null) {
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { showIconsView = false }
-        ) {
-            ReportIconsGridScreen(
-                reportId = currentReportId,
-                onOpenAgent = { agentId -> singleResultAgentId = agentId },
-                onBack = { showIconsView = false }
-            )
-        }
-        return
-    }
-    // Yield to any destination overlay opened FROM the View screen
-    // (Prompt / Costs / Reports → showViewer · HTML →
-    // htmlPreviewDetail · Icons → showIconsView · Meta item →
-    // openMetaResultId · Fan-out/-in/-in-model → listKind ·
-    // Translation run → openTranslationRunId). All those guards
-    // are below this one in the if-chain, so without suppressing
-    // here the View screen would render on top of the destination
-    // it just launched. The flag stays true behind the destination
-    // so Android-back from the destination falls back to the View
-    // grid rather than the report page.
-    if (showViewReportScreen && currentReportId != null
-        && !showViewer && !showIconsView
-        && htmlPreviewDetail == null
-        && openMetaResultId == null
-        && openTranslationRunId == null
-        && listKind == null) {
-        // Build the conditional Computed-section item map from the
-        // same secondaryRuns + aiSettings inputs the legacy View row
-        // used. The lambdas mirror the [GenerationPhaseHandlers]
-        // wiring lower in this file (lines ~2500+); routing the user
-        // through the same destinations means every full-screen view
-        // stays bit-identical to the old behaviour.
-        val viewEveryItems = remember(secondaryRuns, aiSettings) {
-            buildEveryItems(
-                secondaryRuns, aiSettings,
-                onOpenSecondaryRun = { id -> openMetaResultId = id },
-                onViewSecondaryName = { name, kind ->
-                    listKind = kind; listFilterByName = name; listIsFanIcons = false
-                },
-                onOpenTranslationRun = { runId -> openTranslationRunId = runId }
-            )
-        }
-        // True when ANY persisted moderation row has AT LEAST one
-        // fired category. Drives the moderation tile's red-vs-green
-        // colour on the View screen. Helper is top-level so its
-        // bytecode lives in its own method — the ReportsScreen
-        // Composable is already brushing the JVM 64 KB limit.
-        val moderationFlagged = remember(secondaryRuns) {
-            anyModerationFlagged(secondaryRuns)
-        }
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { showViewReportScreen = false }
-        ) {
-            ViewAiReportScreen(
-                promptTitle = uiState.genericPromptTitle,
-                reportIcon = effectiveReportIcon,
-                perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
-                everyItems = viewEveryItems,
-                internalPrompts = aiSettings.internalPrompts,
-                useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
-                iconRefreshTick = uiState.iconRefreshTick,
-                onMissingPromptIcon = promptIconCallbacks.onKickoff,
-                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
-                moderationFlagged = moderationFlagged,
-                // Each handler launches its destination without
-                // tearing down `showViewReportScreen` — the View
-                // screen stays in the back-stack underneath so
-                // Android-back from the destination falls back to
-                // the View grid. The destination's own overlay
-                // (showViewer / showIconsView / htmlPreviewDetail /
-                // …) renders ABOVE the View screen render block in
-                // this file's if-chain so the user sees the
-                // destination on top.
-                onViewPrompt = {
-                    selectedAgentForViewer = null
-                    viewerSection = "prompt"
-                    showViewer = true
-                },
-                onViewCosts = {
-                    selectedAgentForViewer = null
-                    viewerSection = "costs"
-                    showViewer = true
-                },
-                onViewReports = {
-                    selectedAgentForViewer = null
-                    viewerSection = null
-                    showViewer = true
-                },
-                onOpenHtmlPreview = {
-                    htmlPreviewDetail = ReportExportDetail.COMPLETE
-                },
-                onViewLog = {
-                    val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    val filename = "applog_" +
-                        day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
-                    onNavigateToAppLog(filename, "#$currentReportId")
-                },
-                onViewIcons = {
-                    showIconsView = true
-                },
-                onViewTrace = { onNavigateToTrace(currentReportId) },
-                onBack = { showViewReportScreen = false }
-            )
-        }
-        return
-    }
-    if (showViewer && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showViewer = false; viewerSection = null }) {
-            ReportsViewerScreen(
-                reportId = currentReportId,
-                initialSelectedAgentId = selectedAgentForViewer,
-                initialSection = viewerSection,
-                onDismiss = { showViewer = false; viewerSection = null },
-                onNavigateHome = onNavigateHome,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onContinueWithCurrent = onContinueWithCurrent,
-                onContinueWithAgentPicker = onContinueWithAgentPicker,
-                onContinueWithOnTheFly = onContinueWithOnTheFly,
-                onRemoveAgent = { rid, aid ->
-                    onRemoveAgent(rid, aid)
-                    secondaryRefreshTick++
-                },
-                onRegenerateAgent = onRegenerateAgent
-            )
-        }
-        return
-    }
-    val singleAgentId = singleResultAgentId
-    // Layer-don't-replace: when agentIconDetailFor is set FROM the
-    // model-response screen (via the big-icon tap), keep
-    // singleResultAgentId alive in the back stack and let the
-    // agentIconDetailFor block lower down render its overlay on top.
-    // Back from the Agent Icon screen clears only agentIconDetailFor,
-    // re-renders this branch, and the user lands back on Model response.
-    if (singleAgentId != null && currentReportId != null && agentIconDetailFor == null) {
-        // navigate-to-report shortcut (top-left report-icon tap) skips
-        // every layered overlay above the result screen. Clears the
-        // icons-grid flag in addition to singleResultAgentId so a user
-        // who reached Model response via View → Icons lands on the
-        // result screen in one tap, not back at the grid.
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { singleResultAgentId = null; showIconsView = false }) {
-            ReportSingleResultScreen(
-                reportId = currentReportId,
-                agentId = singleAgentId,
-                onBack = { singleResultAgentId = null },
-                onNavigateHome = onNavigateHome,
-                onNavigateToModelInfo = onNavigateToModelInfo,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onRemoveAgent = { rid, aid ->
-                    onRemoveAgent(rid, aid)
-                    // Refire the totals LaunchedEffect so the
-                    // freshly-bumped Report.costsFromDeletedItems
-                    // appears on the result page without waiting
-                    // for some other state change.
-                    secondaryRefreshTick++
-                },
-                onRegenerateAgent = onRegenerateAgent,
-                onContinueWithCurrent = onContinueWithCurrent,
-                onContinueWithAgentPicker = onContinueWithAgentPicker,
-                onContinueWithOnTheFly = onContinueWithOnTheFly,
-                onOpenAgentIcon = { aid -> agentIconDetailFor = aid }
-            )
-        }
-        return
-    }
-    if (showAdvancedParameters) {
-        ReportAdvancedParametersScreen(currentParameters = advancedParameters, onApply = { onAdvancedParametersChange(it); showAdvancedParameters = false }, onBack = { showAdvancedParameters = false })
-        return
-    }
+    if (ReportPrimaryOverlays(
+            showIconsView = showIconsView,
+            singleResultAgentId = singleResultAgentId,
+            currentReportId = currentReportId,
+            effectiveReportIcon = effectiveReportIcon,
+            loadedReportTitle = loadedReportTitle,
+            showViewReportScreen = showViewReportScreen,
+            showViewer = showViewer,
+            htmlPreviewDetail = htmlPreviewDetail,
+            openMetaResultId = openMetaResultId,
+            openTranslationRunId = openTranslationRunId,
+            listKind = listKind,
+            secondaryRuns = secondaryRuns,
+            aiSettings = aiSettings,
+            uiState = uiState,
+            promptIconCallbacks = promptIconCallbacks,
+            translationIconCallbacks = translationIconCallbacks,
+            loadedReportTimestamp = loadedReportTimestamp,
+            selectedAgentForViewer = selectedAgentForViewer,
+            viewerSection = viewerSection,
+            agentIconDetailFor = agentIconDetailFor,
+            showAdvancedParameters = showAdvancedParameters,
+            advancedParameters = advancedParameters,
+            onShowIconsViewChange = { showIconsView = it },
+            onSingleResultAgentIdChange = { singleResultAgentId = it },
+            onShowViewReportScreenChange = { showViewReportScreen = it },
+            onShowViewerChange = { showViewer = it },
+            onViewerSectionChange = { viewerSection = it },
+            onSelectedAgentForViewerChange = { selectedAgentForViewer = it },
+            onHtmlPreviewDetailChange = { htmlPreviewDetail = it },
+            onOpenMetaResultIdChange = { openMetaResultId = it },
+            onOpenTranslationRunIdChange = { openTranslationRunId = it },
+            onListTargetChange = { kind, name, icons ->
+                listKind = kind
+                listFilterByName = name
+                listIsFanIcons = icons
+            },
+            onNavigateHome = onNavigateHome,
+            onNavigateToTrace = onNavigateToTrace,
+            onNavigateToAppLog = onNavigateToAppLog,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onContinueWithCurrent = onContinueWithCurrent,
+            onContinueWithAgentPicker = onContinueWithAgentPicker,
+            onContinueWithOnTheFly = onContinueWithOnTheFly,
+            onRemoveAgent = onRemoveAgent,
+            onRegenerateAgent = onRegenerateAgent,
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onOpenAgentIcon = { agentIconDetailFor = it },
+            onSecondaryRefresh = onSecondaryRefresh,
+            onAdvancedParametersChange = onAdvancedParametersChange,
+            onShowAdvancedParametersChange = { showAdvancedParameters = it }
+        )
+    ) return
 
     // Deposit picked rows into whichever list the active picker is
     // bound to. The same overlays serve the New-Report SelectionPhase
@@ -2262,28 +1841,28 @@ fun ReportsScreen(
                     onDeleteRun = { srcRid, id ->
                         scope.launch {
                             translationLifecycle.onDeleteRun(srcRid, id)?.join()
-                            secondaryRefreshTick++
+                            onSecondaryRefresh()
                         }
                     },
                     onRestartFailed = { srcRid, runId ->
                         onRestartFailedTranslations(srcRid, runId)
-                        secondaryRefreshTick++
+                        onSecondaryRefresh()
                     },
                     onRemoveFailed = { srcRid, runId ->
                         onRemoveFailedTranslations(srcRid, runId)
-                        secondaryRefreshTick++
+                        onSecondaryRefresh()
                     },
                     onRemoveBenched = { srcRid, runId ->
                         onRemoveBenchedTranslations(srcRid, runId)
-                        secondaryRefreshTick++
+                        onSecondaryRefresh()
                     },
                     onRestartAll = { srcRid, runId ->
                         onRestartAllTranslations(srcRid, runId)
-                        secondaryRefreshTick++
+                        onSecondaryRefresh()
                     },
                     onStartMissing = { srcRid, runId ->
                         onStartMissingTranslations(srcRid, runId)
-                        secondaryRefreshTick++
+                        onSecondaryRefresh()
                     },
                     onCancelItem = { runId, itemId -> translationLifecycle.onCancelItem(runId, itemId) },
                     onDeleteSecondaryRow = { srcRid, resultId -> onDeleteSecondaryWithRefresh(srcRid, resultId) },
@@ -2328,7 +1907,7 @@ fun ReportsScreen(
             },
             onShowFanIcons = { listIsFanIcons = true },
             onShowResponses = { listIsFanIcons = false },
-            onSecondaryRefresh = { secondaryRefreshTick++ },
+            onSecondaryRefresh = onSecondaryRefresh,
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
             onBulkDeleteSecondaries = onBulkDeleteSecondaries,
@@ -2522,217 +2101,651 @@ fun ReportsScreen(
         return
     }
 
-    // Main UI
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        // Static page title in the menu bar by default; the dynamic
-        // prompt title surfaces as a green sub-header inside the body.
-        val promptTitle = uiState.genericPromptTitle
-        val barTitle = "Report - manage"
-        // Wire the title bar's report-icon tap to open the View
-        // screen (same destination as the title tap and the ℹ️
-        // icon). TitleBar reads LocalNavigateToCurrentReport for
-        // that tap; on overlays it points back to Manage, so on
-        // Manage itself we point it forward to View.
-        CompositionLocalProvider(
-            LocalNavigateToCurrentReport provides (
-                if (isGenerating && currentReportId != null) {
-                    { showViewReportScreen = true }
-                } else null
-            )
-        ) {
-        TitleBar(
-            helpTopic = "report_result_generation",
-            title = barTitle,
-            // Tap title → flip to "Report - view" (same condition as
-            // the ℹ️ icon below — only meaningful when a report
-            // exists). Hidden during selection / pre-generation.
-            onTitleClick = if (isGenerating && currentReportId != null) {
-                { showViewReportScreen = true }
-            } else null,
-            subject = if (isGenerating) promptTitle else null,
-            // Resolved emoji renders as the absolute leftmost icon
-            // when present; falls back to 📝 while icon-gen is in
-            // flight or after it errored. Hidden during the selection
-            // phase (no report yet).
-            reportIcon = if (iconGenEnabled && isGenerating) (reportIcon?.takeIf { it.isNotEmpty() } ?: "📝") else null,
-            onBackClick = onDismiss,
-            onReload = if (isGenerating && currentReportId != null && isComplete) {
-                { showRegenerateConfirm = true }
-            } else null,
-            onTrace = if (isGenerating && currentReportId != null) {
-                { onNavigateToTrace(currentReportId) }
-            } else null,
-            onDelete = if (isGenerating && currentReportId != null) {
-                { showDeleteConfirm = true }
-            } else null,
-            // ℹ️ opens the new [ViewAiReportScreen] tile-grid launcher
-            // for every sub-view this report exposes. Replaces the old
-            // model-info picker AlertDialog (now removed).
-            onInfo = if (isGenerating && currentReportId != null) {
-                { showViewReportScreen = true }
-            } else null,
-            // 💬: start a fresh chat seeded with the report's prompt.
-            // Wired only on the results page (isGenerating == true) and
-            // only when the prompt text is non-blank.
-            onChat = if (isGenerating && uiState.genericPromptText.isNotBlank()) {
-                { onChatWithReportPrompt(uiState.genericPromptText) }
-            } else null,
-            // 📤: opens the existing format-picker export sheet (HTML
-            // / PDF / Word / OpenDocument / JSON / Zipped HTML). The
-            // in-action-row Export button used to do this — the icon
-            // replaces it.
-            onShare = if (isGenerating && currentReportId != null && isComplete) {
-                { showExport = true }
-            } else null
-        )
-        }
-        if (showRegenerateConfirm && currentReportId != null) {
+    val generationHandlers = GenerationPhaseHandlers(
+        onViewAgent = { agentId -> singleResultAgentId = agentId },
+        onShare = { showExport = true },
+        onTrace = { currentReportId?.let(onNavigateToTrace) },
+        onDelete = { showDeleteConfirm = true },
+        onCopy = { currentReportId?.let(onCopyReport) },
+        onTogglePin = { currentReportId?.let(onTogglePinReport) },
+        onTranslate = { showTranslateLanguagePicker = true },
+        onOpenMetaPicker = { showMetaPicker = true },
+        onOpenFanOutPicker = { showFanOutPicker = true },
+        onOpenRerankPicker = { showRerankPicker = true },
+        onOpenModerationPicker = { showModerationPicker = true },
+        onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
+        onViewReports = {
+            selectedAgentForViewer = null; viewerSection = null; showViewer = true
+        },
+        onViewPrompt = {
+            selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
+        },
+        onViewCosts = {
+            selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
+        },
+        onViewIcons = { showIconsView = true },
+        onViewLog = {
             val rid = currentReportId
-            val agentCount = models.size
-            com.ai.ui.shared.ReloadConfirmationDialog(
-                target = "",
-                title = "Regenerate every agent?",
-                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
-                confirmLabel = "Regenerate",
-                onConfirm = {
-                    showRegenerateConfirm = false
-                    onRegenerate(rid)
-                },
-                onDismiss = { showRegenerateConfirm = false }
-            )
-        }
-        // Dynamic per-report sub-header — renders below the static
-        // page title for the result phase. HardcodedSubjectRow
-        // self-gates on the HARDCODED mode and applies the shared
-        // padding contract.
-        if (isGenerating) {
-            com.ai.ui.shared.HardcodedSubjectRow(uiState.genericPromptTitle)
-        }
-        // Result page: 2dp keeps a visible seam between the bar and
-        // the action row. Selection phase has no HardcodedSubjectRow
-        // above it, so no Spacer at all — SelectionPhase brings its
-        // own padding.
-        if (isGenerating) Spacer(modifier = Modifier.height(2.dp))
+            if (rid != null) {
+                val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
+                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                val filename = "applog_" +
+                    day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
+                onNavigateToAppLog(filename, "#$rid")
+            }
+        },
+        onEditTitle = { showEditTitle = true },
+        onEditPromptInline = { showEditPrompt = true },
+        onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
+        onEditParametersInline = { showEditParameters = true },
+        onRequestRegenerate = { showRegenerateConfirm = true },
+        onRequestDelete = { showDeleteConfirm = true },
+        onRequestExport = { showExport = true },
+        onCancelTranslation = translationLifecycle.onCancelRun,
+        onViewSecondaryName = { name, kind ->
+            listKind = kind; listFilterByName = name; listIsFanIcons = false
+        },
+        onViewFanIcons = { name ->
+            listKind = SecondaryKind.META
+            listFilterByName = name
+            listIsFanIcons = true
+        },
+        onOpenSecondaryRun = { id -> openMetaResultId = id },
+        onOpenTranslationRun = { runId -> openTranslationRunId = runId },
+        onOpenMeta = { showMetaScreen = true },
+        onNavigateToTraceFile = onNavigateToTraceFile,
+        onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
+        onOpenIconDetail = { showIconDetail = true },
+        onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
+        onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
+        onPrevReport = onPrevReport,
+        onNextReport = onNextReport,
+        onMissingPromptIcon = promptIconCallbacks.onKickoff,
+        onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
+        onMissingTranslationIcon = translationIconCallbacks.onKickoff,
+        onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language }
+    )
+    ReportMainContent(
+        uiState = uiState,
+        isGenerating = isGenerating,
+        isComplete = isComplete,
+        reportsProgress = reportsProgress,
+        reportsTotal = reportsTotal,
+        reportsAgentResults = reportsAgentResults,
+        currentReportId = currentReportId,
+        iconGenEnabled = iconGenEnabled,
+        showRegenerateConfirm = showRegenerateConfirm,
+        models = models,
+        selectedParametersIds = selectedParametersIds,
+        advancedParameters = advancedParameters,
+        generationHandlers = generationHandlers,
+        secondaryCounts = secondaryCounts,
+        costsFromDeletedItems = costsFromDeletedItems,
+        secondaryRuns = secondaryRuns,
+        secondaryTotals = secondaryTotals,
+        translationRuns = translationRuns,
+        translationRunSummaries = translationRunSummaries,
+        fanOutSummaries = fanOutSummaries,
+        reportIcon = reportIcon,
+        reportIconError = reportIconError,
+        reportIconCost = reportIconCost,
+        reportIconModel = reportIconModel,
+        languageIconCost = languageIconCost,
+        agentIconRows = agentIconRows,
+        hasPrevReport = hasPrevReport,
+        hasNextReport = hasNextReport,
+        onDismiss = onDismiss,
+        onOpenViewReport = { showViewReportScreen = true },
+        onRequestRegenerate = { showRegenerateConfirm = true },
+        onDismissRegenerateConfirm = { showRegenerateConfirm = false },
+        onRegenerate = onRegenerate,
+        onChatWithReportPrompt = onChatWithReportPrompt,
+        onAddFlock = { showSelectFlock = true },
+        onAddAgent = { showSelectAgent = true },
+        onAddSwarm = { showSelectSwarm = true },
+        onAddModel = { showSelectProvider = true },
+        onAddAllModels = { showSelectAllModels = true },
+        onAddFromReport = { showSelectFromReport = true },
+        onRemoveModel = { i -> models = models.filterIndexed { idx, _ -> idx != i } },
+        onClearAllModels = { models = emptyList() },
+        onAdvancedParams = { showAdvancedParameters = true },
+        onParametersChange = { selectedParametersIds = it },
+        onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
+        onUpdateModelList = { uiState.editModeReportId?.let { onUpdateModelList(it, models) } },
+        onAttachKnowledgeBases = onAttachKnowledgeBases,
+        onSystemPromptChange = onSystemPromptChange
+    )
+}
 
-        if (!isGenerating) {
-            // Selection phase
-            val editModeRid = uiState.editModeReportId
-            SelectionPhase(
-                models = models,
-                aiSettings = aiSettings,
-                selectedParametersIds = selectedParametersIds,
-                advancedParameters = advancedParameters,
-                editModeReportId = editModeRid,
-                onAddFlock = { showSelectFlock = true },
-                onAddAgent = { showSelectAgent = true },
-                onAddSwarm = { showSelectSwarm = true },
-                onAddModel = { showSelectProvider = true },
-                onAddAllModels = { showSelectAllModels = true },
-                onAddFromReport = { showSelectFromReport = true },
-                onRemoveModel = { i -> models = models.filterIndexed { idx, _ -> idx != i } },
-                onClearAll = { models = emptyList() },
-                onAdvancedParams = { showAdvancedParameters = true },
-                onParametersChange = { selectedParametersIds = it },
-                onGenerate = { type -> if (models.isNotEmpty()) onGenerate(models, selectedParametersIds, type) },
-                onUpdateModelList = { if (editModeRid != null) onUpdateModelList(editModeRid, models) },
-                attachedKnowledgeBaseIds = uiState.attachedKnowledgeBaseIds,
-                onAttachKnowledgeBases = onAttachKnowledgeBases,
-                selectedSystemPromptId = uiState.reportSystemPromptId,
-                onSystemPromptChange = onSystemPromptChange
-            )
+private data class ReportRuntimeState(
+    val secondaryCounts: SecondaryResultStorage.Counts,
+    val secondaryRuns: List<com.ai.data.SecondaryResult>,
+    val translationRunSummaries: List<TranslationRunSummary>,
+    val fanOutSummaries: List<FanOutRunSummary>,
+    val secondaryTotals: SecondaryTotals,
+    val costsFromDeletedItems: Double,
+    val reportIcon: String?,
+    val reportIconError: String?,
+    val reportIconCost: Double,
+    val reportIconModel: String?,
+    val languageIconCost: Double,
+    val agentIconRows: Map<String, AgentIconRow>,
+    val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
+    val loadedReportPrompt: String,
+    val loadedReportTitle: String?,
+    val loadedReportTimestamp: Long,
+    val effectiveReportIcon: String?,
+    val onSecondaryRefresh: () -> Unit,
+    val onDeleteSecondaryWithRefresh: (String, String) -> Unit
+)
+
+@Composable
+private fun rememberReportRuntimeState(
+    context: Context,
+    currentReportId: String?,
+    uiState: UiState,
+    isComplete: Boolean,
+    iconGenEnabled: Boolean,
+    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState>,
+    fanRuntime: FanRuntimeBundle,
+    fanOutEngine: com.ai.viewmodel.FanOutEngine?,
+    translationLifecycle: TranslationLifecycleCallbacks,
+    onResumeStaleRuns: (String) -> Unit,
+    onDeleteSecondary: (String, String) -> Unit
+): ReportRuntimeState {
+    var secondaryCounts by remember { mutableStateOf(SecondaryResultStorage.Counts(0, 0, 0, 0)) }
+    var secondaryRuns by remember { mutableStateOf(emptyList<com.ai.data.SecondaryResult>()) }
+    var translationRunSummaries by remember { mutableStateOf(emptyList<TranslationRunSummary>()) }
+    var fanOutSummaries by remember { mutableStateOf(emptyList<FanOutRunSummary>()) }
+    var secondaryTotals by remember { mutableStateOf(SecondaryTotals.ZERO) }
+    var costsFromDeletedItems by remember { mutableStateOf(0.0) }
+
+    var reportIcon by remember { mutableStateOf<String?>(null) }
+    var reportIconError by remember { mutableStateOf<String?>(null) }
+    var reportIconCost by remember { mutableStateOf(0.0) }
+    var reportIconModel by remember { mutableStateOf<String?>(null) }
+    var languageIconCost by remember { mutableStateOf(0.0) }
+    var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
+    var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
+    var loadedReportPrompt by remember { mutableStateOf("") }
+    var loadedReportTitle by remember { mutableStateOf<String?>(null) }
+    var loadedReportTimestamp by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
+        val rid = currentReportId
+        if (rid == null) {
+            reportIcon = null
+            reportIconError = null
+            reportIconCost = 0.0
+            reportIconModel = null
+            languageIconCost = 0.0
+            agentIconRows = emptyMap()
+            agentRecordsByAgentId = emptyMap()
+            loadedReportPrompt = ""
+            loadedReportTitle = null
+            loadedReportTimestamp = 0L
         } else {
-            // Generation phase
-            val generationHandlers = GenerationPhaseHandlers(
-                onViewAgent = { agentId -> singleResultAgentId = agentId },
-                onShare = { showExport = true },
-                onTrace = { currentReportId?.let(onNavigateToTrace) },
-                onDelete = { showDeleteConfirm = true },
-                onCopy = { currentReportId?.let(onCopyReport) },
-                onTogglePin = { currentReportId?.let(onTogglePinReport) },
-                onTranslate = { showTranslateLanguagePicker = true },
-                onOpenMetaPicker = { showMetaPicker = true },
-                onOpenFanOutPicker = { showFanOutPicker = true },
-                onOpenRerankPicker = { showRerankPicker = true },
-                onOpenModerationPicker = { showModerationPicker = true },
-                onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
-                onViewReports = {
-                    selectedAgentForViewer = null; viewerSection = null; showViewer = true
-                },
-                onViewPrompt = {
-                    selectedAgentForViewer = null; viewerSection = "prompt"; showViewer = true
-                },
-                onViewCosts = {
-                    selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
-                },
-                onViewIcons = { showIconsView = true },
-                onViewLog = {
-                    val rid = currentReportId
-                    if (rid != null) {
-                        val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
-                            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                        val filename = "applog_" +
-                            day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
-                        onNavigateToAppLog(filename, "#$rid")
-                    }
-                },
-                onEditTitle = { showEditTitle = true },
-                onEditPromptInline = { showEditPrompt = true },
-                onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
-                onEditParametersInline = { showEditParameters = true },
-                onRequestRegenerate = { showRegenerateConfirm = true },
-                onRequestDelete = { showDeleteConfirm = true },
-                onRequestExport = { showExport = true },
-                onCancelTranslation = translationLifecycle.onCancelRun,
-                onViewSecondaryName = { name, kind ->
-                    listKind = kind; listFilterByName = name; listIsFanIcons = false
-                },
-                onViewFanIcons = { name ->
-                    listKind = SecondaryKind.META
-                    listFilterByName = name
-                    listIsFanIcons = true
-                },
-                onOpenSecondaryRun = { id -> openMetaResultId = id },
-                onOpenTranslationRun = { runId -> openTranslationRunId = runId },
-                onOpenMeta = { showMetaScreen = true },
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
-                onOpenIconDetail = { showIconDetail = true },
-                onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
-                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
-                onPrevReport = onPrevReport,
-                onNextReport = onNextReport,
-                onMissingPromptIcon = promptIconCallbacks.onKickoff,
-                onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
-                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
-                onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language }
-            )
-            GenerationPhase(
-                uiState = uiState,
-                isComplete = isComplete,
-                reportsProgress = reportsProgress,
-                reportsTotal = reportsTotal,
-                reportsAgentResults = reportsAgentResults,
-                currentReportId = currentReportId,
-                handlers = generationHandlers,
-                secondaryCounts = secondaryCounts,
-                costsFromDeletedItems = costsFromDeletedItems,
-                secondaryRuns = secondaryRuns,
-                secondaryTotals = secondaryTotals,
-                translationRuns = translationRuns,
-                translationRunSummaries = translationRunSummaries,
-                fanOutSummaries = fanOutSummaries,
-                metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                fanOutPrompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
-                reportIcon = reportIcon,
-                reportIconError = reportIconError,
-                reportIconCost = reportIconCost,
-                reportIconModel = reportIconModel,
-                agentIconRows = agentIconRows,
-                hasPrevReport = hasPrevReport,
-                hasNextReport = hasNextReport
-            )
+            val r = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, rid) }
+            reportIcon = r?.icon
+            reportIconError = r?.iconErrorMessage
+            reportIconCost = (r?.iconInputCost ?: 0.0) + (r?.iconOutputCost ?: 0.0)
+            reportIconModel = r?.iconModel
+            languageIconCost = (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
+            agentIconRows = r?.agents?.associate { ra ->
+                ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
+            } ?: emptyMap()
+            agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
+            loadedReportPrompt = r?.prompt.orEmpty()
+            loadedReportTitle = r?.title
+            loadedReportTimestamp = r?.timestamp ?: 0L
         }
     }
+
+    var secondaryRefreshTick by remember { mutableStateOf(0) }
+    val onSecondaryRefresh: () -> Unit = { secondaryRefreshTick++ }
+
+    LaunchedEffect(currentReportId) {
+        val rid = currentReportId ?: return@LaunchedEffect
+        onResumeStaleRuns(rid)
+        kotlinx.coroutines.delay(150)
+        secondaryRefreshTick++
+    }
+
+    LaunchedEffect(currentReportId) {
+        val rid = currentReportId ?: return@LaunchedEffect
+        kotlinx.coroutines.delay(800)
+        val pairs = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.listForReport(context, rid)
+                .filter { it.fanOutSourceAgentId != null }
+        }
+        pairs.groupBy { it.metaPromptId }
+            .forEach { (metaPromptId, rows) ->
+                if (metaPromptId == null) return@forEach
+                val started = rows.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
+                if (started) fanRuntime.onLaunchFanIconsBatch(rid, metaPromptId)
+            }
+    }
+
+    if (fanOutEngine != null) {
+        val engineRuns by fanOutEngine.runs.collectAsState()
+        val ridForKeys = currentReportId
+        val currentRunKeys = remember(engineRuns, ridForKeys) {
+            if (ridForKeys == null) emptySet()
+            else engineRuns.keys.filter { it.startsWith("$ridForKeys|") }.toSet()
+        }
+        LaunchedEffect(currentRunKeys) {
+            secondaryRefreshTick++
+        }
+    }
+
+    val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick) {
+        val rid = currentReportId ?: run {
+            secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
+            secondaryRuns = emptyList()
+            translationRunSummaries = emptyList()
+            fanOutSummaries = emptyList()
+            secondaryTotals = SecondaryTotals.ZERO
+            costsFromDeletedItems = 0.0
+            return@LaunchedEffect
+        }
+        costsFromDeletedItems = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, rid)?.costsFromDeletedItems ?: 0.0
+        }
+        suspend fun reload() {
+            withContext(Dispatchers.IO) {
+                val all = SecondaryResultStorage.listForReport(context, rid)
+                secondaryRuns = all
+                    .filter { it.kind != SecondaryKind.TRANSLATE }
+                    .filter { it.fanOutSourceAgentId == null }
+                    .sortedByDescending { it.timestamp }
+                translationRunSummaries = buildTranslationRunSummaries(
+                    all.filter { it.kind == SecondaryKind.TRANSLATE }
+                )
+                fanOutSummaries = buildFanOutSummaries(
+                    all.filter { it.fanOutSourceAgentId != null }
+                )
+                secondaryCounts = SecondaryResultStorage.Counts(
+                    rerank = all.count { it.kind == SecondaryKind.RERANK },
+                    meta = all.count { it.kind == SecondaryKind.META },
+                    moderation = all.count { it.kind == SecondaryKind.MODERATION },
+                    translate = all.count { it.kind == SecondaryKind.TRANSLATE }
+                )
+                secondaryTotals = SecondaryTotals(
+                    inputTokens = all.sumOf { it.tokenUsage?.inputTokens ?: 0 },
+                    outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
+                    inputCost = all.sumOf { it.inputCost ?: 0.0 },
+                    outputCost = all.sumOf { it.outputCost ?: 0.0 }
+                )
+            }
+        }
+        reload()
+        if (uiState.activeSecondaryBatches > 0) {
+            while (true) {
+                delay(500)
+                reload()
+            }
+        }
+    }
+
+    LaunchedEffect(finishedSignature) {
+        if (finishedSignature.isNotEmpty()) {
+            delay(200)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                finishedSignature.forEach { translationLifecycle.onConsumeRun(it) }
+            }
+        }
+    }
+
+    val effectiveReportIcon =
+        if (iconGenEnabled && currentReportId != null) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝"
+        else null
+
+    return ReportRuntimeState(
+        secondaryCounts = secondaryCounts,
+        secondaryRuns = secondaryRuns,
+        translationRunSummaries = translationRunSummaries,
+        fanOutSummaries = fanOutSummaries,
+        secondaryTotals = secondaryTotals,
+        costsFromDeletedItems = costsFromDeletedItems,
+        reportIcon = reportIcon,
+        reportIconError = reportIconError,
+        reportIconCost = reportIconCost,
+        reportIconModel = reportIconModel,
+        languageIconCost = languageIconCost,
+        agentIconRows = agentIconRows,
+        agentRecordsByAgentId = agentRecordsByAgentId,
+        loadedReportPrompt = loadedReportPrompt,
+        loadedReportTitle = loadedReportTitle,
+        loadedReportTimestamp = loadedReportTimestamp,
+        effectiveReportIcon = effectiveReportIcon,
+        onSecondaryRefresh = onSecondaryRefresh,
+        onDeleteSecondaryWithRefresh = { rid, sid ->
+            onDeleteSecondary(rid, sid)
+            secondaryRefreshTick++
+        }
+    )
+}
+
+@Composable
+private fun HandleExternalReportInstructions(
+    context: Context,
+    activity: Activity?,
+    uiState: UiState,
+    aiSettings: Settings,
+    isGenerating: Boolean,
+    isComplete: Boolean,
+    currentReportId: String?,
+    models: List<ReportModel>,
+    selectedParametersIds: List<String>,
+    onModelsChange: (List<ReportModel>) -> Unit,
+    onGenerate: (List<ReportModel>, List<String>, ReportType) -> Unit,
+    onOpenView: () -> Unit,
+    onClearExternalInstructions: () -> Unit
+) {
+    data class ExternalResolution(val resolved: List<ReportModel>, val unresolved: List<String>)
+    var externalAutoGenerated by rememberSaveable { mutableStateOf(false) }
+    val externalRes = remember(
+        uiState.externalAgentNames,
+        uiState.externalFlockNames,
+        uiState.externalSwarmNames,
+        uiState.externalModelSpecs
+    ) {
+        val result = mutableListOf<ReportModel>()
+        val missing = mutableListOf<String>()
+        uiState.externalAgentNames.forEach { name ->
+            val a = aiSettings.agents.find { it.name.equals(name, ignoreCase = true) }
+            val rm = a?.let { expandAgentToModel(it, aiSettings) }
+            if (rm != null) result.add(rm) else missing.add("agent: $name")
+        }
+        uiState.externalFlockNames.forEach { name ->
+            val f = aiSettings.flocks.find { it.name.equals(name, ignoreCase = true) }
+            if (f != null) result.addAll(expandFlockToModels(f, aiSettings)) else missing.add("flock: $name")
+        }
+        uiState.externalSwarmNames.forEach { name ->
+            val s = aiSettings.swarms.find { it.name.equals(name, ignoreCase = true) }
+            if (s != null) result.addAll(expandSwarmToModels(s, aiSettings)) else missing.add("swarm: $name")
+        }
+        uiState.externalModelSpecs.forEach { spec ->
+            val parts = spec.split("/", limit = 2)
+            val provider = AppService.findById(parts.getOrNull(0) ?: "")
+                ?: AppService.entries.find { it.id.equals(parts.getOrNull(0), ignoreCase = true) }
+            val model = parts.getOrNull(1)
+            if (provider != null && model != null) result.add(toReportModel(provider, model))
+            else missing.add("model: $spec")
+        }
+        ExternalResolution(deduplicateModels(result), missing)
+    }
+    val externalModels = externalRes.resolved
+    LaunchedEffect(externalRes.unresolved) {
+        if (externalRes.unresolved.isNotEmpty()) {
+            android.widget.Toast.makeText(
+                context,
+                "Unresolved external entries: ${externalRes.unresolved.joinToString(", ")}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    LaunchedEffect(externalModels, uiState.externalReportType) {
+        if (externalModels.isNotEmpty() && !externalAutoGenerated && !isGenerating && uiState.externalReportType != null && !uiState.externalSelect) {
+            externalAutoGenerated = true
+            val updatedModels = deduplicateModels(models + externalModels)
+            onModelsChange(updatedModels)
+            val type = if (uiState.externalReportType.equals("table", ignoreCase = true)) ReportType.TABLE else ReportType.CLASSIC
+            onGenerate(updatedModels, selectedParametersIds, type)
+        }
+    }
+
+    LaunchedEffect(externalModels) {
+        if (externalModels.isNotEmpty() && !externalAutoGenerated) {
+            onModelsChange(deduplicateModels(models + externalModels))
+        }
+    }
+
+    LaunchedEffect(isComplete, currentReportId) {
+        if (isComplete && currentReportId != null) {
+            val email = uiState.externalEmail
+            if (email != null && email.isNotBlank()) {
+                emailReportAsHtml(context, currentReportId, email)
+                if (uiState.externalReturn) activity?.finish()
+            }
+            val next = uiState.externalNextAction
+            if (next != null) {
+                delay(500)
+                when (next.lowercase()) {
+                    "view" -> onOpenView()
+                    "share" -> shareReportAsHtml(context, currentReportId)
+                    "browser" -> openReportInChrome(context, currentReportId)
+                    "email" -> if (uiState.generalSettings.defaultEmail.isNotBlank()) {
+                        emailReportAsHtml(context, currentReportId, uiState.generalSettings.defaultEmail)
+                    }
+                }
+                if (uiState.externalReturn) {
+                    delay(1000)
+                    activity?.finish()
+                }
+            }
+            if (
+                uiState.externalEmail != null ||
+                uiState.externalNextAction != null ||
+                uiState.externalReturn ||
+                uiState.externalReportType != null ||
+                uiState.externalAgentNames.isNotEmpty() ||
+                uiState.externalFlockNames.isNotEmpty() ||
+                uiState.externalSwarmNames.isNotEmpty() ||
+                uiState.externalModelSpecs.isNotEmpty()
+            ) {
+                onClearExternalInstructions()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportPrimaryOverlays(
+    showIconsView: Boolean,
+    singleResultAgentId: String?,
+    currentReportId: String?,
+    effectiveReportIcon: String?,
+    loadedReportTitle: String?,
+    showViewReportScreen: Boolean,
+    showViewer: Boolean,
+    htmlPreviewDetail: ReportExportDetail?,
+    openMetaResultId: String?,
+    openTranslationRunId: String?,
+    listKind: SecondaryKind?,
+    secondaryRuns: List<com.ai.data.SecondaryResult>,
+    aiSettings: Settings,
+    uiState: UiState,
+    promptIconCallbacks: InternalPromptIconCallbacks,
+    translationIconCallbacks: TranslationIconCallbacks,
+    loadedReportTimestamp: Long,
+    selectedAgentForViewer: String?,
+    viewerSection: String?,
+    agentIconDetailFor: String?,
+    showAdvancedParameters: Boolean,
+    advancedParameters: AgentParameters?,
+    onShowIconsViewChange: (Boolean) -> Unit,
+    onSingleResultAgentIdChange: (String?) -> Unit,
+    onShowViewReportScreenChange: (Boolean) -> Unit,
+    onShowViewerChange: (Boolean) -> Unit,
+    onViewerSectionChange: (String?) -> Unit,
+    onSelectedAgentForViewerChange: (String?) -> Unit,
+    onHtmlPreviewDetailChange: (ReportExportDetail?) -> Unit,
+    onOpenMetaResultIdChange: (String?) -> Unit,
+    onOpenTranslationRunIdChange: (String?) -> Unit,
+    onListTargetChange: (SecondaryKind?, String?, Boolean) -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTrace: (String) -> Unit,
+    onNavigateToAppLog: (String, String) -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onContinueWithCurrent: (String, String) -> Unit,
+    onContinueWithAgentPicker: (String, String) -> Unit,
+    onContinueWithOnTheFly: (String, String) -> Unit,
+    onRemoveAgent: (String, String) -> Unit,
+    onRegenerateAgent: (String, String) -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit,
+    onOpenAgentIcon: (String) -> Unit,
+    onSecondaryRefresh: () -> Unit,
+    onAdvancedParametersChange: (AgentParameters?) -> Unit,
+    onShowAdvancedParametersChange: (Boolean) -> Unit
+): Boolean {
+    if (showIconsView && singleResultAgentId == null && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { onShowIconsViewChange(false) }
+        ) {
+            ReportIconsGridScreen(
+                reportId = currentReportId,
+                onOpenAgent = { agentId -> onSingleResultAgentIdChange(agentId) },
+                onBack = { onShowIconsViewChange(false) }
+            )
+        }
+        return true
+    }
+
+    if (showViewReportScreen && currentReportId != null
+        && !showViewer && !showIconsView
+        && htmlPreviewDetail == null
+        && openMetaResultId == null
+        && openTranslationRunId == null
+        && listKind == null
+    ) {
+        val viewEveryItems = remember(secondaryRuns, aiSettings) {
+            buildEveryItems(
+                secondaryRuns, aiSettings,
+                onOpenSecondaryRun = { id -> onOpenMetaResultIdChange(id) },
+                onViewSecondaryName = { name, kind -> onListTargetChange(kind, name, false) },
+                onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) }
+            )
+        }
+        val moderationFlagged = remember(secondaryRuns) {
+            anyModerationFlagged(secondaryRuns)
+        }
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { onShowViewReportScreenChange(false) }
+        ) {
+            ViewAiReportScreen(
+                promptTitle = uiState.genericPromptTitle,
+                reportIcon = effectiveReportIcon,
+                perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
+                everyItems = viewEveryItems,
+                internalPrompts = aiSettings.internalPrompts,
+                useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
+                iconRefreshTick = uiState.iconRefreshTick,
+                onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                onMissingTranslationIcon = translationIconCallbacks.onKickoff,
+                moderationFlagged = moderationFlagged,
+                onViewPrompt = {
+                    onSelectedAgentForViewerChange(null)
+                    onViewerSectionChange("prompt")
+                    onShowViewerChange(true)
+                },
+                onViewCosts = {
+                    onSelectedAgentForViewerChange(null)
+                    onViewerSectionChange("costs")
+                    onShowViewerChange(true)
+                },
+                onViewReports = {
+                    onSelectedAgentForViewerChange(null)
+                    onViewerSectionChange(null)
+                    onShowViewerChange(true)
+                },
+                onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
+                onViewLog = {
+                    val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
+                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    val filename = "applog_" +
+                        day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
+                    onNavigateToAppLog(filename, "#$currentReportId")
+                },
+                onViewIcons = { onShowIconsViewChange(true) },
+                onViewTrace = { onNavigateToTrace(currentReportId) },
+                onBack = { onShowViewReportScreenChange(false) }
+            )
+        }
+        return true
+    }
+
+    if (showViewer && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
+                onShowViewerChange(false)
+                onViewerSectionChange(null)
+            }
+        ) {
+            ReportsViewerScreen(
+                reportId = currentReportId,
+                initialSelectedAgentId = selectedAgentForViewer,
+                initialSection = viewerSection,
+                onDismiss = {
+                    onShowViewerChange(false)
+                    onViewerSectionChange(null)
+                },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
+                onRemoveAgent = { rid, aid ->
+                    onRemoveAgent(rid, aid)
+                    onSecondaryRefresh()
+                },
+                onRegenerateAgent = onRegenerateAgent
+            )
+        }
+        return true
+    }
+
+    if (singleResultAgentId != null && currentReportId != null && agentIconDetailFor == null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides {
+                onSingleResultAgentIdChange(null)
+                onShowIconsViewChange(false)
+            }
+        ) {
+            ReportSingleResultScreen(
+                reportId = currentReportId,
+                agentId = singleResultAgentId,
+                onBack = { onSingleResultAgentIdChange(null) },
+                onNavigateHome = onNavigateHome,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onRemoveAgent = { rid, aid ->
+                    onRemoveAgent(rid, aid)
+                    onSecondaryRefresh()
+                },
+                onRegenerateAgent = onRegenerateAgent,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
+                onOpenAgentIcon = onOpenAgentIcon
+            )
+        }
+        return true
+    }
+
+    if (showAdvancedParameters) {
+        ReportAdvancedParametersScreen(
+            currentParameters = advancedParameters,
+            onApply = {
+                onAdvancedParametersChange(it)
+                onShowAdvancedParametersChange(false)
+            },
+            onBack = { onShowAdvancedParametersChange(false) }
+        )
+        return true
+    }
+
+    return false
 }
 
 /** Detail overlay reached by tapping the inline 'icon' row on the

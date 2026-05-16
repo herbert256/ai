@@ -228,6 +228,10 @@ internal fun ColumnScope.GenerationPhase(
      *  middle text displays this instead of the bundled icon-prompt
      *  agent's resolved model. */
     reportIconModel: String? = null,
+    /** Report.languageIconInputCost + outputCost in USD. Folded into
+     *  the report total so the language-detection call is visible
+     *  in the grand-total row. */
+    languageIconCost: Double = 0.0,
     /** Per-agent icon results mirrored from disk, keyed by agentId.
      *  The parent screen rebuilds this on every iconRefreshTick bump
      *  so the row picks up new emojis / cleared values without a
@@ -578,7 +582,7 @@ internal fun ColumnScope.GenerationPhase(
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + reportIconCost
+        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost
 
     // Totals — sums tokens and cents across the per-agent rows, every
     // persisted meta run (rerank / summarize / compare / moderation /
@@ -1282,11 +1286,14 @@ internal fun LanguageRow(
     onOpenDetail: () -> Unit,
 ) {
     val context = LocalContext.current
-    data class LangSnapshot(val name: String?, val icon: String?, val error: String?)
-    val snapshot = produceState(initialValue = LangSnapshot(null, null, null), reportId, iconRefreshTick) {
+    data class LangSnapshot(val name: String?, val icon: String?, val error: String?, val cost: Double)
+    val snapshot = produceState(initialValue = LangSnapshot(null, null, null, 0.0), reportId, iconRefreshTick) {
         value = withContext(Dispatchers.IO) {
             val r = com.ai.data.ReportStorage.getReport(context, reportId)
-            LangSnapshot(r?.languageName, r?.languageIcon, r?.languageIconErrorMessage)
+            LangSnapshot(
+                r?.languageName, r?.languageIcon, r?.languageIconErrorMessage,
+                (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
+            )
         }
     }.value
     val running = snapshot.icon == null && snapshot.error == null
@@ -1319,6 +1326,10 @@ internal fun LanguageRow(
                 text, fontSize = 13.sp, color = color,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+        }
+        if (snapshot.cost > 0.0) {
+            Text(formatCents(snapshot.cost), fontSize = 10.sp,
+                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
