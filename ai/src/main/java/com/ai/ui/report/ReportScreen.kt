@@ -3519,18 +3519,15 @@ private fun MetaRunScreen(
         )
         // Primary CTA hoisted to the top — one tap to advance
         // regardless of how far the editable prompt has scrolled.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel, modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
-                enabled = editablePrompt.isNotBlank(),
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Continue", maxLines = 1, softWrap = false) }
-        }
+        // Cancel is dropped: the existing BackHandler at the top of
+        // this Composable routes Android back to onCancel, so a
+        // separate button isn't pulling weight.
+        Button(
+            onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
+            enabled = editablePrompt.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -3596,24 +3593,20 @@ private fun FanOutConfirmScreen(
             title = "Fan Out - run",
             onBackClick = onCancel
         )
-        // Primary CTA hoisted to the top — pairCount-gated Run +
-        // Cancel sit immediately under the TitleBar so they stay
-        // reachable without scrolling past the initiator / responder
-        // cards and the editable per-run prompt.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel, modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
-                },
-                enabled = pairCount > 0,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Run", maxLines = 1, softWrap = false) }
-        }
+        // Primary CTA hoisted to the top — pairCount-gated Run sits
+        // immediately under the TitleBar so it's reachable without
+        // scrolling past the initiator / responder cards and the
+        // editable per-run prompt. Cancel is dropped: the
+        // BackHandler at the top of this Composable already routes
+        // Android back to onCancel.
+        Button(
+            onClick = {
+                onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
+            },
+            enabled = pairCount > 0,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Run", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),

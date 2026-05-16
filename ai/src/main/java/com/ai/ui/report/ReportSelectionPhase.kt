@@ -61,6 +61,28 @@ internal fun ColumnScope.SelectionPhase(
 ) {
     val context = LocalContext.current
 
+    // Primary CTA hoisted to the top of SelectionPhase — Generate
+    // for a fresh report, Update model list when entered via Edit /
+    // Models on a finished report. Gated on `models.isNotEmpty()`,
+    // same behaviour as the previous bottom-of-page version. Clear
+    // stays at the bottom as a disposal action.
+    if (editModeReportId != null) {
+        Button(
+            onClick = onUpdateModelList,
+            enabled = models.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update model list", maxLines = 1, softWrap = false) }
+    } else {
+        Button(
+            onClick = { onGenerate(ReportType.CLASSIC) },
+            enabled = models.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Generate", maxLines = 1, softWrap = false) }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
     // +Report only makes sense when at least one saved report exists
     // — querying ReportStorage on entry. SelectionPhase doesn't get
     // re-composed mid-flight so a one-shot read is enough. Default
@@ -237,37 +259,13 @@ internal fun ColumnScope.SelectionPhase(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    // Final row — Clear sits to the left of the primary action so the
-    // destructive option is one tap away without being mistaken for
-    // the green Generate / Update button on the right. Clear collapses
-    // to weight(0) when nothing's selected so Generate takes the full
-    // width and the user isn't shown a dead button.
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (models.isNotEmpty()) {
-            OutlinedButton(
-                onClick = onClearAll,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Clear", maxLines = 1, softWrap = false) }
-        }
-        // Bottom action — Generate for a fresh report, or Update model
-        // list when the user entered via Edit / Models on a finished
-        // report. The Update path stages the new list and pops back
-        // without running; the user re-runs from Actions / Regenerate.
-        if (editModeReportId != null) {
-            Button(
-                onClick = onUpdateModelList,
-                enabled = models.isNotEmpty(),
-                modifier = Modifier.weight(2f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Update model list", maxLines = 1, softWrap = false) }
-        } else {
-            Button(
-                onClick = { onGenerate(ReportType.CLASSIC) },
-                enabled = models.isNotEmpty(),
-                modifier = Modifier.weight(2f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) { Text("Generate", maxLines = 1, softWrap = false) }
-        }
+    // Bottom row — Clear only (the primary CTA is hoisted to the top
+    // of SelectionPhase). Hidden when nothing's selected.
+    if (models.isNotEmpty()) {
+        OutlinedButton(
+            onClick = onClearAll,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Clear", maxLines = 1, softWrap = false) }
     }
 }

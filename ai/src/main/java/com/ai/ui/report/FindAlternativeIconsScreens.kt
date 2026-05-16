@@ -54,6 +54,17 @@ fun ModelSelectionScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
 
+        // Primary CTA hoisted to the top — kept gated on
+        // `models.isNotEmpty()` so the empty-state still shows a
+        // disabled button as a hint. Clear stays at the bottom.
+        Button(
+            onClick = onAction,
+            enabled = models.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = actionColor)
+        ) { androidx.compose.material3.Text(actionLabel, maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+
         // +Add chip row — same layout as SelectionPhase but fewer
         // sources matter for an icon: we keep all the same chips so
         // the affordance is familiar. +Report is conditional on
@@ -133,21 +144,15 @@ fun ModelSelectionScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (models.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = onClearAll,
-                    modifier = Modifier.weight(1f),
-                    colors = AppColors.outlinedButtonColors()
-                ) { androidx.compose.material3.Text("Clear", maxLines = 1, softWrap = false) }
-            }
-            Button(
-                onClick = onAction,
-                enabled = models.isNotEmpty(),
-                modifier = Modifier.weight(2f),
-                colors = ButtonDefaults.buttonColors(containerColor = actionColor)
-            ) { androidx.compose.material3.Text(actionLabel, maxLines = 1, softWrap = false) }
+        // Bottom row — Clear only (the primary CTA is hoisted to
+        // the top). Hidden when nothing's selected.
+        if (models.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = onClearAll,
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { androidx.compose.material3.Text("Clear", maxLines = 1, softWrap = false) }
         }
     }
 }

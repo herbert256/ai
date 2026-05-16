@@ -548,13 +548,11 @@ fun NewReportScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { title = ""; prompt = ""; attachedImage = null }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { showAttachChooser = true }, colors = AppColors.outlinedButtonColors()) {
-                Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
-            }
-            Button(
-                onClick = next@{
+        // Primary CTA hoisted into its own full-width row so the
+        // "advance" affordance is always reachable without picking
+        // it out of the Clear / 📎 row.
+        Button(
+            onClick = next@{
                     if (title.isBlank() || prompt.isBlank() || isModerating) return@next
                     val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
@@ -601,15 +599,28 @@ fun NewReportScreen(
                         }
                     }
                 },
-                enabled = title.isNotBlank() && prompt.isNotBlank() && !isModerating,
+            enabled = title.isNotBlank() && prompt.isNotBlank() && !isModerating,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) {
+            if (isModerating) {
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        // Secondary actions — Clear (wipes the form) and 📎 (attach
+        // image). Kept in their own row below the primary CTA so the
+        // green Next button stays visually distinct.
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { title = ""; prompt = ""; attachedImage = null },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-            ) {
-                if (isModerating) {
-                    CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Clear", maxLines = 1, softWrap = false) }
+            OutlinedButton(onClick = { showAttachChooser = true }, colors = AppColors.outlinedButtonColors()) {
+                Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
             }
         }
 
