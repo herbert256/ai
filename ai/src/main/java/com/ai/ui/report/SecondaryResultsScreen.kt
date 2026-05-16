@@ -2590,6 +2590,28 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
+    // New-style translation compare: fires when the active picker
+    // language renders a TRANSLATE overlay on top of this META
+    // (activeTranslateRow != null). Source = the seed META's own
+    // content; translation = the overlay TRANSLATE row's content.
+    // Wired to the title bar ↔ icon via onTranslationCompare.
+    var showLiveTranslationCompare by remember { mutableStateOf(false) }
+    val liveTranslateActive = activeTranslateRow
+    if (showLiveTranslationCompare && liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
+        val sourceLangLabel = result.targetLanguage?.takeIf { it.isNotBlank() } ?: "Original"
+        val translatedLangLabel = liveTranslateActive.targetLanguage?.takeIf { it.isNotBlank() } ?: activeLangName ?: "Translation"
+        TranslationCompareScreen(
+            title = "Translation — $title",
+            originalLabel = sourceLangLabel,
+            originalContent = result.content,
+            translatedLabel = translatedLangLabel,
+            translatedContent = liveTranslateActive.content,
+            onBack = { showLiveTranslationCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         TitleBar(
@@ -2608,6 +2630,9 @@ internal fun SecondaryResultDetailScreen(
                 else confirmDelete = true
             },
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
+                { showLiveTranslationCompare = true }
+            } else null,
             onCopy = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "secondary result") }
             },

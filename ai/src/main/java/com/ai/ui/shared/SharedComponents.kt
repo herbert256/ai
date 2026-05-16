@@ -289,6 +289,12 @@ data class TitleBarIcons(
     val onReload: (() -> Unit)?,
     val onDelete: (() -> Unit)?,
     val onTrace: (() -> Unit)?,
+    /** Open the source / translation split-view compare overlay.
+     *  Non-null only when the active screen is rendering a
+     *  translation of some content — e.g. a per-language TRANSLATE
+     *  overlay on top of a META detail, a back-translation row, or
+     *  an agent body shown in a non-source language. */
+    val onTranslationCompare: (() -> Unit)?,
     /** Captured from [LocalNavigateToCurrentReport] at TitleBar render
      *  time. Cannot be re-read from the local inside BottomIconBar
      *  itself — the bar lives at AppNavHost scope where the per-screen
@@ -489,6 +495,11 @@ fun TitleBar(
      *  this slot for the export-format-picker flow — the previous
      *  in-action-row Export button is gone. Null → icon hidden. */
     onShare: (() -> Unit)? = null,
+    /** Optional ↔ split-view compare hook. Non-null only when the
+     *  active screen is rendering a translation of some content;
+     *  the lambda typically pushes a [TranslationCompareScreen]
+     *  with the source and translated text. Null → icon hidden. */
+    onTranslationCompare: (() -> Unit)? = null,
     /** Resolved per-report emoji (e.g. 📊). When non-null the icon
      *  renders centred between the left button group and the right
      *  title on every report-scoped screen. Tap navigates back to the
@@ -539,6 +550,7 @@ fun TitleBar(
         onReload = onReload,
         onDelete = onDelete,
         onTrace = onTrace,
+        onTranslationCompare = onTranslationCompare,
         onMemo = null
     )
     if (state != null) {
@@ -688,6 +700,7 @@ private fun TitleBarActionStrip(
     onInfo: (() -> Unit)?,
     onCopy: (() -> Unit)?,
     onShare: (() -> Unit)?,
+    onTranslationCompare: (() -> Unit)?,
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
     onMemo: (() -> Unit)?,
@@ -705,6 +718,7 @@ private fun TitleBarActionStrip(
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
+        if (onTranslationCompare != null) TitleBarIcon("↔", Color.Unspecified, onTranslationCompare, width = 28.dp, scale = scale)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace != null) {
             Spacer(modifier = Modifier.width(2.dp * scale))
@@ -753,6 +767,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onReload = icons?.onReload
     val onDelete = icons?.onDelete
     val onTrace = icons?.onTrace
+    val onTranslationCompare = icons?.onTranslationCompare
     val onMemo = icons?.onMemo
     val extraGap = 2
     var stripBase = 0
@@ -763,6 +778,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     if (onCopy != null) slot(28)
     if (onShare != null) slot(28)
     if (onReload != null) slot(28)
+    if (onTranslationCompare != null) slot(28)
     if (onDelete != null) slot(22)
     if (onDelete != null && onTrace != null) stripBase += 2
     if (onTrace != null) slot(22)
@@ -818,6 +834,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onInfo = onInfo,
                 onCopy = onCopy,
                 onShare = onShare,
+                onTranslationCompare = onTranslationCompare,
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onMemo = onMemo,

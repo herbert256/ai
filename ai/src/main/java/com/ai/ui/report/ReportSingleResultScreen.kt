@@ -214,6 +214,26 @@ fun ReportSingleResultScreen(
         return
     }
 
+    // New-style translation compare: fires when the active picker
+    // language renders an AGENT TRANSLATE overlay on top of this
+    // agent's responseBody. Source = the original responseBody,
+    // translation = the overlay's content.
+    var showLiveTranslationCompare by remember { mutableStateOf(false) }
+    val liveAgentTranslate = activeAgentTranslateRow
+    if (showLiveTranslationCompare && liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
+        val translatedLangLabel = liveAgentTranslate.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+        TranslationCompareScreen(
+            title = "Translation — ${com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " / ")}",
+            originalLabel = "Original",
+            originalContent = agent.responseBody!!,
+            translatedLabel = translatedLangLabel,
+            translatedContent = liveAgentTranslate.content!!,
+            onBack = { showLiveTranslationCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmLangChoice by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
@@ -248,6 +268,9 @@ fun ReportSingleResultScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
+                { showLiveTranslationCompare = true }
+            } else null,
             onCopy = displayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "model response") }
             },

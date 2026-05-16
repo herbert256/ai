@@ -329,6 +329,25 @@ private fun ReportsViewerScreenLoaded(
             ReportApiCallsScreen(report = report, onBack = { showAllApi = false })
             return
         }
+        // Translation compare overlay for the Prompt section. Fires
+        // when the active picker language renders a PROMPT TRANSLATE
+        // overlay on top of report.prompt. Source = the original
+        // report.prompt, translation = the overlay row's content.
+        var showPromptCompare by remember { mutableStateOf(false) }
+        val promptTranslateRow = translationRowByTarget["PROMPT:prompt"]
+        if (showPromptCompare && initialSection == "prompt" && promptTranslateRow != null && !report.prompt.isNullOrBlank() && !promptTranslateRow.content.isNullOrBlank()) {
+            val translatedLabel = promptTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+            TranslationCompareScreen(
+                title = "Translation — Prompt",
+                originalLabel = "Original",
+                originalContent = report.prompt,
+                translatedLabel = translatedLabel,
+                translatedContent = promptTranslateRow.content,
+                onBack = { showPromptCompare = false },
+                onNavigateHome = onNavigateHome
+            )
+            return
+        }
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             val title = if (initialSection == "prompt") "Prompt" else "Report - costs"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
@@ -350,6 +369,9 @@ private fun ReportsViewerScreenLoaded(
                 reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
                 onBackClick = onDismiss,
                 onTrace = promptTraceFile?.let { tf -> { onNavigateToTraceFile(tf) } },
+                onTranslationCompare = if (initialSection == "prompt" && promptTranslateRow != null && !report.prompt.isNullOrBlank() && !promptTranslateRow.content.isNullOrBlank()) {
+                    { showPromptCompare = true }
+                } else null,
                 onCopy = if (initialSection == "prompt") {
                     displayPrompt.takeIf { it.isNotBlank() }?.let {
                         { com.ai.ui.shared.copyToClipboard(context, displayPrompt, "prompt") }
@@ -470,6 +492,26 @@ private fun ReportsViewerScreenLoaded(
     val canContinueInChat = selectedReportAgent != null
         && !selectedReportAgent.responseBody.isNullOrBlank()
         && selectedReportAgent.errorMessage.isNullOrBlank()
+
+    // Translation compare overlay for the selected agent. Fires when
+    // the active picker language renders an AGENT TRANSLATE overlay
+    // on top of selectedReportAgent.responseBody.
+    var showAgentCompare by remember { mutableStateOf(false) }
+    val agentTranslateRow = selectedReportAgent?.let { translationRowByTarget["AGENT:${it.agentId}"] }
+    if (showAgentCompare && selectedReportAgent != null && agentTranslateRow != null && !selectedReportAgent.responseBody.isNullOrBlank() && !agentTranslateRow.content.isNullOrBlank()) {
+        val translatedLabel = agentTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
+        val titleLabel = selectedAgentLabel?.let { "Translation — $it" } ?: "Translation"
+        TranslationCompareScreen(
+            title = titleLabel,
+            originalLabel = "Original",
+            originalContent = selectedReportAgent.responseBody!!,
+            translatedLabel = translatedLabel,
+            translatedContent = agentTranslateRow.content!!,
+            onBack = { showAgentCompare = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // Static page title; the agent picker dropdown below shows
         // the active model. ℹ️ on the title bar opens Model Info for
@@ -484,6 +526,9 @@ private fun ReportsViewerScreenLoaded(
                 { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
             } else null,
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onTranslationCompare = if (selectedReportAgent != null && agentTranslateRow != null && !selectedReportAgent.responseBody.isNullOrBlank() && !agentTranslateRow.content.isNullOrBlank()) {
+                { showAgentCompare = true }
+            } else null,
             onCopy = selectedDisplayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.copyToClipboard(context, body, "model response") }
             },
