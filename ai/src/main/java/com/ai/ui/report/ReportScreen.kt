@@ -2546,11 +2546,8 @@ fun ReportsScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // Static page title in the menu bar by default; the dynamic
         // prompt title surfaces as a green sub-header inside the body.
-        // SUBJECT folds the prompt title into the bar; BOTH renders
-        // subject left + "AI Report" right (no separator); HARDCODED
-        // keeps just the static label and shows the green line below.
         val promptTitle = uiState.genericPromptTitle
-        val barTitle = if (!isGenerating) "AI Report — Models" else "AI Report"
+        val barTitle = "Report - manage"
         TitleBar(
             helpTopic = "report_result_generation",
             title = barTitle,
