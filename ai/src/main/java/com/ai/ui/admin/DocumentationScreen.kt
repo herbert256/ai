@@ -18,9 +18,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.ui.shared.TitleBar
 
 /** In-app browser for the bundled mobile-friendly documentation at
- *  `assets/docs/`. WebView loads `file:///android_asset/docs/index.html`;
- *  intra-doc anchor links and cross-doc `.html` links navigate inside
- *  the WebView. JavaScript stays off — the docs are pure HTML + CSS. */
+ *  `assets/docs/technical/`. WebView loads
+ *  `file:///android_asset/docs/technical/index.html` — the developer
+ *  hub. The end-user manual lives in the sibling `manual/` directory
+ *  and is reached from its own entry point (not this screen). Intra-doc
+ *  anchor links and cross-doc `.html` links navigate inside the
+ *  WebView. JavaScript stays off — the docs are pure HTML + CSS. */
 @Composable
 fun DocumentationScreen(onBack: () -> Unit) {
     // Hold a WebView reference so the system back button can walk the
@@ -49,7 +52,7 @@ fun DocumentationScreen(onBack: () -> Unit) {
                     settings.cacheMode = WebSettings.LOAD_DEFAULT
                     webViewClient = WebViewClient()
                     webViewRef.value = this
-                    loadUrl("file:///android_asset/docs/index.html")
+                    loadUrl("file:///android_asset/docs/technical/index.html")
                 }
             }
         )
