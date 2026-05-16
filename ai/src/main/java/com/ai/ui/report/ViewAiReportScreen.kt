@@ -87,6 +87,7 @@ import com.ai.ui.shared.TitleBar
  */
 @Composable
 internal fun ViewAiReportScreen(
+    reportId: String,
     promptTitle: String,
     reportIcon: String?,
     perModelIconGenEnabled: Boolean,
@@ -118,9 +119,12 @@ internal fun ViewAiReportScreen(
      *  (every run came back clean). The 🚩 emoji is rendered on
      *  both — the tile colour carries the verdict. */
     moderationFlagged: Boolean = false,
-    onViewPrompt: () -> Unit,
+    /** Receives the View screen's currently-selected language so the
+     *  opened sub-screen can lock itself to that language. null = no
+     *  force; "" = force Original; non-empty = displayName. */
+    onViewPrompt: (String?) -> Unit,
     onViewCosts: () -> Unit,
-    onViewReports: () -> Unit,
+    onViewReports: (String?) -> Unit,
     onOpenHtmlPreview: () -> Unit,
     onViewLog: () -> Unit,
     onViewIcons: () -> Unit,
@@ -146,6 +150,45 @@ internal fun ViewAiReportScreen(
         mutableStateOf(loadTileOrder(tileOrderPrefs))
     }
 
+    // TRANSLATE secondaries on this report — drives the language
+    // picker at the top of the View screen. When the user taps a
+    // tile we forward the active language to the opened sub-screen
+    // as a lock, and that sub-screen suppresses its own picker.
+    // Loaded together with the report.languageIcon so the Original
+    // tab can render the detected source-language emoji.
+    data class TranslatesLoad(
+        val list: List<com.ai.data.SecondaryResult>,
+        val originalIcon: String?
+    )
+    val translatesState = androidx.compose.runtime.produceState(
+        initialValue = TranslatesLoad(emptyList(), null), reportId
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val list = com.ai.data.SecondaryResultStorage
+                .listForReport(viewPrefsCtx, reportId, SecondaryKind.TRANSLATE)
+                .filter { !it.content.isNullOrBlank() }
+            val icon = com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)?.languageIcon
+            TranslatesLoad(list, icon)
+        }
+    }
+    val translates = translatesState.value.list
+    val originalLanguageIcon = translatesState.value.originalIcon
+    val viewLangTabs = remember(translates) { buildLangTabs(translates) }
+    var selectedViewLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    androidx.compose.runtime.LaunchedEffect(viewLangTabs) {
+        if (viewLangTabs.none { it.key == selectedViewLangKey }) {
+            selectedViewLangKey = LangTab.ORIGINAL_KEY
+        }
+    }
+    // Derived from the selected tab; a State holder so the cached
+    // tile onClick lambdas read the latest value at click time
+    // without invalidating `remember(docTiles)`.
+    val currentLanguageState = remember { mutableStateOf<String?>("") }
+    androidx.compose.runtime.LaunchedEffect(selectedViewLangKey, viewLangTabs) {
+        currentLanguageState.value = if (selectedViewLangKey == LangTab.ORIGINAL_KEY) ""
+            else viewLangTabs.firstOrNull { it.key == selectedViewLangKey }?.displayName ?: ""
+    }
+
     // Documents tiles — fixed set, Icons only when the per-model
     // icon chain is enabled in Settings. The tile only OPENS the
     // destination; the View screen itself stays in the back-stack
@@ -153,8 +196,8 @@ internal fun ViewAiReportScreen(
     // to the View grid rather than the report page.
     val docTiles = remember(perModelIconGenEnabled, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         buildList {
-            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt() }))
-            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue) { onViewReports() }))
+            add(IdentifiedTile("doc:Prompt", ViewTile("Prompt", "📝", AppColors.Purple) { onViewPrompt(currentLanguageState.value) }))
+            add(IdentifiedTile("doc:Reports", ViewTile("Reports", "📊", AppColors.Blue) { onViewReports(currentLanguageState.value) }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
             add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
@@ -204,7 +247,7 @@ internal fun ViewAiReportScreen(
                     emoji = promptEmoji ?: "🧠",
                     accent = AppColors.Purple,
                     secondaryEmoji = translationEmoji,
-                    onClick = { item.open() }
+                    onClick = { item.open(currentLanguageState.value) }
                 )
             )
         }
@@ -237,7 +280,7 @@ internal fun ViewAiReportScreen(
                 items = items,
                 tile = ViewTile(s.label, s.emoji, s.color, count = items.size) {
                     when (items.size) {
-                        1 -> items[0].open()
+                        1 -> items[0].open(currentLanguageState.value)
                         else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                     }
                 }
@@ -278,6 +321,18 @@ internal fun ViewAiReportScreen(
                 )
             }
         )
+
+        // One picker for the whole View screen; tile clicks below
+        // forward the active language to the opened sub-screen.
+        // Hidden when no translations exist (single-language report).
+        if (viewLangTabs.size > 1) {
+            LanguagePickerRow(
+                viewLangTabs, selectedViewLangKey,
+                onSelect = { selectedViewLangKey = it },
+                useIcons = true,
+                originalIcon = originalLanguageIcon
+            )
+        }
 
         // Body fills the remaining vertical space between the
         // green subject row and the bottom icons bar — without
@@ -347,7 +402,7 @@ internal fun ViewAiReportScreen(
                         items = active.items,
                         onItemClick = { item ->
                             expandedKind = null
-                            item.open()
+                            item.open(currentLanguageState.value)
                         }
                     )
                 }

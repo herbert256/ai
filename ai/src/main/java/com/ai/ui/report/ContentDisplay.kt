@@ -45,7 +45,15 @@ fun ReportsViewerScreen(
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
     onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
-    onRegenerateAgent: (String, String) -> Unit = { _, _ -> }
+    onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
+    /** When non-null, the per-screen language picker is suppressed and
+     *  every content lookup is locked to this language. Set by the View
+     *  page when it hoists the picker to its own header — the sub-screen
+     *  is then a passive renderer of the picked language. Convention:
+     *  null = picker mode (Report - Manage path, unchanged behavior),
+     *  "" = locked to Original, non-empty = locked to that displayName
+     *  (matching [SecondaryResult.targetLanguage]). */
+    forcedLanguage: String? = null
 ) {
     BackHandler { onDismiss() }
     val context = LocalContext.current
@@ -80,7 +88,7 @@ fun ReportsViewerScreen(
             ReportsViewerScreenLoaded(s.report, initialSelectedAgentId, initialSection,
                 onDismiss, onNavigateHome, onNavigateToTraceFile,
                 onContinueWithCurrent, onContinueWithAgentPicker, onContinueWithOnTheFly,
-                onRemoveAgent, onRegenerateAgent)
+                onRemoveAgent, onRegenerateAgent, forcedLanguage)
         }
     }
 }
@@ -245,7 +253,8 @@ private fun ReportsViewerScreenLoaded(
     onContinueWithAgentPicker: (String, String) -> Unit,
     onContinueWithOnTheFly: (String, String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
-    onRegenerateAgent: (String, String) -> Unit
+    onRegenerateAgent: (String, String) -> Unit,
+    forcedLanguage: String?
 ) {
     val context = LocalContext.current
     var showContinuePicker by remember { mutableStateOf(false) }
@@ -263,13 +272,23 @@ private fun ReportsViewerScreenLoaded(
     }
     val translates = translatesState.value
     val langTabs = remember(translates) { buildLangTabs(translates) }
-    var selectedLangKey by rememberSaveable { mutableStateOf(LangTab.ORIGINAL_KEY) }
-    // Keep the selection valid if translations finish loading after
-    // first composition — if the previously chosen key dropped off the
-    // list (e.g. a translation was deleted) snap back to Original.
-    LaunchedEffect(langTabs) {
-        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    // pickerLangKey holds the local picker state used in non-locked
+    // mode (Report - Manage path). When forcedLanguage is non-null
+    // the View page is locking us to a specific language and the
+    // local pickers are suppressed; we derive selectedLangKey from
+    // the forced value instead. Empty string = Original; non-empty
+    // displayName → matching LangTab.key via the same derivation
+    // buildLangTabs uses.
+    var pickerLangKey by rememberSaveable(report.id) { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    LaunchedEffect(langTabs, forcedLanguage) {
+        if (forcedLanguage == null && langTabs.none { it.key == pickerLangKey }) {
+            pickerLangKey = LangTab.ORIGINAL_KEY
+        }
     }
+    val selectedLangKey: String = if (forcedLanguage != null) {
+        if (forcedLanguage.isEmpty()) LangTab.ORIGINAL_KEY
+        else forcedLanguage.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+    } else pickerLangKey
     // Quick lookups for the active language: by-targetId → the
     // TRANSLATE SecondaryResult row that holds the translated content
     // plus the per-call metadata (trace file, runId, …). Recomputed
@@ -338,7 +357,7 @@ private fun ReportsViewerScreenLoaded(
             // Costs aggregate every API call (including translation
             // calls) so the language picker doesn't apply — only the
             // prompt screen shows the picker.
-            if (initialSection == "prompt") {
+            if (initialSection == "prompt" && forcedLanguage == null) {
                 // Only show language tabs that actually have a prompt
                 // translation. Original is always available — the
                 // source prompt is what the report was started from.
@@ -346,11 +365,11 @@ private fun ReportsViewerScreenLoaded(
                     buildLangTabs(translates.filter { it.translateSourceKind == "PROMPT" })
                 }
                 LaunchedEffect(promptLangTabs) {
-                    if (promptLangTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+                    if (promptLangTabs.none { it.key == pickerLangKey }) pickerLangKey = LangTab.ORIGINAL_KEY
                 }
                 LanguagePickerRow(
                     promptLangTabs, selectedLangKey,
-                    onSelect = { selectedLangKey = it },
+                    onSelect = { pickerLangKey = it },
                     useIcons = true,
                     originalIcon = report.languageIcon
                 )
@@ -392,7 +411,8 @@ private fun ReportsViewerScreenLoaded(
             translationByTarget = translationByTarget,
             langTabs = langTabs,
             selectedLangKey = selectedLangKey,
-            onSelectLang = { selectedLangKey = it },
+            onSelectLang = { pickerLangKey = it },
+            forcedLanguage = forcedLanguage,
             onBack = { showOnePage = false }
         )
         return
@@ -469,22 +489,24 @@ private fun ReportsViewerScreenLoaded(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
-        // Only show language tabs that actually have at least one
-        // agent-response translation. Original is always present —
-        // each successful agent's responseBody is the original-language
-        // body.
-        val agentLangTabs = remember(translates) {
-            buildLangTabs(translates.filter { it.translateSourceKind == "AGENT" })
+        if (forcedLanguage == null) {
+            // Only show language tabs that actually have at least one
+            // agent-response translation. Original is always present —
+            // each successful agent's responseBody is the original-
+            // language body.
+            val agentLangTabs = remember(translates) {
+                buildLangTabs(translates.filter { it.translateSourceKind == "AGENT" })
+            }
+            LaunchedEffect(agentLangTabs) {
+                if (agentLangTabs.none { it.key == pickerLangKey }) pickerLangKey = LangTab.ORIGINAL_KEY
+            }
+            LanguagePickerRow(
+                agentLangTabs, selectedLangKey,
+                onSelect = { pickerLangKey = it },
+                useIcons = true,
+                originalIcon = report.languageIcon
+            )
         }
-        LaunchedEffect(agentLangTabs) {
-            if (agentLangTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
-        }
-        LanguagePickerRow(
-            agentLangTabs, selectedLangKey,
-            onSelect = { selectedLangKey = it },
-            useIcons = true,
-            originalIcon = report.languageIcon
-        )
 
         // Agent picker — user-toggled between a FlowRow of buttons
         // (one per model, click to view) and a single dropdown whose
@@ -686,6 +708,7 @@ private fun OnePageReportView(
     langTabs: List<LangTab>,
     selectedLangKey: String,
     onSelectLang: (String) -> Unit,
+    forcedLanguage: String?,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -700,7 +723,9 @@ private fun OnePageReportView(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
         com.ai.ui.shared.HardcodedSubjectRow(titleText, horizontalPadding = 16.dp, maxLines = 2)
-        LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
+        if (forcedLanguage == null) {
+            LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
+        }
         val displayPrompt = translationByTarget["PROMPT:prompt"] ?: report.prompt
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)

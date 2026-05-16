@@ -109,7 +109,12 @@ internal fun SecondaryResultsScreen(
     /** Re-run a single fan-out pair from the L3 "Fan out - pair"
      *  TitleBar's 🔄 reload icon. */
     onRerunFanOutPair: (com.ai.model.InternalPrompt, SecondaryResult) -> Unit = { _, _ -> },
-    onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> }
+    onDeleteFanOutModel: (String, String, String) -> Unit = { _, _, _ -> },
+    /** When non-null, the per-screen language picker is suppressed and
+     *  every content lookup is locked to this language. Same convention
+     *  as ReportsViewerScreen: null = picker mode (Report - Manage
+     *  path), "" = locked to Original, non-empty = locked displayName. */
+    forcedLanguage: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -300,13 +305,31 @@ internal fun SecondaryResultsScreen(
         val hasOriginal = results.any { it.targetLanguage.isNullOrBlank() }
         buildLangTabs(mine + seedTabs, includeOriginal = hasOriginal)
     }
-    var selectedLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
-    LaunchedEffect(languages) {
-        if (languages.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    // pickerLangKey holds the local picker state used in non-locked
+    // mode. When forcedLanguage is non-null the View screen is
+    // locking us; we derive selectedLangKey from the forced value
+    // and suppress the per-screen picker. See ContentDisplay.kt's
+    // ReportsViewerScreenLoaded for the matching convention.
+    var pickerLangKey by remember { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    LaunchedEffect(languages, forcedLanguage) {
+        if (forcedLanguage == null && languages.none { it.key == pickerLangKey }) {
+            pickerLangKey = LangTab.ORIGINAL_KEY
+        }
     }
-    val selectedLanguageName: String? = remember(selectedLangKey, languages) {
-        if (selectedLangKey == LangTab.ORIGINAL_KEY) null
-        else languages.firstOrNull { it.key == selectedLangKey }?.displayName
+    val selectedLangKey: String = if (forcedLanguage != null) {
+        if (forcedLanguage.isEmpty()) LangTab.ORIGINAL_KEY
+        else forcedLanguage.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+    } else pickerLangKey
+    val selectedLanguageName: String? = remember(selectedLangKey, languages, forcedLanguage) {
+        when {
+            selectedLangKey == LangTab.ORIGINAL_KEY -> null
+            // When locked, prefer the forcedLanguage displayName even
+            // if the per-screen languages list doesn't include a tab
+            // for it — content lookups still want the human-readable
+            // name to match SecondaryResult.targetLanguage.
+            forcedLanguage != null && forcedLanguage.isNotEmpty() -> forcedLanguage
+            else -> languages.firstOrNull { it.key == selectedLangKey }?.displayName
+        }
     }
 
     // For chat-type META: a non-Original language view shows two
@@ -363,7 +386,8 @@ internal fun SecondaryResultsScreen(
                 refreshTick++
             },
             onBack = { openId = null },
-            onNavigateHome = onNavigateHome
+            onNavigateHome = onNavigateHome,
+            forcedLanguage = forcedLanguage
         )
         return
     }
@@ -463,11 +487,11 @@ internal fun SecondaryResultsScreen(
         // L1/L2/L3 chrome and has no per-language content selection,
         // so a stray language-picker row would just float above its
         // title bar.
-        if (showLanguagePicker && !isFanOutDrillIn) {
+        if (showLanguagePicker && !isFanOutDrillIn && forcedLanguage == null) {
             LanguagePickerRow(
                 languages = languages,
                 selectedKey = selectedLangKey,
-                onSelect = { selectedLangKey = it },
+                onSelect = { pickerLangKey = it },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -2329,7 +2353,12 @@ internal fun SecondaryResultDetailScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit = {},
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    /** When non-null, suppress the per-screen language picker and lock
+     *  content to this language. Same convention as ReportsViewerScreen
+     *  / SecondaryResultsScreen: null = picker mode (Report - Manage
+     *  path), "" = locked to Original, non-empty = locked displayName. */
+    forcedLanguage: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -2395,18 +2424,27 @@ internal fun SecondaryResultDetailScreen(
     // language so opening a French-seed META highlights "French"
     // immediately rather than defaulting to Original (which would
     // render "(no content)" for a seed-only meta).
-    var selectedLangKey by rememberSaveable(result.id) {
+    var pickerLangKey by rememberSaveable(result.id) {
         val target = result.targetLanguage
         mutableStateOf(
             if (target.isNullOrBlank()) LangTab.ORIGINAL_KEY
             else target.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
         )
     }
-    LaunchedEffect(langTabs) {
-        if (langTabs.none { it.key == selectedLangKey }) selectedLangKey = LangTab.ORIGINAL_KEY
+    LaunchedEffect(langTabs, forcedLanguage) {
+        if (forcedLanguage == null && langTabs.none { it.key == pickerLangKey }) {
+            pickerLangKey = LangTab.ORIGINAL_KEY
+        }
     }
-    val activeLangName: String? = if (selectedLangKey == LangTab.ORIGINAL_KEY) null
-        else langTabs.firstOrNull { it.key == selectedLangKey }?.displayName
+    val selectedLangKey: String = if (forcedLanguage != null) {
+        if (forcedLanguage.isEmpty()) LangTab.ORIGINAL_KEY
+        else forcedLanguage.lowercase(java.util.Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+    } else pickerLangKey
+    val activeLangName: String? = when {
+        selectedLangKey == LangTab.ORIGINAL_KEY -> null
+        forcedLanguage != null && forcedLanguage.isNotEmpty() -> forcedLanguage
+        else -> langTabs.firstOrNull { it.key == selectedLangKey }?.displayName
+    }
     // For META kinds: when the picked language differs from the
     // result's own language, find the TRANSLATE row that targets this
     // meta in the picked language. Non-META kinds (RERANK / MODERATION)
@@ -2536,10 +2574,10 @@ internal fun SecondaryResultDetailScreen(
             }
         )
         com.ai.ui.shared.HardcodedSubjectRow(title)
-        if (result.kind == SecondaryKind.META && langTabs.size > 1) {
+        if (result.kind == SecondaryKind.META && langTabs.size > 1 && forcedLanguage == null) {
             LanguagePickerRow(
                 langTabs, selectedLangKey,
-                onSelect = { selectedLangKey = it },
+                onSelect = { pickerLangKey = it },
                 useIcons = true,
                 originalIcon = parentReport?.languageIcon
             )

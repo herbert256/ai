@@ -870,6 +870,15 @@ fun ReportsScreen(
     var openMetaResultId by rememberSaveable { mutableStateOf<String?>(null) }
     var openTranslationRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // Locked language carried into sub-screens when the View page's
+    // top picker is non-Original. Set when a View tile is tapped,
+    // cleared on close. null = no force; "" = force Original;
+    // non-empty = displayName. See
+    // ReportsViewerScreen.forcedLanguage for the contract.
+    var viewerLockedLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var secondaryLockedLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var listLockedLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+
     var showViewer by rememberSaveable { mutableStateOf(false) }
     // View → Icons overlay state. Surfaces a tiny screen rendering
     // every agent's emoji (from the 3-tier per-model icon chain) at
@@ -1085,6 +1094,10 @@ fun ReportsScreen(
             agentIconDetailFor = agentIconDetailFor,
             showAdvancedParameters = showAdvancedParameters,
             advancedParameters = advancedParameters,
+            viewerLockedLanguage = viewerLockedLanguage,
+            onViewerLockedLanguageChange = { viewerLockedLanguage = it },
+            onSecondaryLockedLanguageChange = { secondaryLockedLanguage = it },
+            onListLockedLanguageChange = { listLockedLanguage = it },
             onShowIconsViewChange = { showIconsView = it },
             onSingleResultAgentIdChange = { singleResultAgentId = it },
             onShowViewReportScreenChange = { showViewReportScreen = it },
@@ -1826,11 +1839,16 @@ fun ReportsScreen(
                 onDelete = {
                     onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
                     openMetaResultId = null
+                    secondaryLockedLanguage = null
                 },
-                onBack = { openMetaResultId = null },
+                onBack = {
+                    openMetaResultId = null
+                    secondaryLockedLanguage = null
+                },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToModelInfo = onNavigateToModelInfo
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                forcedLanguage = secondaryLockedLanguage
             )
         }
         return
@@ -1921,6 +1939,7 @@ fun ReportsScreen(
                 listKind = null
                 listFilterByName = null
                 listIsFanIcons = false
+                listLockedLanguage = null
             },
             onShowFanIcons = { listIsFanIcons = true },
             onShowResponses = { listIsFanIcons = false },
@@ -1941,7 +1960,8 @@ fun ReportsScreen(
             onRemoveFailedFanOutForModel = onRemoveFailedFanOutForModel,
             onRerunCompleteFanOut = onRerunCompleteFanOut,
             onRerunFanOutPair = onRerunFanOutPair,
-            onDeleteFanOutModel = onDeleteFanOutModel
+            onDeleteFanOutModel = onDeleteFanOutModel,
+            forcedLanguage = listLockedLanguage
         )
         return
     }
@@ -2594,6 +2614,12 @@ private fun ReportPrimaryOverlays(
     agentIconDetailFor: String?,
     showAdvancedParameters: Boolean,
     advancedParameters: AgentParameters?,
+    /** Locked language carried into ReportsViewerScreen when the
+     *  View page's top picker is set; null on Report - Manage path. */
+    viewerLockedLanguage: String?,
+    onViewerLockedLanguageChange: (String?) -> Unit,
+    onSecondaryLockedLanguageChange: (String?) -> Unit,
+    onListLockedLanguageChange: (String?) -> Unit,
     onShowIconsViewChange: (Boolean) -> Unit,
     onSingleResultAgentIdChange: (String?) -> Unit,
     onShowViewReportScreenChange: (Boolean) -> Unit,
@@ -2644,8 +2670,14 @@ private fun ReportPrimaryOverlays(
         val viewEveryItems = remember(secondaryRuns, aiSettings) {
             buildEveryItems(
                 secondaryRuns, aiSettings,
-                onOpenSecondaryRun = { id -> onOpenMetaResultIdChange(id) },
-                onViewSecondaryName = { name, kind -> onListTargetChange(kind, name, false) },
+                onOpenSecondaryRun = { id, lang ->
+                    onSecondaryLockedLanguageChange(lang)
+                    onOpenMetaResultIdChange(id)
+                },
+                onViewSecondaryName = { name, kind, lang ->
+                    onListLockedLanguageChange(lang)
+                    onListTargetChange(kind, name, false)
+                },
                 onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) }
             )
         }
@@ -2658,6 +2690,7 @@ private fun ReportPrimaryOverlays(
             LocalNavigateToCurrentReport provides { onShowViewReportScreenChange(false) }
         ) {
             ViewAiReportScreen(
+                reportId = currentReportId,
                 promptTitle = uiState.genericPromptTitle,
                 reportIcon = effectiveReportIcon,
                 perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
@@ -2668,9 +2701,10 @@ private fun ReportPrimaryOverlays(
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
                 onMissingTranslationIcon = translationIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
-                onViewPrompt = {
+                onViewPrompt = { lang ->
                     onSelectedAgentForViewerChange(null)
                     onViewerSectionChange("prompt")
+                    onViewerLockedLanguageChange(lang)
                     onShowViewerChange(true)
                 },
                 onViewCosts = {
@@ -2678,9 +2712,10 @@ private fun ReportPrimaryOverlays(
                     onViewerSectionChange("costs")
                     onShowViewerChange(true)
                 },
-                onViewReports = {
+                onViewReports = { lang ->
                     onSelectedAgentForViewerChange(null)
                     onViewerSectionChange(null)
+                    onViewerLockedLanguageChange(lang)
                     onShowViewerChange(true)
                 },
                 onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
@@ -2715,6 +2750,7 @@ private fun ReportPrimaryOverlays(
                 onDismiss = {
                     onShowViewerChange(false)
                     onViewerSectionChange(null)
+                    onViewerLockedLanguageChange(null)
                 },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
@@ -2725,7 +2761,8 @@ private fun ReportPrimaryOverlays(
                     onRemoveAgent(rid, aid)
                     onSecondaryRefresh()
                 },
-                onRegenerateAgent = onRegenerateAgent
+                onRegenerateAgent = onRegenerateAgent,
+                forcedLanguage = viewerLockedLanguage
             )
         }
         return true
@@ -3662,7 +3699,8 @@ private fun SecondaryResultsListMount(
     onRemoveFailedFanOutForModel: (String, InternalPrompt, String, String) -> Unit,
     onRerunCompleteFanOut: (String, InternalPrompt) -> Unit,
     onRerunFanOutPair: (String, InternalPrompt, SecondaryResult) -> Unit,
-    onDeleteFanOutModel: (String, String, String, String) -> Unit
+    onDeleteFanOutModel: (String, String, String, String) -> Unit,
+    forcedLanguage: String? = null
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
@@ -3768,7 +3806,8 @@ private fun SecondaryResultsListMount(
             onDeleteFanOutModel = { mpid, prov, model ->
                 onDeleteFanOutModel(rid, mpid, prov, model)
                 onSecondaryRefresh()
-            }
+            },
+            forcedLanguage = forcedLanguage
         )
     }
 }

@@ -58,7 +58,12 @@ internal data class EveryItem(
      *  of the prompt's own per-prompt emoji. Null on rows that
      *  aren't translation-scoped. */
     val targetLanguage: String? = null,
-    val open: () -> Unit
+    /** The String? carries the View screen's currently-selected
+     *  language at click time so the opened sub-screen can lock
+     *  itself to that language. null = no force (Report - Manage
+     *  path); "" = force Original; non-empty displayName = force
+     *  that language. See [SecondaryResultDetailScreen.forcedLanguage]. */
+    val open: (String?) -> Unit
 )
 
 /** Group [secondaryRuns] into the six conditional kinds the View
@@ -69,8 +74,8 @@ internal data class EveryItem(
 internal fun buildEveryItems(
     secondaryRuns: List<com.ai.data.SecondaryResult>,
     aiSettings: com.ai.model.Settings,
-    onOpenSecondaryRun: (String) -> Unit,
-    onViewSecondaryName: (String, SecondaryKind) -> Unit,
+    onOpenSecondaryRun: (String, String?) -> Unit,
+    onViewSecondaryName: (String, SecondaryKind, String?) -> Unit,
     onOpenTranslationRun: (String) -> Unit
 ): Map<String, List<EveryItem>> {
     val nameToCat = aiSettings.internalPrompts.associate { it.name to it.category.lowercase() }
@@ -83,7 +88,9 @@ internal fun buildEveryItems(
     // [onOpenSecondaryRun] navigation; multi-language groups fall
     // through to [onViewSecondaryName] so SecondaryResultsScreen
     // shows its language-picker strip and the user picks which
-    // language to open.
+    // language to open. Trailing String? = the View screen's
+    // currently-selected language at click time, threaded into the
+    // opened sub-screen as a lock; null on the Report - Manage path.
     val meta = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
         .groupBy { it.metaPromptName ?: "Meta" }
@@ -95,29 +102,29 @@ internal fun buildEveryItems(
                     label = name,
                     prompt = prompt,
                     targetLanguage = row.targetLanguage?.takeIf { it.isNotBlank() },
-                    open = { onOpenSecondaryRun(row.id) }
+                    open = { lang -> onOpenSecondaryRun(row.id, lang) }
                 )
             } else {
                 EveryItem(
                     label = name,
                     prompt = prompt,
                     targetLanguage = null,
-                    open = { onViewSecondaryName(name, SecondaryKind.META) }
+                    open = { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) }
                 )
             }
         }
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
-        .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { onOpenSecondaryRun(row.id) } }
+        .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { lang -> onOpenSecondaryRun(row.id, lang) } }
     val moderation = secondaryRuns
         .filter { it.kind == SecondaryKind.MODERATION }
-        .map { row -> EveryItem(row.metaPromptName ?: "Moderation") { onOpenSecondaryRun(row.id) } }
+        .map { row -> EveryItem(row.metaPromptName ?: "Moderation") { lang -> onOpenSecondaryRun(row.id, lang) } }
     val fanIn = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
-        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { onOpenSecondaryRun(row.id) } }
+        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { lang -> onOpenSecondaryRun(row.id, lang) } }
     val fanInModel = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
-        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { onOpenSecondaryRun(row.id) } }
+        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { lang -> onOpenSecondaryRun(row.id, lang) } }
     // Fan-out: one item per distinct prompt name. Tap opens the
     // SecondaryResultsScreen with nameFilter set; the screen
     // auto-renders the L2 fan-out drill-in.
@@ -125,15 +132,17 @@ internal fun buildEveryItems(
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
         .mapNotNull { it.metaPromptName }
         .distinct()
-        .map { name -> EveryItem(name) { onViewSecondaryName(name, SecondaryKind.META) } }
-    // Translate: one item per translationRunId.
+        .map { name -> EveryItem(name) { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) } }
+    // Translate: one item per translationRunId. The locked-language
+    // parameter is ignored — a translation run is inherently
+    // single-language; there's no picker to suppress downstream.
     val translate = secondaryRuns
         .filter { it.kind == SecondaryKind.TRANSLATE }
         .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
         .map { (runId, rows) ->
             val first = rows.first()
             val label = first.targetLanguageNative ?: first.targetLanguage ?: "(language)"
-            EveryItem(label) { onOpenTranslationRun(runId) }
+            EveryItem(label) { _ -> onOpenTranslationRun(runId) }
         }
     return mapOf(
         "meta" to meta,
@@ -374,8 +383,12 @@ internal fun ColumnScope.GenerationPhase(
     //  not as a View-row group, since the fan-out pair rows that
     //  carry the icons never enter `secondaryRuns`.)
     val everyItems = remember(secondaryRuns, aiSettings) {
+        // Report - Manage path doesn't lock languages — discard the
+        // trailing String? from buildEveryItems' new signature.
         buildEveryItems(secondaryRuns, aiSettings,
-            onOpenSecondaryRun, onViewSecondaryName, onOpenTranslationRun)
+            onOpenSecondaryRun = { id, _ -> onOpenSecondaryRun(id) },
+            onViewSecondaryName = { name, kind, _ -> onViewSecondaryName(name, kind) },
+            onOpenTranslationRun = onOpenTranslationRun)
     }
 
     // ----- Row 1 -----
