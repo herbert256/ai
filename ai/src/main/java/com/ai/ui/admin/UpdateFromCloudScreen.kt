@@ -110,6 +110,26 @@ fun UpdateFromCloudScreen(
     ) {
         TitleBar(helpTopic = "update_from_cloud", title = "Update from cloud", onBackClick = onBack)
 
+        // Primary action lives at the top so the user can install
+        // without scrolling once the source file is picked. Repeats
+        // the same enabled/onClick logic the old bottom button had —
+        // the bottom row keeps only the "Pick / Change source" affordance.
+        Button(
+            onClick = {
+                val uriStr = apkUriString
+                if (uriStr == null) {
+                    Toast.makeText(context, "Pick a source file first", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                val ok = installFromUri(context, Uri.parse(uriStr))
+                lastStatus = if (ok) "Update launched — confirm in the system dialog."
+                             else "Couldn't read the source file — re-pick required."
+            },
+            enabled = apkUriString != null,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update", maxLines = 1, softWrap = false) }
+
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -207,8 +227,9 @@ fun UpdateFromCloudScreen(
             }
         }
 
-        // Bottom action row — Pick / Install. Install is the primary
-        // CTA; Pick stays as a re-pick affordance.
+        // Bottom action row — Pick / Change source only. The Install
+        // CTA moved to the top of the screen so it's reachable
+        // without scrolling.
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
             onClick = {
@@ -227,22 +248,6 @@ fun UpdateFromCloudScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text(if (apkUriString == null) "Pick APK source…" else "Change source file…", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val uriStr = apkUriString
-                if (uriStr == null) {
-                    Toast.makeText(context, "Pick a source file first", Toast.LENGTH_SHORT).show()
-                    return@Button
-                }
-                val ok = installFromUri(context, Uri.parse(uriStr))
-                lastStatus = if (ok) "Update launched — confirm in the system dialog."
-                             else "Couldn't read the source file — re-pick required."
-            },
-            enabled = apkUriString != null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Update", maxLines = 1, softWrap = false) }
     }
 }
 
