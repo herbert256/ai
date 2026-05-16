@@ -2,21 +2,16 @@ package com.ai.ui.report
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,6 +39,7 @@ import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
@@ -160,42 +156,56 @@ internal fun TranslationL3Screen(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        val halfMax = maxHeight / 2
-        Column(modifier = Modifier.fillMaxSize()) {
-            val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
-            TitleBar(
-                helpTopic = "translation_run_l3",
-                title = "Translation call",
-                reportIcon = com.ai.ui.shared.LocalReportIcon.current,
-                subject = titleLang,
-                onBackClick = onBack,
-                onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename!!) } } else null,
-                onInfo = if (translationProviderService != null && !item.model.isNullOrBlank()) {
-                    { actions.onNavigateToModelInfo(translationProviderService, item.model!!) }
-                } else null,
-                onCopy = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
-                    { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
-                },
-                onShare = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
-                    { com.ai.ui.shared.shareText(context, body, "Translation $titleLang") }
-                },
-                onDelete = { confirmDelete = true }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        TitleBar(
+            helpTopic = "translation_run_l3",
+            title = "Translation call",
+            reportIcon = com.ai.ui.shared.LocalReportIcon.current,
+            subject = titleLang,
+            onBackClick = onBack,
+            onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename!!) } } else null,
+            onInfo = if (translationProviderService != null && !item.model.isNullOrBlank()) {
+                { actions.onNavigateToModelInfo(translationProviderService, item.model!!) }
+            } else null,
+            onCopy = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
+            },
+            onShare = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
+                { com.ai.ui.shared.shareText(context, body, "Translation $titleLang") }
+            },
+            onDelete = { confirmDelete = true }
+        )
+        com.ai.ui.shared.HardcodedSubjectRow(titleLang)
+        if (item.costDollars > 0.0) {
+            Text(
+                "Cost: ${formatCents(item.costDollars)} ¢",
+                fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(vertical = 4.dp)
             )
-            com.ai.ui.shared.HardcodedSubjectRow(titleLang, horizontalPadding = 16.dp)
-            if (item.costDollars > 0.0) {
-                Text(
-                    "Cost: ${formatCents(item.costDollars)} ¢",
-                    fontSize = 12.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-            }
+        }
 
-            // Original pane — wraps to content, capped at half-screen.
-            Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = halfMax)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
+        // Body: two equal-size panes (original on top, translation on
+        // bottom) separated by a divider. weight(1f) on each makes the
+        // split exactly 50/50 regardless of content size — previously
+        // the original pane wrapped to content with a half-screen cap,
+        // which left the translation pane visibly smaller whenever the
+        // original was short. Horizontal swipe on either pane (or the
+        // divider) steps through this model's sibling items — swipe
+        // left = next, right = previous; the prev/next buttons that
+        // used to live below the panes are gone.
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .horizontalSwipeNavigation(
+                    key1 = item.id,
+                    key2 = siblings,
+                    atFirst = prev == null,
+                    atLast = next == null,
+                    onSwipeLeft = { next?.let { onStepItem(it.id) } },
+                    onSwipeRight = { prev?.let { onStepItem(it.id) } }
+                )
+        ) {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
                     sourceLabel,
                     fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold,
@@ -215,12 +225,7 @@ internal fun TranslationL3Screen(
 
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 
-            // Translation pane — fills the rest. Content depends on the
-            // item's status.
-            Column(
-                modifier = Modifier.weight(1f).fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
                     translationLabel,
                     fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold,
@@ -256,25 +261,6 @@ internal fun TranslationL3Screen(
                         }
                     }
                 }
-            }
-
-            // Prev / Next — step through this model's items.
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { prev?.let { onStepItem(it.id) } },
-                    enabled = prev != null,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { next?.let { onStepItem(it.id) } },
-                    enabled = next != null,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-                ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
     }
