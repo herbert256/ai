@@ -198,8 +198,8 @@ fun UpdateFromCloudScreen(
                     Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(
-                        "Built ${BuildConfig.BUILD_TIMESTAMP}",
-                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                        BuildConfig.BUILD_TIMESTAMP,
+                        color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace
                     )
                 }
             }
@@ -309,7 +309,7 @@ private fun isPackageInstalled(context: Context, pkg: String): Boolean = try {
 
 private fun thisAppVersion(context: Context): String = try {
     val info = context.packageManager.getPackageInfo(context.packageName, 0)
-    "${info.versionName ?: "?"} (build ${info.longVersionCode})"
+    info.versionName ?: "?"
 } catch (_: Exception) { "?" }
 
 private fun formatBytes(bytes: Long): String = when {
