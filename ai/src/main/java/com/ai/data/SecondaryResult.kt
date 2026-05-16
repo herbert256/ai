@@ -118,6 +118,13 @@ data class SecondaryResult(
     val iconOutputTokens: Int = 0,
     val iconInputCost: Double = 0.0,
     val iconOutputCost: Double = 0.0,
+    /** Bundled prompt name that produced the currently-displayed
+     *  [icon] on this fan-out pair row. "fan_out" / "fan_out_2" /
+     *  "fan_out_3" per the winning tier; "fan_out_alt" after a
+     *  Find-alt pick (future). Null on legacy rows — the future
+     *  Icon lookup screen for fan-out pairs falls back to deriving
+     *  the name from [iconWinningTier]. */
+    val iconPromptUsed: String? = null,
     /** UUID shared by every secondary result produced by a single
      *  user-launched batch (fan-out, translation, ...). Lets the
      *  run's L1 screen deep-link the 🐞 trace icon to a trace list
@@ -427,7 +434,12 @@ object SecondaryResultStorage {
      *  when the row was deleted while the chain ran. */
     fun setFanOutIconAndTier(
         context: Context, reportId: String, resultId: String,
-        icon: String, winningTier: Int?, iconRunId: String? = null
+        icon: String, winningTier: Int?, iconRunId: String? = null,
+        /** Bundled prompt that produced [icon] — "fan_out_2" for
+         *  tier 1, "fan_out" for tier 2, "fan_out_3" for tier 3
+         *  (or "fan_out_alt" after a future Find-alt pick).
+         *  Surfaces on the Icon lookup screen. */
+        promptUsed: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -440,7 +452,8 @@ object SecondaryResultStorage {
                 icon = icon,
                 iconWinningTier = winningTier,
                 iconErrorMessage = null,
-                iconRunId = iconRunId ?: current.iconRunId
+                iconRunId = iconRunId ?: current.iconRunId,
+                iconPromptUsed = promptUsed ?: current.iconPromptUsed
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

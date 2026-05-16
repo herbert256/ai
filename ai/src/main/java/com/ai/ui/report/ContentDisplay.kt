@@ -897,10 +897,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
         }
-    val mainAltInCents = altByType["main_alt"]?.first ?: 0.0
-    val mainAltOutCents = altByType["main_alt"]?.second ?: 0.0
-    val languageAltInCents = altByType["language_alt"]?.first ?: 0.0
-    val languageAltOutCents = altByType["language_alt"]?.second ?: 0.0
+    val mainAltInCents = altByType["icon_main_alt"]?.first ?: 0.0
+    val mainAltOutCents = altByType["icon_main_alt"]?.second ?: 0.0
+    val languageAltInCents = altByType["icon_language_alt"]?.first ?: 0.0
+    val languageAltOutCents = altByType["icon_language_alt"]?.second ?: 0.0
 
     // Icon-gen call surfaces as its own row so the cost table totals
     // match the report total. Hidden when icon-gen wasn't run or the
@@ -919,7 +919,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "icon",
+            type = "icon_main",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -975,7 +975,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "language-icon",
+            type = "icon_language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1002,10 +1002,21 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val iconCallRows = report.iconCalls.map { c ->
         val providerEnum = AppService.findById(c.provider)
         // `c.type` (set by Find-alt fan-out launchers to the
-        // bundled `_alt` prompt name) overrides the legacy
-        // agentId-based classifier used by the per-tier chain.
-        val resolvedType = c.type
-            ?: if (c.agentId in reportAgentIds) "report-icons" else "fan-icons"
+        // bundled `_alt` prompt name like `icon_main_alt`) takes
+        // precedence. Otherwise we infer the bundled prompt name
+        // from `c.tier` (1=_2 chat-continuation / 2=base / 3=_3
+        // fixed-agent) and the `c.agentId`-based discriminator
+        // (real ReportAgent id → report chain; anything else → fan-
+        // out pair chain).
+        val resolvedType = c.type ?: run {
+            val isAgentChain = c.agentId in reportAgentIds
+            val base = if (isAgentChain) "icon_report" else "icon_fan_out"
+            when (c.tier) {
+                1 -> "${base}_2"
+                3 -> "${base}_3"
+                else -> base
+            }
+        }
         CostRow(
             type = resolvedType,
             providerDisplay = providerEnum?.id ?: c.provider,
@@ -1068,7 +1079,13 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // shape as the All-calls list below); "By type" keeps the single
     // key column. (GroupTotal hoisted to top-level — see below.)
     fun groupByType(): List<GroupTotal> =
-        rows.groupBy { it.type }.map { (k, gs) ->
+        // Every icon flow (initial gen + per-tier chain + Find-alt
+        // fan-out) carries an `icon_<prompt>` type on its per-call
+        // rows. The By-type view collapses every variant into a
+        // single "icons" group so the user sees one summary line for
+        // all icon spend; the All API calls view keeps the granular
+        // per-prompt labels. Non-icon types group on their own key.
+        rows.groupBy { if (it.type.startsWith("icon_")) "icons" else it.type }.map { (k, gs) ->
             var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
             gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
             GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
@@ -1365,17 +1382,12 @@ private fun costTypeColor(type: String): Color = when (type) {
     "fan-out" -> AppColors.Indigo
     "fan-in" -> AppColors.Green
     "language" -> AppColors.Yellow
-    "language-icon" -> AppColors.Brown
-    // Find-alternative-icons fan-out per-call rows. Each shares the
-    // hue of its "owning" entity so a glance at the cost table
-    // groups initial-gen + alt visually.
-    "main_alt" -> AppColors.TextSecondary
-    "meta_alt" -> AppColors.Indigo
-    "report_alt" -> AppColors.TextSecondary
-    "fan_out_alt" -> AppColors.Indigo
-    "language_alt" -> AppColors.Yellow
-    "translation_alt" -> AppColors.Brown
-    else -> AppColors.TextSecondary
+    // Every icon-related per-call row (initial gen, per-tier chain,
+    // Find-alt fan-out) uses the same hue — they collapse into a
+    // single "icons" group on the By-type view, so a uniform
+    // colour reads as one visual cluster on the All API calls list.
+    "icons" -> AppColors.Brown
+    else -> if (type.startsWith("icon_")) AppColors.Brown else AppColors.TextSecondary
 }
 
 @Composable

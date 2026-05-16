@@ -71,7 +71,14 @@ object InternalPromptIconCache {
         val outputTokens: Int,
         val inputCost: Double,
         val outputCost: Double,
-        val timestamp: Long
+        val timestamp: Long,
+        /** Bundled prompt name that produced the displayed [emoji].
+         *  Meta-icon flow: "meta" on initial gen, "meta_alt" after
+         *  a Find-alt pick. Translation flow: "translation" /
+         *  "translation_alt". Surfaces on the Icon lookup screen as
+         *  the green subject row. Null on legacy entries — the
+         *  screen falls back to the appropriate base name. */
+        val promptName: String? = null
     )
 
     private val mapType = object : TypeToken<Map<String, CacheEntry>>() {}.type
@@ -126,7 +133,11 @@ object InternalPromptIconCache {
         emoji: String, providerId: String, model: String,
         promptText: String, responseText: String,
         inputTokens: Int, outputTokens: Int,
-        inputCost: Double, outputCost: Double
+        inputCost: Double, outputCost: Double,
+        /** Bundled prompt name that produced [emoji]. Persisted on
+         *  the entry so the Icon lookup screen can render it as the
+         *  subject row. */
+        promptName: String? = null
     ) {
         if (emoji.isBlank()) return
         val key = keyOf(name, title)
@@ -137,7 +148,8 @@ object InternalPromptIconCache {
                 promptText = promptText, responseText = responseText,
                 inputTokens = inputTokens, outputTokens = outputTokens,
                 inputCost = inputCost, outputCost = outputCost,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                promptName = promptName
             )
             saveLocked()
         }
@@ -190,7 +202,12 @@ object InternalPromptIconCache {
     fun pickAlternative(
         name: String, title: String,
         emoji: String, providerId: String, model: String,
-        promptText: String, responseText: String
+        promptText: String, responseText: String,
+        /** Bundled prompt name that produced [emoji] — typically
+         *  the `_alt` variant for Find-alt picks. Persisted on the
+         *  entry so the Icon lookup screen flips its subject row to
+         *  show the alt name. */
+        promptName: String? = null
     ) {
         if (emoji.isBlank()) return
         val key = keyOf(name, title)
@@ -203,14 +220,16 @@ object InternalPromptIconCache {
                     promptText = promptText, responseText = responseText,
                     inputTokens = 0, outputTokens = 0,
                     inputCost = 0.0, outputCost = 0.0,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = System.currentTimeMillis(),
+                    promptName = promptName
                 )
             } else {
                 existing.copy(
                     emoji = emoji,
                     providerId = providerId, model = model,
                     promptText = promptText, responseText = responseText,
-                    timestamp = System.currentTimeMillis()
+                    timestamp = System.currentTimeMillis(),
+                    promptName = promptName ?: existing.promptName
                 )
             }
             saveLocked()

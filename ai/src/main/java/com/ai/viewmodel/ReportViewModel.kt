@@ -454,7 +454,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         )
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "Report icon") {
+            withTracerTags(reportId = reportId, category = "icon_main") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
@@ -481,7 +481,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             context, reportId, emoji,
                             inputTokens = inT, outputTokens = outT,
                             inputCost = inC, outputCost = outC,
-                            traceFile = traceSink.get()
+                            traceFile = traceSink.get(),
+                            promptUsed = "main"
                         )
                     } else {
                         ReportStorage.updateReportIconError(
@@ -606,7 +607,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@LANGUAGE@", languageName)
-        withTracerTags(reportId = reportId, category = "Language icon") {
+        withTracerTags(reportId = reportId, category = "icon_language") {
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             runCatching {
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
@@ -635,7 +636,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     inputTokens = inT, outputTokens = outT,
                     inputCost = inC, outputCost = outC,
                     traceFile = traceSink.get(),
-                    rawResponse = response.analysis
+                    rawResponse = response.analysis,
+                    promptUsed = "language"
                 )
             }.onFailure {
                 ReportStorage.updateReportLanguageError(
@@ -704,7 +706,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .replace("@TITLE@", prompt.title)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "Internal prompt icon") {
+            withTracerTags(category = "icon_meta") {
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val response = appViewModel.repository.analyzeWithAgent(
@@ -729,7 +731,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             promptText = resolved,
                             responseText = response.analysis.orEmpty(),
                             inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC
+                            inputCost = inC, outputCost = outC,
+                            promptName = "meta"
                         )
                         // Post to global UsageStats with kind="icon"
                         // — matches the per-agent 3-tier chain. Only
@@ -842,7 +845,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             unique.forEach { item ->
                 launch(Dispatchers.IO) {
-                    withTracerTags(category = "Internal prompt icon (alt)") {
+                    withTracerTags(category = "icon_meta_alt") {
                         val agent = Agent(
                             id = "internal-prompt-icon-alt",
                             name = "internal-prompt-icon-alt",
@@ -890,7 +893,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
                                         success = response.error == null,
-                                        type = "meta_alt",
+                                        type = "icon_meta_alt",
                                         attributedToSecondaryId = attributedSecondaryId
                                     ))
                                 }
@@ -970,7 +973,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             emoji = candidate.emoji,
             providerId = candidate.provider.id, model = candidate.model,
             promptText = captured.first,
-            responseText = captured.second
+            responseText = captured.second,
+            promptName = "meta_alt"
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -1038,7 +1042,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "Translation icon") {
+            withTracerTags(category = "icon_translation") {
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val response = appViewModel.repository.analyzeWithAgent(
@@ -1060,7 +1064,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             promptText = resolved,
                             responseText = response.analysis.orEmpty(),
                             inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC
+                            inputCost = inC, outputCost = outC,
+                            promptName = "translation"
                         )
                         if (inT > 0 || outT > 0) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
@@ -1142,7 +1147,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             unique.forEach { item ->
                 launch(Dispatchers.IO) {
-                    withTracerTags(category = "Translation icon (alt)") {
+                    withTracerTags(category = "icon_translation_alt") {
                         val agent = Agent(
                             id = "translation-icon-alt",
                             name = "translation-icon-alt",
@@ -1190,7 +1195,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
                                         success = response.error == null,
-                                        type = "translation_alt",
+                                        type = "icon_translation_alt",
                                         attributedToSecondaryId = attributedSecondaryId
                                     ))
                                 }
@@ -1263,7 +1268,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             emoji = candidate.emoji,
             providerId = candidate.provider.id, model = candidate.model,
             promptText = captured.first,
-            responseText = captured.second
+            responseText = captured.second,
+            promptName = "translation_alt"
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -1327,7 +1333,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "Report icon (alt)") {
+                            withTracerTags(reportId = reportId, category = "icon_main_alt") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "icon-alt-${item.provider.id}-${item.model}",
@@ -1368,7 +1374,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "main_alt"
+                                            type = "icon_main_alt"
                                         ))
                                     }
                                     val totalCost = inC + outC
@@ -1468,7 +1474,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "Language icon (alt)") {
+                            withTracerTags(reportId = reportId, category = "icon_language_alt") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "language-icon-alt-${item.provider.id}-${item.model}",
@@ -1512,7 +1518,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "language_alt"
+                                            type = "icon_language_alt"
                                         ))
                                     }
                                     if (response.error == null && emoji.isNotEmpty()) {
@@ -1612,7 +1618,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "Report icon (alt agent)") {
+                            withTracerTags(reportId = reportId, category = "icon_report_alt") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "icon-alt-agent-${agentId}-${item.provider.id}-${item.model}",
@@ -1658,7 +1664,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "report_alt"
+                                            type = "icon_report_alt"
                                         ))
                                     }
                                     val totalCost = inC + outC
@@ -1714,7 +1720,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         emoji: String
     ) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            ReportStorage.setReportAgentIconChoice(context, reportId, agentId, emoji)
+            ReportStorage.setReportAgentIconChoice(context, reportId, agentId, emoji, promptUsed = "report_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
@@ -1740,7 +1746,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         iconModel: String
     ) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel)
+            ReportStorage.setReportIconChoice(context, reportId, emoji, iconModel, promptUsed = "main_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
@@ -1757,7 +1763,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         iconModel: String
     ) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
-            ReportStorage.setReportLanguageChoice(context, reportId, emoji, iconModel)
+            ReportStorage.setReportLanguageChoice(context, reportId, emoji, iconModel, promptUsed = "language_alt")
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
@@ -1875,7 +1881,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val releaser = ProviderThrottle.acquire(host)
         return try {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Report icons tier 1 (chat)") {
+                withTracerTags(reportId = reportId, category = "icon_report_2") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val messages = listOf(
@@ -1926,7 +1932,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val releaser = ProviderThrottle.acquire(host)
         return try {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Report icons tier 2 (one-shot)") {
+                withTracerTags(reportId = reportId, category = "icon_report") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val syntheticAgent = Agent(
@@ -1991,7 +1997,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val releaser = ProviderThrottle.acquire(host)
         return try {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Report icons tier 3 (fixed agent)") {
+                withTracerTags(reportId = reportId, category = "icon_report_3") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
@@ -2072,8 +2078,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context, reportId: String, agentId: String,
         emoji: String, winningTier: Int?
     ) {
+        // Map tier number to the bundled prompt name that produced
+        // the icon — surfaces on the Icon lookup screen's subject row.
+        val promptUsed = when (winningTier) {
+            1 -> "report_2"
+            2 -> "report"
+            3 -> "report_3"
+            else -> null
+        }
         ReportStorage.setReportAgentIconAndTier(
-            context, reportId, agentId, emoji, winningTier
+            context, reportId, agentId, emoji, winningTier, promptUsed = promptUsed
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)
@@ -2278,7 +2292,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // per-pair coroutines read/write it concurrently.
                 val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
-                withTracerTags(reportId = reportId, category = "Fan-icons: ${metaPrompt.name}", runId = iconRunId) {
+                withTracerTags(reportId = reportId, category = "icon_fan_out", runId = iconRunId) {
                     coroutineScope {
                         interleaveByHost(pending) { p ->
                             AppService.findById(p.providerId)?.let { providerHost(it) }
@@ -2395,7 +2409,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // permitPreAcquired is inherited from the batch's context.
         return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Fan-out icons tier 1 (chat)") {
+                withTracerTags(reportId = reportId, category = "icon_fan_out_2") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val messages = listOf(
@@ -2454,7 +2468,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // permitPreAcquired is inherited from the batch's context.
         return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Fan-out icons tier 2 (one-shot)") {
+                withTracerTags(reportId = reportId, category = "icon_fan_out") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val syntheticAgent = Agent(
@@ -2520,7 +2534,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // permitPreAcquired is inherited from the batch's context.
         return run {
             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "Fan-out icons tier 3 (fixed agent)") {
+                withTracerTags(reportId = reportId, category = "icon_fan_out_3") {
                     val started = System.currentTimeMillis()
                     runCatching {
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
@@ -2603,9 +2617,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         context: Context, reportId: String, pairId: String,
         emoji: String, winningTier: Int?
     ) {
+        // Map tier number to the bundled prompt name for the Icon
+        // lookup screen's subject row.
+        val promptUsed = when (winningTier) {
+            1 -> "fan_out_2"
+            2 -> "fan_out"
+            3 -> "fan_out_3"
+            else -> null
+        }
         SecondaryResultStorage.setFanOutIconAndTier(
             context, reportId, pairId, emoji, winningTier,
-            iconRunId = ApiTracer.currentRunId
+            iconRunId = ApiTracer.currentRunId,
+            promptUsed = promptUsed
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)

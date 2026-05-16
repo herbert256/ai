@@ -42,12 +42,20 @@ data class ReportAgent(
     var iconOutputCost: Double = 0.0,
     /** Which tier of the 3-tier Create → Report icons chain produced
      *  the agent's current icon. 1 = chat continuation, 2 = one-shot
-     *  internal/report_icon, 3 = fixed-agent fallback against
-     *  internal/report_icon_3th. Null when no tier succeeded and the
+     *  internal/report, 3 = fixed-agent fallback against
+     *  internal/report_3. Null when no tier succeeded and the
      *  icon is the 📝 fallback, or when the icon was set manually
-     *  via Find alternative icons. Surfaces on AgentIconDetailScreen
-     *  so the Prompt card can render the actual winning template. */
-    var iconWinningTier: Int? = null
+     *  via Find alternative icons. Used by the Icon lookup screen
+     *  to derive the bundled prompt name when [iconPromptUsed] is
+     *  null (legacy rows). */
+    var iconWinningTier: Int? = null,
+    /** Bundled prompt name that produced the currently-displayed
+     *  emoji on this agent — e.g. "report" / "report_2" / "report_3"
+     *  for the 3-tier chain or "report_alt" after a Find-alt pick.
+     *  Surfaces on the Icon lookup screen as the green subject row.
+     *  Null on legacy rows; the screen falls back to deriving the
+     *  name from [iconWinningTier]. */
+    var iconPromptUsed: String? = null
 )
 
 /** One captured API call from the 3-tier Create → Report icons
@@ -179,6 +187,12 @@ data class Report(
      *  agent label. Stored as "<providerId>/<modelId>" so the row
      *  never has to re-resolve through the agent list. */
     var iconModel: String? = null,
+    /** Bundled prompt name that produced the currently-displayed
+     *  [icon]. "main" on initial gen; "main_alt" after a Find-alt
+     *  pick. Surfaces on the Icon lookup screen as the green
+     *  subject row. Null on legacy reports — Icon lookup falls
+     *  back to "main". */
+    var iconPromptUsed: String? = null,
     /** Per-call audit log for the 3-tier Create → Report icons
      *  chain. Cleared whenever a fresh chain run starts; otherwise
      *  every tier appends one [IconCallRecord]. The export's per-
@@ -211,6 +225,13 @@ data class Report(
      *  agent label in the detail screen. Stored as
      *  "<providerId>/<modelId>". */
     var languageIconModel: String? = null,
+    /** Bundled prompt name that produced the currently-displayed
+     *  [languageIcon]. "language" on initial gen (the second-call
+     *  emoji prompt); "language_alt" after a Find-alt pick.
+     *  Surfaces on the Icon lookup screen as the green subject
+     *  row. Null on legacy reports — Icon lookup falls back to
+     *  "language". */
+    var languageIconPromptUsed: String? = null,
     /** Failure reason from the language-icon call. Null while
      *  running, on success, or when the call was never kicked off.
      *  Surfaces on the manage-screen row as a ❌ + message and on
@@ -578,7 +599,10 @@ object ReportStorage {
         context: Context, reportId: String, icon: String,
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double,
-        traceFile: String? = null
+        traceFile: String? = null,
+        /** Bundled prompt name that produced [icon] — "main" on the
+         *  bundled initial-gen path, "main_alt" after a Find-alt pick. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -588,6 +612,7 @@ object ReportStorage {
                 iconInputTokens = inputTokens, iconOutputTokens = outputTokens,
                 iconInputCost = inputCost, iconOutputCost = outputCost,
                 iconTraceFile = traceFile,
+                iconPromptUsed = promptUsed ?: report.iconPromptUsed,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -638,13 +663,17 @@ object ReportStorage {
      *  fan-out call has already bumped them via [bumpReportIconCost]. */
     fun setReportIconChoice(
         context: Context, reportId: String,
-        icon: String, iconModel: String
+        icon: String, iconModel: String,
+        /** Bundled prompt that produced the picked emoji — typically
+         *  "main_alt". Surfaces on the Icon lookup screen. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(
                 icon = icon, iconErrorMessage = null, iconModel = iconModel,
+                iconPromptUsed = promptUsed ?: report.iconPromptUsed,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -697,7 +726,11 @@ object ReportStorage {
         inputTokens: Int = 0, outputTokens: Int = 0,
         inputCost: Double = 0.0, outputCost: Double = 0.0,
         traceFile: String? = null,
-        rawResponse: String? = null
+        rawResponse: String? = null,
+        /** Bundled prompt name that produced [icon] — "language" on
+         *  the initial second-call gen, "language_alt" after a
+         *  Find-alt pick. Surfaces on the Icon lookup screen. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -712,6 +745,7 @@ object ReportStorage {
                 languageIconOutputCost = outputCost,
                 languageIconTraceFile = traceFile,
                 languageIconRawResponse = rawResponse,
+                languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -766,7 +800,10 @@ object ReportStorage {
      *  [Report.languageIconErrorMessage]. */
     fun setReportLanguageChoice(
         context: Context, reportId: String,
-        icon: String, iconModel: String
+        icon: String, iconModel: String,
+        /** Bundled prompt that produced the picked emoji — typically
+         *  "language_alt". Surfaces on the Icon lookup screen. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -775,6 +812,7 @@ object ReportStorage {
                 languageIcon = icon,
                 languageIconModel = iconModel,
                 languageIconErrorMessage = null,
+                languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -890,20 +928,26 @@ object ReportStorage {
      *  clears iconErrorMessage, leaves cost fields alone — those have
      *  already been bumped per-call by [bumpReportAgentIconCost]. */
     fun setReportAgentIconChoice(
-        context: Context, reportId: String, agentId: String, icon: String
+        context: Context, reportId: String, agentId: String, icon: String,
+        /** Bundled prompt that produced the picked emoji. For
+         *  Find-alt picks this is "report_alt"; surfaces on the
+         *  Icon lookup screen's subject row. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
-            val updated = report.agents[idx].copy(
+            val prev = report.agents[idx]
+            val updated = prev.copy(
                 icon = icon, iconErrorMessage = null,
                 // Find alternative icons is a manual pick — null the
                 // tier flag so the per-agent detail screen falls back
                 // to a "manual pick" branch instead of mis-attributing
                 // to one of the 3 chain tiers.
-                iconWinningTier = null
+                iconWinningTier = null,
+                iconPromptUsed = promptUsed ?: prev.iconPromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(
@@ -921,16 +965,22 @@ object ReportStorage {
      *  [bumpReportAgentIconCost]. */
     fun setReportAgentIconAndTier(
         context: Context, reportId: String, agentId: String,
-        icon: String, winningTier: Int?
+        icon: String, winningTier: Int?,
+        /** Bundled prompt that produced [icon] — "report_2" for
+         *  tier 1, "report" for tier 2, "report_3" for tier 3.
+         *  Surfaces on the Icon lookup screen. */
+        promptUsed: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
-            val updated = report.agents[idx].copy(
+            val prev = report.agents[idx]
+            val updated = prev.copy(
                 icon = icon, iconErrorMessage = null,
-                iconWinningTier = winningTier
+                iconWinningTier = winningTier,
+                iconPromptUsed = promptUsed ?: prev.iconPromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(
