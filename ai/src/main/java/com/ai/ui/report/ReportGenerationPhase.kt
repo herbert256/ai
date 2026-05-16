@@ -592,6 +592,26 @@ internal fun ColumnScope.GenerationPhase(
     // layout matches the rest of the rows.
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
+    // Green subject row carries the total cost on the right (💰 +
+    // cents + ¢). Rendered above the progress bar so the layout
+    // matches the pre-totals-relocation order: subject → progress →
+    // list. The running cost stays visible while scrolling.
+    com.ai.ui.shared.HardcodedSubjectRow(
+        text = uiState.genericPromptTitle,
+        trailing = {
+            if (showTotals) {
+                Text(
+                    text = "💰 ${formatCents(totalCost)} ¢",
+                    fontSize = 14.sp, color = AppColors.Blue,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+        }
+    )
+    Spacer(modifier = Modifier.height(2.dp))
+
     // Progress is in-flight UI: shown only while at least one agent is
     // still pending. Drops out once every agent finishes (or in
     // staged-edit mode where the X/Y count is meaningless until the
@@ -683,27 +703,6 @@ internal fun ColumnScope.GenerationPhase(
     // LazyListScope DSL inside the LazyColumn below can gate the icon
     // row without invoking @Composable functions.
     val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
-
-    // Green subject row carries the total cost on the right (💰 +
-    // cents + ¢). Replaces the old "footer-total" row at the bottom
-    // of the LazyColumn so the running cost stays visible while
-    // scrolling.
-    com.ai.ui.shared.HardcodedSubjectRow(
-        text = uiState.genericPromptTitle,
-        trailing = {
-            if (showTotals) {
-                Text(
-                    text = "💰 ${formatCents(totalCost)} ¢",
-                    fontSize = 14.sp, color = AppColors.Blue,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
-        }
-    )
-    Spacer(modifier = Modifier.height(2.dp))
-
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
