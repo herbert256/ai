@@ -491,6 +491,7 @@ fun ReportsScreenNav(
             onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
             onCancelItem = { runId, itemId -> reportViewModel.cancelTranslationItem(runId, itemId) },
             onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) },
+            onReconcileStalled = { sourceId, runId -> reportViewModel.reconcileStalledTranslationRun(context, sourceId, runId) },
             onDeleteRun = { sourceId, runId -> reportViewModel.deleteTranslationRun(context, sourceId, runId) },
             onSetMode = { runId, mode -> reportViewModel.setTranslationMode(runId, mode) }
         ),
@@ -612,7 +613,12 @@ data class TranslationLifecycleCallbacks(
     val onDeleteRun: (sourceReportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null },
     /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
      *  Wired by ReportsScreenNav to ReportViewModel.setTranslationMode. */
-    val onSetMode: (runId: String, mode: com.ai.viewmodel.ReportViewModel.TranslationMode) -> Unit = { _, _ -> }
+    val onSetMode: (runId: String, mode: com.ai.viewmodel.ReportViewModel.TranslationMode) -> Unit = { _, _ -> },
+    /** Rebuild a stalled run's in-memory state from disk — wired to
+     *  ReportViewModel.reconcileStalledTranslationRun. Fires from the
+     *  result page's 10-second poll when an hourglass row's
+     *  completed-equals-total stall is detected. */
+    val onReconcileStalled: (sourceReportId: String, runId: String) -> Unit = { _, _ -> }
 )
 
 /** Four translation-icon callbacks plumbed through [ReportsScreen]
@@ -2416,7 +2422,10 @@ fun ReportsScreen(
         onMissingPromptIcon = promptIconCallbacks.onKickoff,
         onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
         onMissingTranslationIcon = translationIconCallbacks.onKickoff,
-        onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language }
+        onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language },
+        // Function reference (no lambda allocation) to keep the
+        // ReportsScreen method under the 64 KB bytecode ceiling.
+        onReconcileStalledTranslation = translationLifecycle.onReconcileStalled
     )
     ReportMainContent(
         uiState = uiState,

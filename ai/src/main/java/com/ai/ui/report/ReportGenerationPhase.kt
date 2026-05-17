@@ -267,7 +267,15 @@ internal data class GenerationPhaseHandlers(
     val onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     val onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     val onMissingTranslationIcon: (String) -> Unit = { _ -> },
-    val onOpenTranslationIconDetail: (String) -> Unit = { _ -> }
+    val onOpenTranslationIconDetail: (String) -> Unit = { _ -> },
+    /** Rebuild a translation run's in-memory state from disk —
+     *  surfaced from a 10-second poll on this screen whenever the
+     *  hourglass row's completed-equals-total stall is detected.
+     *  Two-arg shape so the wiring at ReportScreen can pass
+     *  `translationLifecycle.onReconcileStalled` directly without
+     *  building an extra lambda — that lambda allocation pushed
+     *  ReportsScreen over the 64 KB method-bytecode ceiling. */
+    val onReconcileStalledTranslation: (sourceReportId: String, runId: String) -> Unit = { _, _ -> }
 )
 
 @Composable
@@ -767,6 +775,34 @@ internal fun ColumnScope.GenerationPhase(
 
     val activeTranslationRuns = remember(translationRuns) {
         translationRuns.filter { !it.isFinished && !it.cancelled }
+    }
+    // Auto-reconcile stalled translation rows. A run with
+    // completed == total but still flagged !isFinished is the
+    // diagnostic signature of a cancelled `addCrossTranslationItems`
+    // / `startMissingTranslations` coroutine: disk has work the
+    // in-memory items list never picked up, the worker that would
+    // have flipped `finished = true` never ran, and the manage
+    // screen's hourglass keeps spinning over an apparently-done
+    // row. Re-firing every 10 s (and once on screen open) so a
+    // user revisiting a stalled report self-heals without needing
+    // to force-stop the app.
+    //
+    // `rememberUpdatedState` so the loop body reads the latest
+    // activeTranslationRuns instead of capturing the snapshot at
+    // launch.
+    val latestActiveRuns = rememberUpdatedState(activeTranslationRuns)
+    LaunchedEffect(currentReportId) {
+        while (true) {
+            val rid = currentReportId
+            if (rid != null) {
+                latestActiveRuns.value.forEach { run ->
+                    if (run.total > 0 && run.completed == run.total) {
+                        handlers.onReconcileStalledTranslation(rid, run.runId)
+                    }
+                }
+            }
+            kotlinx.coroutines.delay(10_000L)
+        }
     }
     // Suppress the persisted summary row for any runId that has a
     // live run currently in flight — restartFailedTranslations

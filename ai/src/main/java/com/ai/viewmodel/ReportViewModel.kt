@@ -6594,6 +6594,47 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Reconcile a stalled translation run by dropping the stale
+     *  in-memory state and re-seeding it from the persisted disk
+     *  rows.
+     *
+     *  Why it exists: certain failure modes (an `addCrossTranslationItems`
+     *  / `startMissingTranslations` coroutine cancelled mid-dispatch)
+     *  leave `_translationRuns[runId]` with `finished = false`,
+     *  `completed == total` in its items list, but on-disk rows that
+     *  never got their `saveOneTranslationItem` update — so the
+     *  manage screen's animated hourglass keeps spinning over a row
+     *  whose Done count already matches Total. The fix runs the
+     *  same disk-rebuild the L1 screen falls back to when liveRun is
+     *  null ([buildPersistedTranslationRunState]): it produces a
+     *  state whose `items` cover every persisted row (DONE / ERROR /
+     *  placeholder-as-PENDING) and whose `finished` flag is true so
+     *  the hourglass clears.
+     *
+     *  Guard: skips when a dispatch job is currently alive for the
+     *  same runId. Reconciling on top of an active worker would race
+     *  the worker's pending `saveOneTranslationItem` write — and
+     *  there's nothing stalled if a worker is still moving items
+     *  toward terminal anyway. */
+    fun reconcileStalledTranslationRun(
+        context: Context,
+        sourceReportId: String,
+        runId: String
+    ): Job = appViewModel.viewModelScope.launch(reportLogContext(sourceReportId)) {
+        if (translationJobs[runId]?.isActive == true) {
+            AppLog.d("Translation", "reconcile skipped — runId=$runId has active dispatch job")
+            return@launch
+        }
+        AppLog.i("Translation", "reconciling stalled translation runId=$runId — rebuilding in-memory state from disk")
+        val rebuilt = buildPersistedTranslationRunState(context, sourceReportId, runId) ?: run {
+            // No rows on disk for this runId — the run is gone. Drop
+            // the stale in-memory entry so the hourglass stops.
+            _translationRuns.update { it - runId }
+            return@launch
+        }
+        _translationRuns.update { it + (runId to rebuilt) }
+    }
+
     /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
      *  Persists to [com.ai.data.TranslationModeStore] so the choice
      *  survives a process kill / app restart, and updates the

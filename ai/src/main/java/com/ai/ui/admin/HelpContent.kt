@@ -280,7 +280,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect."),
             HelpCard("Title bar — 💬", "Results phase only, and only when the prompt is non-blank. Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn."),
             HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
-            HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate.")
+            HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
+            HelpCard("Stalled translation auto-reconcile", "Live translation rows (⏳ + 'done / total') run a 10-second sanity check: if a row's done count already equals total but the run is still flagged in-flight (the diagnostic signature of a cancelled cross-translate / resume coroutine — disk has work the in-memory list never picked up), the app silently rebuilds the in-memory state from the persisted SecondaryResult rows. The hourglass clears, the per-status counts on the run drill-in turn truthful, and any placeholder rows the rebuild surfaces show as Queue so you can decide whether to Restart them.")
         )
     ),
     "update_from_cloud" to HelpContent(
