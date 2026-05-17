@@ -155,6 +155,11 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            HorizontalDivider(
+                color = AppColors.BorderUnfocused,
+                thickness = 1.dp,
+                modifier = Modifier.fillMaxWidth()
+            )
             // Report icon — large, centred.
             Text(
                 text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
