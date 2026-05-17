@@ -466,11 +466,15 @@ fun ReportsScreenNav(
         onCopyReport = { rid -> reportViewModel.copyReport(context, rid, scope) },
         onTogglePinReport = { rid -> reportViewModel.toggleReportPinned(context, rid, scope) },
         onConsumePendingModels = { reportViewModel.clearPendingReportModels() },
-        onExport = { rid, fmt, det, act, onProgress ->
-            shareReportAsExport(context, rid, fmt, det, act, uiState.aiSettings, viewModel.repository, onProgress)
+        onExport = { rid, fmt, det, act, lang, onProgress ->
+            shareReportAsExport(
+                context, rid, fmt, det, act,
+                uiState.aiSettings, viewModel.repository, onProgress,
+                language = lang
+            )
         },
-        onExportAll = { rid, onProgress ->
-            bulkExportAndShare(context, rid, onProgress)
+        onExportAll = { rid, lang, onProgress ->
+            bulkExportAndShare(context, rid, lang, onProgress)
         },
         // Filter to the current report — _translationRuns is keyed by
         // runId across every report's batches; without the filter, an
@@ -793,8 +797,8 @@ fun ReportsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
-    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _ -> },
-    onExportAll: suspend (String, (Int, Int) -> Unit) -> Unit = { _, _ -> },
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, String?, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    onExportAll: suspend (String, String?, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
@@ -2186,13 +2190,21 @@ fun ReportsScreen(
 
     if (showExport && currentReportId != null) {
         val rid = currentReportId
+        // Build the Language picker tabs from the report's TRANSLATE
+        // secondaries (Original is always prepended via buildLangTabs).
+        // Cards in ReportExportScreen render the picker only when more
+        // than one tab is present.
+        val exportLangTabs = remember(translateRows) { buildLangTabs(translateRows) }
+        val sourceLanguageIcon = runtime.languageIcon
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showExport = false }) {
             ReportExportScreen(
                 onBack = { showExport = false },
                 onNavigateHome = onNavigateHome,
-                onExport = { fmt, det, act, onProgress -> onExport(rid, fmt, det, act, onProgress) },
-                onExportAll = { onProgress -> onExportAll(rid, onProgress) },
-                onViewInApp = { det -> showExport = false; htmlPreviewDetail = det }
+                onExport = { fmt, det, act, lang, onProgress -> onExport(rid, fmt, det, act, lang, onProgress) },
+                onExportAll = { lang, onProgress -> onExportAll(rid, lang, onProgress) },
+                onViewInApp = { det, _ -> showExport = false; htmlPreviewDetail = det },
+                availableLanguages = exportLangTabs,
+                sourceLanguageIcon = sourceLanguageIcon
             )
         }
         return
@@ -2465,6 +2477,9 @@ private data class ReportRuntimeState(
     val languageIconCost: Double,
     val languageDetectCost: Double,
     val languageName: String?,
+    /** Source-language icon (Report.languageIcon) — fed to the
+     *  Export screen's Language picker as the "Original" icon. */
+    val languageIcon: String?,
     val agentIconRows: Map<String, AgentIconRow>,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
@@ -2505,6 +2520,7 @@ private fun rememberReportRuntimeState(
     var languageIconCost by remember { mutableStateOf(0.0) }
     var languageDetectCost by remember { mutableStateOf(0.0) }
     var languageName by remember { mutableStateOf<String?>(null) }
+    var languageIcon by remember { mutableStateOf<String?>(null) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     var loadedReportPrompt by remember { mutableStateOf("") }
@@ -2522,6 +2538,7 @@ private fun rememberReportRuntimeState(
             languageIconCost = 0.0
             languageDetectCost = 0.0
             languageName = null
+            languageIcon = null
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
@@ -2537,6 +2554,7 @@ private fun rememberReportRuntimeState(
             languageIconCost = (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
             languageDetectCost = (r?.languageInputCost ?: 0.0) + (r?.languageOutputCost ?: 0.0)
             languageName = r?.languageName
+            languageIcon = r?.languageIcon
             agentIconRows = r?.agents?.associate { ra ->
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
             } ?: emptyMap()
@@ -2664,6 +2682,7 @@ private fun rememberReportRuntimeState(
         languageIconCost = languageIconCost,
         languageDetectCost = languageDetectCost,
         languageName = languageName,
+        languageIcon = languageIcon,
         agentIconRows = agentIconRows,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,

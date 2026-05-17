@@ -30,18 +30,28 @@ import kotlinx.coroutines.launch
  * (done, total) updates the export pushes.
  */
 @Composable
-fun ReportExportScreen(
+internal fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, (Int, Int) -> Unit) -> Unit,
-    onExportAll: suspend ((Int, Int) -> Unit) -> Unit,
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, String?, (Int, Int) -> Unit) -> Unit,
+    onExportAll: suspend (String?, (Int, Int) -> Unit) -> Unit,
     /** Open the in-app HTML viewer (the same screen the AI Report
      *  "HTML" action-row button reaches). Surfaced as a third button
      *  next to Android share / View in browser whenever the format
      *  is HTML; the picked Detail (Short / Complete) is passed
      *  through so the preview renders the same body that Android
-     *  share / View in browser would produce. */
-    onViewInApp: (ReportExportDetail) -> Unit = {}
+     *  share / View in browser would produce. The second arg is the
+     *  same `language: String?` that the other callbacks receive —
+     *  the in-app viewer can choose to honor it later, today it just
+     *  renders the multi-language HTML. */
+    onViewInApp: (ReportExportDetail, String?) -> Unit = { _, _ -> },
+    /** Original + one entry per TRANSLATE language on the report.
+     *  Empty / single-entry => Language card hidden + ALL_LANGUAGES
+     *  forced. */
+    availableLanguages: List<LangTab> = emptyList(),
+    /** Report.languageIcon — fed to the icon-mode picker row as the
+     *  Original tab's icon. */
+    sourceLanguageIcon: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -49,7 +59,10 @@ fun ReportExportScreen(
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
     var detail by rememberSaveable { mutableStateOf(ReportExportDetail.COMPLETE) }
     var target by rememberSaveable { mutableStateOf(ReportExportTarget.VIEW_BROWSER) }
+    var languageScope by rememberSaveable { mutableStateOf(ExportLanguageScope.ALL_LANGUAGES) }
+    var pickedLanguage by rememberSaveable { mutableStateOf(LangTab.ORIGINAL_KEY) }
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val hasLanguages = availableLanguages.size > 1
     val showViewInApp = format == ReportExportFormat.HTML
     // If the user had VIEW_APP picked and then flips Format to a
     // non-HTML option, the chip vanishes — reset the selection so
@@ -59,6 +72,31 @@ fun ReportExportScreen(
         if (!showViewInApp && target == ReportExportTarget.VIEW_APP) {
             target = ReportExportTarget.VIEW_BROWSER
         }
+    }
+    // JSON is the trace bundle — language-agnostic. When the user
+    // picks One language, hide the JSON chip; if it was selected,
+    // fall back to HTML so the Format card doesn't show a hidden
+    // selection. Mirrors the showViewInApp fallback above.
+    LaunchedEffect(languageScope) {
+        if (languageScope == ExportLanguageScope.ONE_LANGUAGE && format == ReportExportFormat.JSON) {
+            format = ReportExportFormat.HTML
+        }
+    }
+    // If a report has no translations, force-collapse the scope so a
+    // stale saved-state ONE_LANGUAGE from a different report doesn't
+    // hide the JSON chip on a no-translation export.
+    LaunchedEffect(hasLanguages) {
+        if (!hasLanguages && languageScope == ExportLanguageScope.ONE_LANGUAGE) {
+            languageScope = ExportLanguageScope.ALL_LANGUAGES
+        }
+    }
+
+    // Encoding the picker → engine: null = all, "" = original,
+    // non-empty = single named translation (matched via languageKey).
+    val exportLanguage: String? = when {
+        !hasLanguages || languageScope == ExportLanguageScope.ALL_LANGUAGES -> null
+        pickedLanguage == LangTab.ORIGINAL_KEY -> ""
+        else -> availableLanguages.firstOrNull { it.key == pickedLanguage }?.displayName ?: ""
     }
 
     progress?.let { (done, total) ->
@@ -81,10 +119,11 @@ fun ReportExportScreen(
     fun runExport(action: ReportExportAction) {
         val pickedFormat = format
         val pickedDetail = detail
+        val pickedLanguageArg = exportLanguage
         scope.launch {
             progress = 0 to 1
             try {
-                onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
+                onExport(pickedFormat, pickedDetail, action, pickedLanguageArg) { d, t -> progress = d to t }
                 progress = null
                 // For SHARE the share sheet itself is the user's last action so we
                 // collapse this screen away. For VIEW the file just opened in the
@@ -114,7 +153,7 @@ fun ReportExportScreen(
                 when (target) {
                     ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
                     ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
-                    ReportExportTarget.VIEW_APP -> onViewInApp(detail)
+                    ReportExportTarget.VIEW_APP -> onViewInApp(detail, exportLanguage)
                 }
             },
             enabled = progress == null,
@@ -127,6 +166,43 @@ fun ReportExportScreen(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (hasLanguages) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Language", fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = languageScope == ExportLanguageScope.ALL_LANGUAGES,
+                                onClick = { languageScope = ExportLanguageScope.ALL_LANGUAGES },
+                                label = { Text("All languages") }
+                            )
+                            FilterChip(
+                                selected = languageScope == ExportLanguageScope.ONE_LANGUAGE,
+                                onClick = { languageScope = ExportLanguageScope.ONE_LANGUAGE },
+                                label = { Text("One language") }
+                            )
+                        }
+                        if (languageScope == ExportLanguageScope.ONE_LANGUAGE) {
+                            LanguagePickerRow(
+                                languages = availableLanguages,
+                                selectedKey = pickedLanguage,
+                                onSelect = { pickedLanguage = it },
+                                useIcons = true,
+                                originalIcon = sourceLanguageIcon
+                            )
+                        }
+                        Text(
+                            when (languageScope) {
+                                ExportLanguageScope.ALL_LANGUAGES ->
+                                    "Render every language present on the report. Export-all (zip) lays out one top-level directory per language."
+                                ExportLanguageScope.ONE_LANGUAGE ->
+                                    "Render only the selected language. JSON traces are not language-specific and are hidden in this mode."
+                            },
+                            fontSize = 12.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                }
+            }
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Format", fontWeight = FontWeight.Bold, color = Color.White)
@@ -136,13 +212,15 @@ fun ReportExportScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        ReportExportFormat.entries.forEach { f ->
-                            FilterChip(
-                                selected = format == f,
-                                onClick = { format = f },
-                                label = { Text(f.displayName) }
-                            )
-                        }
+                        ReportExportFormat.entries
+                            .filter { it != ReportExportFormat.JSON || languageScope == ExportLanguageScope.ALL_LANGUAGES }
+                            .forEach { f ->
+                                FilterChip(
+                                    selected = format == f,
+                                    onClick = { format = f },
+                                    label = { Text(f.displayName) }
+                                )
+                            }
                     }
                 }
             }
@@ -212,7 +290,7 @@ fun ReportExportScreen(
                 scope.launch {
                     progress = 0 to 1
                     try {
-                        onExportAll { d, t -> progress = d to t }
+                        onExportAll(exportLanguage) { d, t -> progress = d to t }
                         progress = null
                         onBack()
                     } catch (e: Exception) {

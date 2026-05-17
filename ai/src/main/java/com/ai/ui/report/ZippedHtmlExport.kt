@@ -58,9 +58,20 @@ import java.util.zip.ZipOutputStream
  *     <metaPromptName>/, Prompt/
  *   german/, …
  */
-internal fun buildZippedHtmlBytes(context: Context, report: Report): ByteArray {
+internal fun buildZippedHtmlBytes(
+    context: Context,
+    report: Report,
+    /** Language filter. null = include every language (current default,
+     *  per-language top-level dirs). "" = original only. Non-empty =
+     *  single named language, matched via [languageKey]. */
+    language: String? = null
+): ByteArray {
     val data = buildHtmlReportData(context, report)
-    val languages = buildLanguageViews(data)
+    val allLanguages = buildLanguageViews(data)
+    val languages = if (language == null) allLanguages else {
+        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
+        allLanguages.filter { it.key == targetKey }.ifEmpty { allLanguages.take(1) }
+    }
     val originalView = languages.first()
     // Trace + report indexes are built off the Original view only —
     // translations don't add new traces beyond those tagged with the
@@ -963,13 +974,21 @@ private fun renderRerankContentLocal(content: String, maxAnchor: Int, agentsByAn
 
 // ===== Dispatcher =====
 
-internal fun shareReportAsZippedHtml(context: Context, reportId: String, action: ReportExportAction) {
+internal fun shareReportAsZippedHtml(
+    context: Context, reportId: String, action: ReportExportAction,
+    language: String? = null
+) {
     val report = ReportStorage.getReport(context, reportId) ?: return
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
     val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
-    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html_$ts.zip")
-    outFile.writeBytes(buildZippedHtmlBytes(context, report))
+    val langTag = when {
+        language == null -> ""
+        language.isBlank() -> "_${LangTab.ORIGINAL_KEY}"
+        else -> "_${languageKey(language)}"
+    }
+    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html${langTag}_$ts.zip")
+    outFile.writeBytes(buildZippedHtmlBytes(context, report, language))
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
     val intent = when (action) {

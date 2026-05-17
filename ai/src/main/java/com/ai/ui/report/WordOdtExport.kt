@@ -382,8 +382,14 @@ private fun escXml(s: String): String {
 
 // ===== DOCX (Office Open XML) =====
 
-internal fun buildDocxBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray {
-    val data = com.ai.ui.report.buildHtmlReportData(context, report)
+internal fun buildDocxBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray =
+    buildDocxBytesFromData(com.ai.ui.report.buildHtmlReportData(context, report), short)
+
+/** Renders the DOCX bytes from a pre-built [HtmlReportData].
+ *  Per-language exports pass a `buildLanguageViews(base)` slice
+ *  in here so the translated agent + meta text reaches the
+ *  document instead of the original. */
+internal fun buildDocxBytesFromData(data: com.ai.ui.report.HtmlReportData, short: Boolean = false): ByteArray {
     val blocks = buildMediumBlocks(data, short)
     val docXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>""")
@@ -507,8 +513,14 @@ internal fun buildDocxBytes(context: Context, report: com.ai.data.Report, short:
 
 // ===== ODT (OpenDocument Text) =====
 
-internal fun buildOdtBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray {
-    val data = com.ai.ui.report.buildHtmlReportData(context, report)
+internal fun buildOdtBytes(context: Context, report: com.ai.data.Report, short: Boolean = false): ByteArray =
+    buildOdtBytesFromData(com.ai.ui.report.buildHtmlReportData(context, report), short)
+
+/** Renders the ODT bytes from a pre-built [HtmlReportData].
+ *  Per-language exports pass a `buildLanguageViews(base)` slice
+ *  in here so the translated agent + meta text reaches the
+ *  document instead of the original. */
+internal fun buildOdtBytesFromData(data: com.ai.ui.report.HtmlReportData, short: Boolean = false): ByteArray {
     val blocks = buildMediumBlocks(data, short)
     val contentXml = buildString {
         append("""<?xml version="1.0" encoding="UTF-8"?>""")
@@ -632,17 +644,22 @@ private fun ZipOutputStream.writeEntry(name: String, body: String) {
 
 internal fun shareReportAsDocxOrOdt(
     context: Context, reportId: String,
-    format: ReportExportFormat, detail: ReportExportDetail, action: ReportExportAction
+    format: ReportExportFormat, detail: ReportExportDetail, action: ReportExportAction,
+    /** Pre-built per-language data slice from
+     *  [com.ai.ui.report.buildLanguageViews]. Null means caller hasn't
+     *  resolved one — we build the all-languages base here. */
+    data: com.ai.ui.report.HtmlReportData? = null
 ): Boolean {
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
     val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
     val isShort = detail == ReportExportDetail.SHORT
+    val effectiveData = data ?: com.ai.ui.report.buildHtmlReportData(context, report)
     val (bytes, ext, mime, formatLabel) = when (format) {
-        ReportExportFormat.DOCX -> Quad(buildDocxBytes(context, report, isShort), "docx",
+        ReportExportFormat.DOCX -> Quad(buildDocxBytesFromData(effectiveData, isShort), "docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "MS Word")
-        ReportExportFormat.ODT -> Quad(buildOdtBytes(context, report, isShort), "odt",
+        ReportExportFormat.ODT -> Quad(buildOdtBytesFromData(effectiveData, isShort), "odt",
             "application/vnd.oasis.opendocument.text", "OpenDocument")
         else -> return false
     }

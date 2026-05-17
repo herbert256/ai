@@ -596,7 +596,10 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Target — Android share", "Builds the file and hands it to the system share sheet. Closes the Export screen so back from the chooser doesn't loop here."),
             HelpCard("Target — View in browser", "Builds the file and opens it as a separate Android intent (system browser for HTML; viewer app for PDF / Word / ODT). Stays on this screen so you can come back and try a different format without rebuilding picker state."),
             HelpCard("Target — View in app", "Renders the HTML inline in the in-app WebView preview — no external app launched. Only available when Format is HTML; the chip disappears for other formats and the selection auto-falls back to View in browser."),
-            HelpCard("Export all (zip)", "Bundles all 8 documents (Short + Complete × HTML / PDF / DOCX / ODT) plus the JSON traces zip into one master zip and shares it. Pops the screen on success. Bypasses the Format / Detail / Target picks."),
+            HelpCard("Language card", "Surfaces only when the report has at least one TRANSLATE secondary. Two chips: All languages / One language. One language reveals an icon-mode picker — source-language icon plus one icon per translation. Reports without translations skip the card and behave like before."),
+            HelpCard("Language — JSON gating", "JSON is the trace bundle (request/response files), which has no language. Picking One language hides the JSON chip from the Format card; if JSON was selected, the format auto-falls back to HTML."),
+            HelpCard("Export all (zip) — All languages", "Master zip lays out one top-level directory per language (`original/`, `dutch/`, …) each containing `docs/` (Short + Complete × HTML / PDF / DOCX / ODT) and `html/` (per-language Zipped HTML). The trace bundle lives once at the root under `json/`."),
+            HelpCard("Export all (zip) — One language", "Flat layout for just the picked language: `docs/`, `html/`, `json/`. No per-language top-level directory."),
             HelpCard("Progress dialog", "While building, a non-dismissable dialog shows a linear progress bar driven by (done, total) updates from the export. Failures show a Toast with the exception class + message; the dialog clears."),
         )
     ),

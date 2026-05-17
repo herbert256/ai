@@ -54,6 +54,14 @@ enum class ReportExportTarget(val displayName: String) {
     VIEW_APP("View in app")
 }
 
+/** Drives the Language card on [com.ai.ui.report.ReportExportScreen].
+ *  ALL_LANGUAGES → render every language inline (today's default —
+ *  the engine threads `language = null` through), ONE_LANGUAGE →
+ *  filter to a single language slice via `buildLanguageViews`. The
+ *  card is only rendered when the report has at least one
+ *  TRANSLATE secondary. */
+enum class ExportLanguageScope { ALL_LANGUAGES, ONE_LANGUAGE }
+
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")
@@ -76,17 +84,22 @@ suspend fun shareReportAsExport(
     action: ReportExportAction,
     @Suppress("UNUSED_PARAMETER") aiSettings: Settings,
     @Suppress("UNUSED_PARAMETER") repository: AnalysisRepository,
-    onProgress: (Int, Int) -> Unit
+    onProgress: (Int, Int) -> Unit,
+    /** Language filter from the Language card on the export screen.
+     *  null = all languages (today's default — render everything
+     *  inline, multi-language picker for HTML / per-language
+     *  subdirs for Zipped HTML).
+     *  "" = original-only (LangTab.ORIGINAL_KEY).
+     *  Non-empty = single target language English name ("Dutch"). */
+    language: String? = null
 ): Boolean {
     val report = ReportStorage.getReport(context, reportId) ?: return false
 
     if (format == ReportExportFormat.JSON) {
         onProgress(0, 1)
         // JSON export = zip of every trace file tagged with this
-        // report (and the source report's traces too, when this is a
-        // translated copy), organized into one directory per trace
-        // category. Same code path for SHARE and VIEW — only the
-        // intent type differs.
+        // report. Language-agnostic (traces aren't translated) — only
+        // reachable in the All-languages scope per the export screen.
         shareReportAsJson(context, reportId, action)
         onProgress(1, 1)
         return true
@@ -94,31 +107,44 @@ suspend fun shareReportAsExport(
 
     if (format == ReportExportFormat.ZIPPED_HTML) {
         onProgress(0, 1)
-        // Zipped HTML always emits the Complete content, broken into
-        // one .html file per item with directories matching the view
-        // picker. Detail picker is hidden for this format.
-        shareReportAsZippedHtml(context, reportId, action)
+        shareReportAsZippedHtml(context, reportId, action, language)
         onProgress(1, 1)
         return true
     }
 
+    // Resolve the per-language slice once for HTML / PDF / DOCX / ODT.
+    // null language → render the multi-language base; non-null →
+    // pick the matching HtmlLanguageView from buildLanguageViews.
+    val base = buildHtmlReportData(context, report)
+    val data: HtmlReportData = if (language == null) base else {
+        val views = buildLanguageViews(base)
+        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY
+                        else languageKey(language)
+        views.firstOrNull { it.key == targetKey }?.data ?: base
+    }
+
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
-        val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action)
+        val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action, data)
         onProgress(1, 1)
         return ok
     }
 
     onProgress(0, 1)
     val html = when (detail) {
-        ReportExportDetail.SHORT -> buildShortHtml(context, report)
-        ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersion(context))
+        ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
+        ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersion(context))
     }
     onProgress(1, 1)
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val detailTag = detail.name.lowercase()
-    val baseName = "ai_report_${safeTitle}_${detailTag}_${pdfTimestamp()}"
+    val langTag = when {
+        language == null -> ""                          // all-languages
+        language.isBlank() -> "_${LangTab.ORIGINAL_KEY}" // original-only
+        else -> "_${languageKey(language)}"             // single named language
+    }
+    val baseName = "ai_report_${safeTitle}_${detailTag}${langTag}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
         // Complete PDF gets a JS-injected TOC page at the top with real
@@ -211,15 +237,20 @@ internal fun makeStaticForPdf(html: String): String {
  *  no API trace dump. The same HTML is what buildShortHtml returns
  *  for HTML/PDF SHORT exports; DOCX/ODT have their own block-based
  *  equivalent in WordOdtExport. */
-internal fun buildShortHtml(context: Context, report: Report): String {
-    val agents = report.agents
-        .filter { it.reportStatus != ReportStatus.PENDING && it.reportStatus != ReportStatus.STOPPED }
-        .sortedBy { it.agentName.lowercase() }
-    val secondary = com.ai.data.SecondaryResultStorage.listForReport(context, report.id)
+internal fun buildShortHtml(context: Context, report: Report): String =
+    buildShortHtmlFromData(buildHtmlReportData(context, report))
+
+/** Renders the Short HTML from a pre-built [HtmlReportData].
+ *  Per-language exports feed in a `buildLanguageViews(base)` slice
+ *  so the translated prompt + agent + meta text reaches the
+ *  document instead of the original. */
+internal fun buildShortHtmlFromData(data: HtmlReportData): String {
+    val agents = data.agents   // already filtered to non-PENDING / non-STOPPED + sorted
+    val secondary = data.secondary
     // Group chat-type META rows by their user-given prompt name —
     // "Compare", "Critique", "Synthesize", … all surface as their
     // own heading. Rows missing a name fall back to "Meta".
-    val metaByName = LinkedHashMap<String, MutableList<com.ai.data.SecondaryResult>>()
+    val metaByName = LinkedHashMap<String, MutableList<HtmlSecondaryData>>()
     secondary.filter { it.kind == com.ai.data.SecondaryKind.META }.forEach { s ->
         val name = s.metaPromptName?.takeIf { it.isNotBlank() }
             ?: com.ai.data.legacyKindDisplayName(s.kind)
@@ -240,23 +271,22 @@ internal fun buildShortHtml(context: Context, report: Report): String {
         .meta-ts { color: #888; font-weight: normal; font-size: 10pt; margin-left: 6px; }
     """.trimIndent())
     sb.append("</style></head><body>")
-    sb.append("<h1>").append(esc(report.title)).append("</h1>")
-    if (!report.rapportText.isNullOrBlank()) {
-        sb.append("<div>").append(convertMarkdownToHtmlForExport(report.rapportText!!)).append("</div>")
+    sb.append("<h1>").append(esc(data.title)).append("</h1>")
+    if (!data.rapportText.isNullOrBlank()) {
+        sb.append("<div>").append(convertMarkdownToHtmlForExport(data.rapportText)).append("</div>")
     }
 
-    sb.append("<h2>Prompt</h2><p class='prompt'>").append(esc(report.prompt)).append("</p>")
+    sb.append("<h2>Prompt</h2><p class='prompt'>").append(esc(data.prompt)).append("</p>")
 
     sb.append("<h2>Results</h2>")
     for (a in agents) {
-        val provider = AppService.findById(a.provider)
-        sb.append("<h3>").append(esc(provider?.id ?: a.provider))
+        sb.append("<h3>").append(esc(a.providerDisplay))
             .append(" / ").append(esc(a.model)).append("</h3>")
-        if (a.reportStatus == ReportStatus.ERROR) {
-            sb.append("<p class='err'>Error: ").append(esc(a.errorMessage ?: "unknown")).append("</p>")
+        if (!a.errorMessage.isNullOrBlank()) {
+            sb.append("<p class='err'>Error: ").append(esc(a.errorMessage)).append("</p>")
         }
-        if (!a.responseBody.isNullOrBlank()) {
-            sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseBody!!)).append("</div>")
+        if (!a.responseText.isNullOrBlank()) {
+            sb.append("<div>").append(convertMarkdownToHtmlForExport(a.responseText!!)).append("</div>")
         }
         a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
             sb.append("<h4>Sources</h4><ol>")
@@ -270,14 +300,12 @@ internal fun buildShortHtml(context: Context, report: Report): String {
         }
     }
 
-    fun appendMeta(items: List<com.ai.data.SecondaryResult>, heading: String) {
+    fun appendMeta(items: List<HtmlSecondaryData>, heading: String) {
         if (items.isEmpty()) return
         sb.append("<h2>").append(heading).append("</h2>")
         for (s in items) {
-            val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
-            val ts = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(s.timestamp))
-            sb.append("<h3>").append(esc(provDisplay)).append(" / ").append(esc(s.model))
-                .append("<span class='meta-ts'>").append(esc(ts)).append("</span></h3>")
+            sb.append("<h3>").append(esc(s.providerDisplay)).append(" / ").append(esc(s.model))
+                .append("<span class='meta-ts'>").append(esc(s.timestamp)).append("</span></h3>")
             if (s.errorMessage != null) {
                 sb.append("<p class='err'>Error: ").append(esc(s.errorMessage)).append("</p>")
             } else if (!s.content.isNullOrBlank()) {
@@ -288,8 +316,8 @@ internal fun buildShortHtml(context: Context, report: Report): String {
     metaByName.forEach { (name, items) -> appendMeta(items, name) }
     appendMeta(moderations, "Moderations")
 
-    if (!report.closeText.isNullOrBlank()) {
-        sb.append("<div>").append(convertMarkdownToHtmlForExport(report.closeText!!)).append("</div>")
+    if (!data.closeText.isNullOrBlank()) {
+        sb.append("<div>").append(convertMarkdownToHtmlForExport(data.closeText)).append("</div>")
     }
     sb.append("</body></html>")
     return sb.toString()

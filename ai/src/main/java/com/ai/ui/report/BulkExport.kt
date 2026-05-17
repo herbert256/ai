@@ -17,24 +17,33 @@ import java.util.zip.ZipOutputStream
 /**
  * "Export all" — build every supported export for the report and bundle
  * them into a single zip the user can hand off via the standard share
- * sheet. The master zip is laid out as:
+ * sheet.
  *
- *   docs/<title>_short.html      docs/<title>_complete.html
- *   docs/<title>_short.pdf       docs/<title>_complete.pdf
- *   docs/<title>_short.docx      docs/<title>_complete.docx
- *   docs/<title>_short.odt       docs/<title>_complete.odt
- *   html/   (Complete report split into per-item HTML files; nav site)
- *   json/   (raw trace files grouped by category; omitted when the
- *            report has no captured traces)
+ * Layout depends on the [language] selector:
  *
- * `onProgress(done, total)` ticks 10 times as each artifact is
- * generated. The PDF render leg is the slowest — each render boots a
- * WebView, lays out the entire HTML, and slices the bitmap into pages
- * — so the two PDFs alone usually account for most of the wall time.
+ * - `null` (All languages) — every language slice from
+ *   [buildLanguageViews] gets its own top-level directory:
+ *     original/docs/<title>_short.html  …  original/docs/<title>_complete.odt
+ *     original/html/                    (per-language Zipped HTML)
+ *     dutch/docs/…                      german/docs/…
+ *     json/                             (language-agnostic trace bundle)
+ * - `""` or non-empty (One language) — flat layout for that single
+ *   language:
+ *     docs/<title>_short.html  …  docs/<title>_complete.odt
+ *     html/                           (Zipped HTML for that language)
+ *     json/                           (trace bundle, unchanged)
+ *
+ * `onProgress(done, total)` ticks once per generated artifact. PDF is
+ * the slowest leg — each render boots a WebView, lays out the entire
+ * HTML, and slices the bitmap into pages — so PDFs dominate the wall
+ * time, multiplied by the language count in All-languages mode.
  */
 internal suspend fun bulkExportAndShare(
     context: Context,
     reportId: String,
+    /** null = all languages (per-language top-level dirs); "" = source
+     *  language only; non-empty = single named translation. */
+    language: String?,
     onProgress: (Int, Int) -> Unit
 ): Boolean = withContext(Dispatchers.IO) {
     // Whole flow runs on IO so the file writes (DOCX/ODT can be MBs
@@ -44,15 +53,6 @@ internal suspend fun bulkExportAndShare(
     // that follows can't service its frame callbacks and the
     // CompletableDeferred inside renderHtmlToPdfFile times out.
     val report = ReportStorage.getReport(context, reportId) ?: return@withContext false
-    val total = 10
-    var done = 0
-    suspend fun bump() {
-        done++
-        // Hop to Main so the AlertDialog's slot recomposes immediately;
-        // posting from IO works but races with frame timing.
-        withContext(Dispatchers.Main) { onProgress(done, total) }
-    }
-    withContext(Dispatchers.Main) { onProgress(done, total) }
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
@@ -66,80 +66,112 @@ internal suspend fun bulkExportAndShare(
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
     } catch (_: Exception) { "?" }
 
-    try {
-        // Compute each large HTML lazily and drop it as soon as the
-        // step that needed it is done — holding a multi-MB Complete
-        // HTML across all 10 steps was triggering chromium memory
-        // pressure when the WebView for PDF Short tried to allocate
-        // (the symptom: hang at step 7, render times out at 30s).
+    val baseData = buildHtmlReportData(context, report)
+    val allViews = buildLanguageViews(baseData)
+    val viewsToRender: List<HtmlLanguageView> = if (language == null) {
+        allViews
+    } else {
+        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
+        allViews.filter { it.key == targetKey }.ifEmpty { allViews.take(1) }
+    }
+    // 9 artifacts per language (2 HTML + 2 DOCX + 2 ODT + 2 PDF +
+    // 1 zipped HTML) plus a single trace bundle.
+    val total = viewsToRender.size * 9 + 1
+    var done = 0
+    suspend fun bump() {
+        done++
+        // Hop to Main so the AlertDialog's slot recomposes immediately;
+        // posting from IO works but races with frame timing.
+        withContext(Dispatchers.Main) { onProgress(done, total) }
+    }
+    withContext(Dispatchers.Main) { onProgress(done, total) }
 
-        // 1. HTML Short
-        run {
-            val shortHtml = buildShortHtml(context, report)
-            File(workDir, "${safeTitle}_short.html").writeText(shortHtml)
-        }
-        bump()
-        // 2. HTML Complete
-        run {
-            val completeHtml = convertReportToHtml(context, report, appVersion)
-            File(workDir, "${safeTitle}_complete.html").writeText(completeHtml)
-        }
-        bump()
-        // 3. DOCX Short
-        File(workDir, "${safeTitle}_short.docx").writeBytes(buildDocxBytes(context, report, short = true)); bump()
-        // 4. DOCX Complete
-        File(workDir, "${safeTitle}_complete.docx").writeBytes(buildDocxBytes(context, report, short = false)); bump()
-        // 5. ODT Short
-        File(workDir, "${safeTitle}_short.odt").writeBytes(buildOdtBytes(context, report, short = true)); bump()
-        // 6. ODT Complete
-        File(workDir, "${safeTitle}_complete.odt").writeBytes(buildOdtBytes(context, report, short = false)); bump()
-        // Suggest GC before the PDF renders so chromium has a clean
-        // heap to work with — paranoid but harmless.
-        System.gc()
-        // 7. PDF Short — no TOC page. WebView lives on Main, so hop.
-        run {
-            val pdfShort = File(workDir, "${safeTitle}_short.pdf")
-            val staticHtml = makeStaticForPdf(buildShortHtml(context, report))
-            withContext(Dispatchers.Main) {
-                renderHtmlToPdfFile(context, staticHtml, pdfShort, withTocPage = false, timeoutMs = 120_000L)
+    try {
+        // Per-language zipped HTML, keyed by lv.key — emitted into the
+        // master zip below either at `<langKey>/html/` (all mode) or
+        // `html/` (one-language mode).
+        val zippedHtmlPerLang = LinkedHashMap<String, ByteArray>()
+        viewsToRender.forEach { lv ->
+            val langDir = if (language == null) {
+                File(workDir, lv.key).also { it.mkdirs() }
+            } else workDir
+            val data = lv.data
+
+            // HTML Short / Complete
+            File(langDir, "${safeTitle}_short.html").writeText(buildShortHtmlFromData(data)); bump()
+            File(langDir, "${safeTitle}_complete.html")
+                .writeText(convertReportToHtmlFromData(data, appVersion)); bump()
+            // DOCX Short / Complete
+            File(langDir, "${safeTitle}_short.docx")
+                .writeBytes(buildDocxBytesFromData(data, short = true)); bump()
+            File(langDir, "${safeTitle}_complete.docx")
+                .writeBytes(buildDocxBytesFromData(data, short = false)); bump()
+            // ODT Short / Complete
+            File(langDir, "${safeTitle}_short.odt")
+                .writeBytes(buildOdtBytesFromData(data, short = true)); bump()
+            File(langDir, "${safeTitle}_complete.odt")
+                .writeBytes(buildOdtBytesFromData(data, short = false)); bump()
+            // Suggest GC before the PDF renders so chromium has a clean
+            // heap to work with — paranoid but harmless.
+            System.gc()
+            // PDF Short — no TOC page. WebView lives on Main, so hop.
+            run {
+                val pdfShort = File(langDir, "${safeTitle}_short.pdf")
+                val staticHtml = makeStaticForPdf(buildShortHtmlFromData(data))
+                withContext(Dispatchers.Main) {
+                    renderHtmlToPdfFile(context, staticHtml, pdfShort, withTocPage = false, timeoutMs = 120_000L)
+                }
             }
-        }
-        bump()
-        System.gc()
-        // 8. PDF Complete — JS-injected TOC page with computed page numbers
-        run {
-            val pdfComplete = File(workDir, "${safeTitle}_complete.pdf")
-            val staticHtml = makeStaticForPdf(convertReportToHtml(context, report, appVersion))
-            withContext(Dispatchers.Main) {
-                renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
+            bump()
+            System.gc()
+            // PDF Complete — JS-injected TOC page with computed page numbers
+            run {
+                val pdfComplete = File(langDir, "${safeTitle}_complete.pdf")
+                val staticHtml = makeStaticForPdf(convertReportToHtmlFromData(data, appVersion))
+                withContext(Dispatchers.Main) {
+                    renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
+                }
             }
+            bump()
+            // Per-language Zipped HTML — filter buildLanguageViews to
+            // this single language inside the sub-zip too.
+            val zhLang = if (lv.key == LangTab.ORIGINAL_KEY) "" else lv.displayName
+            zippedHtmlPerLang[lv.key] = buildZippedHtmlBytes(context, report, language = zhLang); bump()
         }
-        bump()
-        // 9. Zipped HTML — Complete report broken into one HTML file
-        // per item (navigable mini-site). Held in memory; the bytes
-        // get streamed back out into the master zip below under a
-        // zipped_html/ directory rather than being saved as a nested
-        // .zip — no zip-in-zip.
-        val zippedHtmlBytes = buildZippedHtmlBytes(context, report); bump()
-        // 10. JSON traces zip — same treatment. Bytes are unpacked
-        // into the master zip's traces/ directory. Null when the
-        // report has no captured traces.
+
+        // JSON traces zip — language-agnostic, one copy at the root.
+        // Null when the report has no captured traces.
         val traceZipBytes = buildJsonTraceZipBytes(context, report); bump()
 
-        // Master zip layout:
-        //   docs/<title>_short.html, _complete.html, _short.pdf, ...
-        //   html/  (Zipped HTML payload, expanded)
-        //   json/  (trace bundle, expanded; only when traces exist)
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val masterZip = File(outDir, "ai_report_${safeTitle}_all_$ts.zip")
+        val langTag = when {
+            language == null -> ""
+            language.isBlank() -> "_${LangTab.ORIGINAL_KEY}"
+            else -> "_${languageKey(language)}"
+        }
+        val masterZip = File(outDir, "ai_report_${safeTitle}_all${langTag}_$ts.zip")
         ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
-            workDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
-                val entry = ZipEntry("docs/${f.name}").apply { time = f.lastModified() }
-                zos.putNextEntry(entry)
-                f.inputStream().use { it.copyTo(zos) }
-                zos.closeEntry()
+            if (language == null) {
+                viewsToRender.forEach { lv ->
+                    val langDir = File(workDir, lv.key)
+                    langDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
+                        val entry = ZipEntry("${lv.key}/docs/${f.name}").apply { time = f.lastModified() }
+                        zos.putNextEntry(entry)
+                        f.inputStream().use { it.copyTo(zos) }
+                        zos.closeEntry()
+                    }
+                    zippedHtmlPerLang[lv.key]?.let { unpackInto(zos, it, "${lv.key}/html/") }
+                }
+            } else {
+                workDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
+                    val entry = ZipEntry("docs/${f.name}").apply { time = f.lastModified() }
+                    zos.putNextEntry(entry)
+                    f.inputStream().use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+                val onlyLang = viewsToRender.first()
+                zippedHtmlPerLang[onlyLang.key]?.let { unpackInto(zos, it, "html/") }
             }
-            unpackInto(zos, zippedHtmlBytes, "html/")
             traceZipBytes?.let { unpackInto(zos, it, "json/") }
         }
 

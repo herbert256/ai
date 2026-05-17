@@ -264,6 +264,12 @@ internal fun convertReportToHtml(context: android.content.Context, report: Repor
     return renderHtmlReport(buildHtmlReportData(context, report), appVersion)
 }
 
+/** Complete HTML renderer from a pre-built [HtmlReportData].
+ *  Per-language exports feed a `buildLanguageViews(base)` slice
+ *  in here so the translated content reaches the renderer. */
+internal fun convertReportToHtmlFromData(data: HtmlReportData, appVersion: String): String =
+    renderHtmlReport(data, appVersion)
+
 /** Build the unified data shape every Medium-equivalent export consumes:
  *  the agent list with cost/anchor data, the secondary results, and the
  *  redacted captured-trace bundle. Shared between the Medium HTML
