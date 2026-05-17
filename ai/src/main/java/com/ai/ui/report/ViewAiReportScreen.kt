@@ -605,12 +605,19 @@ internal fun ViewAiReportScreen(
         // green subject row and the bottom icons bar — without
         // weight(1f) the body would measure to content height
         // and leave an empty gap below it on tall screens.
-        // verticalScroll is here as a safety net for very small
-        // displays / accessibility scaling; on a normal phone
-        // every tile fits without scrolling.
+        //
+        // Grid mode never scrolls — if 3 tiles per row don't fit
+        // vertically, the layout bumps to 4 per row so everything
+        // is reachable in a single screen. List mode keeps its
+        // verticalScroll since the row-per-tile layout can grow
+        // unbounded.
+        val bodyModifier = if (viewMode == "list") {
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+        } else {
+            Modifier.weight(1f).fillMaxWidth()
+        }
         Column(
-            modifier = Modifier.weight(1f).fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            modifier = bodyModifier,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -630,29 +637,44 @@ internal fun ViewAiReportScreen(
             if (viewMode == "list") {
                 ListTileColumn(items = sortedTiles)
             } else {
-                ReorderableTileFlow(
-                    items = sortedTiles,
-                    onReorder = { fromId, toId ->
-                        val current = sortedTiles.map { it.id }.toMutableList()
-                        val fromIdx = current.indexOf(fromId)
-                        val toIdx = current.indexOf(toId)
-                        if (fromIdx >= 0 && toIdx >= 0 && fromIdx != toIdx) {
-                            current.removeAt(fromIdx)
-                            current.add(toIdx, fromId)
-                            // Patch persisted: replace current-visible
-                            // segment with the new local order, keep
-                            // any non-current ids (from other reports)
-                            // in their previous relative positions at
-                            // the tail.
-                            val currentSet = current.toSet()
-                            val newSaved = current + savedOrder.filter { it !in currentSet }
-                            savedOrder = newSaved
-                            tileOrderPrefs.edit()
-                                .putString("tile_order", newSaved.joinToString(","))
-                                .apply()
-                        }
+                // BoxWithConstraints lets the grid see the height
+                // it's been allocated so it can pick 3 or 4 cols.
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val spacing = 10.dp
+                    // Tile aspect = 1.05 (width / height). Compute
+                    // total layout height for a given column count.
+                    fun layoutHeight(cols: Int): androidx.compose.ui.unit.Dp {
+                        val rows = ((sortedTiles.size + cols - 1) / cols).coerceAtLeast(1)
+                        val tileWidth = (maxWidth - spacing * (cols - 1)) / cols
+                        val tileHeight = tileWidth / 1.05f
+                        return tileHeight * rows + spacing * (rows - 1)
                     }
-                )
+                    val chosenCols = if (layoutHeight(3) <= maxHeight) 3 else 4
+                    ReorderableTileFlow(
+                        items = sortedTiles,
+                        cols = chosenCols,
+                        onReorder = { fromId, toId ->
+                            val current = sortedTiles.map { it.id }.toMutableList()
+                            val fromIdx = current.indexOf(fromId)
+                            val toIdx = current.indexOf(toId)
+                            if (fromIdx >= 0 && toIdx >= 0 && fromIdx != toIdx) {
+                                current.removeAt(fromIdx)
+                                current.add(toIdx, fromId)
+                                // Patch persisted: replace current-visible
+                                // segment with the new local order, keep
+                                // any non-current ids (from other reports)
+                                // in their previous relative positions at
+                                // the tail.
+                                val currentSet = current.toSet()
+                                val newSaved = current + savedOrder.filter { it !in currentSet }
+                                savedOrder = newSaved
+                                tileOrderPrefs.edit()
+                                    .putString("tile_order", newSaved.joinToString(","))
+                                    .apply()
+                            }
+                        }
+                    )
+                }
             }
 
             // Inline expansion — full-width card listing each
@@ -834,11 +856,11 @@ private fun loadTileOrder(prefs: android.content.SharedPreferences): List<String
 @Composable
 private fun ReorderableTileFlow(
     items: List<IdentifiedTile>,
+    cols: Int = 3,
     onReorder: (fromId: String, toId: String) -> Unit
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val spacing = 10.dp
-        val cols = 3
         val tileWidth = ((maxWidth - spacing * (cols - 1)) / cols) - 0.5.dp
 
         var draggedId by remember { mutableStateOf<String?>(null) }
