@@ -14,6 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -413,6 +414,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /** Singleton Job for the app-wide background resume sweep
+     *  ([com.ai.viewmodel.ReportViewModel.startBackgroundResumeSweep]).
+     *  Lives on AppViewModel so it survives Activity config
+     *  changes — the LaunchedEffect that starts the sweep is
+     *  inside a Composable whose lifetime is shorter than the
+     *  loop's. Cancel-prior pattern inside the start method
+     *  guarantees only one loop runs at a time even if Compose
+     *  re-fires the effect. */
+    @Volatile var backgroundResumeSweepJob: Job? = null
 
     // Hot-mutating fan-out pair set lives outside UiState so per-task
     // start/finish updates (5–15 Hz during a Fan out batch) don't

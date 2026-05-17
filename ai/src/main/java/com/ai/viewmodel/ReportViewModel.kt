@@ -4437,6 +4437,63 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** App-wide background resume sweep. Walks every report whose
+     *  timestamp is within the last 7 days and calls
+     *  [resumeStaleRunsForReport] on it — catches translation /
+     *  fan-out / single-Meta placeholders for reports the user
+     *  hasn't opened recently (the per-report on-open trigger
+     *  inside [com.ai.ui.report.ReportScreen] misses those).
+     *
+     *  Idempotent vs already-running work: the called function's
+     *  guards (activeTranslationRunIds snapshot, the active-job
+     *  check inside [reconcileStalledTranslationRun], the
+     *  in-flight dedupe inside [resumeStaleFanOutPairs]) make
+     *  this safe to retrigger.
+     *
+     *  Lifecycle: one loop at a time. The Job is stored on
+     *  [AppViewModel.backgroundResumeSweepJob] so a re-creation
+     *  of ReportViewModel (Activity config change tearing down
+     *  the `remember{}` ReportViewModel inside AppNavHost)
+     *  cancels the prior loop before starting the fresh one. */
+    fun startBackgroundResumeSweep(context: Context) {
+        appViewModel.backgroundResumeSweepJob?.cancel()
+        appViewModel.backgroundResumeSweepJob = appViewModel.viewModelScope.launch(
+            reportLogContext("background-resume-sweep")
+        ) {
+            while (kotlinx.coroutines.currentCoroutineContext()[Job]?.isActive == true) {
+                try {
+                    resumeStaleRunsForRecentReports(context)
+                } catch (e: Exception) {
+                    AppLog.w("BgResumeSweep", "iteration failed: ${e.javaClass.simpleName}: ${e.message}")
+                }
+                kotlinx.coroutines.delay(120_000L)
+            }
+        }
+    }
+
+    /** Walks every report newer than 7 days and triggers the
+     *  per-report stale-runs resume. Sequential await — a
+     *  parallel fan-out across 100 reports' disk scans would
+     *  saturate IO without giving anything meaningful in return,
+     *  and [resumeStaleRunsForReport] spawns its own per-runId
+     *  launches anyway. */
+    private suspend fun resumeStaleRunsForRecentReports(context: Context) {
+        val cutoff = System.currentTimeMillis() - 7L * 24L * 60L * 60L * 1000L
+        val recent = withContext(Dispatchers.IO) {
+            ReportStorage.getAllReports(context).filter { it.timestamp >= cutoff }
+        }
+        if (recent.isEmpty()) return
+        AppLog.d("BgResumeSweep", "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)")
+        recent.forEach { report ->
+            // resumeStaleRunsForReport returns the orchestrating
+            // Job; join it so the next iteration's IO doesn't
+            // pile on top. The actual per-runId dispatches it
+            // spawns are fire-and-forget inside their own
+            // viewModelScope launches.
+            resumeStaleRunsForReport(context, report.id).join()
+        }
+    }
+
     /** TOCTOU-safe re-read + save pair that flips a stuck placeholder
      *  into a terminal errored row. Used by [resumeStaleRunsForReport]'s
      *  fallback branch for rows that can't be reconstructed (legacy

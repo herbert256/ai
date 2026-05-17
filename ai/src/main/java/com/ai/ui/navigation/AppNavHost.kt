@@ -47,6 +47,17 @@ fun AppNavHost(
     sharedContent: com.ai.data.SharedContent? = null,
     onSharedContentHandled: () -> Unit = {}
 ) {
+    // App-wide background resume sweep — walks every report
+    // modified in the last 7 days and runs the same per-report
+    // stale-resume pass that fires when a report is opened.
+    // LaunchedEffect(Unit) fires once per composition; the
+    // start method's cancel-prior pattern (Job stored on
+    // AppViewModel) handles Activity rotation cleanly.
+    val sweepContext = LocalContext.current
+    LaunchedEffect(Unit) {
+        reportViewModel.startBackgroundResumeSweep(sweepContext)
+    }
+
     val safePopBack: () -> Unit = {
         if (navController.previousBackStackEntry != null) navController.popBackStack()
     }
