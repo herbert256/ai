@@ -335,7 +335,7 @@ data class TitleBarIcons(
      *  itself — the bar lives at AppNavHost scope where the per-screen
      *  CompositionLocalProvider override isn't visible. */
     val onMemo: (() -> Unit)?,
-    /** Optional 📑 duplicate-report hook. Distinct from [onCopy] which
+    /** Optional 👯 duplicate-report hook. Distinct from [onCopy] which
      *  is clipboard-copy: this one calls `ReportViewModel.copyReport`
      *  to make a `(Copy)`-suffixed duplicate of the underlying report.
      *  Wired from Report - manage. Null → icon hidden. */
@@ -574,7 +574,7 @@ fun TitleBar(
      *  title double as a navigation toggle between them. Null →
      *  title is non-interactive. */
     onTitleClick: (() -> Unit)? = null,
-    /** Optional 📑 duplicate-report hook. Different from [onCopy]
+    /** Optional 👯 duplicate-report hook. Different from [onCopy]
      *  (which is clipboard copy) — this one duplicates the underlying
      *  report. Used by Report - manage. Null → icon hidden. */
     onCopyReport: (() -> Unit)? = null,
@@ -797,7 +797,7 @@ private fun TitleBarActionStrip(
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
-        if (onCopyReport != null) TitleBarIcon("📑", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
+        if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
         if (onPin != null) TitleBarIcon("📌", if (isPinned) AppColors.Orange else Color.Unspecified, onPin, width = 28.dp, scale = scale)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)

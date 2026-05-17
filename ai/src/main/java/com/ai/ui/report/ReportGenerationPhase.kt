@@ -423,7 +423,7 @@ internal fun ColumnScope.GenerationPhase(
     // button again closes Row 2. Sub-actions fire and then collapse
     // Row 2. The "Action" group is gone — Regenerate / Delete / Share /
     // Chat / View live on the title bar, Pin and Copy on the bottom
-    // bar (📌 / 📑).
+    // bar (📌 / 👯).
     @OptIn(ExperimentalLayoutApi::class)
     @Composable fun ActionRow(
         startPadding: Dp = 0.dp,
