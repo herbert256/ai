@@ -167,7 +167,12 @@ val generateBuildStamp = tasks.register("generateBuildStamp") {
     doLast {
         val f = outFile.get().asFile
         f.parentFile.mkdirs()
-        f.writeText(SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date()))
+        // Write epoch millis so the runtime formats in the
+        // device's default timezone. Writing a pre-formatted
+        // string here would bake in the BUILD MACHINE's tz
+        // (e.g. CEST on the dev laptop) and the device's
+        // install-time stamp would render in a different zone.
+        f.writeText(System.currentTimeMillis().toString())
     }
 }
 

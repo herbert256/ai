@@ -663,8 +663,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             // most-recent `adb install` time. Both surface here so a
             // user-shared log identifies the exact deployed APK.
             val builtAt = runCatching {
-                application.assets.open("build-timestamp.txt")
-                    .bufferedReader().use { it.readText().trim() }
+                val millis = application.assets.open("build-timestamp.txt")
+                    .bufferedReader().use { it.readText().trim() }.toLong()
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
+                    .format(java.util.Date(millis))
             }.getOrDefault("?")
             val installedAt = runCatching {
                 val info = application.packageManager.getPackageInfo(application.packageName, 0)

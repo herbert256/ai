@@ -127,11 +127,18 @@ internal fun formatAppInstalledTime(context: android.content.Context): String = 
 } catch (_: Exception) { "?" }
 
 /** Read the build-time stamp written by the gradle
- *  `generateBuildStamp` task at `assets/build-timestamp.txt`.
- *  Always fresh per build because the task carries
- *  `outputs.upToDateWhen { false }` and re-runs even when the
- *  Gradle configuration cache survives. Falls back to "?" when
- *  the asset isn't present (older builds, robolectric tests). */
+ *  `generateBuildStamp` task at `assets/build-timestamp.txt`
+ *  (epoch millis) and format it in the DEVICE's default
+ *  timezone — same zone the install-time stamp uses. The
+ *  gradle task can't pre-format because that would bake in the
+ *  build machine's tz (e.g. CEST on the dev laptop) and the
+ *  two stamps would disagree on which zone they're in. Always
+ *  fresh per build because the task carries
+ *  `outputs.upToDateWhen { false }`. Falls back to "?" on
+ *  missing / unparseable asset. */
 internal fun readBundledBuildStamp(context: android.content.Context): String = try {
-    context.assets.open("build-timestamp.txt").bufferedReader().use { it.readText().trim() }
+    val millis = context.assets.open("build-timestamp.txt")
+        .bufferedReader().use { it.readText().trim() }.toLong()
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
+        .format(java.util.Date(millis))
 } catch (_: Exception) { "?" }
