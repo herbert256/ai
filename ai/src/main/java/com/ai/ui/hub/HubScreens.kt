@@ -62,21 +62,7 @@ fun HubScreen(
     onNavigateToModelSearch: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
     onOpenLatestReport: () -> Unit = {},
-    /** Open a specific report's result page — wired by AppNavHost
-     *  to the same restoreCompletedReport + navigate path the
-     *  "Open latest" tap uses. Backs the new "Running reports" /
-     *  "Reports with problems" cards' row taps. */
-    onOpenReport: (reportId: String) -> Unit = {},
-    /** Per-row 👁 View icon target on the home-screen Running /
-     *  Problems cards — opens the report at the View tile grid
-     *  instead of Manage. Wired by AppNavHost to the same
-     *  restore + navigate path but with the `initialView=true`
-     *  query-param. */
-    onOpenReportView: (reportId: String) -> Unit = {},
-    viewModel: AppViewModel,
-    /** Used to derive the "Running reports" set from the live
-     *  translation runs StateFlow. */
-    reportViewModel: ReportViewModel
+    viewModel: AppViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -112,9 +98,8 @@ fun HubScreen(
 
     // "Running reports" + "Reports with problems" cards — shared
     // loader so the Reports hub renders the exact same buckets.
-    val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
-    val homeCardsExtra = (if (homeReportLists.running.isNotEmpty()) 1 else 0) +
-        (if (homeReportLists.problems.isNotEmpty()) 1 else 0)
+    // (home no longer renders Running / Problems cards — they live
+    // on ReportsHubScreen now.)
 
     // The AI API Traces card disappears entirely when tracing is off \u2014
     // adjust the card count so the logo sizing math still works.
@@ -126,7 +111,7 @@ fun HubScreen(
     // inside), but we keep the math simple — logo just shrinks a
     // touch when the cards are showing, still bounded by the
     // coerceIn(100, 220) below.
-    val cardCount = (if (tracingEnabled) 11 else 10) + homeCardsExtra
+    val cardCount = (if (tracingEnabled) 11 else 10)
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -181,26 +166,6 @@ fun HubScreen(
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
             Spacer(modifier = Modifier.height(12.dp))
-            if (homeReportLists.running.isNotEmpty()) {
-                ReportListCard(
-                    title = "Running reports",
-                    icon = "\u23F3",
-                    reports = homeReportLists.running,
-                    onOpenReport = onOpenReport,
-                    onOpenReportView = onOpenReportView
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-            if (homeReportLists.problems.isNotEmpty()) {
-                ReportListCard(
-                    title = "Reports with problems",
-                    icon = "\u26A0\uFE0F",
-                    reports = homeReportLists.problems,
-                    onOpenReport = onOpenReport,
-                    onOpenReportView = onOpenReportView
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
@@ -321,110 +286,15 @@ internal fun computeHomeReportLists(
     return HomeReportLists(running, problems)
 }
 
-/** Home-screen card with a title line + one tappable row per
- *  report. Each row carries the report icon (📝 fallback) and
- *  title (single line, ellipsis); tapping opens that report's
- *  result page via [onOpenReport]. Visually mirrors [HubCard]
- *  but allows multiple rows; callers wrap in
- *  `if (reports.isNotEmpty()) { … }` to hide when there's
- *  nothing to show. */
-@Composable
-internal fun ReportListCard(
-    title: String,
-    icon: String,
-    reports: List<Report>,
-    onOpenReport: (reportId: String) -> Unit,
-    /** Per-row 👁 View icon target — opens the report at the View
-     *  tile grid. Row tap and the per-row 🔧 keep firing
-     *  [onOpenReport] for the historical Manage entry behaviour. */
-    onOpenReportView: (reportId: String) -> Unit = onOpenReport
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = icon, fontSize = 22.sp)
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                Spacer(modifier = Modifier.weight(1f))
-                Text(text = reports.size.toString(), fontSize = 14.sp, color = AppColors.TextTertiary)
-            }
-            // Indent the report rows so each row's icon lines up
-            // horizontally with the title text above (past the
-            // title icon ~22sp + its 10dp spacer). Cap at 5 rows
-            // to keep the home screen scrollable on small phones;
-            // surplus surfaced as a "+ N more" line at the bottom.
-            val maxRows = 5
-            val visible = reports.take(maxRows)
-            val overflowCount = (reports.size - visible.size).coerceAtLeast(0)
-            visible.forEach { r ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable { onOpenReport(r.id) }
-                        .padding(start = 32.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = r.icon?.takeIf { it.isNotBlank() } ?: "📝",
-                        fontSize = 18.sp
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = r.title.ifBlank { "Untitled" },
-                        fontSize = 14.sp, color = Color.White,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    com.ai.ui.shared.ReportRowActionIcons(
-                        onOpenManage = { onOpenReport(r.id) },
-                        onOpenView = { onOpenReportView(r.id) }
-                    )
-                }
-            }
-            if (overflowCount > 0) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "+ $overflowCount more",
-                    fontSize = 12.sp, color = AppColors.TextTertiary,
-                    modifier = Modifier.padding(start = 32.dp, top = 2.dp, bottom = 2.dp)
-                )
-            }
-        }
-    }
-}
-
 @Composable
 fun ReportsHubScreen(
     onNavigateBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onNavigateToNewReport: () -> Unit,
-    onNavigateToPromptHistory: () -> Unit,
-    onNavigateToExamplePrompts: () -> Unit = {},
-    hasExamplePrompts: Boolean = false,
-    onNavigateToHistory: () -> Unit,
-    onNavigateToSearch: () -> Unit,
-    onNavigateToLocalSemanticSearch: () -> Unit = {},
-    onNavigateToLocalSearch: () -> Unit,
-    onNavigateToQuickLocalSearch: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onOpenReport: (String) -> Unit = {},
-    /** Routes the dashboard's "New AI report" top button into the
-     *  dedicated [NewAiReportScreen] wrapper. Wired by AppNavHost
-     *  to `navigate(NavRoutes.AI_NEW_REPORT_HUB)`. Unused until
-     *  commit 5 rewrites the hub body. */
-    @Suppress("UNUSED_PARAMETER") onNavigateToNewAiReport: () -> Unit = {},
-    /** Routes the dashboard's "Search AI reports" top button into
-     *  the dedicated [SearchAiReportsScreen] wrapper. Wired by
-     *  AppNavHost to `navigate(NavRoutes.AI_SEARCH_REPORTS)`.
-     *  Unused until commit 5 rewrites the hub body. */
-    @Suppress("UNUSED_PARAMETER") onNavigateToSearchAiReports: () -> Unit = {},
-    /** Routes the dashboard's "All AI reports" bottom button to
-     *  the paginated [AllAiReportsScreen]. Wired by AppNavHost to
-     *  `navigate(NavRoutes.AI_ALL_REPORTS)`. Unused until commit 5
-     *  rewrites the hub body. */
-    @Suppress("UNUSED_PARAMETER") onNavigateToAllReports: () -> Unit = {},
+    onNavigateToNewAiReport: () -> Unit,
+    onNavigateToSearchAiReports: () -> Unit,
+    onNavigateToAllReports: () -> Unit,
+    reportViewModel: ReportViewModel
 ) {
     val context = LocalContext.current
     // Re-fetch on every ON_RESUME — without this, navigating into a
@@ -432,13 +302,16 @@ fun ReportsHubScreen(
     // composable is preserved across the trip and remember{} would
     // never re-evaluate). Keys all the disk reads through one tick.
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val hasPromptHistory = remember(refreshTick) {
-        SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir).loadPromptHistory().isNotEmpty()
+    // Bump after a row 🗑 delete completes so the four cards re-load.
+    var deleteTick by remember { mutableStateOf(0) }
+    val allReports by produceState(initialValue = emptyList<Report>(), refreshTick, deleteTick) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
     }
-    val allReports = remember(refreshTick) { ReportStorage.getAllReports(context) }
-    val hasPreviousReports = allReports.isNotEmpty()
-    val pinnedReports = remember(allReports) { allReports.filter { it.pinned }.take(3) }
-    val recentReports = remember(allReports) { allReports.filter { !it.pinned }.take(3) }
+    val pinnedReports = remember(allReports) {
+        allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
+    }
+    val latestReports = remember(allReports) { allReports.take(5) }
+    val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
     // A report is "in flight" when it hasn't been marked completed AND
     // at least one of its agents is still PENDING / RUNNING. Reports
     // that were cancelled or errored on every agent have completedAt
@@ -451,6 +324,24 @@ fun ReportsHubScreen(
             }
         }
     }
+    val scope = rememberCoroutineScope()
+    val bumpDelete: (String) -> Unit = { rid ->
+        scope.launch(Dispatchers.IO) {
+            ReportStorage.deleteReport(context, rid)
+            deleteTick++
+        }
+    }
+    // Wire the per-row 🔧 / 👁 / 🗑 icons to the navigation +
+    // delete behaviour the hub wants on every list card. Replaces
+    // the bundle the host installs at AI_REPORTS_HUB so the dash-
+    // board's four cards all share one source of truth.
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
+            onOpenManage = onOpenReport,
+            onOpenView = onOpenReport,
+            onDelete = bumpDelete
+        )
+    ) {
     Column(modifier = Modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
@@ -464,30 +355,99 @@ fun ReportsHubScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-        StartHubGroup(
-            hasPromptHistory = hasPromptHistory,
-            hasExamplePrompts = hasExamplePrompts,
-            onNew = onNavigateToNewReport,
-            onPreviousPrompt = onNavigateToPromptHistory,
-            onExamplePrompt = onNavigateToExamplePrompts
-        )
-        if (hasPreviousReports) {
-            Spacer(modifier = Modifier.height(12.dp))
-            ExistingReportsCard(
-                recent = recentReports,
-                pinned = pinnedReports,
-                onHeaderClick = onNavigateToHistory,
-                onOpenReport = onOpenReport
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = onNavigateToNewAiReport,
+                modifier = Modifier.weight(1f)
+            ) { Text("New AI report", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = onNavigateToSearchAiReports,
+                modifier = Modifier.weight(1f)
+            ) { Text("Search AI reports", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        SearchHubGroup(
-            enabled = hasPreviousReports,
-            onQuickLocal = onNavigateToQuickLocalSearch,
-            onExtendedLocal = onNavigateToLocalSearch,
-            onRemoteSemantic = onNavigateToSearch,
-            onLocalSemantic = onNavigateToLocalSemanticSearch
+        ReportsHubListCard(
+            accentEmoji = "⚠️", accentColor = AppColors.Red,
+            label = "AI Reports with problems", reports = homeReportLists.problems
         )
+        Spacer(modifier = Modifier.height(10.dp))
+        ReportsHubListCard(
+            accentEmoji = "⏳", accentColor = AppColors.Orange,
+            label = "Running AI reports", reports = homeReportLists.running
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        ReportsHubListCard(
+            accentEmoji = "📌", accentColor = AppColors.Yellow,
+            label = "Pinned AI Reports", reports = pinnedReports
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        ReportsHubListCard(
+            accentEmoji = "🕘", accentColor = AppColors.Blue,
+            label = "Latest AI Reports", reports = latestReports
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onNavigateToAllReports,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+        ) { Text("All AI reports", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+    }
+}
+
+/** One of the four list cards on the rewritten Reports hub
+ *  dashboard. Shows a header (accent emoji + label + count badge)
+ *  and up to 5 [com.ai.ui.shared.ReportListRow]s. Empty cards
+ *  render dimmed at `alpha = 0.35f` with an italic "(none)" line
+ *  so the layout doesn't shift when a category fills / empties. */
+@Composable
+private fun ReportsHubListCard(
+    accentEmoji: String,
+    accentColor: Color,
+    label: String,
+    reports: List<Report>
+) {
+    val empty = reports.isEmpty()
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(if (empty) 0.35f else 1f)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = accentEmoji, fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    color = accentColor,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(text = reports.size.toString(), fontSize = 12.sp, color = AppColors.TextTertiary)
+            }
+            if (empty) {
+                Text(
+                    text = "(none)",
+                    fontSize = 12.sp,
+                    color = AppColors.TextTertiary,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                    modifier = Modifier.padding(start = 26.dp, top = 4.dp, bottom = 2.dp)
+                )
+            } else {
+                reports.take(5).forEach { r ->
+                    com.ai.ui.shared.ReportListRow(
+                        report = r,
+                        onOpenManage = com.ai.ui.shared.LocalReportListIconBundle.current.onOpenManage,
+                        onOpenView = com.ai.ui.shared.LocalReportListIconBundle.current.onOpenView,
+                        onDelete = com.ai.ui.shared.LocalReportListIconBundle.current.onDelete
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -513,125 +473,6 @@ private fun InFlightPill(count: Int, onResume: () -> Unit) {
                 modifier = Modifier.weight(1f))
             Text("Resume", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
         }
-    }
-}
-
-/** Combined card under the AI Reports hub: up to 3 most-recent
- *  unpinned reports (🕘) followed by up to 3 most-recent pinned
- *  reports (📌). Trailing 'All AI reports' row routes to the full
- *  History screen. Visual style mirrors StartHubGroup / SearchHubGroup
- *  so the three list cards on the hub look uniform. */
-@Composable
-private fun ExistingReportsCard(
-    recent: List<com.ai.data.Report>,
-    pinned: List<com.ai.data.Report>,
-    onHeaderClick: () -> Unit,
-    onOpenReport: (String) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Existing reports", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 4.dp))
-            val iconGenEnabled = com.ai.ui.shared.LocalIconGenEnabled.current
-            recent.forEach { r ->
-                SearchHubItem(icon = (if (iconGenEnabled) r.icon else null) ?: "🕘",
-                    title = r.title.ifBlank { "(untitled)" },
-                    enabled = true, onClick = { onOpenReport(r.id) })
-            }
-            pinned.forEach { r ->
-                SearchHubItem(icon = (if (iconGenEnabled) r.icon else null) ?: "📌",
-                    title = r.title.ifBlank { "(untitled)" },
-                    enabled = true, onClick = { onOpenReport(r.id) })
-            }
-            // Visual break between the per-report rows above and the
-            // catch-all "All AI reports" link below — without it the
-            // 📚 line reads as just another pinned/recent entry.
-            if (recent.isNotEmpty() || pinned.isNotEmpty()) {
-                HorizontalDivider(
-                    color = AppColors.TextDisabled,
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
-            SearchHubItem(icon = "📚", title = "All AI reports", enabled = true, onClick = onHeaderClick)
-        }
-    }
-}
-
-/** Groups the two creation entry points ("New AI Report" and "Start
- *  with a previous prompt") into one Start card so the hub doesn't
- *  show two loose top-level rows for what is conceptually the same
- *  step. Mirrors the Search card pattern. */
-@Composable
-private fun StartHubGroup(
-    hasPromptHistory: Boolean,
-    hasExamplePrompts: Boolean,
-    onNew: () -> Unit,
-    onPreviousPrompt: () -> Unit,
-    onExamplePrompt: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Start", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 4.dp))
-            SearchHubItem(icon = "\uD83D\uDCDD", title = "New AI Report", enabled = true, onClick = onNew)
-            SearchHubItem(icon = "\uD83D\uDD04", title = "Start with a previous prompt", enabled = hasPromptHistory, onClick = onPreviousPrompt)
-            SearchHubItem(icon = "\uD83D\uDCA1", title = "Start with an example prompt", enabled = hasExamplePrompts, onClick = onExamplePrompt)
-        }
-    }
-}
-
-/** Groups the four search modes into one card titled "Search". Order
- *  matches escalating cost: Quick (single-word on-device) → Extended
- *  (tokenised on-device) → Remote semantic (uploads text to an
- *  embedding provider) → Local semantic (on-device LiteRT model;
- *  nothing leaves the device). */
-@Composable
-private fun SearchHubGroup(
-    enabled: Boolean,
-    onQuickLocal: () -> Unit,
-    onExtendedLocal: () -> Unit,
-    onRemoteSemantic: () -> Unit,
-    onLocalSemantic: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Search", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = if (enabled) AppColors.TextSecondary else AppColors.TextDim,
-                modifier = Modifier.padding(bottom = 4.dp))
-            SearchHubItem(icon = "🔍", title = "Quick local search", enabled = enabled, onClick = onQuickLocal)
-            SearchHubItem(icon = "📂", title = "Extended local search", enabled = enabled, onClick = onExtendedLocal)
-            SearchHubItem(icon = "🌐", title = "Remote semantic search", enabled = enabled, onClick = onRemoteSemantic)
-            SearchHubItem(icon = "📱", title = "Local semantic search", enabled = enabled, onClick = onLocalSemantic)
-        }
-    }
-}
-
-@Composable
-private fun SearchHubItem(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-            color = if (enabled) Color.White else AppColors.TextDim,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 

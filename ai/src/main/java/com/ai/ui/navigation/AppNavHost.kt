@@ -278,24 +278,7 @@ fun AppNavHost(
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
                 },
-                onOpenReport = { reportId ->
-                    // Same shape as onOpenLatestReport but for a
-                    // specific reportId — backs the new "Running
-                    // reports" / "Reports with problems" cards'
-                    // row taps.
-                    hubScope.launch {
-                        reportViewModel.restoreCompletedReport(hubContext, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
-                    }
-                },
-                onOpenReportView = { reportId ->
-                    hubScope.launch {
-                        reportViewModel.restoreCompletedReport(hubContext, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
-                    }
-                },
-                viewModel = appViewModel,
-                reportViewModel = reportViewModel
+                viewModel = appViewModel
             )
         }
 
@@ -319,17 +302,9 @@ fun AppNavHost(
         composable(NavRoutes.AI_REPORTS_HUB) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
-            val uiState by appViewModel.uiState.collectAsState()
-            ReportsHubScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
-                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
-                onNavigateToExamplePrompts = { navController.navigate(NavRoutes.AI_EXAMPLE_PROMPT_PICKER) },
-                hasExamplePrompts = uiState.aiSettings.examplePrompts.isNotEmpty(),
-                onNavigateToHistory = { navController.navigate(NavRoutes.AI_HISTORY) },
-                onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
-                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
-                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
-                onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
+            ReportsHubScreen(
+                onNavigateBack = safePopBack,
+                onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
@@ -338,7 +313,9 @@ fun AppNavHost(
                 },
                 onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
                 onNavigateToSearchAiReports = { navController.navigate(NavRoutes.AI_SEARCH_REPORTS) },
-                onNavigateToAllReports = { navController.navigate(NavRoutes.AI_ALL_REPORTS) })
+                onNavigateToAllReports = { navController.navigate(NavRoutes.AI_ALL_REPORTS) },
+                reportViewModel = reportViewModel
+            )
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {
             val uiState by appViewModel.uiState.collectAsState()

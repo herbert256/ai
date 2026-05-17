@@ -421,14 +421,33 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reports_hub" to HelpContent(
         title = "Help - AI Reports",
         cards = listOf(
-            HelpCard("Overview", "Reports send the same prompt to multiple models in parallel and collect every response. Each result is saved to disk and can be reopened, exported, translated, summarised, or fed forward into a chat."),
+            HelpCard("Overview", "Dashboard for everything to do with reports. Two top buttons jump into the creation and search wrappers; four list cards summarise what's already on disk; one bottom button opens the paginated browser."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
-            HelpCard("Start card", "Four entries: New AI Report (blank), Start with a previous prompt (last 100, deduplicated), Start with an example prompt (from the user-curated library under Prompt management → Example prompts; disabled when empty), Start with photo (camera capture becomes the seed image for a vision-capable run)."),
-            HelpCard("View previous reports", "Opens the History list. Disabled when nothing has been saved yet."),
-            HelpCard("Pinned and Recent", "Every pinned report is listed under 📌. The three most recent unpinned reports show under 🕘. Tap a row to open the report."),
-            HelpCard("Search card", "Four search modes ordered by escalating cost: 🔍 Quick local (substring), 📂 Extended local (tokenised), 🌐 Remote semantic (cloud embeddings), 📱 Local semantic (on-device embedder)."),
-            HelpCard("Manage", "Bulk operations — trim by age, export-all backup zip. Disabled until at least one report exists."),
-            HelpCard("Shared files banner", "When the Android share-target routed files into a fresh KB, a green banner appears on New Report offering Attach as KB / Skip — handled automatically once dismissed.")
+            HelpCard("Top buttons", "New AI report opens the three creation entry points (blank, previous prompt, example prompt). Search AI reports opens the four search modes (Quick local, Extended local, Remote semantic, Local semantic)."),
+            HelpCard("Problems / Running / Pinned / Latest", "Four list cards, each showing up to five rows. ⚠️ Problems collects reports with an errored agent or a stuck/failed secondary; ⏳ Running collects reports with at least one PENDING / RUNNING agent or an active translation run; 📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest. An empty card stays on screen at reduced opacity with an italic '(none)' line so the layout doesn't shift."),
+            HelpCard("Per-row icons", "Tap a row to open at Manage. 🔧 jumps to Manage explicitly, 👁 jumps to the View tile grid, 🗑 prompts a delete confirmation that removes the report from disk."),
+            HelpCard("All AI reports", "Bottom button opens the paginated swipe-through of every saved report — same per-row icons as the dashboard cards.")
+        )
+    ),
+    "new_ai_report_screen" to HelpContent(
+        title = "Help - New AI report",
+        cards = listOf(
+            HelpCard("What you see", "Three tap-through rows: 🗒 New AI Report opens the blank form; 🔄 Start with a previous prompt opens the prompt history; 💡 Start with an example prompt opens the example-prompt picker (only shown when at least one example prompt is configured)."),
+            HelpCard("How to use it", "Pick whichever entry point matches how you want to start. Each one lands on the standard report form where you finish entering title + prompt, then pick the agents/flocks/swarms/models that should answer.")
+        )
+    ),
+    "search_ai_reports_screen" to HelpContent(
+        title = "Help - Search AI reports",
+        cards = listOf(
+            HelpCard("What you see", "Four search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings), 📱 Local semantic search (on-device embedder)."),
+            HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; local-semantic stays on-device; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
+        )
+    ),
+    "all_ai_reports_screen" to HelpContent(
+        title = "Help - All AI reports",
+        cards = listOf(
+            HelpCard("What you see", "Every saved report, newest first. The body doesn't scroll — rows are split into fixed pages that auto-fit the screen height. A small 'Page X of Y' header sits above the rows."),
+            HelpCard("How to use it", "Swipe left / right to flip between pages. Each row carries the same tap-to-manage behaviour and 🔧 / 👁 / 🗑 icons as the dashboard cards. The page math re-fits when you rotate the device, so portrait and landscape both fill the visible area.")
         )
     ),
     "report_new" to HelpContent(
@@ -2847,6 +2866,9 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
 internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     // ===== Reports / generation =====
     "reports_hub" to listOf("help_about", "help_getting_started", "concepts", "help_glossary_operations"),
+    "new_ai_report_screen" to listOf("help_getting_started", "help_glossary_operations"),
+    "search_ai_reports_screen" to listOf("help_glossary_operations"),
+    "all_ai_reports_screen" to listOf("help_glossary_operations"),
     "report_new" to listOf("help_getting_started", "help_glossary_operations", "help_costs"),
     "report_select_models" to listOf("help_glossary_blocks", "help_glossary_groupings", "help_glossary_operations", "help_costs"),
     "report_run" to listOf("concepts", "help_costs", "help_glossary_operations", "help_translations"),
