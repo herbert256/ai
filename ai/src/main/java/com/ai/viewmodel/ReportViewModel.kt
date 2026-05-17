@@ -4321,7 +4321,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         reportId: String
     ): Job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
         val running = appViewModel.runningFanOutPairs.value
-        val activeTranslationRunIds = _translationRuns.value.keys
+        // Only runs that are actually in flight block step 1 — a
+        // run that previously finished (or one a reconcile rebuilt
+        // with finished=true) can still have disk placeholders that
+        // step 1 must re-dispatch. Snapshot taken once; the
+        // reconcile sweep (step 0 below) is awaited per-entry so by
+        // the time step 1 reads this snapshot it's still pre-
+        // reconcile — runs the reconcile is about to re-seed (via
+        // its own startMissingTranslations call) are NOT in this
+        // set, so step 1 would double-dispatch — runTranslationSubset's
+        // persistedRowId dedupe handles that race cleanly.
+        val activeTranslationRunIds = _translationRuns.value.values
+            .filter { !it.isFinished && !it.cancelled }
+            .map { it.runId }
+            .toSet()
         val rows = SecondaryResultStorage.listForReport(context, reportId)
         val aiSettings = appViewModel.uiState.value.aiSettings
 
@@ -6707,13 +6720,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             return@launch
         }
         AppLog.i("Translation", "reconciling stalled translation runId=$runId — rebuilding in-memory state from disk")
-        val rebuilt = buildPersistedTranslationRunState(context, sourceReportId, runId) ?: run {
+        val translateRows = withContext(Dispatchers.IO) {
+            SecondaryResultStorage
+                .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
+                .filter { com.ai.ui.report.translationRunGroupingId(it) == runId }
+        }
+        if (translateRows.isEmpty()) {
             // No rows on disk for this runId — the run is gone. Drop
             // the stale in-memory entry so the hourglass stops.
             _translationRuns.update { it - runId }
             return@launch
         }
-        _translationRuns.update { it + (runId to rebuilt) }
+        val hasPlaceholders = translateRows.any {
+            it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
+        }
+        if (hasPlaceholders) {
+            // Drop the stale in-memory entry so startMissingTranslations'
+            // null-cur seed path re-builds from disk (includes the
+            // 14 errors + 28 placeholder PENDING items in the
+            // canonical Portuguese-style scenario). The dispatch
+            // then flips finished=true at the end so the hourglass
+            // clears once the placeholders settle.
+            AppLog.i("Translation", "reconcile runId=$runId — placeholders present, re-dispatching via startMissingTranslations")
+            _translationRuns.update { it - runId }
+            startMissingTranslations(context, sourceReportId, runId)
+        } else {
+            // No placeholders on disk — nothing to dispatch. Just
+            // rebuild with finished=true so the manage hourglass
+            // clears immediately.
+            val rebuilt = buildPersistedTranslationRunState(context, sourceReportId, runId)
+                ?: return@launch
+            _translationRuns.update { it + (runId to rebuilt) }
+        }
     }
 
     /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
@@ -6972,11 +7010,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val placeholders = existing.filter {
             it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null
         }
-        if (placeholders.isEmpty()) return@launch
+        if (placeholders.isEmpty()) {
+            // Nothing to dispatch but the in-memory state may still
+            // be flagged in-flight from an earlier partial pass.
+            // Flip finished=true so the manage hourglass clears.
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                if (cur.finished) return@update runs
+                runs + (runId to cur.copy(finished = true))
+            }
+            return@launch
+        }
         val missing = placeholders.map {
             (it.translateSourceTargetId.orEmpty()) to (it.translateSourceKind.orEmpty())
         }
         runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
+        // After the subset's awaitAll() returns, every dispatched
+        // item has settled (DONE or ERROR). Flip finished=true so
+        // the manage hourglass clears and the next reconcile
+        // doesn't re-fire us pointlessly.
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            if (cur.finished) return@update runs
+            runs + (runId to cur.copy(finished = true))
+        }
     }
 
     /** Rebuild [TranslationItem]s from the persisted TRANSLATE rows of
@@ -7276,8 +7333,20 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // so the detail screen displays the full set of entries.
         _translationRuns.update { runs ->
             val cur = runs[runId]
-            val merged = if (cur != null) cur.copy(items = cur.items + items)
-            else TranslationRunState(
+            // Dedupe by persistedRowId — if cur.items already has an
+            // entry for the same disk row (typical after the reconcile
+            // sweep rebuilt the in-memory state with placeholders as
+            // PENDING and then handed the same placeholders to us to
+            // dispatch), the new TranslationItem must REPLACE the old
+            // one rather than be appended. Without this, the sweep
+            // would double-count items and the L1 Total would balloon
+            // each cycle. Also re-opens the run (`finished = false`)
+            // because the append is by definition new work.
+            val merged = if (cur != null) {
+                val newIds = items.mapNotNull { it.persistedRowId }.toSet()
+                val keptOld = cur.items.filter { it.persistedRowId !in newIds }
+                cur.copy(items = keptOld + items, finished = false)
+            } else TranslationRunState(
                 runId = runId,
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
