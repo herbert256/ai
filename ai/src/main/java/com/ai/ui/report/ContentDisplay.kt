@@ -880,8 +880,15 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val providerEnum = AppService.findById(agent.provider)
         val tu = agent.tokenUsage!!
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, agent.model) }
-        val inCents = (pricing?.let { tu.inputTokens * it.promptPrice } ?: 0.0) * 100
-        val outCents = (pricing?.let { tu.outputTokens * it.completionPrice } ?: 0.0) * 100
+        // Use PricingCache.computeInOutCost so apiCost-bearing
+        // responses (Perplexity / xAI / OpenRouter search-tier
+        // surcharges) are reflected — naïve `tokens × pricing`
+        // ignores apiCost and undercounts by the surcharge,
+        // which is what Report-Manage's agentCost (via
+        // computeCost) already captures.
+        val (inDollars, outDollars) = pricing?.let { PricingCache.computeInOutCost(tu, it) } ?: (0.0 to 0.0)
+        val inCents = inDollars * 100
+        val outCents = outDollars * 100
         CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     // Find-alternative-icons fan-out cost subtraction. Every alt

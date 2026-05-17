@@ -686,14 +686,9 @@ internal fun ColumnScope.GenerationPhase(
     // chain's spend (often several cents on long runs) would only
     // show on the cost table.
     val agentIconCost = agentIconRows.values.sumOf { it.cost }
-    // NOTE: fan-out-pair icon cost (sum of pair.iconInputCost +
-    // iconOutputCost across SRs) is intentionally NOT folded in
-    // here — empirically that money is already part of the manage
-    // total via the per-pair main-cost path. Adding it again
-    // double-counted by the per-pair icon chain spend.
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
         liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
-        languageDetectCost + agentIconCost
+        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
 
     // Totals — sums tokens and cents across the per-agent rows, every
     // persisted meta run (rerank / summarize / compare / moderation /
