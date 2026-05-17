@@ -142,7 +142,13 @@ fun ViewScreenTitleBar(
             // the title is plain text.
             val navigateToManage = LocalNavigateToCurrentReport.current
             val titleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
-            val titleModifier = Modifier.weight(1f).let {
+            // Lift the centred title + the ❓ icon up the same 7 dp
+            // the AI logo uses so all three Row 1 elements share a
+            // baseline. Plain `Modifier.offset(y = (-7).dp)` is fine
+            // because the Row's measured height is dominated by the
+            // 52 dp logo — shifting the smaller Text doesn't change
+            // the Row's height.
+            val titleModifier = Modifier.weight(1f).offset(y = (-7).dp).let {
                 if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
             }
             Text(
@@ -165,7 +171,9 @@ fun ViewScreenTitleBar(
                 text = "❓",
                 fontSize = 28.sp,
                 color = AppColors.Blue,
-                modifier = Modifier.clickable { navigateHelp(helpTopic) }
+                modifier = Modifier
+                    .offset(y = (-7).dp)
+                    .clickable { navigateHelp(helpTopic) }
             )
         }
         if (!screenTitle.isNullOrBlank()) {
