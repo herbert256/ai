@@ -899,19 +899,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
         }
-    // Only meta_alt / translation_alt calls bump the SR's main
-    // inputCost / outputCost (via bumpResultInputOutputCost) — so
-    // those are the ones we have to subtract from the secondary
-    // row to avoid double-counting with the iconCallRows below.
-    // icon_fan_out_alt bumps the pair's iconInputCost / iconOutputCost
-    // (via bumpFanOutIconCost) instead, so subtracting it from
-    // pair.inputCost would under-count by the alt portion (the
-    // alt money was never in pair.inputCost in the first place).
     val altBySecondary: Map<String, Pair<Double, Double>> = report.iconCalls
-        .filter {
-            !it.attributedToSecondaryId.isNullOrBlank() &&
-                it.type != "icon_fan_out_alt"
-        }
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
         .groupBy { it.attributedToSecondaryId!! }
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
