@@ -55,9 +55,18 @@ fun SystemPromptEditScreen(
     var name by remember { mutableStateOf(systemPrompt?.name ?: "") }
     var prompt by remember { mutableStateOf(systemPrompt?.prompt ?: "") }
 
+    val dup = rememberDuplicateMode(
+        isEditingExisting = systemPrompt != null,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && systemPrompt != null) {
+        existingNames + systemPrompt.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -66,20 +75,21 @@ fun SystemPromptEditScreen(
     ) {
         TitleBar(
             helpTopic = "system_prompt_edit",
-            title = if (!isEditing) "Add System Prompt" else "Edit System Prompt",
+            title = if (isAddMode) "Add System Prompt" else "Edit System Prompt",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = systemPrompt?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else systemPrompt!!.id
                 onSave(SystemPrompt(id, name.trim(), prompt))
             },
             enabled = nameError == null && prompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -50,7 +50,11 @@ fun ManualModelTypesScreen(
             onCancel = { editing = null; addingNew = false },
             onSave = { saved ->
                 val list = aiSettings.modelTypeOverrides
-                val updated = if (editing != null) list.map { if (it.id == saved.id) saved else it }
+                // If the screen flipped into duplicate mode, the edit
+                // screen hands back a fresh id — detect via id mismatch
+                // and treat as insert so the original stays put.
+                val isUpdate = editing != null && saved.id == editing!!.id
+                val updated = if (isUpdate) list.map { if (it.id == saved.id) saved else it }
                               else list + saved
                 onSave(aiSettings.withModelTypeOverrides(updated))
                 editing = null
@@ -116,7 +120,11 @@ fun ManualModelOverrideEntryScreen(
         onCancel = onBack,
         onSave = { saved ->
             val list = aiSettings.modelTypeOverrides
-            val updated = if (existing != null) list.map { if (it.id == saved.id) saved else it }
+            // Same insert-vs-update detection as the list parent —
+            // duplicate mode hands back a fresh id, so id mismatch
+            // = insert, id match = update.
+            val isUpdate = existing != null && saved.id == existing.id
+            val updated = if (isUpdate) list.map { if (it.id == saved.id) saved else it }
                           else list + saved
             onSave(aiSettings.withModelTypeOverrides(updated))
             onBack()
@@ -146,7 +154,15 @@ internal fun ManualModelTypeEditScreen(
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
-    val canSave = providerId.isNotBlank() && modelId.trim().isNotBlank()
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = initial != null
+    )
+    val isAddMode = dup.isAddMode
+    val keyMatchesOriginal = initial != null &&
+        providerId == initial.providerId && modelId.trim() == initial.modelId
+
+    val canSave = providerId.isNotBlank() && modelId.trim().isNotBlank() &&
+        !(isAddMode && keyMatchesOriginal)
     val knownModels = remember(providerId, aiSettings) {
         AppService.findById(providerId)?.let { aiSettings.getProvider(it).models.sorted() } ?: emptyList()
     }
@@ -156,15 +172,16 @@ internal fun ManualModelTypeEditScreen(
     ) {
         TitleBar(
             helpTopic = "manual_model_types",
-            title = if (initial == null) "Add override" else "Edit override",
-            onBackClick = onCancel
+            title = if (isAddMode) "Add override" else "Edit override",
+            onBackClick = onCancel,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
                 onSave(
                     ModelTypeOverride(
-                        id = initial?.id ?: UUID.randomUUID().toString(),
+                        id = if (isAddMode) UUID.randomUUID().toString() else initial!!.id,
                         providerId = providerId,
                         modelId = modelId.trim(),
                         type = type,
@@ -177,7 +194,7 @@ internal fun ManualModelTypeEditScreen(
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
+        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false, color = Color.White) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(

@@ -84,6 +84,17 @@ fun BlockedModelEditScreen(
     var reason by remember { mutableStateOf(item?.reason ?: "") }
     var showPicker by remember { mutableStateOf(false) }
 
+    // No name to mutate — the composite key is the model. User must
+    // change the model selection after flipping into duplicate mode,
+    // otherwise Save would silently overwrite the original entry
+    // (same key). The Save-enable check below blocks that.
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = item != null
+    )
+    val isAddMode = dup.isAddMode
+    val keyMatchesOriginal = item != null &&
+        providerId == item.providerId && model == item.model
+
     if (showPicker) {
         // Same picker the New Report's "+Model" button uses. Blocked
         // pairs render dimmed inside it but stay selectable.
@@ -108,17 +119,18 @@ fun BlockedModelEditScreen(
     ) {
         TitleBar(
             helpTopic = "blocked_model_edit",
-            title = if (isEditing) "Edit blocked model" else "Add blocked model",
+            title = if (isAddMode) "Add blocked model" else "Edit blocked model",
             subject = if (hasModel) "$providerId · $model" else "",
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { onSave(BlockedModel(providerId, model, reason.trim())) },
-            enabled = hasModel,
+            enabled = hasModel && !(isAddMode && keyMatchesOriginal),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Add", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(

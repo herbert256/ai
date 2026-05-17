@@ -123,9 +123,23 @@ fun AgentEditScreen(
     // Overlay: 0=none, 1=provider, 2=model
     var overlayMode by remember { mutableIntStateOf(0) }
 
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = agent != null,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    // When duplicating from an Edit, the original's name has to count
+    // as a collision so the user can't save `<name>-copy` over the
+    // top of itself or accidentally land on the source row's name.
+    // existingNames is built by the caller with the source row's name
+    // excluded; add it back when we've flipped into duplicate mode.
+    val effectiveExistingNames = if (isAddMode && agent != null) {
+        existingNames + agent.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -165,22 +179,23 @@ fun AgentEditScreen(
     ) {
         TitleBar(
             helpTopic = "agent_edit",
-            title = if (!isEditing) "Add Agent" else "Edit Agent",
+            title = if (isAddMode) "Add Agent" else "Edit Agent",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = agent?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else agent!!.id
                 onSave(Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId))
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

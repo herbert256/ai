@@ -53,6 +53,12 @@ fun ExamplePromptEditScreen(
     var title by remember { mutableStateOf(examplePrompt?.title ?: "") }
     var text by remember { mutableStateOf(examplePrompt?.text ?: "") }
 
+    val dup = rememberDuplicateMode(
+        isEditingExisting = examplePrompt != null,
+        onDuplicate = { title = "$title-copy" }
+    )
+    val isAddMode = dup.isAddMode
+
     val titleError = if (title.isBlank()) "Title is required" else null
 
     Column(
@@ -60,20 +66,21 @@ fun ExamplePromptEditScreen(
     ) {
         TitleBar(
             helpTopic = "example_prompt_edit",
-            title = if (!isEditing) "Add example prompt" else "Edit example prompt",
+            title = if (isAddMode) "Add example prompt" else "Edit example prompt",
             subject = title,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = examplePrompt?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else examplePrompt!!.id
                 onSave(ExamplePrompt(id = id, title = title.trim(), text = text))
             },
             enabled = titleError == null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

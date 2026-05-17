@@ -82,9 +82,18 @@ fun FlockEditScreen(
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
 
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = flock != null,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && flock != null) {
+        existingNames + flock.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -113,20 +122,21 @@ fun FlockEditScreen(
     ) {
         TitleBar(
             helpTopic = "flock_edit",
-            title = if (!isEditing) "Add Flock" else "Edit Flock",
+            title = if (isAddMode) "Add Flock" else "Edit Flock",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = flock?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else flock!!.id
                 onSave(Flock(id, name.trim(), selectedAgentIds.toList(), selectedParamsIds, selectedSystemPromptId))
             },
             enabled = nameError == null && selectedAgentIds.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(

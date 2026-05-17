@@ -157,9 +157,21 @@ fun InternalPromptEditScreen(
     }
     var text by remember { mutableStateOf(internalPrompt?.text ?: "") }
 
+    // Duplicate-mode is only meaningful for user-editable categories
+    // (meta / fan_*); the fixed-list categories (internal / icons)
+    // have predetermined slots that can't be cloned into a new entry.
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = internalPrompt != null && !isFixedList,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && internalPrompt != null) {
+        existingNames + internalPrompt.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -171,9 +183,10 @@ fun InternalPromptEditScreen(
         val singular = categoryDisplayName(fixedCategory).removeSuffix("s")
         TitleBar(
             helpTopic = "internal_prompt_edit",
-            title = if (!isEditing) "Add $singular" else "Edit $singular",
+            title = if (isAddMode) "Add $singular" else "Edit $singular",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         // Save / Create CTA hoisted to the top — these forms can be
         // long (especially with the prompt-text editor) so a bottom
@@ -181,13 +194,13 @@ fun InternalPromptEditScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else internalPrompt!!.id
                 onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

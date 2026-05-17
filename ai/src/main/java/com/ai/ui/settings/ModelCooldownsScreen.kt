@@ -153,21 +153,32 @@ internal fun ModelCooldownEditScreen(
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
-    // Provider + model are the cooldown key — fixed once created.
-    val keyLocked = initial != null
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = initial != null
+    )
+    val isAddMode = dup.isAddMode
+    // Provider + model are the cooldown key — fixed during pure edit
+    // but unlocked once the user flips into duplicate mode (the
+    // whole point of duplicating here is to target a different model).
+    val keyLocked = !isAddMode
+    val keyMatchesOriginal = initial != null &&
+        providerId == initial.providerId && model.trim() == initial.model
+
     val knownModels = remember(providerId, aiSettings) {
         AppService.findById(providerId)?.let { aiSettings.getProvider(it).models.sorted() } ?: emptyList()
     }
     val hours = hoursText.trim().toLongOrNull()
-    val canSave = providerId.isNotBlank() && model.trim().isNotBlank() && hours != null && hours > 0
+    val canSave = providerId.isNotBlank() && model.trim().isNotBlank() && hours != null && hours > 0 &&
+        !(isAddMode && keyMatchesOriginal)
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "model_cooldowns",
-            title = if (initial == null) "Add cooldown" else "Edit cooldown",
-            onBackClick = onCancel
+            title = if (isAddMode) "Add cooldown" else "Edit cooldown",
+            onBackClick = onCancel,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -178,7 +189,7 @@ internal fun ModelCooldownEditScreen(
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
+        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false, color = Color.White) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(

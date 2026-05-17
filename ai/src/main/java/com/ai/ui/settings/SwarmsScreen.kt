@@ -78,9 +78,18 @@ fun SwarmEditScreen(
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     var showModelPicker by remember { mutableStateOf(false) }
 
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = swarm != null,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && swarm != null) {
+        existingNames + swarm.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -131,20 +140,21 @@ fun SwarmEditScreen(
     ) {
         TitleBar(
             helpTopic = "swarm_edit",
-            title = if (!isEditing) "Add Swarm" else "Edit Swarm",
+            title = if (isAddMode) "Add Swarm" else "Edit Swarm",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = swarm?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else swarm!!.id
                 onSave(Swarm(id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId))
             },
             enabled = nameError == null && selectedMembers.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(

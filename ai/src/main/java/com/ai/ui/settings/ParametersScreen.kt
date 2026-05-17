@@ -77,9 +77,18 @@ fun ParametersEditScreen(
     var webSearchTool by remember { mutableStateOf(params?.webSearchTool ?: false) }
     var reasoningEffort by remember { mutableStateOf(params?.reasoningEffort ?: "") }
 
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = params != null,
+        onDuplicate = { name = "$name-copy" }
+    )
+    val isAddMode = dup.isAddMode
+    val effectiveExistingNames = if (isAddMode && params != null) {
+        existingNames + params.name.lowercase()
+    } else existingNames
+
     val nameError = when {
         name.isBlank() -> "Name is required"
-        name.lowercase() in existingNames -> "Name already exists"
+        name.lowercase() in effectiveExistingNames -> "Name already exists"
         else -> null
     }
 
@@ -88,14 +97,15 @@ fun ParametersEditScreen(
     ) {
         TitleBar(
             helpTopic = "parameters_edit",
-            title = if (!isEditing) "Add Parameters" else "Edit Parameters",
+            title = if (isAddMode) "Add Parameters" else "Edit Parameters",
             subject = name,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                val id = params?.id ?: java.util.UUID.randomUUID().toString()
+                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else params!!.id
                 onSave(Parameters(
                     id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
                     topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
@@ -115,7 +125,7 @@ fun ParametersEditScreen(
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
