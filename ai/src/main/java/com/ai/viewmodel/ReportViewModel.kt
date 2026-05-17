@@ -4325,6 +4325,30 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val rows = SecondaryResultStorage.listForReport(context, reportId)
         val aiSettings = appViewModel.uiState.value.aiSettings
 
+        // 0. Reconcile any in-memory translation runs for this report
+        //    that are flagged !isFinished && !cancelled but have no
+        //    live dispatch job. Those are demonstrably stuck — a
+        //    previous flow's coroutine (cross-translate, restart-
+        //    failed, etc.) died before flipping `finished` — and the
+        //    disk-rebuild via reconcileStalledTranslationRun is safe
+        //    because there's no worker mid-write to race.
+        //
+        //    Ordering: this step runs BEFORE step 1's
+        //    startMissingTranslations dispatches. activeTranslationRunIds
+        //    (snapshotted above) still includes these runIds, so step
+        //    1's "skip if already active" guard keeps it from racing
+        //    the reconcile's async rebuild. Same-session navigate-back
+        //    catches the stuck state; fresh app start has an empty
+        //    _translationRuns so this filter matches nothing and step
+        //    1 owns the dispatch path as today.
+        _translationRuns.value.values
+            .filter {
+                it.sourceReportId == reportId &&
+                    !it.isFinished && !it.cancelled &&
+                    translationJobs[it.runId]?.isActive != true
+            }
+            .forEach { reconcileStalledTranslationRun(context, reportId, it.runId) }
+
         // 1. Translation: walk every distinct translationRunId on disk
         //    that isn't actively running in memory and queue the
         //    missing items. startMissingTranslations needs at least one
