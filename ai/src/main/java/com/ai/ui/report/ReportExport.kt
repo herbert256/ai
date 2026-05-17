@@ -19,6 +19,15 @@ internal data class HtmlReportData(
     val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC,
     val secondary: List<HtmlSecondaryData> = emptyList(),
     val traces: List<HtmlTraceData> = emptyList(),
+    /** [com.ai.data.Report.icon] — prefixed (additive) on the report
+     *  title `<h1>` across every renderer. Null / blank leaves the
+     *  title as-is. */
+    val reportIcon: String? = null,
+    /** [com.ai.data.Report.languageIcon] — the detected source-language
+     *  emoji. Drives the Original tab's language icon in the picker /
+     *  per-language headings. Null / blank → caller falls back to the
+     *  English name text. */
+    val sourceLanguageIcon: String? = null,
     /** Sum of API spend the user dropped from this report via Delete
      *  actions. Surfaces as a dedicated row above the Total in every
      *  cost table on the result page + the export. Carried straight
@@ -95,7 +104,11 @@ internal data class HtmlAgentData(
     val pricingTier: String? = null,
     /** Stable anchor used by the Reranks block to link back to this agent's
      *  card. Matches the bracketed [N] tag the rerank prompt asked for. */
-    val anchorIndex: Int? = null
+    val anchorIndex: Int? = null,
+    /** [com.ai.data.ReportAgent.icon] — prefixed (additive) on every
+     *  agent heading / card across the export renderers. Null / blank
+     *  → no prefix added. */
+    val icon: String? = null
 )
 
 internal data class HtmlSecondaryData(
@@ -126,7 +139,11 @@ internal data class HtmlSecondaryData(
      *  fallback — same rules the in-app cost table uses. */
     val fanOutSourceAgentId: String? = null,
     /** Set when this row is a fan-in combine-reports follow-up. */
-    val fanInOf: String? = null
+    val fanInOf: String? = null,
+    /** [com.ai.data.SecondaryResult.icon] — fan-out pair icon (or any
+     *  other per-row icon the secondary carries). Additive, prefixed
+     *  on per-secondary headings. Null / blank → no prefix. */
+    val icon: String? = null
 )
 
 /** A "view" of [HtmlReportData] under one language — Original or one of
@@ -301,7 +318,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
                 rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
                 inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
                 pricingTier = pricing?.source,
-                anchorIndex = anchorByKey["${agent.provider}::${agent.model}"]
+                anchorIndex = anchorByKey["${agent.provider}::${agent.model}"],
+                icon = agent.icon
             )
         }
 
@@ -325,7 +343,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             translatedFromSecondaryId = s.translatedFromSecondaryId,
             metaPromptName = s.metaPromptName,
             fanOutSourceAgentId = s.fanOutSourceAgentId,
-            fanInOf = s.fanInOf
+            fanInOf = s.fanInOf,
+            icon = s.icon
         )
     }
 
@@ -403,6 +422,8 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         rapportText = report.rapportText, closeText = report.closeText,
         agents = agents, reportType = report.reportType, secondary = secondary,
         traces = traces,
+        reportIcon = report.icon,
+        sourceLanguageIcon = report.languageIcon,
         costsFromDeletedItems = report.costsFromDeletedItems,
         iconProviderDisplay = iconProvider?.id ?: "",
         iconModel = iconModel,
@@ -537,7 +558,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     val sb = StringBuilder()
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
-    sb.append("<h1>${esc(data.title)}</h1>")
+    sb.append("<h1>${iconPrefixHtml(data.reportIcon)}${esc(data.title)}</h1>")
     data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
 
     val languages = buildLanguageViews(data)
@@ -549,8 +570,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
         sb.append("<div class='lang-picker'>")
         languages.forEachIndexed { i, lv ->
             val active = if (i == 0) " active" else ""
-            val sub = if (lv.nativeName != null) " <span class='lang-native'>${esc(lv.nativeName)}</span>" else ""
-            sb.append("<button class='lang-btn$active' onclick=\"showLanguage(this,'${lv.key}')\">${esc(lv.displayName)}$sub</button>")
+            // Icon replaces the language name entirely when cached;
+            // falls back to the English name + nativeName subspan on
+            // a cache miss so picker stays readable.
+            val nativeFallback = if (lv.nativeName != null) " <span class='lang-native'>${esc(lv.nativeName)}</span>" else ""
+            val label = languageLabelOrIconHtml(lv, data.sourceLanguageIcon, "${esc(lv.displayName)}$nativeFallback")
+            sb.append("<button class='lang-btn$active' onclick=\"showLanguage(this,'${lv.key}')\">$label</button>")
         }
         sb.append("</div>")
     }
@@ -601,7 +626,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
         a.anchorIndex?.let { it to "${a.providerDisplay} · ${com.ai.ui.shared.shortModelName(a.model)}" }
     }.toMap()
 
-    data class View(val id: String, val label: String, val emit: () -> Unit)
+    data class View(val id: String, val label: String, val iconPrefix: String? = null, val emit: () -> Unit)
     val views = mutableListOf<View>()
     if (hasReports) views += View("reports", "Reports") {
         renderReportsView(sb, data, defaultAllTogether, isOriginal)
@@ -614,12 +639,12 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
         // would only be fan out-language (each language renders its own
         // view-block tree, and the JS uses DOM-relative scoping).
         val viewId = "meta-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
-        views += View(viewId, name) { renderMetaItemsView(sb, viewId, items, maxAnchor) }
+        views += View(viewId, name, iconPrefix = metaPromptIcon(name)) { renderMetaItemsView(sb, viewId, items, maxAnchor) }
     }
-    if (showReranks) views += View("reranks", "Reranks") {
+    if (showReranks) views += View("reranks", "Reranks", iconPrefix = metaPromptIcon("rerank")) {
         renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
     }
-    if (showModerations) views += View("moderations", "Moderations") {
+    if (showModerations) views += View("moderations", "Moderations", iconPrefix = metaPromptIcon("moderation")) {
         renderMetaItemsView(sb, "moderations", moderations, maxAnchor, agentsByAnchor)
     }
     if (hasPrompt) views += View("prompt", "Prompt") {
@@ -635,7 +660,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     sb.append("<div class='view-picker'>")
     views.forEach { v ->
         val active = if (v.id == firstViewId) " active" else ""
-        sb.append("<button class='view-btn$active' data-view-id='${v.id}' onclick=\"showView(this,'${v.id}')\">${esc(v.label)}</button>")
+        sb.append("<button class='view-btn$active' data-view-id='${v.id}' onclick=\"showView(this,'${v.id}')\">${iconPrefixHtml(v.iconPrefix)}${esc(v.label)}</button>")
     }
     sb.append("</div>")
 
@@ -665,12 +690,12 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
 
     sb.append("<div class='layout' data-layout='oneByOne'${if (defaultAllTogether) " style='display:none'" else ""}>")
     sb.append("<div class='agent-buttons'>")
-    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${esc(a.agentName)}</button>") }
+    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${iconPrefixHtml(a.icon)}${esc(a.agentName)}</button>") }
     sb.append("</div>")
     data.agents.forEachIndexed { i, a ->
         val resultIdAttr = if (emitAnchors) a.anchorIndex?.let { " id='result-$it'" } ?: "" else ""
         sb.append("<div class='agent-result${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}'$resultIdAttr>")
-        sb.append("<div class='agent-header'>${esc(a.providerDisplay)} - ${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
+        sb.append("<div class='agent-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)} - ${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         sb.append("<div class='report-content'>")
         if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
         if (a.responseText != null) sb.append("<div class='agent-response'>${processThinkSections(a.responseText, a.agentId)}</div>")
@@ -697,7 +722,7 @@ private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAl
     sb.append("<div class='table-grid'>")
     data.agents.forEach { a ->
         sb.append("<div class='table-card'>")
-        sb.append("<div class='card-header'>${esc(a.providerDisplay)}</div>")
+        sb.append("<div class='card-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)}</div>")
         sb.append("<div class='card-model'>${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
         if (a.errorMessage != null) {
             sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
@@ -738,7 +763,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
     sb.append("<div class='agent-buttons'>")
     items.forEachIndexed { i, it ->
         val label = "${it.providerDisplay} · ${com.ai.ui.shared.shortModelName(it.model)}"
-        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-item='${escId(it.id)}' onclick=\"showItem(this,'${escId(it.id)}')\">${esc(label)}</button>")
+        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-item='${escId(it.id)}' onclick=\"showItem(this,'${escId(it.id)}')\">${iconPrefixHtml(it.icon)}${esc(label)}</button>")
     }
     sb.append("</div>")
     items.forEachIndexed { i, it ->
@@ -759,7 +784,7 @@ private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<H
 
 private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
     sb.append("<div class='secondary-card'>")
-    sb.append("<div class='secondary-card-header'>${esc(item.providerDisplay)} · ${esc(com.ai.ui.shared.shortModelName(item.model))} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
+    sb.append("<div class='secondary-card-header'>${iconPrefixHtml(item.icon)}${esc(item.providerDisplay)} · ${esc(com.ai.ui.shared.shortModelName(item.model))} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
     if (item.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
     } else if (!item.content.isNullOrBlank()) {

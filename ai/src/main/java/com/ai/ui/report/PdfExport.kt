@@ -304,7 +304,7 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
         .meta-ts { color: #888; font-weight: normal; font-size: 10pt; margin-left: 6px; }
     """.trimIndent())
     sb.append("</style></head><body>")
-    sb.append("<h1>").append(esc(data.title)).append("</h1>")
+    sb.append("<h1>").append(iconPrefixHtml(data.reportIcon)).append(esc(data.title)).append("</h1>")
     if (!data.rapportText.isNullOrBlank()) {
         sb.append("<div>").append(convertMarkdownToHtmlForExport(data.rapportText)).append("</div>")
     }
@@ -313,7 +313,7 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
 
     sb.append("<h2>Results</h2>")
     for (a in agents) {
-        sb.append("<h3>").append(esc(a.providerDisplay))
+        sb.append("<h3>").append(iconPrefixHtml(a.icon)).append(esc(a.providerDisplay))
             .append(" / ").append(esc(a.model)).append("</h3>")
         if (!a.errorMessage.isNullOrBlank()) {
             sb.append("<p class='err'>Error: ").append(esc(a.errorMessage)).append("</p>")
@@ -333,11 +333,11 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
         }
     }
 
-    fun appendMeta(items: List<HtmlSecondaryData>, heading: String) {
+    fun appendMeta(items: List<HtmlSecondaryData>, heading: String, headingIcon: String?) {
         if (items.isEmpty()) return
-        sb.append("<h2>").append(heading).append("</h2>")
+        sb.append("<h2>").append(iconPrefixHtml(headingIcon)).append(esc(heading)).append("</h2>")
         for (s in items) {
-            sb.append("<h3>").append(esc(s.providerDisplay)).append(" / ").append(esc(s.model))
+            sb.append("<h3>").append(iconPrefixHtml(s.icon)).append(esc(s.providerDisplay)).append(" / ").append(esc(s.model))
                 .append("<span class='meta-ts'>").append(esc(s.timestamp)).append("</span></h3>")
             if (s.errorMessage != null) {
                 sb.append("<p class='err'>Error: ").append(esc(s.errorMessage)).append("</p>")
@@ -346,8 +346,8 @@ internal fun buildShortHtmlFromData(data: HtmlReportData): String {
             }
         }
     }
-    metaByName.forEach { (name, items) -> appendMeta(items, name) }
-    appendMeta(moderations, "Moderations")
+    metaByName.forEach { (name, items) -> appendMeta(items, name, metaPromptIcon(name)) }
+    appendMeta(moderations, "Moderations", metaPromptIcon("moderation"))
 
     if (!data.closeText.isNullOrBlank()) {
         sb.append("<div>").append(convertMarkdownToHtmlForExport(data.closeText)).append("</div>")

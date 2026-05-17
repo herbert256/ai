@@ -45,7 +45,9 @@ internal data class DocBlock(
  *  opened. */
 private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Boolean): List<DocBlock> {
     val out = mutableListOf<DocBlock>()
-    out += DocBlock(DocBlockKind.HEADING, data.title.ifBlank { "Untitled" }, 1)
+    val titleText = data.title.ifBlank { "Untitled" }
+    val titlePrefix = com.ai.ui.report.iconPrefixPlain(data.reportIcon)
+    out += DocBlock(DocBlockKind.HEADING, "$titlePrefix$titleText", 1)
     if (!short) {
         // Short reports skip the index per spec — no TOC field. Complete
         // reports get a Word/LibreOffice TOC the consuming app populates
@@ -63,7 +65,14 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
 
     languages.forEachIndexed { i, lv ->
         val isOriginal = (lv.key == "original")
-        if (i > 0) out += DocBlock(DocBlockKind.HEADING, "Language: ${lv.displayName}", 2)
+        if (i > 0) {
+            // Icon replaces "Language: <name>" entirely; cache miss
+            // falls back to the original "Language: <name>" text.
+            val langHeading = com.ai.ui.report.languageLabelOrIconPlain(
+                lv, data.sourceLanguageIcon, "Language: ${lv.displayName}"
+            )
+            out += DocBlock(DocBlockKind.HEADING, langHeading, 2)
+        }
         appendLanguageContent(out, lv.data, short, isOriginal, maxAnchor)
     }
 
@@ -95,7 +104,8 @@ private fun appendLanguageContent(
         out += DocBlock(DocBlockKind.HEADING, "Reports", 2)
         for (a in data.agents) {
             val anchor = a.anchorIndex?.let { "[$it] " } ?: ""
-            out += DocBlock(DocBlockKind.HEADING, "$anchor${a.providerDisplay} / ${a.model}", 3)
+            val iconPrefix = com.ai.ui.report.iconPrefixPlain(a.icon)
+            out += DocBlock(DocBlockKind.HEADING, "$anchor$iconPrefix${a.providerDisplay} / ${a.model}", 3)
             if (a.errorMessage != null) {
                 out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${a.errorMessage}")
             }
@@ -156,9 +166,11 @@ private fun appendMetaByName(
         byName.getOrPut(name) { mutableListOf() }.add(s)
     }
     byName.forEach { (name, items) ->
-        out += DocBlock(DocBlockKind.HEADING, name, 2)
+        val headingIcon = com.ai.ui.report.iconPrefixPlain(com.ai.ui.report.metaPromptIcon(name))
+        out += DocBlock(DocBlockKind.HEADING, "$headingIcon$name", 2)
         for (s in items) {
-            out += DocBlock(DocBlockKind.HEADING, "${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
+            val rowIcon = com.ai.ui.report.iconPrefixPlain(s.icon)
+            out += DocBlock(DocBlockKind.HEADING, "$rowIcon${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
             if (s.errorMessage != null) {
                 out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${s.errorMessage}")
                 continue
@@ -180,9 +192,17 @@ private fun appendSecondary(
 ) {
     val items = secondary.filter { it.kind == kind }
     if (items.isEmpty()) return
-    out += DocBlock(DocBlockKind.HEADING, heading, 2)
+    val sectionIconKey = when (kind) {
+        SecondaryKind.RERANK -> "rerank"
+        SecondaryKind.MODERATION -> "moderation"
+        SecondaryKind.META -> "meta"
+        SecondaryKind.TRANSLATE -> "translation"
+    }
+    val sectionIcon = com.ai.ui.report.iconPrefixPlain(com.ai.ui.report.metaPromptIcon(sectionIconKey))
+    out += DocBlock(DocBlockKind.HEADING, "$sectionIcon$heading", 2)
     for (s in items) {
-        out += DocBlock(DocBlockKind.HEADING, "${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
+        val rowIcon = com.ai.ui.report.iconPrefixPlain(s.icon)
+        out += DocBlock(DocBlockKind.HEADING, "$rowIcon${s.providerDisplay} / ${s.model}  (${s.timestamp})", 3)
         if (s.errorMessage != null) {
             out += DocBlock(DocBlockKind.PARAGRAPH, "Error: ${s.errorMessage}")
             continue

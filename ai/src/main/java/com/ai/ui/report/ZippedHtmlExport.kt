@@ -125,8 +125,11 @@ private fun emitLanguageSections(
     isOriginal: Boolean
 ) {
     // Empty basePath = flat single-language layout. Breadcrumbs skip
-    // the language hop since the language IS the root.
-    val langDisplay = if (basePath.isEmpty()) null else lv.displayName
+    // the language hop since the language IS the root. When present,
+    // the language label resolves to the language icon (replacement)
+    // or falls back to the English display name.
+    val langDisplay = if (basePath.isEmpty()) null
+                      else languageIcon(lv, data.sourceLanguageIcon) ?: lv.displayName
     emit(zos, "${basePath}index.html", languageIndex(data, lv, basePath, isOriginal))
 
     if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath, langDisplay)
@@ -316,16 +319,20 @@ private fun languageSections(data: HtmlReportData, isOriginal: Boolean): List<Pa
  *  it. With no translations there's still a single "Original" entry. */
 private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>): String {
     val sb = StringBuilder()
-    sb.append(htmlHead(title = data.title.ifBlank { "AI Report" }, depth = 0))
-    sb.append("<nav>").append("<span class='here'>${esc(data.title.ifBlank { "AI Report" })}</span>").append("</nav>")
+    val titleText = data.title.ifBlank { "AI Report" }
+    val titlePrefix = iconPrefixHtml(data.reportIcon)
+    sb.append(htmlHead(title = titleText, depth = 0))
+    sb.append("<nav>").append("<span class='here'>").append(titlePrefix).append(esc(titleText)).append("</span></nav>")
     sb.append("<main>")
-    sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
+    sb.append("<h1>").append(titlePrefix).append(esc(titleText)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
     if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
     sb.append("<h2>Languages</h2><ul class='section-list'>")
     languages.forEach { lv ->
-        val native = lv.nativeName?.let { " <span class='count'>${esc(it)}</span>" } ?: ""
-        sb.append("<li><a href='${esc(lv.key)}/index.html'>").append(esc(lv.displayName)).append(native).append("</a></li>")
+        // Icon replaces the displayName + native span when cached.
+        val nativeFallback = lv.nativeName?.let { " <span class='count'>${esc(it)}</span>" } ?: ""
+        val label = languageLabelOrIconHtml(lv, data.sourceLanguageIcon, "${esc(lv.displayName)}$nativeFallback")
+        sb.append("<li><a href='${esc(lv.key)}/index.html'>").append(label).append("</a></li>")
     }
     sb.append("</ul>")
     if (!data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
@@ -342,13 +349,17 @@ private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>
 private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: String, isOriginal: Boolean): String {
     val sb = StringBuilder()
     val flat = basePath.isEmpty()
+    val titleText = data.title.ifBlank { "AI Report" }
+    val reportPrefix = iconPrefixHtml(data.reportIcon)
+    val nativeFallback = lv.nativeName?.let { " <span class='count'>${esc(it)}</span>" } ?: ""
+    val langLabelHtml = languageLabelOrIconHtml(lv, data.sourceLanguageIcon, "${esc(lv.displayName)}$nativeFallback")
     sb.append(htmlHead(title = "${lv.displayName} - ${data.title}", depth = 0, basePath = basePath))
     if (!flat) {
         // Two-step breadcrumb back up to the zip root.
         sb.append("<nav>")
-            .append("<a href='../index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>")
+            .append("<a href='../index.html'>").append(reportPrefix).append(esc(titleText)).append("</a>")
             .append(" <span class='sep'>›</span> ")
-            .append("<span class='here'>${esc(lv.displayName)}</span>")
+            .append("<span class='here'>").append(langLabelHtml).append("</span>")
             .append("</nav>")
     }
     sb.append("<main>")
@@ -356,16 +367,12 @@ private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: 
         // Flat layout has no zip-root page, so this IS the root —
         // surface the report title + timestamp + rapport text here
         // (the same content zipRootIndex would otherwise show).
-        sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
+        sb.append("<h1>").append(reportPrefix).append(esc(titleText)).append("</h1>")
         sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
         if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
-        sb.append("<h2>").append(esc(lv.displayName))
-        if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
-        sb.append("</h2>")
+        sb.append("<h2>").append(langLabelHtml).append("</h2>")
     } else {
-        sb.append("<h1>").append(esc(lv.displayName))
-        if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
-        sb.append("</h1>")
+        sb.append("<h1>").append(langLabelHtml).append("</h1>")
         sb.append("<h2>Sections</h2>")
     }
     sb.append("<ul class='section-list'>")
@@ -390,8 +397,8 @@ private fun emitReports(zos: ZipOutputStream, data: HtmlReportData, traceIndex: 
     sb.append(htmlHead("Reports - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Reports" to null), data, langDisplay))
     sb.append("<main><h1>Reports</h1><ul class='item-list'>")
-    items.forEach { (filename, label, _) ->
-        sb.append("<li><a href='${esc(filename)}'>").append(esc(label)).append("</a></li>")
+    items.forEach { (filename, label, a) ->
+        sb.append("<li><a href='${esc(filename)}'>").append(iconPrefixHtml(a.icon)).append(esc(label)).append("</a></li>")
     }
     sb.append("</ul></main></body></html>")
     emit(zos, "${basePath}Reports/index.html", sb.toString())
@@ -412,7 +419,7 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
     // (the response carries over from the source), so the lookup
     // naturally lands on a source-side trace.
     val match = traceIndex.findMatch(a.providerDisplay, a.model, "Report")
-    sb.append("<h1>").append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
+    sb.append("<h1>").append(iconPrefixHtml(a.icon)).append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
         .append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
     if (!a.responseText.isNullOrBlank()) sb.append("<div class='response'>${processThinkSections(a.responseText, a.agentId)}</div>")
@@ -461,15 +468,16 @@ private fun emitMetaSections(zos: ZipOutputStream, data: HtmlReportData, traceIn
     byName.forEach { (name, items) ->
         val label = name
         val safeLabel = safeName(name)
+        val sectionIcon = metaPromptIcon(name)
         val withFiles = items.mapIndexed { idx, s ->
             Triple(itemFilename(idx, "${s.providerDisplay}_${s.model}"), "${s.providerDisplay} / ${s.model}", s)
         }
         val sb = StringBuilder()
         sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
         sb.append(breadcrumb(1, listOf(label to null), data, langDisplay))
-        sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
+        sb.append("<main><h1>").append(iconPrefixHtml(sectionIcon)).append(esc(label)).append("</h1><ul class='item-list'>")
         withFiles.forEach { (filename, itemLabel, s) ->
-            sb.append("<li><a href='${esc(filename)}'>").append(esc(itemLabel))
+            sb.append("<li><a href='${esc(filename)}'>").append(iconPrefixHtml(s.icon)).append(esc(itemLabel))
                 .append(" <span class='ts'>").append(esc(s.timestamp)).append("</span></a></li>")
         }
         sb.append("</ul></main></body></html>")
@@ -488,13 +496,22 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     val withFiles = items.mapIndexed { idx, s ->
         Triple(itemFilename(idx, "${s.providerDisplay}_${s.model}"), "${s.providerDisplay} / ${s.model}", s)
     }
+    // Lookup the structured-kind icon via the bundled-prompt name —
+    // "rerank" / "moderation" matches the prompt that ran the call,
+    // so the cached icon (if any) is the right one for the section.
+    val sectionIcon = metaPromptIcon(when (kind) {
+        SecondaryKind.RERANK -> "rerank"
+        SecondaryKind.MODERATION -> "moderation"
+        SecondaryKind.META -> "meta"
+        SecondaryKind.TRANSLATE -> "translation"
+    })
     // Section index
     val sb = StringBuilder()
     sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf(label to null), data, langDisplay))
-    sb.append("<main><h1>").append(esc(label)).append("</h1><ul class='item-list'>")
+    sb.append("<main><h1>").append(iconPrefixHtml(sectionIcon)).append(esc(label)).append("</h1><ul class='item-list'>")
     withFiles.forEach { (filename, itemLabel, s) ->
-        sb.append("<li><a href='${esc(filename)}'>").append(esc(itemLabel))
+        sb.append("<li><a href='${esc(filename)}'>").append(iconPrefixHtml(s.icon)).append(esc(itemLabel))
             .append(" <span class='ts'>").append(esc(s.timestamp)).append("</span></a></li>")
     }
     sb.append("</ul></main></body></html>")
@@ -522,7 +539,7 @@ private fun secondaryPage(section: String, itemLabel: String, s: HtmlSecondaryDa
     sb.append(breadcrumb(1, listOf(section to "index.html", itemLabel to null), data, langDisplay))
     sb.append("<main>")
     val match = traceIndex.findMatch(s.providerDisplay, s.model, traceCategory)
-    sb.append("<h1>").append(esc(itemLabel)).append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
+    sb.append("<h1>").append(iconPrefixHtml(s.icon)).append(esc(itemLabel)).append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     sb.append("<div class='meta'>").append(esc(s.timestamp)).append("</div>")
     if (s.errorMessage != null) {
         sb.append("<div class='error'>Error: ${esc(s.errorMessage)}</div>")
@@ -873,10 +890,14 @@ private fun breadcrumb(depth: Int, crumbs: List<Pair<String, String?>>, data: Ht
     val sb = StringBuilder()
     sb.append("<nav>")
     val toZipRoot = "../".repeat(depth + (if (langDisplay != null) 1 else 0)) + "index.html"
-    sb.append("<a href='").append(esc(toZipRoot)).append("'>").append(esc(data.title.ifBlank { "AI Report" })).append("</a>")
+    val reportPrefix = iconPrefixHtml(data.reportIcon)
+    sb.append("<a href='").append(esc(toZipRoot)).append("'>").append(reportPrefix).append(esc(data.title.ifBlank { "AI Report" })).append("</a>")
     if (langDisplay != null) {
         sb.append(" <span class='sep'>›</span> ")
         val toLangRoot = "../".repeat(depth) + "index.html"
+        // langDisplay is pre-resolved by emitLanguageSections to
+        // either the language icon (replacement) or the English
+        // displayName (fallback). Either way it's safe to escape.
         sb.append("<a href='").append(esc(toLangRoot)).append("'>").append(esc(langDisplay)).append("</a>")
     }
     crumbs.forEach { (label, href) ->
