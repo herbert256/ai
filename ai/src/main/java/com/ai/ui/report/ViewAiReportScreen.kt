@@ -200,6 +200,19 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Fan-in-model "View" overlay — keyed by the seed fan-in-model
+    // META row id; the screen loads every sibling row sharing the
+    // same metaPromptName and renders a pager over them.
+    var fanInModelViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeFanInModelViewRowId = fanInModelViewRowId
+    if (activeFanInModelViewRowId != null) {
+        FanInModelViewScreen(
+            reportId = reportId,
+            resultId = activeFanInModelViewRowId,
+            onBack = { fanInModelViewRowId = null }
+        )
+        return
+    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -628,7 +641,8 @@ internal fun ViewAiReportScreen(
                             1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
-                                openFanIn = { id -> fanInViewRowId = id })
+                                openFanIn = { id -> fanInViewRowId = id },
+                                openFanInModel = { id -> fanInModelViewRowId = id })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
                     }
@@ -777,7 +791,8 @@ internal fun ViewAiReportScreen(
                             openComputedItem(active.key, item, currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
-                                openFanIn = { id -> fanInViewRowId = id })
+                                openFanIn = { id -> fanInViewRowId = id },
+                                openFanInModel = { id -> fanInModelViewRowId = id })
                         }
                     )
                 }
@@ -1234,13 +1249,15 @@ private fun openComputedItem(
     language: String?,
     openRerank: (String) -> Unit,
     openModeration: (String) -> Unit,
-    openFanIn: (String) -> Unit
+    openFanIn: (String) -> Unit,
+    openFanInModel: (String) -> Unit
 ) {
     val rowId = item.sourceRows?.firstOrNull()?.id
     when (key) {
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
+        "fan-in-model" -> if (rowId != null) openFanInModel(rowId) else item.open(language)
         else -> item.open(language)
     }
 }

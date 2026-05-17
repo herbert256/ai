@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "fan_in_model_view" to HelpContent(
+        title = "Help - Fan-in-model — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the fan-in-model META detail. Reached from the 🧩 Fan-in-model tile on Report - view. Renders every sibling fan-in-model row sharing this run's metaPromptName as a horizontal pager — swipe between models without leaving the screen."),
+            HelpCard("What's on this screen", "Tab strip: one chip per model in the run, the active model bolded and Blue-tinted. Pager: each page is a full-width Blue-gradient card with 🧩 + the scope (provider / model) the run is focused on, the synthesising model in the sublabel, and the synthesised body via the shared markdown pipeline. Below the body, a 'Synthesised from' credits strip names the source report agents."),
+            HelpCard("Reached from", "🧩 Fan-in-model tile on Report - view. Tapping the tile lands on the seed row's page; swiping switches to the sibling pages. For per-row regenerate, delete, or trace, drop back to Report - manage."),
+        )
+    ),
     "fan_in_view" to HelpContent(
         title = "Help - Fan-in — view",
         cards = listOf(
@@ -2881,6 +2889,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "rerank_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_view" to listOf("help_glossary_operations", "concepts"),
     "fan_in_view" to listOf("help_glossary_operations", "concepts"),
+    "fan_in_model_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====
