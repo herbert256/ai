@@ -34,12 +34,13 @@ import kotlinx.coroutines.withContext
  * the user backs out so the renderer doesn't hold onto the report
  * payload after the screen is gone.
  *
- * When [language] is not [ExportLanguage.All] the preview slices the
- * report via [buildLanguageViews] before rendering so the user's
- * One-language pick from the Export screen reaches the WebView;
- * [ExportLanguage.All] preserves the pre-refactor multi-language
- * layout (the in-page language picker still works inside the WebView
- * in that case).
+ * The preview always renders ONE language and omits the in-WebView
+ * language picker row — the user picks the language via the Export
+ * screen's Language card and previews that selection. Passing
+ * [ExportLanguage.All] is still supported for backwards compatibility
+ * (it gets coerced to [ExportLanguage.Original] inside the preview);
+ * the standalone Export path is unaffected and still produces a
+ * multi-language file when All is selected.
  */
 @Composable
 fun HtmlPreviewScreen(
@@ -56,7 +57,15 @@ fun HtmlPreviewScreen(
             val report: Report? = ReportStorage.getReport(context, reportId)
             if (report == null) PreviewState.NotFound
             else {
-                val data = language.resolveSlice(buildHtmlReportData(context, report))
+                // Preview never shows the multi-language picker. Coerce
+                // ExportLanguage.All to ExportLanguage.Original so the
+                // sliced data carries a single language view and the
+                // renderer's "if (languages.size > 1)" picker row stays
+                // hidden. The Export screen's "All languages" option
+                // still produces a multi-language file via its own
+                // share path — only the in-app preview is single-lang.
+                val effectiveLanguage = if (language == ExportLanguage.All) ExportLanguage.Original else language
+                val data = effectiveLanguage.resolveSlice(buildHtmlReportData(context, report))
                 val raw = when (detail) {
                     ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersionForPreview(context), includeJsonView = false)
                     ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
