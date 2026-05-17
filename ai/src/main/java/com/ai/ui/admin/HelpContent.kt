@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "meta_view" to HelpContent(
+        title = "Help - Meta — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the META detail screen. Reached from a Meta tile on Report - view. Lays the originating report prompt out as a hero 'Question' card with the report's emoji on the left, then the meta's reply below as a single large answer card. No delete / regenerate / multi-language delete chooser / 🐞 / Find-icons / alt-icon picker — drop back to Report - manage for any of that."),
+            HelpCard("What's on this screen", "Question card: Purple-gradient hero panel with ❓ (or the report's own icon) + the report prompt rendered through the shared markdown pipeline. Answer card: the meta's emoji + name in Purple in the header row, provider / shortened model immediately below, then the meta content in the markdown body. <think> regions, tables, fenced code, headings render exactly like everywhere else in the app."),
+            HelpCard("Reached from", "Per-meta tile on Report - view (one tile per persisted META row, label = the meta prompt name). The View screen's language picker carries through — a non-Original tab swaps the body for the matching META TRANSLATE row when one exists. For management (rerun, delete, retitle, find-icons), drop back to Report - manage."),
+        )
+    ),
     "secondary_scope" to HelpContent(
         title = "Help - Secondary scope",
         cards = listOf(
@@ -2845,6 +2853,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
     "fan_out_view" to listOf("help_glossary_operations", "help_translations"),
     "costs_view" to listOf("help_glossary_operations", "help_costs"),
+    "meta_view" to listOf("help_glossary_operations", "report_meta"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====

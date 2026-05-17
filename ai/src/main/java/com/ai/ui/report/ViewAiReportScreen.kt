@@ -151,6 +151,22 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Meta "View" overlay — keyed by the META row id so two tiles
+    // that share a metaPromptName open the correct row. Language is
+    // captured at tap time so the opened MetaViewScreen renders the
+    // matching TRANSLATE row for the active picker language.
+    var metaViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var metaViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeMetaViewRowId = metaViewRowId
+    if (activeMetaViewRowId != null) {
+        MetaViewScreen(
+            reportId = reportId,
+            resultId = activeMetaViewRowId,
+            language = metaViewLanguage?.takeIf { it.isNotEmpty() },
+            onBack = { metaViewRowId = null; metaViewLanguage = null }
+        )
+        return
+    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -493,6 +509,20 @@ internal fun ViewAiReportScreen(
             // disambiguates two tiles that share a metaPromptName so
             // the persisted tile-order map stays unique.
             val rowId = sourceRow?.id ?: item.label
+            // Meta tile click routes through the dedicated content-only
+            // MetaViewScreen instead of the legacy management-heavy
+            // SecondaryResultDetailScreen — sourceRow.id when present
+            // points at the persisted row; absent (legacy aggregate
+            // tile) falls back to item.open to keep the old picker
+            // path available.
+            val openMeta: () -> Unit = if (sourceRow != null) {
+                {
+                    metaViewLanguage = currentLanguageState.value
+                    metaViewRowId = sourceRow.id
+                }
+            } else {
+                { item.open(currentLanguageState.value) }
+            }
             IdentifiedTile(
                 id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
@@ -501,7 +531,7 @@ internal fun ViewAiReportScreen(
                     accent = AppColors.Purple,
                     enabled = metaEnabled,
                     onMissingClick = if (!metaEnabled) ({ openMetaMissing(item) }) else null,
-                    onClick = { item.open(currentLanguageState.value) }
+                    onClick = openMeta
                 )
             )
         }
