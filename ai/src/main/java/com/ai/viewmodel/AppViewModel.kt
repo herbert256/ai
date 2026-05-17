@@ -657,11 +657,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val appLabel = runCatching {
                 application.packageManager.getApplicationLabel(application.applicationInfo).toString()
             }.getOrDefault("AI")
-            // Use PackageInfo.lastUpdateTime instead of
-            // BuildConfig.BUILD_TIMESTAMP — the latter is stamped
-            // at Gradle configuration time and the config cache
-            // reuses it across builds, so it goes stale fast in
-            // dev workflows.
+            // Read the gradle-generated build stamp from the bundled
+            // asset (always fresh per build — the generateBuildStamp
+            // task is upToDateWhen { false }). Install time is the
+            // most-recent `adb install` time. Both surface here so a
+            // user-shared log identifies the exact deployed APK.
+            val builtAt = runCatching {
+                application.assets.open("build-timestamp.txt")
+                    .bufferedReader().use { it.readText().trim() }
+            }.getOrDefault("?")
             val installedAt = runCatching {
                 val info = application.packageManager.getPackageInfo(application.packageName, 0)
                 java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
@@ -670,7 +674,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.i(
                 "App",
                 "App started — $appLabel v${com.ai.BuildConfig.VERSION_NAME} " +
-                    "(installed $installedAt) " +
+                    "(built $builtAt, installed $installedAt) " +
                     "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
             )
 

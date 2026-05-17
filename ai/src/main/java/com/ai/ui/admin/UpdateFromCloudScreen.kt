@@ -210,8 +210,12 @@ fun UpdateFromCloudScreen(
                     Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(
-                        com.ai.ui.admin.formatAppInstalledTime(context),
-                        color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace
+                        "built " + com.ai.ui.admin.readBundledBuildStamp(context),
+                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
+                    )
+                    Text(
+                        "installed " + com.ai.ui.admin.formatAppInstalledTime(context),
+                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
                     )
                 }
             }

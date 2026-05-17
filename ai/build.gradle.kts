@@ -86,12 +86,6 @@ android {
         // streaming default — a hung provider would otherwise gate the
         // whole Refresh-all step on the slowest server.
         buildConfigField("int", "TEST_CONNECTION_READ_TIMEOUT_SEC", "30")
-        // Human-readable build time stamped into the APK at compile
-        // time. Surfaced in the app-start log line so a log file
-        // shared by the user identifies exactly which build produced
-        // it (versionName alone is the encoded yy.ddd.minutesOfDay).
-        val buildStamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date())
-        buildConfigField("String", "BUILD_TIMESTAMP", "\"$buildStamp\"")
     }
 
     buildTypes {
@@ -120,6 +114,25 @@ android {
             isReturnDefaultValues = true
         }
     }
+    // Generated assets dir holding `build-timestamp.txt` — written
+    // on every build by the never-up-to-date `generateBuildStamp`
+    // task below. Read at runtime via
+    // `context.assets.open("build-timestamp.txt")`. This avoids the
+    // configuration-cache trap that made the old
+    // BuildConfig.BUILD_TIMESTAMP go stale (the const string was
+    // evaluated at config time, then reused across builds whenever
+    // the config cache survived).
+    sourceSets {
+        getByName("main") {
+            // Plain File path (not a Provider) — AGP's SourceSet API
+            // rejects providers; the variants API would carry task
+            // deps automatically but the explicit
+            // `tasks.matching { preBuild }.dependsOn(generateBuildStamp)`
+            // below covers it.
+            assets.srcDir(layout.buildDirectory.dir("generated/buildStamp/assets").get().asFile)
+        }
+    }
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -140,6 +153,28 @@ kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+// Always-runs task that writes the current wall-clock time into a
+// generated asset. `outputs.upToDateWhen { false }` makes Gradle
+// re-execute the task even when the config cache survives, so the
+// stamp matches the moment `assembleDebug` ran (not the moment the
+// config cache was populated).
+val generateBuildStamp = tasks.register("generateBuildStamp") {
+    val outFile = layout.buildDirectory.file("generated/buildStamp/assets/build-timestamp.txt")
+    outputs.file(outFile)
+    outputs.upToDateWhen { false }
+    doLast {
+        val f = outFile.get().asFile
+        f.parentFile.mkdirs()
+        f.writeText(SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", Locale.US).format(Date()))
+    }
+}
+
+// Wire the stamp generation in front of every preBuild — covers
+// all variants without depending on AGP-internal task names.
+tasks.matching { it.name == "preBuild" }.configureEach {
+    dependsOn(generateBuildStamp)
 }
 
 dependencies {

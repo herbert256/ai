@@ -69,12 +69,11 @@ fun AboutScreen(
                 fontSize = 16.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
-            // Installed-on time rather than gradle BUILD_TIMESTAMP —
-            // BUILD_TIMESTAMP is stamped at configuration time and
-            // Gradle's configuration cache reuses it across builds,
-            // so it goes stale fast in dev workflows. PackageInfo
-            // .lastUpdateTime always matches the most recent
-            // `adb install`.
+            Text(
+                "Built ${readBundledBuildStamp(context)}",
+                fontSize = 13.sp, color = AppColors.TextTertiary
+            )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 "Installed ${formatAppInstalledTime(context)}",
                 fontSize = 13.sp, color = AppColors.TextTertiary
@@ -117,11 +116,22 @@ fun AboutScreen(
 
 /** Format the most-recent install / upgrade time of THIS APK as
  *  "yyyy-MM-dd HH:mm:ss z". Reads PackageInfo.lastUpdateTime —
- *  always matches the user's most recent `adb install` (whereas
- *  BuildConfig.BUILD_TIMESTAMP is configuration-time stamped and
- *  goes stale across Gradle config-cache reuses). */
+ *  always matches the user's most recent `adb install`. Distinct
+ *  from build time: install can lag build by minutes (release
+ *  flow) or be hours apart (Play Store install of a prior CI
+ *  build). */
 internal fun formatAppInstalledTime(context: android.content.Context): String = try {
     val info = context.packageManager.getPackageInfo(context.packageName, 0)
     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
         .format(java.util.Date(info.lastUpdateTime))
+} catch (_: Exception) { "?" }
+
+/** Read the build-time stamp written by the gradle
+ *  `generateBuildStamp` task at `assets/build-timestamp.txt`.
+ *  Always fresh per build because the task carries
+ *  `outputs.upToDateWhen { false }` and re-runs even when the
+ *  Gradle configuration cache survives. Falls back to "?" when
+ *  the asset isn't present (older builds, robolectric tests). */
+internal fun readBundledBuildStamp(context: android.content.Context): String = try {
+    context.assets.open("build-timestamp.txt").bufferedReader().use { it.readText().trim() }
 } catch (_: Exception) { "?" }
