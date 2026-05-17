@@ -6058,6 +6058,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val triedBy = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Pair<String, String>>>()
             val distinctModels = models.distinctBy { (p, m) -> p.id to m }
             val distinctModelCount = distinctModels.size
+            // Skip the OkHttp 429 / 529 retry loops when the swarm has
+            // > 3 models — the cross-model requeue below is a faster
+            // recovery than a 1-3 s sleep on the same model. With ≤ 3
+            // alternatives we keep the inline retry: fewer models to
+            // bounce between, more value in waiting for the same one
+            // to recover. The fast bench check (long Retry-After) still
+            // runs either way, so a >1h rate limit still parks the
+            // model on ModelCooldownStore. Set via the existing
+            // ProviderThrottle.suppressInlineRetry ThreadLocal (same
+            // knob the bulk health-sweep uses).
+            val suppressInlineRetryOn429And529 = distinctModelCount > 3
+            val callContext: kotlin.coroutines.CoroutineContext =
+                if (suppressInlineRetryOn429And529)
+                    ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                        ProviderThrottle.suppressInlineRetry.asContextElement(true)
+                else
+                    ProviderThrottle.permitPreAcquired.asContextElement(true)
             // Cost-aware biasing. Each worker records (count, totalCost)
             // for its own model after every successful call (single
             // writer per key — only that model's worker touches it).
@@ -6198,12 +6215,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     // host yields the coroutine (delay, not
                                     // Thread.sleep) so other items proceed; the
                                     // OkHttp interceptor skips its own acquire via
-                                    // permitPreAcquired.
+                                    // permitPreAcquired. callContext also pins the
+                                    // 429/529 suppress flag when the swarm is
+                                    // big enough that cross-model requeue beats
+                                    // in-place retry.
                                     val releaser = acquireOrRequeue(host)
                                     try {
                                         ApiCallCaps.global.withPermit {
                                             ApiCallCaps.translation.withPermit {
-                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                withContext(callContext) {
                                                     // withTimeoutOrNull cancels just this
                                                     // call on budget overrun (the HTTP call
                                                     // gets cancelled with it); the worker
