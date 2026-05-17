@@ -146,22 +146,48 @@ internal fun ReportExportScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_export", title = "Export", onBackClick = onBack)
-        // Primary CTA hoisted to the top — same rule the settings
-        // edit screens follow (commit ea047c17). Dispatches based
-        // on the Target chip below.
+        // Both CTAs hoisted to the top — Export (green) dispatches
+        // based on the Target chip; Export all (purple) bundles the
+        // full set into a single zip. Sit on the same row so the
+        // user sees both options without scrolling.
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                when (target) {
-                    ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
-                    ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
-                    ReportExportTarget.VIEW_APP -> onViewInApp(detail, exportLanguage)
-                }
-            },
-            enabled = progress == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Export", maxLines = 1, softWrap = false) }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    when (target) {
+                        ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
+                        ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
+                        ReportExportTarget.VIEW_APP -> onViewInApp(detail, exportLanguage)
+                    }
+                },
+                enabled = progress == null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Export", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = {
+                    scope.launch {
+                        progress = 0 to 1
+                        try {
+                            onExportAll(exportLanguage) { d, t -> progress = d to t }
+                            progress = null
+                            onBack()
+                        } catch (e: Exception) {
+                            AppLog.e("ReportExport", "Export all failed", e)
+                            progress = null
+                            android.widget.Toast.makeText(
+                                context,
+                                "Export all failed: ${e.javaClass.simpleName}: ${e.message}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                },
+                enabled = progress == null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(
@@ -283,33 +309,6 @@ internal fun ReportExportScreen(
                 }
             }
         }
-
-        // "Export all" — bundle all 8 documents (Short + Complete × HTML
-        // / PDF / DOCX / ODT) plus the JSON traces zip into a single
-        // master zip and hand it to the standard share sheet.
-        Button(
-            onClick = {
-                scope.launch {
-                    progress = 0 to 1
-                    try {
-                        onExportAll(exportLanguage) { d, t -> progress = d to t }
-                        progress = null
-                        onBack()
-                    } catch (e: Exception) {
-                        AppLog.e("ReportExport", "Export all failed", e)
-                        progress = null
-                        android.widget.Toast.makeText(
-                            context,
-                            "Export all failed: ${e.javaClass.simpleName}: ${e.message}",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            },
-            enabled = progress == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-        ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
     }
 }
 

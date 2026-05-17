@@ -588,8 +588,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "report_export" to HelpContent(
         title = "Export report",
         cards = listOf(
-            HelpCard("Overview", "Pick a format, a detail level, and a target (where the export lands), then tap the green Export button at the top of the page to commit. The page also exposes a separate Export-all-zip button at the bottom."),
-            HelpCard("Export button (top)", "The single green CTA at the top of the page. Fires whichever Target chip is selected — Android share / View in browser / View in app. Disabled while a previous export is still building."),
+            HelpCard("Overview", "Pick a format, a detail level, and a target (where the export lands), then tap the green Export button at the top of the page to commit. The purple Export-all-zip button sits right next to it for one-shot bulk export."),
+            HelpCard("Export button (top)", "Green CTA in the top button row. Fires whichever Target chip is selected — Android share / View in browser / View in app. Disabled while a previous export is still building."),
             HelpCard("Format chips", "HTML, PDF, MS Word, OpenDocument, JSON, Zipped HTML — wrap to a second row on narrow phones via FlowRow. JSON and Zipped HTML ignore the detail picker; everything else honors it."),
             HelpCard("Detail — Short", "Prompt, per-model results (with citations and related questions), Meta sections (one per Meta prompt) plus Moderations. No index, no costs, no traces."),
             HelpCard("Detail — Complete", "Index, prompt, every Meta section, Reranks / Moderations / Translations, the cost table, and every captured API trace with redacted bodies."),
