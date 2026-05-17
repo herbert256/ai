@@ -45,6 +45,8 @@ private val VIEW_CHILD_HELP_TOPICS = setOf(
     "prompt_view_screen",
     "reports_view",
     "fan_out_view",
+    "fan_out_pair_view",
+    "icons_view",
     "report_html_preview"
 )
 

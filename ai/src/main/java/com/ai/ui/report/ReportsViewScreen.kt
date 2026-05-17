@@ -61,6 +61,7 @@ import kotlinx.coroutines.withContext
 fun ReportsViewScreen(
     reportId: String,
     language: String?,
+    initialAgentId: String? = null,
     onBack: () -> Unit
 ) {
     androidx.activity.compose.BackHandler { onBack() }
@@ -99,6 +100,18 @@ fun ReportsViewScreen(
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
     }.orEmpty()
     val pagerState = rememberPagerState(initialPage = 0) { agents.size.coerceAtLeast(1) }
+    // When called with an initialAgentId, jump to that agent's page
+    // once the report has finished loading and the pager has its real
+    // count. Keyed on (agents, initialAgentId) so the jump only fires
+    // when the target arrives — not on every recomposition.
+    androidx.compose.runtime.LaunchedEffect(agents, initialAgentId) {
+        if (initialAgentId != null && agents.isNotEmpty()) {
+            val idx = agents.indexOfFirst { it.agentId == initialAgentId }
+            if (idx >= 0 && idx != pagerState.currentPage) {
+                pagerState.scrollToPage(idx)
+            }
+        }
+    }
     val activeAgent = agents.getOrNull(pagerState.currentPage)
 
     Column(

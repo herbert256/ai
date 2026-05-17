@@ -630,15 +630,18 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "If the app process dies mid-run, the in-memory candidate map is lost — costs already bumped survive on the Report, but the screen will be empty on next launch.")
         )
     ),
-    "report_icons_grid" to HelpContent(
+    "icons_view" to HelpContent(
         title = "Help - Icons",
         cards = listOf(
-            HelpCard("Overview", "Minimal viewer reached from the result screen's View → Icons button. Renders every agent's per-model emoji from the 3-tier chain at 72sp, centered, no model labels or costs — pure glanceability."),
-            HelpCard("Surfacing", "The View → Icons button only appears when Settings → Generate per model icons is on. With the toggle off there's nothing for this screen to show, so the button is hidden and this overlay is unreachable."),
-            HelpCard("What's shown", "One glyph per agent whose chain has landed an emoji (success or the 📝 fallback). Agents still running, or where the per-model chain was never fired, are skipped. Order matches the agent list on the report."),
-            HelpCard("Tap a glyph", "Routes to the Model response page for that agent — same destination as tapping its row on the result screen. The grid overlay closes; back from Model response returns to the result screen, not back here."),
-            HelpCard("Per-agent detail", "To inspect WHICH tier produced an icon, the failed earlier tiers, the model that billed, the prompt that ran, or to fan out alternatives, tap the agent's row on the result screen instead — that opens the Agent icon detail screen."),
-            HelpCard("Pitfalls", "An empty page means either (a) the per-model toggle was off during the run, (b) the run is still in progress, or (c) every agent's chain returned the 📝 fallback AND the storage clear was triggered later. In case (b), back out and reopen once the chain finishes.")
+            HelpCard("What you see", "The report's own icon at the top, centred. Below it, the per-model icons. When the report has no fan-out, every agent's icon sits in one flow grid. When fan-outs are present, you get one section per run: a header with the run's name, then one row per initiator showing the initiator's icon, an arrow, and every responder's icon."),
+            HelpCard("How to read it", "Tap any responder icon to open just that fan-out pair on its own page (initiator's response on the left, responder's reply on the right). Tap any initiator icon — or, in a no-fan-out report, any model icon — to open the Reports view scrolled to that model's page. Android back returns to the Icons screen each time.")
+        )
+    ),
+    "fan_out_pair_view" to HelpContent(
+        title = "Help - Fan-out pair",
+        cards = listOf(
+            HelpCard("What you see", "One fan-out pair on its own page: the initiator's report response on the left as a neutral bubble, the responder's reply on the right as an indigo bubble. The title bar's green subject is the meta-prompt name that produced the pair."),
+            HelpCard("How to read it", "Both bubbles render full markdown — tables, headings, lists, code blocks. Long bodies collapse to a preview with a Read more / Show less toggle. Android back returns to the Icons screen.")
         )
     ),
     "report_single_result" to HelpContent(
@@ -2880,7 +2883,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "report_html_preview" to listOf("help_glossary_operations", "help_translations"),
     "report_meta_run" to listOf("help_glossary_operations", "help_costs"),
     "report_single_result" to listOf("help_glossary_operations", "help_costs"),
-    "report_icons_grid" to listOf("help_glossary_operations"),
     "report_fan_out_confirm" to listOf("help_glossary_operations", "help_costs"),
 
     // ===== Translation =====

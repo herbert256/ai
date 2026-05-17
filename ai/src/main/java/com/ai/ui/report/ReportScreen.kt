@@ -3105,9 +3105,8 @@ private fun ReportPrimaryOverlays(
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
             LocalNavigateToCurrentReport provides { onShowIconsViewChange(false) }
         ) {
-            ReportIconsGridScreen(
+            IconsViewScreen(
                 reportId = currentReportId,
-                onOpenAgent = { agentId -> onSingleResultAgentIdChange(agentId) },
                 onBack = { onShowIconsViewChange(false) }
             )
         }
@@ -3876,85 +3875,6 @@ private fun TranslationIconDetailOverlay(
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
         ))
-    }
-}
-
-/** Minimal viewer: every agent's per-model icon (populated by the
- *  3-tier chain on [com.ai.data.ReportAgent.icon]) rendered at very
- *  large font and nothing else. Reached from View → Icons, gated by
- *  the perModelIconGenEnabled setting at the button level. Agents
- *  whose chain hasn't landed (icon null/blank) are skipped — the
- *  user only sees what actually resolved. Tapping a glyph routes to
- *  that agent's Model response page via [onOpenAgent]. */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-@Composable
-private fun ReportIconsGridScreen(reportId: String, onOpenAgent: (String) -> Unit, onBack: () -> Unit) {
-    BackHandler { onBack() }
-    val context = LocalContext.current
-    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
-    }
-    val report = reportState.value
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_icons_grid", title = "Icons", onBackClick = onBack)
-        val iconAgents = report?.agents.orEmpty().mapNotNull { a ->
-            a.icon?.takeIf { it.isNotBlank() }?.let { a.agentId to it }
-        }
-        // BoxWithConstraints measures the available area so we can
-        // pick the largest gap (16 → 0 dp) such that every emoji fits
-        // without scrolling. iconW / iconH are approximations of an
-        // emoji's bounding box at 72 sp — exact text metrics aren't
-        // needed, we just want a proportional indicator of overflow.
-        // If even the 0 dp gap overflows (lots of agents on a small
-        // screen), fall back to a vertical scroll so the bottom rows
-        // stay reachable instead of getting clipped off-screen.
-        androidx.compose.foundation.layout.BoxWithConstraints(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val n = iconAgents.size.coerceAtLeast(1)
-            val iconW = 80.dp
-            val iconH = 90.dp
-            val gapOptions = listOf(16.dp, 12.dp, 8.dp, 4.dp, 2.dp, 0.dp)
-            val fittingGap = gapOptions.firstOrNull { g ->
-                val perRow = ((maxWidth + g).value / (iconW + g).value).toInt().coerceAtLeast(1)
-                val rows = (n + perRow - 1) / perRow
-                val totalH = rows * iconH.value + (rows - 1).coerceAtLeast(0) * g.value
-                totalH <= maxHeight.value
-            }
-            val gap = fittingGap ?: 0.dp
-            val fits = fittingGap != null
-            val flowContent: @Composable () -> Unit = {
-                androidx.compose.foundation.layout.FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(gap, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(gap)
-                ) {
-                    iconAgents.forEach { (agentId, glyph) ->
-                        Text(
-                            glyph, fontSize = 72.sp, color = Color.White,
-                            modifier = Modifier.clickable { onOpenAgent(agentId) }
-                        )
-                    }
-                }
-            }
-            if (fits) {
-                // Centred render when the grid fits — preserves the
-                // "single big emoji floats in the middle" look on
-                // reports with few agents.
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    flowContent()
-                }
-            } else {
-                // Overflowing grid — wrap in a vertical scroll so the
-                // user can swipe through every row. Top-aligned so the
-                // first row sits flush with the title bar.
-                Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                ) {
-                    flowContent()
-                }
-            }
-        }
     }
 }
 

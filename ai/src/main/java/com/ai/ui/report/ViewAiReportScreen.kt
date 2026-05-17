@@ -592,9 +592,7 @@ internal fun ViewAiReportScreen(
             // report's outputs, not its operational logs / API traces.
             // Both destinations remain reachable from the result page's
             // bottom-bar icons (📜 App Log, 🐞 Trace list).
-            if (perModelIconGenEnabled) {
-                add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
-            }
+            add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
         }
     }
 
