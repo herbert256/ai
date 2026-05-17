@@ -510,7 +510,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "view_ai_report" to HelpContent(
-        title = "Help - Report — view",
+        title = "Help - Report",
         cards = listOf(
             HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Fan-in-model, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
@@ -735,14 +735,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "fan_out_view" to HelpContent(
-        title = "Help - Fan-out — view",
+        title = "Help - Fan-out",
         cards = listOf(
             HelpCard("What you see", "Every fan-out reply in the run, laid out as a chat-style thread. Each answering model has its own header chip with the model name and a count of how many replies it produced; under that header sit the (initiator → answerer) exchanges as two bubbles per row — the initiator's original report response on one side, the answerer's reply on the other. Scroll vertically through the whole conversation."),
             HelpCard("How to read it", "Replies are grouped by answering model so you can see how a single model handled every initiator in one place. Long replies collapse to a preview line with a 'Read more' toggle — tap to expand, tap again to collapse. When you've picked a translated language on the parent View screen, the answerer's bubble shows the translated text with a small 🌍 badge; rows without a translation fall back to the original reply so the thread stays continuous.")
         )
     ),
     "costs_view" to HelpContent(
-        title = "Help - Costs — view",
+        title = "Help - Costs",
         cards = listOf(
             HelpCard("What you see", "What this report has cost so far. A big yellow 💰 Total at the top sums every API call this report has fired; below it, a row per spending bucket — Reports, Meta, Fan-out, Fan-in, Translate, Moderation, Rerank, Icons, Language — showing how much of the total went there."),
             HelpCard("How to read it", "Each bucket row carries three things: the percentage of the grand total, the absolute amount, and a horizontal bar coloured yellow-to-orange whose length matches that share. A glance tells you whether one kind dominates spending or the cost is spread out. Buckets that cost nothing are hidden entirely; very small buckets still render a thin sliver so they don't disappear. The call count on the right tells you how many requests landed in that bucket.")
@@ -756,49 +756,49 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "prompt_view_screen" to HelpContent(
-        title = "Help - Prompt — view",
+        title = "Help - Prompt",
         cards = listOf(
             HelpCard("What you see", "The original prompt that drove this report, presented as a single hero card on a purple-to-indigo gradient — the document feel, no clutter around it. The report's own emoji shows in the header strip; the prompt body sits below with full markdown formatting (headings, lists, tables, code blocks all render properly)."),
             HelpCard("How to read it", "If the prompt was long or technical you can scroll the card to see the whole thing. When a translated language is active on the parent View screen, the body switches to that language's translation of the prompt if one has been made; otherwise the original prompt stays visible.")
         )
     ),
     "translate_view" to HelpContent(
-        title = "Help - Translate — view",
+        title = "Help - Translate",
         cards = listOf(
             HelpCard("What you see", "Every item this translation run produced — the prompt, the per-model responses, and any meta replies — laid out one row at a time. Each row is a stacked pair: the original on top in a neutral card, the translation below it on an orange-accented card. A small label above each pair tells you which source it's translating (📝 prompt, 🤖 a specific model's response, or 🧠 a meta result)."),
             HelpCard("How to read it", "The target language shows as the green subject in the title bar so you always know which language you're reading. Long bodies collapse to a preview with a 'Read more' toggle — tap to expand, tap again to collapse. Source and translation use the same markdown rendering so headings, lists, tables, and code blocks line up between the two.")
         )
     ),
     "fan_in_model_view" to HelpContent(
-        title = "Help - Fan-in-model — view",
+        title = "Help - Fan-in-model",
         cards = listOf(
             HelpCard("What you see", "One per-model synthesis at a time, with a tab strip across the top — one chip per model that contributed a synthesis. The active model is bold and blue-tinted; the others sit dimmer next to it. The card below shows that model's synthesis on a blue-gradient background, with a 'Synthesised from' strip at the bottom naming each source response that fed into it."),
             HelpCard("How to read it", "Swipe left or right between models, or tap a chip in the strip to jump straight there. Each model's synthesis renders with full markdown — headings, tables, lists, code blocks, reasoning sections all behave the way they do elsewhere in the app. The credits strip uses each source agent's own emoji so you can spot at a glance which models fed the synthesis.")
         )
     ),
     "fan_in_view" to HelpContent(
-        title = "Help - Fan-in — view",
+        title = "Help - Fan-in",
         cards = listOf(
             HelpCard("What you see", "The synthesised output from a fan-in — one model's unified answer that drew on every contributing response. The synthesis sits in a single hero card on a green accent gradient with a 🪢 header; the body uses full markdown so headings, lists, tables, code blocks, and reasoning sections all render properly. Below the body, a compact 'Synthesised from' strip names each source response that fed into this run."),
             HelpCard("How to read it", "The hero shows the synthesising model's name under the 🪢 header — that's the model that did the combining. The credits strip uses each contributing model's own emoji so you can recognise the sources at a glance. If a contributor never picked up its own emoji, 🤖 stands in. Scroll the screen vertically for long synthesis bodies.")
         )
     ),
     "moderation_view" to HelpContent(
-        title = "Help - Moderation — view",
+        title = "Help - Moderation",
         cards = listOf(
             HelpCard("What you see", "A safety check across every model response on this report. The hero up top gives the overall verdict — red 🚩 when at least one response flagged anything, green when everything came back clean — and tells you how many responses were checked. Below, one card per model: the model's name in the header, the flagged categories called out next to a 🚩 when any fired, then a row of category chips covering every category the moderator looked at."),
             HelpCard("How to read it", "Each chip is colour-coded like a traffic light — red means that category fired, amber means the score sits in the elevated range without quite crossing the line, green means clean. The number on the chip is the moderator's score for that category, so you can see how close to (or far from) the threshold each call was without tapping anything. A card with no 🚩 callout passed every check.")
         )
     ),
     "rerank_view" to HelpContent(
-        title = "Help - Rerank — view",
+        title = "Help - Rerank",
         cards = listOf(
             HelpCard("What you see", "A ranked list of the model responses on this report — the rerank's verdict on which answers it considered strongest. The top three sit in large podium cards with 🥇/🥈/🥉 medals; rank four onwards continues as slimmer numbered rows below. Each row carries the responding model's name, the rerank's score for that answer (out of 100), and the reason the rerank gave for that placement."),
             HelpCard("How to read it", "Cards are sorted top-to-bottom by rank — the best at the top, then second, then third, then everything else in numbered order. The score badge on the right of each card lets you see at a glance how close the ranks are: clustered scores mean it was a tight race, big gaps mean the rerank had a clear opinion. The rerank's prompt name reads as the green subject in the title bar.")
         )
     ),
     "meta_view" to HelpContent(
-        title = "Help - Meta — view",
+        title = "Help - Meta",
         cards = listOf(
             HelpCard("What you see", "A two-card 'question and answer' layout. The top hero is the original report prompt — the question this meta was asked to think about — rendered on a purple gradient with the report's own emoji. Below it sits the meta's reply card with the meta's emoji and name in the header, the model that produced the reply underneath, and the answer body in the main panel."),
             HelpCard("How to read it", "The answer body renders headings, lists, tables, code blocks, and reasoning sections the same way the rest of the app does. Each meta tile carries its own icon — picking a new icon for one meta affects only that tile, never the others sharing the same name. When you've picked a translated language on the parent View screen, the answer card swaps to that language's translation when one exists; otherwise the original reply stays put.")

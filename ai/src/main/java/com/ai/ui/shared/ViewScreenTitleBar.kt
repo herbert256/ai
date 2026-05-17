@@ -42,7 +42,7 @@ import com.ai.R
  *    parent report's title centred in white, and the help icon
  *    on the right.
  *  - Row 2 (always present): the screen's hard-coded label in
- *    orange (e.g. "Costs - view", "Meta - view").
+ *    orange (e.g. "Costs", "Meta").
  *  - Row 3 (only when [subject] is non-blank): screen-specific
  *    context in larger green text (e.g. the meta prompt name for
  *    Meta / Rerank / Moderation / Fan-in / Fan-in-model / Fan-out,
