@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -127,7 +128,26 @@ fun HubScreen(
             Image(
                 painter = painterResource(id = R.drawable.brand_glyph),
                 contentDescription = "AI App Logo",
-                modifier = Modifier.size(logoSize).offset(y = (-32).dp)
+                // Lift the logo up 32 dp AND shrink its measured slot
+                // by 24 dp so the "AI Reports" card below sits closer.
+                // Plain Modifier.offset only shifted the paint and
+                // left a 32 dp visual gap below the logo; the layout
+                // block here also drops most of that gap from the
+                // measured layout so the cards move up with the
+                // visual logo.
+                modifier = Modifier
+                    .size(logoSize)
+                    .layout { measurable, constraints ->
+                        val placeable = measurable.measure(constraints)
+                        val visualShift = 32.dp.roundToPx()
+                        val heightTrim = 24.dp.roundToPx()
+                        layout(
+                            placeable.width,
+                            (placeable.height - heightTrim).coerceAtLeast(0)
+                        ) {
+                            placeable.place(0, -visualShift)
+                        }
+                    }
                     .then(
                         if (hasAnyReport) Modifier.clickable(
                             interactionSource = logoInteractionSource,
