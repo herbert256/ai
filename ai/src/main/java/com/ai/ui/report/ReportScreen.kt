@@ -1183,6 +1183,7 @@ fun ReportsScreen(
             listKind = listKind,
             secondaryRuns = secondaryRuns,
             translateRows = translateRows,
+            fanOutSummaries = fanOutSummaries,
             aiSettings = aiSettings,
             uiState = uiState,
             promptIconCallbacks = promptIconCallbacks,
@@ -2860,6 +2861,10 @@ private fun ReportPrimaryOverlays(
     listKind: SecondaryKind?,
     secondaryRuns: List<com.ai.data.SecondaryResult>,
     translateRows: List<com.ai.data.SecondaryResult>,
+    /** Fan-out runs on this report (grouped pair rows). Drives the
+     *  per-fan-out tiles on Report - view; pair rows are excluded
+     *  from secondaryRuns so they need a separate channel. */
+    fanOutSummaries: List<FanOutRunSummary>,
     aiSettings: Settings,
     uiState: UiState,
     promptIconCallbacks: InternalPromptIconCallbacks,
@@ -2942,8 +2947,8 @@ private fun ReportPrimaryOverlays(
         && openTranslationRunId == null
         && listKind == null
     ) {
-        val viewEveryItems = remember(secondaryRuns, translateRows, aiSettings, reportLanguageName) {
-            buildEveryItems(
+        val viewEveryItems = remember(secondaryRuns, translateRows, fanOutSummaries, aiSettings, reportLanguageName) {
+            val base = buildEveryItems(
                 secondaryRuns, aiSettings,
                 onOpenSecondaryRun = { id, lang ->
                     onSecondaryLockedLanguageChange(lang)
@@ -2957,6 +2962,25 @@ private fun ReportPrimaryOverlays(
                 reportLanguageName = reportLanguageName,
                 translates = translateRows
             )
+            // Fan-out pair rows are excluded from secondaryRuns (they
+            // live in fanOutSummaries with a separate grouping). Merge
+            // them into the "fan_out" bucket so Report - view shows
+            // one tile per fan-out run, matching the Meta pattern.
+            val fanOutItemsByName = (base["fan_out"].orEmpty())
+                .associateBy { it.label }
+                .toMutableMap()
+            fanOutSummaries.forEach { summary ->
+                if (summary.metaPromptName !in fanOutItemsByName) {
+                    fanOutItemsByName[summary.metaPromptName] = EveryItem(
+                        label = summary.metaPromptName,
+                        open = { lang ->
+                            onListLockedLanguageChange(lang)
+                            onListTargetChange(SecondaryKind.META, summary.metaPromptName, false)
+                        }
+                    )
+                }
+            }
+            base + ("fan_out" to fanOutItemsByName.values.toList())
         }
         val moderationFlagged = remember(secondaryRuns) {
             anyModerationFlagged(secondaryRuns)
