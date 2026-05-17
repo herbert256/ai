@@ -43,7 +43,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import com.ai.BuildConfig
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import java.io.File
@@ -211,7 +210,7 @@ fun UpdateFromCloudScreen(
                     Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(
-                        BuildConfig.BUILD_TIMESTAMP,
+                        com.ai.ui.admin.formatAppInstalledTime(context),
                         color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace
                     )
                 }

@@ -69,8 +69,14 @@ fun AboutScreen(
                 fontSize = 16.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
+            // Installed-on time rather than gradle BUILD_TIMESTAMP —
+            // BUILD_TIMESTAMP is stamped at configuration time and
+            // Gradle's configuration cache reuses it across builds,
+            // so it goes stale fast in dev workflows. PackageInfo
+            // .lastUpdateTime always matches the most recent
+            // `adb install`.
             Text(
-                "Built ${BuildConfig.BUILD_TIMESTAMP}",
+                "Installed ${formatAppInstalledTime(context)}",
                 fontSize = 13.sp, color = AppColors.TextTertiary
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -108,3 +114,14 @@ fun AboutScreen(
         }
     }
 }
+
+/** Format the most-recent install / upgrade time of THIS APK as
+ *  "yyyy-MM-dd HH:mm:ss z". Reads PackageInfo.lastUpdateTime —
+ *  always matches the user's most recent `adb install` (whereas
+ *  BuildConfig.BUILD_TIMESTAMP is configuration-time stamped and
+ *  goes stale across Gradle config-cache reuses). */
+internal fun formatAppInstalledTime(context: android.content.Context): String = try {
+    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
+        .format(java.util.Date(info.lastUpdateTime))
+} catch (_: Exception) { "?" }
