@@ -112,6 +112,14 @@ fun BlockedModelEditScreen(
             subject = if (hasModel) "$providerId · $model" else "",
             onBackClick = onBack
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = { onSave(BlockedModel(providerId, model, reason.trim())) },
+            enabled = hasModel,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Add", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = { showPicker = true },
@@ -131,14 +139,5 @@ fun BlockedModelEditScreen(
             colors = AppColors.outlinedFieldColors()
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { onSave(BlockedModel(providerId, model, reason.trim())) },
-                enabled = hasModel,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text(if (isEditing) "Save" else "Add", maxLines = 1, softWrap = false) }
-        }
     }
 }

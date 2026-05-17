@@ -117,23 +117,24 @@ fun FlockEditScreen(
             subject = name,
             onBackClick = onBack
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val id = flock?.id ?: java.util.UUID.randomUUID().toString()
+                onSave(Flock(id, name.trim(), selectedAgentIds.toList(), selectedParamsIds, selectedSystemPromptId))
+            },
+            enabled = nameError == null && selectedAgentIds.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = name, onValueChange = { name = it },
-                label = { Text("Flock name") }, modifier = Modifier.weight(1f),
-                singleLine = true, colors = AppColors.outlinedFieldColors(),
-                isError = name.isNotBlank() && nameError != null
-            )
-            Button(
-                onClick = {
-                    val id = flock?.id ?: java.util.UUID.randomUUID().toString()
-                    onSave(Flock(id, name.trim(), selectedAgentIds.toList(), selectedParamsIds, selectedSystemPromptId))
-                },
-                enabled = nameError == null && selectedAgentIds.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
-        }
+        OutlinedTextField(
+            value = name, onValueChange = { name = it },
+            label = { Text("Flock name") }, modifier = Modifier.fillMaxWidth(),
+            singleLine = true, colors = AppColors.outlinedFieldColors(),
+            isError = name.isNotBlank() && nameError != null
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

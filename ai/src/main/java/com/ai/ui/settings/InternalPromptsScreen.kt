@@ -175,6 +175,20 @@ fun InternalPromptEditScreen(
             subject = name,
             onBackClick = onBack
         )
+        // Save / Create CTA hoisted to the top — these forms can be
+        // long (especially with the prompt-text editor) so a bottom
+        // button gets scrolled out of view.
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
+                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
+            },
+            enabled = nameError == null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Name + Title belong together: both are display fields on
@@ -279,15 +293,5 @@ fun InternalPromptEditScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                val id = internalPrompt?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

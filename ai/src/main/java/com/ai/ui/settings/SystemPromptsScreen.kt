@@ -70,6 +70,17 @@ fun SystemPromptEditScreen(
             subject = name,
             onBackClick = onBack
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val id = systemPrompt?.id ?: java.util.UUID.randomUUID().toString()
+                onSave(SystemPrompt(id, name.trim(), prompt))
+            },
+            enabled = nameError == null && prompt.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
@@ -89,15 +100,5 @@ fun SystemPromptEditScreen(
             Text("${prompt.length} characters", fontSize = 11.sp, color = AppColors.TextTertiary)
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                val id = systemPrompt?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(SystemPrompt(id, name.trim(), prompt))
-            },
-            enabled = nameError == null && prompt.isNotBlank(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

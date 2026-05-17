@@ -92,6 +92,31 @@ fun ParametersEditScreen(
             subject = name,
             onBackClick = onBack
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val id = params?.id ?: java.util.UUID.randomUUID().toString()
+                onSave(Parameters(
+                    id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
+                    topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
+                    presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
+                    // Preserve stopSequences from the existing preset if
+                    // any — the editor has no UI for them yet, but the
+                    // data model carries them. Saving null here silently
+                    // dropped a stopSequences list that came from import
+                    // / a hand-edited setup.json.
+                    params?.stopSequences,
+                    seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
+                    searchRecency.takeIf { it.isNotBlank() },
+                    webSearchTool,
+                    reasoningEffort.takeIf { it.isNotBlank() }
+                ))
+            },
+            enabled = nameError == null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
@@ -169,29 +194,5 @@ fun ParametersEditScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                val id = params?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(Parameters(
-                    id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
-                    topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
-                    presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
-                    // Preserve stopSequences from the existing preset if
-                    // any — the editor has no UI for them yet, but the
-                    // data model carries them. Saving null here silently
-                    // dropped a stopSequences list that came from import
-                    // / a hand-edited setup.json.
-                    params?.stopSequences,
-                    seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
-                    searchRecency.takeIf { it.isNotBlank() },
-                    webSearchTool,
-                    reasoningEffort.takeIf { it.isNotBlank() }
-                ))
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

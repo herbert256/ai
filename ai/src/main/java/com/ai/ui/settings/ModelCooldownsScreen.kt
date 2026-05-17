@@ -169,6 +169,17 @@ internal fun ModelCooldownEditScreen(
             title = if (initial == null) "Add cooldown" else "Edit cooldown",
             onBackClick = onCancel
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val h = hoursText.trim().toLongOrNull() ?: return@Button
+                onSave(providerId, model.trim(), System.currentTimeMillis() + h * 3_600_000L)
+            },
+            enabled = canSave,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -244,22 +255,5 @@ internal fun ModelCooldownEditScreen(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    val h = hoursText.trim().toLongOrNull() ?: return@Button
-                    onSave(providerId, model.trim(), System.currentTimeMillis() + h * 3_600_000L)
-                },
-                enabled = canSave,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
-        }
     }
 }

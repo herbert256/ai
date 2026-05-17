@@ -169,6 +169,19 @@ fun AgentEditScreen(
             subject = name,
             onBackClick = onBack
         )
+        // Save / Create CTA hoisted to the top — the form below can
+        // be long enough to push a bottom button out of reach.
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                val id = agent?.id ?: java.util.UUID.randomUUID().toString()
+                onSave(Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId))
+            },
+            enabled = nameError == null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(
@@ -330,16 +343,5 @@ fun AgentEditScreen(
                 testResult?.let { Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp) }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                val id = agent?.id ?: java.util.UUID.randomUUID().toString()
-                onSave(Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId))
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isEditing) "Save" else "Create", maxLines = 1, softWrap = false) }
     }
 }

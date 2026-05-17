@@ -550,6 +550,15 @@ internal fun AddManualOverrideScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "cost_override", title = "Add Override", onBackClick = onBack)
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
+            val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
+            if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp)
+        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null,
+            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Save", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { showProviderSelect = true }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()) {
@@ -575,14 +584,6 @@ internal fun AddManualOverrideScreen(
                 label = { Text("Output price ($/1M tokens)") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = {
-            val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
-            val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
-            if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp)
-        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null,
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Save", maxLines = 1, softWrap = false) }
     }
 }
 

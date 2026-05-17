@@ -159,6 +159,26 @@ internal fun ManualModelTypeEditScreen(
             title = if (initial == null) "Add override" else "Edit override",
             onBackClick = onCancel
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                onSave(
+                    ModelTypeOverride(
+                        id = initial?.id ?: UUID.randomUUID().toString(),
+                        providerId = providerId,
+                        modelId = modelId.trim(),
+                        type = type,
+                        supportsVision = supportsVision,
+                        supportsWebSearch = supportsWebSearch,
+                        supportsReasoning = supportsReasoning
+                    )
+                )
+            },
+            enabled = canSave,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -276,31 +296,5 @@ internal fun ManualModelTypeEditScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Cancel", maxLines = 1, softWrap = false) }
-            Button(
-                onClick = {
-                    onSave(
-                        ModelTypeOverride(
-                            id = initial?.id ?: UUID.randomUUID().toString(),
-                            providerId = providerId,
-                            modelId = modelId.trim(),
-                            type = type,
-                            supportsVision = supportsVision,
-                            supportsWebSearch = supportsWebSearch,
-                            supportsReasoning = supportsReasoning
-                        )
-                    )
-                },
-                enabled = canSave,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("Save", maxLines = 1, softWrap = false, color = Color.White) }
-        }
     }
 }
