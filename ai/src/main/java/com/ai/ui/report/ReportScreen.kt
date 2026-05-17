@@ -2299,24 +2299,19 @@ fun ReportsScreen(
         onOpenMetaPicker = { showMetaPicker = true },
         onOpenFanOutPicker = { showFanOutPicker = true },
         onOpenRerankPicker = {
-            // Route through the scope screen so the user can pick a
-            // language when the report has translations. The scope
-            // screen detects category=rerank and hides the per-row
-            // scope card; on Continue it sets showRerankPicker.
-            secondaryScopeMetaPrompt = com.ai.model.InternalPrompt(
-                id = "__rerank_scope__",
-                name = "Rerank",
-                category = "rerank",
-                text = ""
-            )
+            // Rerank always runs across every successful agent on the
+            // original language — no scope picker needed. Reset the
+            // pending scope state to the defaults the picker reads on
+            // confirm and jump straight to the model picker.
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            showRerankPicker = true
         },
         onOpenModerationPicker = {
-            secondaryScopeMetaPrompt = com.ai.model.InternalPrompt(
-                id = "__moderation_scope__",
-                name = "Moderation",
-                category = "moderation",
-                text = ""
-            )
+            // Same default as rerank — every model, original language.
+            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
+            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+            showModerationPicker = true
         },
         onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
         onViewReports = {
