@@ -267,15 +267,33 @@ fun AppNavHost(
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
                 onOpenLatestReport = {
-                    // Mirrors the existing Reports hub flow at
-                    // line ~198: load the most recent report into
-                    // uiState then navigate to the result view.
+                    // Resume where the user last was: prefer the
+                    // (reportId, mode) tuple recorded by
+                    // LastReportTracker at every report-open call
+                    // site. Falls back to the most-recently-created
+                    // report (legacy behaviour) when no entry exists
+                    // yet, or when the recorded report has since
+                    // been deleted.
                     hubScope.launch {
-                        val latest = withContext(Dispatchers.IO) {
-                            ReportStorage.getAllReports(hubContext).firstOrNull()
+                        val tracked = com.ai.data.LastReportTracker.read()
+                        val (resolvedId, viewMode) = withContext(Dispatchers.IO) {
+                            val all = ReportStorage.getAllReports(hubContext)
+                            val pick = tracked
+                                ?.takeIf { (id, _) -> all.any { it.id == id } }
+                            if (pick != null) {
+                                pick
+                            } else {
+                                if (tracked != null) com.ai.data.LastReportTracker.clear()
+                                val fallback = all.firstOrNull()?.id
+                                    ?: return@withContext null
+                                fallback to false
+                            }
                         } ?: return@launch
-                        reportViewModel.restoreCompletedReport(hubContext, latest.id)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        reportViewModel.restoreCompletedReport(hubContext, resolvedId)
+                        navController.navigate(
+                            if (viewMode) NavRoutes.aiReportView()
+                            else NavRoutes.aiReportManage()
+                        )
                     }
                 },
                 viewModel = appViewModel
@@ -306,12 +324,14 @@ fun AppNavHost(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReportManage = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
@@ -350,12 +370,14 @@ fun AppNavHost(
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
                     onOpenManage = { rid ->
+                        com.ai.data.LastReportTracker.record(rid, view = false)
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
                             navController.navigate(NavRoutes.aiReportManage())
                         }
                     },
                     onOpenView = { rid ->
+                        com.ai.data.LastReportTracker.record(rid, view = true)
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
                             navController.navigate(NavRoutes.aiReportView())
@@ -379,12 +401,14 @@ fun AppNavHost(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
@@ -399,12 +423,14 @@ fun AppNavHost(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
@@ -420,12 +446,14 @@ fun AppNavHost(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
@@ -446,12 +474,14 @@ fun AppNavHost(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onOpenReport = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
@@ -493,6 +523,18 @@ fun AppNavHost(
             // Manage screen. Bare navigation ("ai_reports") leaves it
             // false — Manage as before.
             val initialView = entry.arguments?.getString("initialView") == "true"
+            // Belt-and-suspenders tracker update: every time this
+            // destination is in the foreground with a known reportId,
+            // record (reportId, mode). Covers paths the explicit
+            // call-site records miss — most notably the "create new
+            // report → AI_REPORTS" flow where the id isn't known at
+            // navigate time.
+            val trackedReportId by appViewModel.uiState.collectAsState()
+            androidx.compose.runtime.LaunchedEffect(trackedReportId.currentReportId, initialView) {
+                trackedReportId.currentReportId
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.data.LastReportTracker.record(it, view = initialView) }
+            }
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -595,12 +637,14 @@ fun AppNavHost(
             HistoryScreenNav(
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onOpenReportResult = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = false)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportManage())
                     }
                 },
                 onOpenReportView = { reportId ->
+                    com.ai.data.LastReportTracker.record(reportId, view = true)
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
