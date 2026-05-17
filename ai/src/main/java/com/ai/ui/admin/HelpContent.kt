@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "rerank_view" to HelpContent(
+        title = "Help - Rerank — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the rerank detail screen. Reached from the 🏆 Rerank tile on Report - view. Renders the rerank result as a numbered podium — Rank 1/2/3 each get a large gold/silver/bronze accent card; Rank 4 and beyond render as slimmer numbered rows. No delete / regenerate / 🐞 / Top-N picker — drop back to Report - manage for any of that."),
+            HelpCard("What's on this screen", "Top 3 cards: 🥇/🥈/🥉 medal on the left, the agent's provider + shortened model in the header, the model's reason snippet on the body. Score badge (0/100) shows on the right of each. Rank 4+ rows: a small circular rank chip, agent label, two-line reason snippet, compact score. The rerank's own prompt name reads as the green title in the header strip."),
+            HelpCard("Reached from", "🏆 Rerank tile on Report - view. With a single rerank row the tile opens this screen directly; with N≥2 rerank rows the tile expands an inline picker and tapping one row opens this screen for that row. For Top-N scope edits, deletion, or re-running with a different model, drop back to Report - manage."),
+        )
+    ),
     "meta_view" to HelpContent(
         title = "Help - Meta — view",
         cards = listOf(
@@ -2854,6 +2862,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "fan_out_view" to listOf("help_glossary_operations", "help_translations"),
     "costs_view" to listOf("help_glossary_operations", "help_costs"),
     "meta_view" to listOf("help_glossary_operations", "report_meta"),
+    "rerank_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====

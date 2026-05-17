@@ -167,6 +167,17 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Rerank "View" overlay — keyed by the RERANK row id.
+    var rerankViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeRerankViewRowId = rerankViewRowId
+    if (activeRerankViewRowId != null) {
+        RerankViewScreen(
+            reportId = reportId,
+            resultId = activeRerankViewRowId,
+            onBack = { rerankViewRowId = null }
+        )
+        return
+    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -592,7 +603,8 @@ internal fun ViewAiReportScreen(
                     items = items,
                     tile = ViewTile(s.label, s.emoji, s.color, count = items.size, enabled = tileEnabled) {
                         when (items.size) {
-                            1 -> items[0].open(currentLanguageState.value)
+                            1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
+                                openRerank = { id -> rerankViewRowId = id })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
                     }
@@ -738,7 +750,8 @@ internal fun ViewAiReportScreen(
                         currentLanguage = currentLang,
                         onItemClick = { item ->
                             expandedKind = null
-                            item.open(currentLanguageState.value)
+                            openComputedItem(active.key, item, currentLanguageState.value,
+                                openRerank = { id -> rerankViewRowId = id })
                         }
                     )
                 }
@@ -1179,5 +1192,25 @@ private fun ExpandedKindCard(
                 }
             }
         }
+    }
+}
+
+/** Open an [EveryItem] from a non-meta computed tile. For kinds that
+ *  have a dedicated content-only View screen (rerank today; the rest
+ *  of the View-screen rollout will extend this) we capture the
+ *  underlying SecondaryResult id and route to the local overlay state
+ *  setter instead of firing the legacy [EveryItem.open]. Kinds without
+ *  a View screen fall back to the legacy open lambda so the tile keeps
+ *  working until its dedicated screen lands. */
+private fun openComputedItem(
+    key: String,
+    item: EveryItem,
+    language: String?,
+    openRerank: (String) -> Unit
+) {
+    val rowId = item.sourceRows?.firstOrNull()?.id
+    when (key) {
+        "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
+        else -> item.open(language)
     }
 }

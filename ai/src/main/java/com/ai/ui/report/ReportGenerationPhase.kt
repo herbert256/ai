@@ -152,16 +152,32 @@ internal fun buildEveryItems(
         }
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
-        .map { row -> EveryItem(row.metaPromptName ?: "Rerank") { lang -> onOpenSecondaryRun(row.id, lang) } }
+        .map { row -> EveryItem(
+            label = row.metaPromptName ?: "Rerank",
+            sourceRows = listOf(row),
+            open = { lang -> onOpenSecondaryRun(row.id, lang) }
+        ) }
     val moderation = secondaryRuns
         .filter { it.kind == SecondaryKind.MODERATION }
-        .map { row -> EveryItem(row.metaPromptName ?: "Moderation") { lang -> onOpenSecondaryRun(row.id, lang) } }
+        .map { row -> EveryItem(
+            label = row.metaPromptName ?: "Moderation",
+            sourceRows = listOf(row),
+            open = { lang -> onOpenSecondaryRun(row.id, lang) }
+        ) }
     val fanIn = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
-        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in") { lang -> onOpenSecondaryRun(row.id, lang) } }
+        .map { row -> EveryItem(
+            label = row.metaPromptName ?: "Fan-in",
+            sourceRows = listOf(row),
+            open = { lang -> onOpenSecondaryRun(row.id, lang) }
+        ) }
     val fanInModel = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
-        .map { row -> EveryItem(row.metaPromptName ?: "Fan-in-model") { lang -> onOpenSecondaryRun(row.id, lang) } }
+        .map { row -> EveryItem(
+            label = row.metaPromptName ?: "Fan-in-model",
+            sourceRows = listOf(row),
+            open = { lang -> onOpenSecondaryRun(row.id, lang) }
+        ) }
     // Fan-out: one item per distinct prompt name. Tap opens the
     // SecondaryResultsScreen with nameFilter set; the screen
     // auto-renders the L2 fan-out drill-in.
