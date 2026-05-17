@@ -444,23 +444,37 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Next", "Saves title + prompt to last-prompt prefs and prompt history, then routes to the model-selection screen. While moderation is running the button shows a spinner.")
         )
     ),
-    "report_result_generation" to HelpContent(
-        title = "Help - Report — selection and results",
+    "report_select_models" to HelpContent(
+        title = "Help - Report — select models",
         cards = listOf(
-            HelpCard("Overview", "Single screen with two phases. Selection: empty list with +Agent / +Flock / +Swarm / +Model / +Report buttons + Params + Generate. Results: the same screen flips into per-agent rows + Action row once Generate fires."),
-            HelpCard("Add buttons (selection)", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the single-select all-providers picker, +Report copies the model list from a previous report."),
-            HelpCard("Knowledge attach (selection)", "When you have at least one saved KB, a 📚 row shows the current attachment count and opens a multi-select. Attached KB ids ride with the report and inject relevant chunks into every dispatched call."),
-            HelpCard("Params (selection)", "Opens Advanced Parameters — temperature, max tokens, system prompt, etc. The button reads Params ✓ when an override is active. Clear all wipes the override."),
-            HelpCard("Generate / Update model list", "Generate fires the dispatch. When entered via Edit / Models on a finished report, the bottom button switches to Update model list — stages the new list and pops back without re-running; you re-fire from Action row → Regenerate."),
-            HelpCard("Action row (results)", "While running: STOP / Background. Once complete: View, Edit, Regenerate, Export, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Fan out (disabled when no Fan-out prompts exist)."),
-            HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) is no longer a Create menu item — it fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
-            HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary. Edit popup is Prompt / Title / Models / Parameters."),
-            HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect."),
-            HelpCard("Title bar — 💬", "Results phase only, and only when the prompt is non-blank. Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn."),
-            HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
+            HelpCard("Overview", "The pre-Generate page in the report flow. Empty model list at first; +Agent / +Flock / +Swarm / +Model / +Report fill it, Params lets you tweak the per-call parameter set, Generate fires the dispatch and moves the report into the post-Generate manage page (Report - manage)."),
+            HelpCard("Add buttons", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the single-select all-providers picker, +Report copies the model list from a previous report. Repeated taps stack — you can mix sources."),
+            HelpCard("Knowledge attach", "When you have at least one saved KB, a 📚 row shows the current attachment count and opens a multi-select. Attached KB ids ride with the report and inject the top-K most similar chunks into every dispatched call."),
+            HelpCard("Params", "Opens Advanced Parameters — temperature, max tokens, system prompt, etc. The button reads Params ✓ when an override is active. Clear all wipes the override and the dispatched call uses each agent's default parameter set."),
+            HelpCard("Generate", "Fires the dispatch for every model in the list. The screen flips to Report - manage as soon as the first row starts streaming. While running, that page exposes STOP / Background; once complete it exposes the full Action row."),
+            HelpCard("Update model list (edit mode)", "When you reach this page via Edit → Models on a finished report, the bottom button switches to Update model list. It stages the new list and pops back without re-running — you re-fire later from Report - manage → Action row → Regenerate."),
+            HelpCard("System prompt", "Optional per-report system prompt picker. The selection is stored on the Report so a Regenerate keeps the same instruction. Independent of any per-agent system prompt — both can apply."),
+            HelpCard("Reached from", "Hub → New AI Report → enter title + prompt → Continue. Or History → open an existing report → Action row → Edit → Models — that variant lands here in edit mode (button reads Update model list).")
+        )
+    ),
+    "report_run" to HelpContent(
+        title = "Help - Report — manage",
+        cards = listOf(
+            HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; the Action row at the bottom exposes the operations you can apply to the finished run. Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
+            HelpCard("Subject row", "Green strip below the title bar carrying the prompt title + the running 💰 cost in cents. Updates live as each call settles. Tapping the title bar's title text drills into the per-agent results viewer."),
+            HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-agent emoji once the icon chain finishes."),
+            HelpCard("Action row — while running", "STOP cancels every in-flight call (rows mid-stream complete what they've received, then mark CANCELLED). Background drops you back to Hub while the run continues; reopening the report shows the in-flight rows still streaming."),
+            HelpCard("Action row — when complete", "View, Edit, Regenerate, Export, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Fan out (disabled when no Fan-out prompts exist). Each opens its own dedicated screen — see the corresponding per-screen help."),
+            HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
+            HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
+            HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
+            HelpCard("Title bar — 💬 (chat handoff)", "Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn. Surfaced only when the prompt is non-blank."),
+            HelpCard("Title bar — 🐞 (trace) + per-row 🐞", "Title-bar 🐞 opens the API Traces list filtered to this report. Each agent row also carries its own 🐞 when its primary call left a recording; tapping opens that single trace file."),
+            HelpCard("Title bar — 🗑 / 🔄 / 📤 / ℹ️", "🗑 deletes the report (confirm dialog). 🔄 opens the regenerate-confirm dialog. 📤 only appears when the run has completed and routes to Export. ℹ️ drills into the per-agent results viewer (same target as tapping the title)."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
+            HelpCard("Reached from", "Pressing Generate on Report - select models. Or History → open any saved report — you land here directly, skipping the selection page."),
             // "Stalled translation auto-reconcile" + "App-wide
-            // background resume sweep" relocated to the new "concepts"
+            // background resume sweep" relocated to the "concepts"
             // topic — they're cross-screen behaviours, not specific
             // to this screen. The Help-home "How it works" link
             // surfaces them.
@@ -2772,7 +2786,8 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     // ===== Reports / generation =====
     "reports_hub" to listOf("help_about", "help_getting_started", "concepts", "help_glossary_operations"),
     "report_new" to listOf("help_getting_started", "help_glossary_operations", "help_costs"),
-    "report_result_generation" to listOf("concepts", "help_costs", "help_glossary_operations"),
+    "report_select_models" to listOf("help_glossary_blocks", "help_glossary_groupings", "help_glossary_operations", "help_costs"),
+    "report_run" to listOf("concepts", "help_costs", "help_glossary_operations", "help_translations"),
     "report_view_picker" to listOf("help_glossary_operations"),
     "report_edit_picker" to listOf("help_glossary_operations"),
     "report_pick_flock" to listOf("help_glossary_groupings", "help_glossary_blocks"),
