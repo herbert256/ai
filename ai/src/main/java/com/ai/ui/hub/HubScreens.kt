@@ -183,7 +183,10 @@ fun HubScreen(
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 16.dp)
     ) {
-        val logoSize = (maxHeight - cardsHeight).coerceIn(100.dp, 220.dp)
+        // Cap calibrated for the tight-cropped ai_logo (content fills
+        // the viewport, no internal padding). Bumping above ~160 dp
+        // makes the logo crowd into the cards beneath it.
+        val logoSize = (maxHeight - cardsHeight).coerceIn(80.dp, 160.dp)
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(40.dp))
             Image(
