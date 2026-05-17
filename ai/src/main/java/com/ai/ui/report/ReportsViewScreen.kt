@@ -220,22 +220,17 @@ private fun PromptCard(report: Report) {
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
-        Box(
+        // Transparent oversized glyph — no background tint, no Box
+        // wrapper, just the emoji centred above the prompt text.
+        Text(
+            text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
+            fontSize = 44.sp,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(bottom = 8.dp)
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(AppColors.Purple.copy(alpha = 0.22f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
-                fontSize = 22.sp
-            )
-        }
+                .padding(top = 0.dp, bottom = 2.dp)
+        )
         if (report.prompt.isBlank()) {
             Text(text = "(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
         } else {
@@ -264,20 +259,18 @@ private fun AgentResponseCard(
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Box(
+        // Transparent oversized glyph — no background tint, no Box
+        // wrapper, just the emoji centred above the response body.
+        Text(
+            text = emoji,
+            fontSize = 44.sp,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(bottom = 10.dp)
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(AppColors.Blue.copy(alpha = 0.22f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text = emoji, fontSize = 26.sp)
-        }
+                .padding(top = 0.dp, bottom = 2.dp)
+        )
         if (body.isBlank()) {
             Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
         } else {
