@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
@@ -27,6 +28,11 @@ import com.ai.data.AnalysisRepository
 import com.ai.data.ApiTracer
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeStore
+import com.ai.data.ModelCooldownStore
+import com.ai.data.Report
+import com.ai.data.ReportStatus
+import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryResultStorage
 import com.ai.data.local.LocalEmbedder
 import com.ai.data.ReportStorage
 import com.ai.model.Settings
@@ -56,7 +62,15 @@ fun HubScreen(
     onNavigateToModelSearch: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
     onOpenLatestReport: () -> Unit = {},
-    viewModel: AppViewModel
+    /** Open a specific report's result page — wired by AppNavHost
+     *  to the same restoreCompletedReport + navigate path the
+     *  "Open latest" tap uses. Backs the new "Running reports" /
+     *  "Reports with problems" cards' row taps. */
+    onOpenReport: (reportId: String) -> Unit = {},
+    viewModel: AppViewModel,
+    /** Used to derive the "Running reports" set from the live
+     *  translation runs StateFlow. */
+    reportViewModel: ReportViewModel
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -90,12 +104,72 @@ fun HubScreen(
         value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context).isNotEmpty() }
     }
 
+    // "Running reports" + "Reports with problems" cards. Disk scan
+    // every 5 s while the home screen is visible — bounded cost
+    // (one getAllReports + per-report listForReport, the latter
+    // fingerprint-cached inside SecondaryResultStorage). The
+    // translationRuns flow drives sub-second updates when a
+    // translation starts / finishes; the 5 s tick confirms disk
+    // state and catches changes outside the live in-memory set.
+    val translationRuns by reportViewModel.translationRuns.collectAsState()
+    val cardsTick by produceState(initialValue = 0) {
+        while (true) {
+            kotlinx.coroutines.delay(5_000L)
+            value = value + 1
+        }
+    }
+    val homeReportLists by produceState(
+        initialValue = HomeReportLists(emptyList(), emptyList()),
+        refreshTick, cardsTick, translationRuns
+    ) {
+        value = withContext(Dispatchers.IO) {
+            val all = ReportStorage.getAllReports(context)
+            val activeTranslationReportIds = translationRuns.values
+                .filter { !it.isFinished && !it.cancelled }
+                .map { it.sourceReportId }
+                .toSet()
+            val running = all.filter { r ->
+                (r.completedAt == null && r.agents.any {
+                    it.reportStatus == ReportStatus.PENDING ||
+                        it.reportStatus == ReportStatus.RUNNING
+                }) || r.id in activeTranslationReportIds
+            }
+            val problems = all.filter { r ->
+                // Cheap check first — agent-level error is in-memory
+                // on the already-loaded Report.
+                if (r.agents.any { it.reportStatus == ReportStatus.ERROR }) return@filter true
+                // Secondary scan: every condition that puts a red
+                // cross on the Manage screen. TRANSLATE rows whose
+                // model is currently rate-limit-benched are excluded
+                // since those auto-recover — same filter the L1
+                // uses to split errorCount vs benchCount.
+                val secs = SecondaryResultStorage.listForReport(context, r.id)
+                secs.any { sec ->
+                    val hasError = sec.errorMessage != null &&
+                        !(sec.kind == SecondaryKind.TRANSLATE &&
+                            ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
+                    val stuckPlaceholder = sec.content.isNullOrBlank() &&
+                        sec.errorMessage == null && sec.durationMs == null
+                    hasError || stuckPlaceholder
+                }
+            }
+            HomeReportLists(running, problems)
+        }
+    }
+    val homeCardsExtra = (if (homeReportLists.running.isNotEmpty()) 1 else 0) +
+        (if (homeReportLists.problems.isNotEmpty()) 1 else 0)
+
     // The AI API Traces card disappears entirely when tracing is off \u2014
     // adjust the card count so the logo sizing math still works.
     val tracingEnabled = uiState.generalSettings.tracingEnabled
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
-    val cardCount = if (tracingEnabled) 11 else 10
+    // homeCardsExtra contributes 1 row-equivalent per visible new
+    // card. ReportListCard is actually taller (variable rows
+    // inside), but we keep the math simple — logo just shrinks a
+    // touch when the cards are showing, still bounded by the
+    // coerceIn(100, 220) below.
+    val cardCount = (if (tracingEnabled) 11 else 10) + homeCardsExtra
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -141,6 +215,25 @@ fun HubScreen(
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+            Spacer(modifier = Modifier.height(12.dp))
+            if (homeReportLists.running.isNotEmpty()) {
+                ReportListCard(
+                    title = "Running reports",
+                    icon = "\u23F3",
+                    reports = homeReportLists.running,
+                    onOpenReport = onOpenReport
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (homeReportLists.problems.isNotEmpty()) {
+                ReportListCard(
+                    title = "Reports with problems",
+                    icon = "\u26A0\uFE0F",
+                    reports = homeReportLists.problems,
+                    onOpenReport = onOpenReport
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
@@ -168,6 +261,67 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
             Text(text = icon, fontSize = 26.sp)
             Spacer(modifier = Modifier.width(12.dp))
             Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+        }
+    }
+}
+
+/** Carries the two report lists the home-screen "Running reports"
+ *  / "Reports with problems" cards consume. Produced by the
+ *  HubScreen's `produceState` block; both lists naturally land
+ *  newest-first because [ReportStorage.getAllReports] returns
+ *  sorted-by-timestamp-descending. */
+internal data class HomeReportLists(
+    val running: List<Report>,
+    val problems: List<Report>
+)
+
+/** Home-screen card with a title line + one tappable row per
+ *  report. Each row carries the report icon (📝 fallback) and
+ *  title (single line, ellipsis); tapping opens that report's
+ *  result page via [onOpenReport]. Visually mirrors [HubCard]
+ *  but allows multiple rows; callers wrap in
+ *  `if (reports.isNotEmpty()) { … }` to hide when there's
+ *  nothing to show. */
+@Composable
+internal fun ReportListCard(
+    title: String,
+    icon: String,
+    reports: List<Report>,
+    onOpenReport: (reportId: String) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = icon, fontSize = 22.sp)
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Spacer(modifier = Modifier.weight(1f))
+                Text(text = reports.size.toString(), fontSize = 14.sp, color = AppColors.TextTertiary)
+            }
+            reports.forEach { r ->
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onOpenReport(r.id) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = r.icon?.takeIf { it.isNotBlank() } ?: "📝",
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = r.title.ifBlank { "Untitled" },
+                        fontSize = 14.sp, color = Color.White,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
 }

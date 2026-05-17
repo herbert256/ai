@@ -278,7 +278,18 @@ fun AppNavHost(
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
                 },
-                viewModel = appViewModel
+                onOpenReport = { reportId ->
+                    // Same shape as onOpenLatestReport but for a
+                    // specific reportId — backs the new "Running
+                    // reports" / "Reports with problems" cards'
+                    // row taps.
+                    hubScope.launch {
+                        reportViewModel.restoreCompletedReport(hubContext, reportId)
+                        navController.navigate(NavRoutes.AI_REPORTS)
+                    }
+                },
+                viewModel = appViewModel,
+                reportViewModel = reportViewModel
             )
         }
 
