@@ -144,7 +144,8 @@ fun FanOutViewScreen(
             screenTitle = "Fan-out - view",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_view",
-            onBack = onBack
+            onBack = onBack,
+            onLogoClick = onBack
         )
         // Subject row carries the fan-out's prompt name in big
         // green text — same emphasis the Report - view tile shows.

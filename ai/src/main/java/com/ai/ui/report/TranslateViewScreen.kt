@@ -109,7 +109,8 @@ fun TranslateViewScreen(
             screenTitle = "Translate - view",
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",
-            onBack = onBack
+            onBack = onBack,
+            onLogoClick = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

@@ -107,7 +107,8 @@ fun RerankViewScreen(
             screenTitle = "Rerank - view",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "rerank_view",
-            onBack = onBack
+            onBack = onBack,
+            onLogoClick = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

@@ -110,7 +110,8 @@ fun ReportsViewScreen(
             screenTitle = "Model reports",
             subject = activeAgent?.let { shortModelName(it.model) },
             helpTopic = "reports_view",
-            onBack = onBack
+            onBack = onBack,
+            onLogoClick = onBack
         )
         if (report == null) {
             Box(

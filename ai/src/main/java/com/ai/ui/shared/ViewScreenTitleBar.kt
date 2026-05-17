@@ -63,11 +63,17 @@ fun ViewScreenTitleBar(
     screenTitle: String?,
     subject: String?,
     helpTopic: String,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit,
+    /** Override the AI-logo tap target. Default = navigate to the
+     *  app home (via [LocalNavigateHome]). Child View screens pass
+     *  their own onBack here so a logo tap returns to the parent
+     *  View tile grid instead of jumping all the way home. */
+    onLogoClick: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
+    val effectiveLogoClick: () -> Unit = onLogoClick ?: { navigateHome() }
     // Pull the whole bar up 16 dp AND shrink its measured height by
     // the same amount so the AI logo lands at the same y as the
     // Report - manage TitleBar (which uses the same trick — see
@@ -121,7 +127,7 @@ fun ViewScreenTitleBar(
                     .clickable(
                         interactionSource = logoInteractionSource,
                         indication = null,
-                        onClick = { navigateHome() }
+                        onClick = effectiveLogoClick
                     )
             )
             // Prefer the bigger 24 sp size; if the title would overflow

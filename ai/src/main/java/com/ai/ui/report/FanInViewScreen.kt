@@ -94,7 +94,8 @@ fun FanInViewScreen(
             screenTitle = "Fan-in - view",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_view",
-            onBack = onBack
+            onBack = onBack,
+            onLogoClick = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
