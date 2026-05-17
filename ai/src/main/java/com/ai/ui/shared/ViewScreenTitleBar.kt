@@ -12,14 +12,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
@@ -64,9 +69,32 @@ fun ViewScreenTitleBar(
     val logoInteractionSource = remember { MutableInteractionSource() }
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier
+                // Outset 12 dp on each side so the AI logo and help
+                // icon visually break out of the parent screen's
+                // 16 dp horizontal padding and sit closer to the
+                // screen edges. Rows 2 + 3 stay inside the parent
+                // padding for a slightly nested look.
+                .layout { measurable, constraints ->
+                    val outsetPx = 12.dp.roundToPx()
+                    val widenedMax = if (constraints.maxWidth == Constraints.Infinity) {
+                        constraints.maxWidth
+                    } else {
+                        constraints.maxWidth + outsetPx * 2
+                    }
+                    val placeable = measurable.measure(
+                        constraints.copy(
+                            minWidth = (constraints.minWidth + outsetPx * 2)
+                                .coerceAtMost(widenedMax),
+                            maxWidth = widenedMax
+                        )
+                    )
+                    layout((placeable.width - outsetPx * 2).coerceAtLeast(0), placeable.height) {
+                        placeable.place(-outsetPx, 0)
+                    }
+                }
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(R.drawable.brand_glyph),
@@ -77,14 +105,25 @@ fun ViewScreenTitleBar(
                     onClick = { navigateHome() }
                 )
             )
+            // Prefer the bigger 24 sp size; if the title would overflow
+            // the centre slot, drop to 18 sp instead. We never
+            // ellipsize — overflow at the smaller size clips cleanly
+            // and the user's title stays readable.
+            var bigSizeFits by remember(reportTitle) { mutableStateOf(true) }
             Text(
                 text = reportTitle.orEmpty(),
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = if (bigSizeFits) 24.sp else 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
+                overflow = TextOverflow.Clip,
                 textAlign = TextAlign.Center,
+                onTextLayout = { result ->
+                    if (bigSizeFits && result.hasVisualOverflow) {
+                        bigSizeFits = false
+                    }
+                },
                 modifier = Modifier.weight(1f)
             )
             Text(
