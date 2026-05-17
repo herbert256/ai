@@ -35,7 +35,19 @@ object NavRoutes {
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
     const val AI_EXAMPLE_PROMPT_PICKER = "ai_example_prompt_picker"
-    const val AI_REPORTS = "ai_reports"
+    /** Pattern carries an optional `initialView` query-param consumed
+     *  by the AI_REPORTS composable. Existing call sites navigate with
+     *  the bare string ("ai_reports"); the per-row 👁 View icon uses
+     *  [aiReportView] which appends `?initialView=true` so the
+     *  destination seeds [ReportsScreenNav]'s View tile-grid overlay
+     *  on first composition. */
+    const val AI_REPORTS = "ai_reports?initialView={initialView}"
+    /** Helper for the row-level 🔧 Manage icon — same destination
+     *  the existing navigation uses. */
+    fun aiReportManage() = "ai_reports"
+    /** Helper for the row-level 👁 View icon — seeds the View
+     *  tile grid (`showViewReportScreen`) on first composition only. */
+    fun aiReportView() = "ai_reports?initialView=true"
     const val AI_SEARCH = "ai_search"
     const val AI_LOCAL_SEARCH = "ai_local_search"
     const val AI_QUICK_LOCAL_SEARCH = "ai_quick_local_search"

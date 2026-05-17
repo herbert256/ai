@@ -67,6 +67,12 @@ fun HubScreen(
      *  "Open latest" tap uses. Backs the new "Running reports" /
      *  "Reports with problems" cards' row taps. */
     onOpenReport: (reportId: String) -> Unit = {},
+    /** Per-row 👁 View icon target on the home-screen Running /
+     *  Problems cards — opens the report at the View tile grid
+     *  instead of Manage. Wired by AppNavHost to the same
+     *  restore + navigate path but with the `initialView=true`
+     *  query-param. */
+    onOpenReportView: (reportId: String) -> Unit = {},
     viewModel: AppViewModel,
     /** Used to derive the "Running reports" set from the live
      *  translation runs StateFlow. */
@@ -237,7 +243,8 @@ fun HubScreen(
                     title = "Running reports",
                     icon = "\u23F3",
                     reports = homeReportLists.running,
-                    onOpenReport = onOpenReport
+                    onOpenReport = onOpenReport,
+                    onOpenReportView = onOpenReportView
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -246,7 +253,8 @@ fun HubScreen(
                     title = "Reports with problems",
                     icon = "\u26A0\uFE0F",
                     reports = homeReportLists.problems,
-                    onOpenReport = onOpenReport
+                    onOpenReport = onOpenReport,
+                    onOpenReportView = onOpenReportView
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
@@ -303,7 +311,11 @@ internal fun ReportListCard(
     title: String,
     icon: String,
     reports: List<Report>,
-    onOpenReport: (reportId: String) -> Unit
+    onOpenReport: (reportId: String) -> Unit,
+    /** Per-row 👁 View icon target — opens the report at the View
+     *  tile grid. Row tap and the per-row 🔧 keep firing
+     *  [onOpenReport] for the historical Manage entry behaviour. */
+    onOpenReportView: (reportId: String) -> Unit = onOpenReport
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -343,6 +355,10 @@ internal fun ReportListCard(
                         fontSize = 14.sp, color = Color.White,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
+                    )
+                    com.ai.ui.shared.ReportRowActionIcons(
+                        onOpenManage = { onOpenReport(r.id) },
+                        onOpenView = { onOpenReportView(r.id) }
                     )
                 }
             }

@@ -30,7 +30,11 @@ import kotlinx.coroutines.withContext
 fun HistoryScreenNav(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenReportResult: (String) -> Unit = {}
+    onOpenReportResult: (String) -> Unit = {},
+    /** Per-row 👁 View icon target — opens the report at the View tile
+     *  grid (`showViewReportScreen`). The row's main tap area and the
+     *  🔧 icon both keep firing onOpenReportResult (Manage). */
+    onOpenReportView: (String) -> Unit = {}
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -120,6 +124,7 @@ fun HistoryScreenNav(
                 items(pageItems, key = { it.id }) { report ->
                     HistoryReportRow(report = report,
                         onOpen = { onOpenReportResult(report.id) },
+                        onOpenView = { onOpenReportView(report.id) },
                         onDeleteReport = {
                             // Drop the row from the in-memory list
                             // immediately and fire the disk delete in
@@ -166,7 +171,7 @@ fun HistoryScreenNav(
 }
 
 @Composable
-private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport: () -> Unit) {
+private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () -> Unit, onDeleteReport: () -> Unit) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     if (showDeleteConfirm) {
@@ -187,6 +192,7 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onDeleteReport:
                 }
             }
             Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Text("✕", fontSize = 14.sp, color = AppColors.Red, maxLines = 1, softWrap = false)
             }

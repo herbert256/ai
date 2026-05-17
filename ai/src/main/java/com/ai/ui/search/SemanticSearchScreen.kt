@@ -51,7 +51,10 @@ fun SemanticSearchScreen(
     repository: AnalysisRepository,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenReport: (String) -> Unit
+    onOpenReport: (String) -> Unit,
+    /** Per-row 👁 View icon target — opens the report at the View tile
+     *  grid. Row tap + 🔧 keep going to Manage. */
+    onOpenReportView: (String) -> Unit = onOpenReport
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -179,6 +182,10 @@ fun SemanticSearchScreen(
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
                         Text("%.3f".format(hit.score), fontSize = 11.sp, color = AppColors.Blue, modifier = Modifier.padding(start = 8.dp))
+                        com.ai.ui.shared.ReportRowActionIcons(
+                            onOpenManage = { onOpenReport(hit.reportId) },
+                            onOpenView = { onOpenReportView(hit.reportId) }
+                        )
                     }
                 }
             }

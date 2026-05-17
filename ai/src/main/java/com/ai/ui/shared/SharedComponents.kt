@@ -206,6 +206,26 @@ val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
  *  takes the user back to the active report's result page. */
 val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
 
+/** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
+ *  pickers (the +Report previous-report picker on the report
+ *  screen) and the first-composition seed for the View tile-grid
+ *  overlay (`initialView` flag from the AI_REPORTS route's
+ *  query-param). Bundled into a single CompositionLocal so
+ *  [ReportsScreen]'s parameter list stays under the JVM 64 KB
+ *  per-method bytecode limit. Provided by ReportsScreenNav at the
+ *  call into ReportsScreen, defaulted to no-op + Manage entry so
+ *  call sites that don't wire the navigation behave the same as
+ *  before. */
+data class ReportListIconBundle(
+    val onOpenManage: (String) -> Unit = {},
+    val onOpenView: (String) -> Unit = {},
+    /** When true, the report screen flips its [showViewReportScreen]
+     *  saveable flag on first composition so the user lands on the
+     *  View tile grid instead of Manage. */
+    val initialView: Boolean = false
+)
+val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
+
 /** Master switch for the per-report icon-gen feature, mirrored from
  *  GeneralSettings.iconGenEnabled. Provided once by AppNavHost so
  *  every screen that renders a report-icon prefix (hub Existing
@@ -1031,4 +1051,35 @@ fun HubCard(
             Text(text = description, fontSize = 14.sp, color = AppColors.TextTertiary)
         }
     }
+}
+
+/** Two right-aligned per-row icons that every list of AI reports
+ *  carries: 🔧 opens the report at the Manage screen (the historical
+ *  default), 👁 opens it at the View tile grid. Each icon is its own
+ *  clickable Text — tapping an icon does NOT bubble up to the row's
+ *  outer clickable (Compose stops the outer click when an inner
+ *  clickable fires), so callers can keep their existing row-tap
+ *  behaviour as the primary action. Sized at 18 sp with 6 dp padding
+ *  between the two and 6 dp from the row's trailing edge so the pair
+ *  reads as a paired action group without dominating the row.
+ *
+ *  Used by every report-list renderer the app exposes: History, the
+ *  home-screen "Running reports" / "Reports with problems" cards,
+ *  the four search screens (Quick / Extended local / Semantic /
+ *  Local semantic), the Trace Detail "Open report" button, and the
+ *  +Report previous-report picker. */
+@Composable
+fun ReportRowActionIcons(onOpenManage: () -> Unit, onOpenView: () -> Unit) {
+    Text(
+        "🔧", fontSize = 18.sp,
+        modifier = Modifier
+            .clickable { onOpenManage() }
+            .padding(horizontal = 4.dp, vertical = 4.dp)
+    )
+    Text(
+        "👁", fontSize = 18.sp,
+        modifier = Modifier
+            .clickable { onOpenView() }
+            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+    )
 }

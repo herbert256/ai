@@ -933,7 +933,16 @@ internal fun ReportOneTimePromptScreen(
 internal fun ReportSelectFromReportScreen(
     onConfirm: (com.ai.data.Report) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** Per-row 🔧 Manage icon target — opens the referenced report at
+     *  the Manage screen. Distinct from the row tap, which copies the
+     *  picked report's model list into the current selection (the
+     *  +Report flow's primary action). Default no-op so callers that
+     *  haven't wired the additive shortcut keep working. */
+    onOpenReportManage: (String) -> Unit = {},
+    /** Per-row 👁 View icon target — opens the referenced report at
+     *  the View tile grid. Sibling of [onOpenReportManage]. */
+    onOpenReportView: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -992,6 +1001,16 @@ internal fun ReportSelectFromReportScreen(
                                 fontSize = 11.sp, color = AppColors.TextTertiary
                             )
                         }
+                        // Row tap copies the picked report's model list
+                        // into the current selection (the +Report flow's
+                        // primary action). 🔧 / 👁 open the referenced
+                        // report itself, sidestepping the picker — same
+                        // affordance every other report-list renderer in
+                        // the app exposes.
+                        com.ai.ui.shared.ReportRowActionIcons(
+                            onOpenManage = { onOpenReportManage(report.id) },
+                            onOpenView = { onOpenReportView(report.id) }
+                        )
                         Text(">", color = AppColors.Blue, fontSize = 14.sp,
                             modifier = Modifier.padding(start = 8.dp))
                     }

@@ -285,7 +285,13 @@ fun AppNavHost(
                     // row taps.
                     hubScope.launch {
                         reportViewModel.restoreCompletedReport(hubContext, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    hubScope.launch {
+                        reportViewModel.restoreCompletedReport(hubContext, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 },
                 viewModel = appViewModel,
@@ -343,7 +349,13 @@ fun AppNavHost(
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -357,7 +369,13 @@ fun AppNavHost(
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
@@ -372,7 +390,13 @@ fun AppNavHost(
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -392,7 +416,13 @@ fun AppNavHost(
                 onOpenReport = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -412,10 +442,27 @@ fun AppNavHost(
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 initialTitle = title, initialPrompt = prompt)
         }
-        composable(NavRoutes.AI_REPORTS) {
+        composable(
+            NavRoutes.AI_REPORTS,
+            arguments = listOf(
+                navArgument("initialView") {
+                    type = NavType.StringType; defaultValue = "false"; nullable = true
+                }
+            )
+        ) { entry ->
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
+            // Query-flag seeded by the per-row 👁 View icon on every
+            // report list (History, Hub running/problems, all four
+            // search screens, Trace detail's report-jump, and the
+            // +Report previous-report picker). When true, [ReportsScreenNav]
+            // flips [showViewReportScreen] on first composition so the
+            // user lands on the View tile grid instead of the default
+            // Manage screen. Bare navigation ("ai_reports") leaves it
+            // false — Manage as before.
+            val initialView = entry.arguments?.getString("initialView") == "true"
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
+                initialView = initialView,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
@@ -482,6 +529,18 @@ fun AppNavHost(
                 },
                 onNavigateToAppLog = { filename, search ->
                     navController.navigate(NavRoutes.aiAppLogDetail(filename, search))
+                },
+                onOpenReportManage = { rid ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, rid)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { rid ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, rid)
+                        navController.navigate(NavRoutes.aiReportView())
+                    }
                 })
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
@@ -506,7 +565,13 @@ fun AppNavHost(
                 onOpenReportResult = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 }
             )
@@ -1181,7 +1246,13 @@ fun AppNavHost(
                 onOpenReport = { reportId ->
                     traceDetailScope.launch {
                         reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    traceDetailScope.launch {
+                        reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 }
             )

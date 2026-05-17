@@ -539,7 +539,12 @@ fun TraceDetailScreen(
      *  when the trace carries a non-null reportId (the bottom-bar 📝
      *  button is hidden otherwise). The host is responsible for
      *  restoring the report into ReportViewModel before navigating. */
-    onOpenReport: (String) -> Unit = {}
+    onOpenReport: (String) -> Unit = {},
+    /** Per-row 👁 View icon target — opens the report at the View tile
+     *  grid instead of Manage. Same restore + navigate path as
+     *  [onOpenReport] but with the AI_REPORTS route's `initialView=true`
+     *  query-param appended. */
+    onOpenReportView: (String) -> Unit = onOpenReport
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -976,6 +981,17 @@ fun TraceDetailScreen(
                     modifier = Modifier.width(36.dp).semantics { contentDescription = "Open report" },
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("📝", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+                // 👁 — sibling of 📝 / 🔧. Opens the same report but lands
+                // on the View tile grid instead of Manage. The 📝 button
+                // above keeps the historical Manage entry behaviour; this
+                // is the additive shortcut every report-list row across
+                // the app also surfaces.
+                OutlinedButton(
+                    onClick = { onOpenReportView(tracedReportId) },
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.width(36.dp).semantics { contentDescription = "View report" },
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("👁", fontSize = 14.sp, maxLines = 1, softWrap = false) }
             }
             // Copy and Share lived here too, but they're already wired
             // on the title-bar icon strip (📋 + 📤) with byte-identical

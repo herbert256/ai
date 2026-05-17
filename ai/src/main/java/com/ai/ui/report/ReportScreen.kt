@@ -165,6 +165,14 @@ private val ReportModelListSaver: Saver<List<ReportModel>, Any> = listSaver(
 fun ReportsScreenNav(
     viewModel: AppViewModel,
     reportViewModel: ReportViewModel,
+    /** Seed flag for the View tile-grid overlay. When true, the
+     *  screen flips [showViewReportScreen] on first composition so
+     *  the user lands on the View grid instead of Manage. Threaded
+     *  here from the AI_REPORTS route's `initialView` query-param,
+     *  which the per-row 👁 View icon on every report-list screen
+     *  appends. Default false preserves the historical Manage entry
+     *  behaviour every other callsite already depends on. */
+    initialView: Boolean = false,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
@@ -188,7 +196,15 @@ fun ReportsScreenNav(
     onNavigateToAgentsEdit: () -> Unit = {},
     onNavigateToFlocksEdit: () -> Unit = {},
     onNavigateToSwarmsEdit: () -> Unit = {},
-    onNavigateToInternalPromptsByCategory: (String) -> Unit = {}
+    onNavigateToInternalPromptsByCategory: (String) -> Unit = {},
+    /** Targets for the per-row 🔧 / 👁 icons that the +Report
+     *  picker (ReportSelectFromReportScreen) renders. Distinct
+     *  from the row's primary tap, which copies the model list
+     *  into the current selection — the icons jump to the picked
+     *  report itself. Wired by AppNavHost to the same restore +
+     *  navigate path the rest of the app uses. */
+    onOpenReportManage: (String) -> Unit = {},
+    onOpenReportView: (String) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
@@ -279,6 +295,19 @@ fun ReportsScreenNav(
         onRestartFanOut = { rid -> reportViewModel.restartLanguageIconFanOut(rid) },
     )
 
+    // Bundle the +Report picker's row-icon callbacks plus the
+    // first-composition View-screen seed into a CompositionLocal —
+    // ReportsScreen's parameter list is already at the JVM 64 KB
+    // per-method bytecode ceiling, so we can't add three more
+    // function/boolean slots there. The picker / first-composition
+    // seed read straight from the local.
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
+            onOpenManage = onOpenReportManage,
+            onOpenView = onOpenReportView,
+            initialView = initialView
+        )
+    ) {
     ReportsScreen(
         uiState = uiState,
         reportsAgentResults = agentResults,
@@ -556,9 +585,73 @@ fun ReportsScreenNav(
             reportViewModel.deleteFanOutModel(context, rid, pid, prov, model)
         }
     )
+    } // close CompositionLocalProvider added for LocalReportListIconBundle
 }
 
 // ===== Helpers =====
+
+/** One-shot seed for the View tile-grid overlay reached from the
+ *  per-row 👁 icon on every report list. Reads the `initialView`
+ *  flag bundled into [com.ai.ui.shared.LocalReportListIconBundle]
+ *  by [ReportsScreenNav]; flips [onSeed] exactly once on first
+ *  composition (LaunchedEffect keyed on Unit). Extracted out of
+ *  [ReportsScreen] so its bytecode doesn't push that function past
+ *  the JVM 64 KB per-method ceiling. */
+@Composable
+private fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
+    val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    LaunchedEffect(Unit) {
+        if (bundle.initialView) onSeed()
+    }
+}
+
+/** Wrapper around [ReportSelectFromReportScreen] for the +Report
+ *  flow's previous-report picker overlay. Hosts the model-list
+ *  conversion (Agent → ReportModel, with deletion fallback) plus
+ *  the per-row 🔧 / 👁 callback wiring pulled from
+ *  [com.ai.ui.shared.LocalReportListIconBundle]. Extracted out of
+ *  [ReportsScreen] so the overlay block stays out of that
+ *  function's bytecode — which already sits at the JVM 64 KB
+ *  per-method ceiling. */
+@Composable
+private fun ReportSelectFromReportOverlay(
+    aiSettings: Settings,
+    onClose: () -> Unit,
+    onCommit: (List<ReportModel>) -> Unit
+) {
+    val rowIcons = com.ai.ui.shared.LocalReportListIconBundle.current
+    val onNavigateHome = com.ai.ui.shared.LocalNavigateHome.current
+    ReportSelectFromReportScreen(
+        onConfirm = { report ->
+            // Saved-agent path preserves provenance ("via swarm X");
+            // fall back to a direct (provider, model) ReportModel
+            // entry when the agent has been deleted since the
+            // report ran.
+            val copied = report.agents.mapNotNull { ra ->
+                val savedAgent = aiSettings.getAgentById(ra.agentId)
+                if (savedAgent != null) expandAgentToModel(savedAgent, aiSettings)
+                else AppService.findById(ra.provider)?.let { prov ->
+                    toReportModel(prov, ra.model)
+                }
+            }
+            onCommit(copied)
+            onClose()
+        },
+        onBack = onClose,
+        onNavigateHome = onNavigateHome,
+        // Per-row 🔧 / 👁 jump to the referenced report — close the
+        // picker first so back from the destination pops to the
+        // +Report flow's surrounding screen, not the picker overlay.
+        onOpenReportManage = { rid ->
+            onClose()
+            rowIcons.onOpenManage(rid)
+        },
+        onOpenReportView = { rid ->
+            onClose()
+            rowIcons.onOpenView(rid)
+        }
+    )
+}
 
 internal data class FormattedPricing(val text: String, val isDefault: Boolean)
 
@@ -1083,6 +1176,12 @@ fun ReportsScreen(
     // same handlers the old Row 2 "View" buttons fired, so every
     // destination is unchanged.
     var showViewReportScreen by rememberSaveable { mutableStateOf(false) }
+    // Seed the View tile-grid overlay on first composition when the
+    // AI_REPORTS route was entered with `initialView=true`. Helper-
+    // hosted so the LaunchedEffect doesn't add bytecode to
+    // [ReportsScreen], which already sits at the JVM 64 KB
+    // per-method ceiling.
+    SeedInitialViewReportScreen { showViewReportScreen = true }
     // Action-row pickers — hoisted up here so they render as proper
     // full-screen overlays. When they lived inside GenerationPhase the
     // parent TitleBar + ActionRow had already painted above them, so
@@ -1357,23 +1456,15 @@ fun ReportsScreen(
         return
     }
     if (showSelectFromReport) {
-        ReportSelectFromReportScreen(
-            onConfirm = { report ->
-                // Convert each per-agent row from the chosen report into
-                // a ReportModel — try the saved-agent path first (so
-                // provenance like "via swarm X" is preserved), fall
-                // through to a direct (provider, model) entry when the
-                // agent has been deleted since the report ran.
-                val copied = report.agents.mapNotNull { ra ->
-                    val savedAgent = aiSettings.getAgentById(ra.agentId)
-                    if (savedAgent != null) expandAgentToModel(savedAgent, aiSettings)
-                    else AppService.findById(ra.provider)?.let { prov -> toReportModel(prov, ra.model) }
-                }
-                addToActiveTarget(copied)
-                showSelectFromReport = false
-            },
-            onBack = { showSelectFromReport = false },
-            onNavigateHome = onNavigateHome
+        // Extracted helper so the +Report previous-report picker's
+        // overlay block doesn't add bytecode to [ReportsScreen],
+        // which already sits at the JVM 64 KB per-method ceiling.
+        // Returns the close + addToActiveTarget commit via callbacks
+        // so the local picker-state stays in this scope.
+        ReportSelectFromReportOverlay(
+            aiSettings = aiSettings,
+            onClose = { showSelectFromReport = false },
+            onCommit = { copied -> addToActiveTarget(copied) }
         )
         return
     }

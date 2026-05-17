@@ -38,7 +38,10 @@ import java.util.Locale
 fun QuickLocalSearchScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenReport: (String) -> Unit
+    onOpenReport: (String) -> Unit,
+    /** Per-row 👁 View icon target — opens the report at the View tile
+     *  grid. Row tap + 🔧 keep going to Manage. */
+    onOpenReportView: (String) -> Unit = onOpenReport
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -108,6 +111,10 @@ fun QuickLocalSearchScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
+                        com.ai.ui.shared.ReportRowActionIcons(
+                            onOpenManage = { onOpenReport(hit.reportId) },
+                            onOpenView = { onOpenReportView(hit.reportId) }
+                        )
                     }
                 }
             }
