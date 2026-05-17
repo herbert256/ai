@@ -338,6 +338,8 @@ private fun ReportsViewerScreenLoaded(
         if (showPromptCompare && initialSection == "prompt" && promptTranslateRow != null && !report.prompt.isNullOrBlank() && !promptTranslateRow.content.isNullOrBlank()) {
             val translatedLabel = promptTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
             val tf = promptTranslateRow.traceFile
+            val translatedIcon = promptTranslateRow.targetLanguage?.takeIf { it.isNotBlank() }
+                ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
             TranslationCompareScreen(
                 title = "Translation — Prompt",
                 originalLabel = "Original",
@@ -346,7 +348,9 @@ private fun ReportsViewerScreenLoaded(
                 translatedContent = promptTranslateRow.content,
                 onBack = { showPromptCompare = false },
                 onNavigateHome = onNavigateHome,
-                onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } }
+                onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
+                originalIcon = report.languageIcon,
+                translatedIcon = translatedIcon
             )
             return
         }
@@ -504,6 +508,8 @@ private fun ReportsViewerScreenLoaded(
         val translatedLabel = agentTranslateRow.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
         val titleLabel = selectedAgentLabel?.let { "Translation — $it" } ?: "Translation"
         val tf = agentTranslateRow.traceFile
+        val translatedIcon = agentTranslateRow.targetLanguage?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
         TranslationCompareScreen(
             title = titleLabel,
             originalLabel = "Original",
@@ -512,7 +518,9 @@ private fun ReportsViewerScreenLoaded(
             translatedContent = agentTranslateRow.content!!,
             onBack = { showAgentCompare = false },
             onNavigateHome = onNavigateHome,
-            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } }
+            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
+            originalIcon = report.languageIcon,
+            translatedIcon = translatedIcon
         )
         return
     }

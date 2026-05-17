@@ -223,6 +223,8 @@ fun ReportSingleResultScreen(
     if (showLiveTranslationCompare && liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
         val translatedLangLabel = liveAgentTranslate.targetLanguage?.takeIf { it.isNotBlank() } ?: "Translation"
         val tf = liveAgentTranslate.traceFile
+        val translatedIcon = liveAgentTranslate.targetLanguage?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
         TranslationCompareScreen(
             title = "Translation — ${com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " / ")}",
             originalLabel = "Original",
@@ -235,7 +237,9 @@ fun ReportSingleResultScreen(
             onDelete = {
                 onDeleteRowById(liveAgentTranslate.id)
                 showLiveTranslationCompare = false
-            }
+            },
+            originalIcon = report?.languageIcon,
+            translatedIcon = translatedIcon
         )
         return
     }

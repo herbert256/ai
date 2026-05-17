@@ -2324,11 +2324,22 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         verticalAlignment = Alignment.CenterVertically
     ) {
         val rowRunning = r.errorMessage == null && r.content.isNullOrBlank() && r.durationMs == null
+        // Status cell: ⏳ while running, ❌ on error (both convey
+        // important status — never replaced), else the cached meta
+        // emoji when present (replaces ✅), else ✅.
         if (rowRunning) {
             com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+        } else if (r.errorMessage != null) {
+            Text("❌", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         } else {
-            val statusEmoji = if (r.errorMessage != null) "❌" else "✅"
-            Text(statusEmoji, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+            val cachedEmoji = remember(r.metaPromptName) {
+                r.metaPromptName?.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.data.InternalPromptIconCache.getByName(it) }
+            }
+            Text(
+                cachedEmoji ?: "✅",
+                fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp)
+            )
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -2584,6 +2595,8 @@ internal fun SecondaryResultDetailScreen(
 
     if (showTranslationCompare && sourceContent != null && result.content != null) {
         val tf = result.traceFile
+        val translatedIcon = result.targetLanguage?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
         TranslationCompareScreen(
             title = "Translation info — $title — ${com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")}",
             originalLabel = "Original",
@@ -2596,7 +2609,9 @@ internal fun SecondaryResultDetailScreen(
             onDelete = {
                 onDelete()
                 showTranslationCompare = false
-            }
+            },
+            originalIcon = parentReport?.languageIcon,
+            translatedIcon = translatedIcon
         )
         return
     }
@@ -2612,6 +2627,11 @@ internal fun SecondaryResultDetailScreen(
         val sourceLangLabel = result.targetLanguage?.takeIf { it.isNotBlank() } ?: "Original"
         val translatedLangLabel = liveTranslateActive.targetLanguage?.takeIf { it.isNotBlank() } ?: activeLangName ?: "Translation"
         val tf = liveTranslateActive.traceFile
+        val sourceIcon = result.targetLanguage?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
+            ?: parentReport?.languageIcon
+        val translatedIcon = liveTranslateActive.targetLanguage?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
         TranslationCompareScreen(
             title = "Translation — $title",
             originalLabel = sourceLangLabel,
@@ -2624,7 +2644,9 @@ internal fun SecondaryResultDetailScreen(
             onDelete = {
                 onDeleteRowById(liveTranslateActive.id)
                 showLiveTranslationCompare = false
-            }
+            },
+            originalIcon = sourceIcon,
+            translatedIcon = translatedIcon
         )
         return
     }

@@ -46,7 +46,16 @@ internal fun TranslationCompareScreen(
      *  hidden. Call sites that own the SecondaryResult id supply
      *  this; transient panes (e.g. the API trace preview) leave it
      *  null. */
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    /** Optional emoji prefix for the Original pane header — usually
+     *  the source report's `languageIcon`. Null → label renders
+     *  bare. */
+    originalIcon: String? = null,
+    /** Optional emoji prefix for the Translation pane header —
+     *  usually the cached translation-row icon for the target
+     *  language (`InternalPromptIconCache["translation_icon",
+     *  language]`). Null → label renders bare. */
+    translatedIcon: String? = null
 ) {
     BackHandler { onBack() }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -76,7 +85,10 @@ internal fun TranslationCompareScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
-                originalLabel,
+                buildString {
+                    if (!originalIcon.isNullOrBlank()) append(originalIcon).append("  ")
+                    append(originalLabel)
+                },
                 fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
@@ -99,7 +111,10 @@ internal fun TranslationCompareScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
-                translatedLabel,
+                buildString {
+                    if (!translatedIcon.isNullOrBlank()) append(translatedIcon).append("  ")
+                    append(translatedLabel)
+                },
                 fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))

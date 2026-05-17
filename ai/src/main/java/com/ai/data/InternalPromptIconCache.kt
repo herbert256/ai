@@ -124,6 +124,23 @@ object InternalPromptIconCache {
     /** Convenience — returns the cached emoji or null. */
     fun get(name: String, title: String): String? = getEntry(name, title)?.emoji
 
+    /** Looser lookup for callers that only know the prompt's name
+     *  (e.g. SecondaryResult rows that carry `metaPromptName` but
+     *  not the title). Returns the first cached emoji for any
+     *  entry whose name matches case-insensitively. Most meta
+     *  prompts have unique names so the title disambiguation
+     *  isn't load-bearing here; when it is, the caller should
+     *  use [get] with the resolved title. */
+    fun getByName(name: String): String? = lock.withLock {
+        if (name.isBlank()) return@withLock null
+        val needle = name.trim()
+        // Cache key is `"$name$title"` (see keyOf); split and
+        // match the name half.
+        map.entries
+            .firstOrNull { (k, _) -> k.substringBefore('').equals(needle, ignoreCase = true) }
+            ?.value?.emoji
+    }
+
     /** First successful generation for ([name], [title]). Creates a
      *  fresh entry; this call's tokens + cost are the entry's
      *  starting totals. Overwrites an existing entry — the previous

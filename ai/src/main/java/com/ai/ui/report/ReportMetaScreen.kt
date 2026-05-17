@@ -183,6 +183,10 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Leading status cell: ❌ on error and ⏳ while running are
+        // always preserved (they carry important status info). On
+        // success the cached meta-prompt emoji replaces ✅; fall
+        // back to ✅ when no cache entry has landed yet.
         when {
             r.errorMessage != null -> Text("❌", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
             r.content.isNullOrBlank() -> {
@@ -195,7 +199,14 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                 Text("⏳", fontSize = 16.sp,
                     modifier = Modifier.padding(end = 8.dp).rotate(angle))
             }
-            else -> Text("✅", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+            else -> {
+                val cachedEmoji = remember(r.metaPromptName) {
+                    r.metaPromptName?.takeIf { it.isNotBlank() }
+                        ?.let { com.ai.data.InternalPromptIconCache.getByName(it) }
+                }
+                Text(cachedEmoji ?: "✅", fontSize = 16.sp,
+                    modifier = Modifier.padding(end = 8.dp))
+            }
         }
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
