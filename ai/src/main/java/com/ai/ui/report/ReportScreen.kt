@@ -3088,12 +3088,6 @@ private fun ReportPrimaryOverlays(
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
-                onViewReports = { lang ->
-                    onSelectedAgentForViewerChange(null)
-                    onViewerSectionChange(null)
-                    onViewerLockedLanguageChange(lang)
-                    onShowViewerChange(true)
-                },
                 onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
                 onViewLog = {
                     val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)

@@ -118,7 +118,6 @@ internal fun ViewAiReportScreen(
     /** Receives the View screen's currently-selected language so the
      *  opened sub-screen can lock itself to that language. null = no
      *  force; "" = force Original; non-empty = displayName. */
-    onViewReports: (String?) -> Unit,
     onOpenHtmlPreview: () -> Unit,
     onViewLog: () -> Unit,
     onViewIcons: () -> Unit,
@@ -236,6 +235,19 @@ internal fun ViewAiReportScreen(
             reportId = reportId,
             language = promptViewLanguage?.takeIf { it.isNotEmpty() },
             onBack = { promptViewOpen = false; promptViewLanguage = null }
+        )
+        return
+    }
+    // Reports "View" overlay — per-agent response stack. Language
+    // captured at tap time so AGENT TRANSLATE rows render in place of
+    // the original responseBody when locked.
+    var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
+    if (reportsViewOpen) {
+        ReportsViewScreen(
+            reportId = reportId,
+            language = reportsViewLanguage?.takeIf { it.isNotEmpty() },
+            onBack = { reportsViewOpen = false; reportsViewLanguage = null }
         )
         return
     }
@@ -524,7 +536,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -540,7 +552,10 @@ internal fun ViewAiReportScreen(
                 "Reports", "📊", AppColors.Blue,
                 enabled = reportsEnabled,
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
-            ) { onViewReports(currentLanguageState.value) }))
+            ) {
+                reportsViewLanguage = currentLanguageState.value
+                reportsViewOpen = true
+            }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
             add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
