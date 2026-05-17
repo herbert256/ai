@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -178,9 +179,14 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
                     }
                     map
                 }
+                // Hide the per-run header when there's only one
+                // fan-out — the screen-level context already makes it
+                // unambiguous and the extra row is just noise.
+                val showRunHeader = byRun.size > 1
                 byRun.forEach { (metaPromptName, rows) ->
                     FanOutSection(
                         metaPromptName = metaPromptName,
+                        showHeader = showRunHeader,
                         rows = rows,
                         agents = report.agents,
                         onInitiatorClick = { agentId -> openedReportsAgentId = agentId },
@@ -232,6 +238,7 @@ private fun NoFanOutGrid(
 @Composable
 private fun FanOutSection(
     metaPromptName: String,
+    showHeader: Boolean,
     rows: List<SecondaryResult>,
     agents: List<ReportAgent>,
     onInitiatorClick: (String) -> Unit,
@@ -241,21 +248,23 @@ private fun FanOutSection(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Section header: 🌀 + the run's meta-prompt name in green
-        // to match the rest of the View family's subject style.
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "🌀", fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
-            Text(
-                text = metaPromptName,
-                color = AppColors.Green,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+        if (showHeader) {
+            // Section header: 🌀 + the run's meta-prompt name in green
+            // to match the rest of the View family's subject style.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "🌀", fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(
+                    text = metaPromptName,
+                    color = AppColors.Green,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
         // Group this section's rows by initiator agent — one row per
         // initiator with all of its responders to the right.
@@ -267,7 +276,11 @@ private fun FanOutSection(
             }
             map
         }
-        bySource.forEach { (sourceAgentId, responderRows) ->
+        val entries = bySource.entries.toList()
+        entries.forEachIndexed { idx, (sourceAgentId, responderRows) ->
+            if (idx > 0) {
+                HorizontalDivider(color = AppColors.BorderUnfocused, thickness = 1.dp)
+            }
             val initiator = agents.firstOrNull { it.agentId == sourceAgentId }
             val initiatorGlyph = initiator?.icon?.takeIf { it.isNotBlank() } ?: "🤖"
             Row(
