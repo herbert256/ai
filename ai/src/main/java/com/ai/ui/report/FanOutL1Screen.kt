@@ -263,15 +263,14 @@ internal fun FanOutL1Screen(
             }
         }
 
-        // ICONS-mode error controls. When the icon batch has finished
-        // (nothing running / throttled / queued) but some pairs ended
-        // with an iconErrorMessage (rate-limited mid-batch, etc.) the
-        // user needs a way to act on them. Three buttons mirror the
-        // MAIN-mode controls but operate on the icon-chain only —
-        // dropping just the iconError sentinel + emoji state, not the
+        // ICONS-mode error controls. Surface whenever there's at
+        // least one errored pair, regardless of in-flight state —
+        // the user can clean up errored pairs while other pairs are
+        // still being processed. Three buttons mirror the MAIN-mode
+        // controls but operate on the icon-chain only — dropping
+        // just the iconError sentinel + emoji state, not the
         // underlying pair rows.
-        val iconHasErrors = isIconsMode && errorCount > 0 &&
-            runningCount == 0 && throttledHere == 0 && queuedCount == 0
+        val iconHasErrors = isIconsMode && errorCount > 0
         var showIconErrorsDialog by remember { mutableStateOf(false) }
         if (iconHasErrors) {
             Spacer(modifier = Modifier.height(8.dp))
