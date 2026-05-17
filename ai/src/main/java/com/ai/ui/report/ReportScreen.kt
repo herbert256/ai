@@ -797,8 +797,8 @@ fun ReportsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
-    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, String?, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
-    onExportAll: suspend (String, String?, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
+    onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
+    onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
@@ -1020,10 +1020,11 @@ fun ReportsScreen(
     // detail picker through.
     var htmlPreviewDetail by rememberSaveable { mutableStateOf<ReportExportDetail?>(null) }
     // Optional language filter piped through from the Export screen's
-    // Language card. null = render every language (the in-WebView
-    // language picker stays interactive); "" = original-only;
-    // non-empty = single named translation. Cleared with the preview.
-    var htmlPreviewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    // Language card. Plain `remember` (not rememberSaveable) — the
+    // sealed-class Saver isn't worth writing for a value the user
+    // re-establishes when they reopen Export. Process death falls
+    // back to All.
+    var htmlPreviewLanguage by remember { mutableStateOf<ExportLanguage>(ExportLanguage.All) }
     var showEditPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditTitle by rememberSaveable { mutableStateOf(false) }
     var showEditParameters by rememberSaveable { mutableStateOf(false) }
@@ -2222,12 +2223,12 @@ fun ReportsScreen(
     if (htmlPreviewDetail != null && currentReportId != null) {
         val previewDetail = htmlPreviewDetail!!
         val previewLanguage = htmlPreviewLanguage
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null; htmlPreviewLanguage = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null; htmlPreviewLanguage = ExportLanguage.All }) {
             HtmlPreviewScreen(
                 reportId = currentReportId,
                 detail = previewDetail,
                 language = previewLanguage,
-                onBack = { htmlPreviewDetail = null; htmlPreviewLanguage = null }
+                onBack = { htmlPreviewDetail = null; htmlPreviewLanguage = ExportLanguage.All }
             )
         }
         return
@@ -2352,7 +2353,7 @@ fun ReportsScreen(
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             showModerationPicker = true
         },
-        onOpenHtmlPreview = { htmlPreviewLanguage = null; htmlPreviewDetail = ReportExportDetail.COMPLETE },
+        onOpenHtmlPreview = { htmlPreviewLanguage = ExportLanguage.All; htmlPreviewDetail = ReportExportDetail.COMPLETE },
         onViewReports = {
             selectedAgentForViewer = null; viewerSection = null
             viewerLockedLanguage = null

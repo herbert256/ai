@@ -61,24 +61,24 @@ import java.util.zip.ZipOutputStream
 internal fun buildZippedHtmlBytes(
     context: Context,
     report: Report,
-    /** Language filter. null = include every language (per-language
-     *  top-level dirs, the multi-language layout documented above).
-     *  "" = original only. Non-empty = single named language, matched
-     *  via [languageKey]. Both single-language modes drop the
-     *  `<langKey>/` wrapping dir + the multi-language root index —
-     *  the single language's sections are emitted at the zip root so
-     *  the bundle is `index.html` + `Reports/` etc. directly. Drives
-     *  the `dutch/html/...` directory inside the bulk export master
-     *  zip when the user picks One language. */
-    language: String? = null
+    /** Language filter. [ExportLanguage.All] (default) emits the
+     *  multi-language layout documented above with per-language
+     *  top-level dirs. Any single-language selector
+     *  ([ExportLanguage.Original] or [ExportLanguage.Single]) drops the
+     *  `<langKey>/` wrap + the multi-language root index — the single
+     *  language's sections live at the zip root so the bundle is
+     *  `index.html` + `Reports/` etc. directly. Drives the
+     *  `dutch/html/...` directory inside the bulk export master zip
+     *  when the user picks One language. */
+    language: ExportLanguage = ExportLanguage.All
 ): ByteArray {
     val data = buildHtmlReportData(context, report)
     val allLanguages = buildLanguageViews(data)
-    val languages = if (language == null) allLanguages else {
-        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
-        allLanguages.filter { it.key == targetKey }.ifEmpty { allLanguages.take(1) }
+    val languages = when (val key = language.matchingKey()) {
+        null -> allLanguages
+        else -> allLanguages.filter { it.key == key }.ifEmpty { allLanguages.take(1) }
     }
-    val flat = language != null
+    val flat = language != ExportLanguage.All
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
@@ -1012,18 +1012,13 @@ private fun renderRerankContentLocal(content: String, maxAnchor: Int, agentsByAn
 
 internal fun shareReportAsZippedHtml(
     context: Context, reportId: String, action: ReportExportAction,
-    language: String? = null
+    language: ExportLanguage = ExportLanguage.All
 ) {
     val report = ReportStorage.getReport(context, reportId) ?: return
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val ts = SimpleDateFormat("yyMMdd-HHmm", Locale.US).format(Date())
     val dir = File(context.cacheDir, "exports").also { it.mkdirs() }
-    val langTag = when {
-        language == null -> ""
-        language.isBlank() -> "_${LangTab.ORIGINAL_KEY}"
-        else -> "_${languageKey(language)}"
-    }
-    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html${langTag}_$ts.zip")
+    val outFile = File(dir, "ai_report_${safeTitle}_zipped_html${language.fileTag()}_$ts.zip")
     outFile.writeBytes(buildZippedHtmlBytes(context, report, language))
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)

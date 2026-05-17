@@ -45,9 +45,11 @@ import java.util.zip.ZipOutputStream
 internal suspend fun bulkExportAndShare(
     context: Context,
     reportId: String,
-    /** null = all languages (per-language top-level dirs); "" = source
-     *  language only; non-empty = single named translation. */
-    language: String?,
+    /** Language filter — see [ExportLanguage]. [ExportLanguage.All]
+     *  with >1 translation triggers the per-language top-level dir
+     *  layout; any single-language selector produces the flat
+     *  `docs/` + `html/` + `json/` bundle. */
+    language: ExportLanguage,
     onProgress: (Int, Int) -> Unit
 ): Boolean = withContext(Dispatchers.IO) {
     // Whole flow runs on IO so the file writes (DOCX/ODT can be MBs
@@ -72,17 +74,15 @@ internal suspend fun bulkExportAndShare(
 
     val baseData = buildHtmlReportData(context, report)
     val allViews = buildLanguageViews(baseData)
-    val viewsToRender: List<HtmlLanguageView> = if (language == null) {
-        allViews
-    } else {
-        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
-        allViews.filter { it.key == targetKey }.ifEmpty { allViews.take(1) }
+    val viewsToRender: List<HtmlLanguageView> = when (val key = language.matchingKey()) {
+        null -> allViews
+        else -> allViews.filter { it.key == key }.ifEmpty { allViews.take(1) }
     }
     // Per-language top-level dirs only when there's actually >1
     // language. The common case (a report with no translations) keeps
     // the pre-refactor flat `docs/` + `html/` + `json/` layout instead
     // of pointlessly wrapping the single Original view in `original/`.
-    val perLanguageDirs = (language == null && viewsToRender.size > 1)
+    val perLanguageDirs = (language == ExportLanguage.All && viewsToRender.size > 1)
     // 9 artifacts per language (2 HTML + 2 DOCX + 2 ODT + 2 PDF +
     // 1 zipped HTML) plus a single trace bundle.
     val total = viewsToRender.size * 9 + 1
@@ -144,7 +144,8 @@ internal suspend fun bulkExportAndShare(
             bump()
             // Per-language Zipped HTML — filter buildLanguageViews to
             // this single language inside the sub-zip too.
-            val zhLang = if (lv.key == LangTab.ORIGINAL_KEY) "" else lv.displayName
+            val zhLang: ExportLanguage = if (lv.key == LangTab.ORIGINAL_KEY) ExportLanguage.Original
+                                         else ExportLanguage.Single(lv.displayName)
             zippedHtmlPerLang[lv.key] = buildZippedHtmlBytes(context, report, language = zhLang); bump()
         }
 
@@ -153,12 +154,7 @@ internal suspend fun bulkExportAndShare(
         val traceZipBytes = buildJsonTraceZipBytes(context, report); bump()
 
         val outDir = File(context.cacheDir, "exports").also { it.mkdirs() }
-        val langTag = when {
-            language == null -> ""
-            language.isBlank() -> "_${LangTab.ORIGINAL_KEY}"
-            else -> "_${languageKey(language)}"
-        }
-        val masterZip = File(outDir, "ai_report_${safeTitle}_all${langTag}_$ts.zip")
+        val masterZip = File(outDir, "ai_report_${safeTitle}_all${language.fileTag()}_$ts.zip")
         ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
             if (perLanguageDirs) {
                 viewsToRender.forEach { lv ->

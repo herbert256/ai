@@ -56,11 +56,58 @@ enum class ReportExportTarget(val displayName: String) {
 
 /** Drives the Language card on [com.ai.ui.report.ReportExportScreen].
  *  ALL_LANGUAGES → render every language inline (today's default —
- *  the engine threads `language = null` through), ONE_LANGUAGE →
+ *  the engine threads [ExportLanguage.All] through), ONE_LANGUAGE →
  *  filter to a single language slice via `buildLanguageViews`. The
  *  card is only rendered when the report has at least one
  *  TRANSLATE secondary. */
 enum class ExportLanguageScope { ALL_LANGUAGES, ONE_LANGUAGE }
+
+/** Language filter passed through every export entry point. Replaces
+ *  the prior `language: String?` sentinel (null = all / "" = original
+ *  / non-empty = single) — same three states, now type-safe so
+ *  callers can't muddle them. The [fileTag], [matchingKey], and
+ *  [resolveSlice] helpers cover the common engine-side operations. */
+sealed interface ExportLanguage {
+    /** Render every language — multi-language HTML picker, per-language
+     *  subdirs for Zipped HTML, per-language top-level dirs for bulk. */
+    data object All : ExportLanguage
+
+    /** The report's source language only. */
+    data object Original : ExportLanguage
+
+    /** A single named translation, e.g. `Single("Dutch")`. The string
+     *  is the English display name (matches
+     *  [com.ai.data.SecondaryResult.targetLanguage]) so it maps cleanly
+     *  through [languageKey]. */
+    data class Single(val englishName: String) : ExportLanguage
+}
+
+/** Filename tag for this export's language selector — empty for
+ *  [ExportLanguage.All], `_original` for [ExportLanguage.Original],
+ *  `_<key>` for a single translation. */
+internal fun ExportLanguage.fileTag(): String = when (this) {
+    ExportLanguage.All -> ""
+    ExportLanguage.Original -> "_${LangTab.ORIGINAL_KEY}"
+    is ExportLanguage.Single -> "_${languageKey(englishName)}"
+}
+
+/** The matching [HtmlLanguageView.key] for this selector — null for
+ *  [ExportLanguage.All] (no filtering); a key otherwise. */
+internal fun ExportLanguage.matchingKey(): String? = when (this) {
+    ExportLanguage.All -> null
+    ExportLanguage.Original -> LangTab.ORIGINAL_KEY
+    is ExportLanguage.Single -> languageKey(englishName)
+}
+
+/** Resolve a per-language slice of [base] for this selector. Returns
+ *  [base] unchanged for [ExportLanguage.All]; falls back to [base]
+ *  when the requested language isn't on the report (silent — caller
+ *  decided the UI surface). */
+internal fun ExportLanguage.resolveSlice(base: HtmlReportData): HtmlReportData {
+    val key = matchingKey() ?: return base
+    val views = buildLanguageViews(base)
+    return views.firstOrNull { it.key == key }?.data ?: base
+}
 
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
@@ -86,12 +133,10 @@ suspend fun shareReportAsExport(
     @Suppress("UNUSED_PARAMETER") repository: AnalysisRepository,
     onProgress: (Int, Int) -> Unit,
     /** Language filter from the Language card on the export screen.
-     *  null = all languages (today's default — render everything
-     *  inline, multi-language picker for HTML / per-language
-     *  subdirs for Zipped HTML).
-     *  "" = original-only (LangTab.ORIGINAL_KEY).
-     *  Non-empty = single target language English name ("Dutch"). */
-    language: String? = null
+     *  [ExportLanguage.All] (the default) preserves the pre-Language-
+     *  card behaviour: multi-language HTML / per-language Zipped HTML
+     *  subdirs. */
+    language: ExportLanguage = ExportLanguage.All
 ): Boolean {
     val report = ReportStorage.getReport(context, reportId) ?: return false
 
@@ -113,15 +158,8 @@ suspend fun shareReportAsExport(
     }
 
     // Resolve the per-language slice once for HTML / PDF / DOCX / ODT.
-    // null language → render the multi-language base; non-null →
-    // pick the matching HtmlLanguageView from buildLanguageViews.
     val base = buildHtmlReportData(context, report)
-    val data: HtmlReportData = if (language == null) base else {
-        val views = buildLanguageViews(base)
-        val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY
-                        else languageKey(language)
-        views.firstOrNull { it.key == targetKey }?.data ?: base
-    }
+    val data = language.resolveSlice(base)
 
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
@@ -139,12 +177,7 @@ suspend fun shareReportAsExport(
 
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
     val detailTag = detail.name.lowercase()
-    val langTag = when {
-        language == null -> ""                          // all-languages
-        language.isBlank() -> "_${LangTab.ORIGINAL_KEY}" // original-only
-        else -> "_${languageKey(language)}"             // single named language
-    }
-    val baseName = "ai_report_${safeTitle}_${detailTag}${langTag}_${pdfTimestamp()}"
+    val baseName = "ai_report_${safeTitle}_${detailTag}${language.fileTag()}_${pdfTimestamp()}"
     return when (format) {
         ReportExportFormat.HTML -> { dispatchHtml(context, html, "$baseName.html", report.title, action); true }
         // Complete PDF gets a JS-injected TOC page at the top with real

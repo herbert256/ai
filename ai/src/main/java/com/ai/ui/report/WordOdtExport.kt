@@ -651,9 +651,8 @@ internal fun shareReportAsDocxOrOdt(
     data: com.ai.ui.report.HtmlReportData? = null,
     /** Language filter that produced [data], threaded through purely
      *  for the output filename so Short / Complete × Dutch / Original
-     *  exports don't collide on `ai_report_<title>_<ts>.docx`. Same
-     *  encoding as [com.ai.ui.report.shareReportAsExport]. */
-    language: String? = null
+     *  exports don't collide on `ai_report_<title>_<ts>.docx`. */
+    language: com.ai.ui.report.ExportLanguage = com.ai.ui.report.ExportLanguage.All
 ): Boolean {
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
@@ -672,12 +671,7 @@ internal fun shareReportAsDocxOrOdt(
     // detail tag + optional language tag prevent collisions when the
     // user exports several variants in quick succession.
     val detailTag = detail.name.lowercase()
-    val langTag = when {
-        language == null -> ""
-        language.isBlank() -> "_${com.ai.ui.report.LangTab.ORIGINAL_KEY}"
-        else -> "_${com.ai.ui.report.languageKey(language)}"
-    }
-    val file = File(dir, "ai_report_${safeTitle}_${detailTag}${langTag}_$ts.$ext")
+    val file = File(dir, "ai_report_${safeTitle}_${detailTag}${language.fileTag()}_$ts.$ext")
     file.writeBytes(bytes)
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     when (action) {

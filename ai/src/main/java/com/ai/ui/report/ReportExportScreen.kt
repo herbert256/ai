@@ -33,18 +33,15 @@ import kotlinx.coroutines.launch
 internal fun ReportExportScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, String?, (Int, Int) -> Unit) -> Unit,
-    onExportAll: suspend (String?, (Int, Int) -> Unit) -> Unit,
+    onExport: suspend (ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit,
+    onExportAll: suspend (ExportLanguage, (Int, Int) -> Unit) -> Unit,
     /** Open the in-app HTML viewer (the same screen the AI Report
      *  "HTML" action-row button reaches). Surfaced as a third button
      *  next to Android share / View in browser whenever the format
-     *  is HTML; the picked Detail (Short / Complete) is passed
-     *  through so the preview renders the same body that Android
-     *  share / View in browser would produce. The second arg is the
-     *  same `language: String?` that the other callbacks receive —
-     *  the in-app viewer can choose to honor it later, today it just
-     *  renders the multi-language HTML. */
-    onViewInApp: (ReportExportDetail, String?) -> Unit = { _, _ -> },
+     *  is HTML; the picked Detail (Short / Complete) and language
+     *  are passed through so the preview renders the same body
+     *  that Android share / View in browser would produce. */
+    onViewInApp: (ReportExportDetail, ExportLanguage) -> Unit = { _, _ -> },
     /** Original + one entry per TRANSLATE language on the report.
      *  Empty / single-entry => Language card hidden + ALL_LANGUAGES
      *  forced. */
@@ -91,12 +88,17 @@ internal fun ReportExportScreen(
         }
     }
 
-    // Encoding the picker → engine: null = all, "" = original,
-    // non-empty = single named translation (matched via languageKey).
-    val exportLanguage: String? = when {
-        !hasLanguages || languageScope == ExportLanguageScope.ALL_LANGUAGES -> null
-        pickedLanguage == LangTab.ORIGINAL_KEY -> ""
-        else -> availableLanguages.firstOrNull { it.key == pickedLanguage }?.displayName ?: ""
+    // Picker → engine: map the LangTab key the picker tracks to a
+    // typed ExportLanguage. ALL_LANGUAGES short-circuits to All;
+    // ORIGINAL_KEY → Original; everything else → Single(displayName)
+    // so the engine can match it via languageKey().
+    val exportLanguage: ExportLanguage = when {
+        !hasLanguages || languageScope == ExportLanguageScope.ALL_LANGUAGES -> ExportLanguage.All
+        pickedLanguage == LangTab.ORIGINAL_KEY -> ExportLanguage.Original
+        else -> {
+            val name = availableLanguages.firstOrNull { it.key == pickedLanguage }?.displayName
+            if (name.isNullOrBlank()) ExportLanguage.Original else ExportLanguage.Single(name)
+        }
     }
 
     progress?.let { (done, total) ->
