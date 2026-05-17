@@ -480,10 +480,32 @@ internal fun ViewAiReportScreen(
         }
     }
 
+    // Fan-out tiles — one per persisted fan-out run, mirroring the
+    // metaTiles pattern. Each fan-out prompt is its own tile so
+    // the user can jump straight into a specific run instead of
+    // going through an aggregated "Fan-out (N)" tile and a
+    // follow-up picker. (Fan_out is excluded from computedTiles
+    // below.)
+    val fanOutTiles = remember(everyItems, currentLang) {
+        everyItems["fan_out"].orEmpty().map { item ->
+            val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
+            IdentifiedTile(
+                id = "fan_out:${item.label}",
+                tile = ViewTile(
+                    label = item.label,
+                    emoji = "🌀",
+                    accent = AppColors.Indigo,
+                    enabled = fanOutEnabled,
+                    onClick = { item.open(currentLanguageState.value) }
+                )
+            )
+        }
+    }
+
     // Other computed kinds — one tile per kind. Tap with N=1
     // opens the only item; N≥2 flips [expandedKind] which renders
-    // an inline list below the tiles. (Meta is excluded; it's
-    // handled by [metaTiles] above.)
+    // an inline list below the tiles. Meta + Fan-out are excluded;
+    // they get one tile per run via [metaTiles] / [fanOutTiles].
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
     val computedTiles = remember(everyItems, moderationFlagged, currentLang) {
         // Moderation accent flips red ↔ green based on whether any
@@ -494,7 +516,6 @@ internal fun ViewAiReportScreen(
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
             ComputedSpec("moderation", "Moderation", "🚩", moderationColor),
-            ComputedSpec("fan_out", "Fan-out", "🌀", AppColors.Indigo),
             ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
             ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
             ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
@@ -589,7 +610,7 @@ internal fun ViewAiReportScreen(
             // with their count badge. Each carries a stable
             // identifier so the persisted tile order survives
             // per-report variability.
-            val combinedTiles = docTiles + metaTiles +
+            val combinedTiles = docTiles + metaTiles + fanOutTiles +
                 computedTiles.map { IdentifiedTile("computed:${it.key}", it.tile) }
             val sortedTiles = remember(combinedTiles, savedOrder) {
                 val rankOf = savedOrder.withIndex().associate { it.value to it.index }
