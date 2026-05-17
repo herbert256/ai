@@ -336,7 +336,8 @@ fun AppNavHost(
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
                 },
-                onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) })
+                onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
+                onNavigateToSearchAiReports = { navController.navigate(NavRoutes.AI_SEARCH_REPORTS) })
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {
             val uiState by appViewModel.uiState.collectAsState()
@@ -347,6 +348,16 @@ fun AppNavHost(
                 onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
                 onNavigateToExamplePrompts = { navController.navigate(NavRoutes.AI_EXAMPLE_PROMPT_PICKER) },
                 hasExamplePrompts = uiState.aiSettings.examplePrompts.isNotEmpty()
+            )
+        }
+        composable(NavRoutes.AI_SEARCH_REPORTS) {
+            com.ai.ui.hub.SearchAiReportsScreen(
+                onNavigateBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
+                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
+                onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
+                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) }
             )
         }
         composable(NavRoutes.AI_SEARCH) {

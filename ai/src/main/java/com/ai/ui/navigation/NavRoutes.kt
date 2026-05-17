@@ -35,6 +35,9 @@ object NavRoutes {
      *  lived in the Reports hub's "Start" card. Routes to
      *  [AI_NEW_REPORT] for the actual form screen. */
     const val AI_NEW_REPORT_HUB = "ai_new_report_hub"
+    /** Wrapper screen with four search-mode tap-throughs that used
+     *  to live in the Reports hub's "Search" card. */
+    const val AI_SEARCH_REPORTS = "ai_search_reports"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
