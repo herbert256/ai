@@ -168,9 +168,19 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
             )
 
             if (fanOutRows.isEmpty()) {
+                HorizontalDivider(
+                    color = AppColors.BorderUnfocused,
+                    thickness = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 NoFanOutGrid(
                     agents = report.agents,
                     onAgentClick = { agentId -> openedReportsAgentId = agentId }
+                )
+                HorizontalDivider(
+                    color = AppColors.BorderUnfocused,
+                    thickness = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
                 // Group rows by metaPromptName (= one section per
