@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -263,6 +264,23 @@ internal fun TranslationL1Screen(
                             .clickable { onOpenModel(row.modelKey) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Finished-run leading count column. While bars
+                        // are on, the green fill conveys per-model
+                        // throughput visually; once they're gone we need
+                        // a number to keep the per-model split legible.
+                        // Sorting on row.done (descending — set in
+                        // modelRows above) means the densest model
+                        // stays at the top.
+                        if (!showModelBars) {
+                            Text(
+                                row.done.toString(),
+                                fontSize = 13.sp,
+                                color = AppColors.TextSecondary,
+                                fontFamily = FontFamily.Monospace,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
+                            )
+                        }
                         // No status glyph — the proportional bar already
                         // conveys progress, and a finished run shouldn't
                         // read as a wall of check marks.
