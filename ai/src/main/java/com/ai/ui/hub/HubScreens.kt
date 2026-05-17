@@ -192,7 +192,6 @@ fun HubScreen(
             Image(
                 painter = painterResource(id = R.drawable.brand_glyph),
                 contentDescription = "AI App Logo",
-                alpha = 0.75f,
                 modifier = Modifier.size(logoSize).offset(y = (-32).dp)
                     .then(if (hasAnyReport) Modifier.clickable { onOpenLatestReport() } else Modifier)
             )

@@ -186,7 +186,6 @@ private fun HelpFooter(
                         androidx.compose.foundation.Image(
                             painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.brand_glyph),
                             contentDescription = "Help home",
-                            alpha = 0.75f,
                             modifier = Modifier.size(40.dp).padding(end = 6.dp)
                         )
                         Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)

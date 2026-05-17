@@ -628,7 +628,6 @@ private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Image(
         painter = painterResource(R.drawable.brand_glyph),
         contentDescription = "Home",
-        alpha = 0.75f,
         modifier = modifier.size(52.dp).clickable(onClick = onClick)
     )
 }
