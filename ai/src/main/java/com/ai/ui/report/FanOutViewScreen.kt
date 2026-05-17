@@ -141,7 +141,7 @@ fun FanOutViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Fan-out - view",
+            screenTitle = "Fan-out",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_view",
             onBack = onBack,

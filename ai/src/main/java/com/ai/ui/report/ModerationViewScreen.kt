@@ -103,7 +103,7 @@ fun ModerationViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
-            screenTitle = "Moderation - view",
+            screenTitle = "Moderation",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "moderation_view",
             onBack = onBack,

@@ -104,7 +104,7 @@ fun RerankViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
-            screenTitle = "Rerank - view",
+            screenTitle = "Rerank",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "rerank_view",
             onBack = onBack,

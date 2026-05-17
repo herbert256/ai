@@ -106,7 +106,7 @@ fun FanInModelViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Fan-in-model - view",
+            screenTitle = "Fan-in-model",
             subject = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_model_view",
             onBack = onBack,

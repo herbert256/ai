@@ -106,7 +106,7 @@ fun TranslateViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Translate - view",
+            screenTitle = "Translate",
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",
             onBack = onBack,

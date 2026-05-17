@@ -78,7 +78,7 @@ fun CostsViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Costs - view",
+            screenTitle = "Costs",
             subject = null,
             helpTopic = "costs_view",
             onBack = onBack,

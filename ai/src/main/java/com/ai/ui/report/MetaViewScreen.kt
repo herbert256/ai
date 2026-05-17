@@ -115,7 +115,7 @@ fun MetaViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Meta - view",
+            screenTitle = "Meta",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "meta_view",
             onBack = onBack,
