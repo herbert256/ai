@@ -177,7 +177,13 @@ fun ViewScreenTitleBar(
             )
         }
         if (!screenTitle.isNullOrBlank()) {
-            Spacer(modifier = Modifier.height(8.dp))
+            // Pull the orange screen title up tight against the AI-logo
+            // row. The 52 dp logo already anchors the bar visually;
+            // the previous 8 dp leading spacer made it feel top-heavy
+            // and the user asked for the orange title to sit higher.
+            // Negative offset shifts the orange title (and the green
+            // subject + bottom spacer below) up by the same amount.
+            val viewTitleLift = (-12).dp
             Text(
                 text = screenTitle,
                 color = AppColors.Orange,
@@ -185,10 +191,24 @@ fun ViewScreenTitleBar(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().offset(y = viewTitleLift)
             )
-        }
-        if (!subject.isNullOrBlank()) {
+            if (!subject.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subject,
+                    color = AppColors.Green,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().offset(y = viewTitleLift)
+                )
+            }
+        } else if (!subject.isNullOrBlank()) {
+            // Help pages render subject without a screen title — keep
+            // its prior position unchanged in that case.
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subject,
