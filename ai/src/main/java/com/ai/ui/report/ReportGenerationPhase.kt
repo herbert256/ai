@@ -1471,7 +1471,11 @@ internal fun LanguageRow(
             )
         }
     }.value
-    val running = snapshot.icon == null && snapshot.error == null
+    // Detection is "running" only while the language NAME isn't yet
+    // known. A null icon with a known name means the icon-gen step
+    // didn't fire (or pre-dates the feature) — that's a steady state,
+    // not "still working", so don't spin the hourglass forever.
+    val running = snapshot.name == null && snapshot.error == null
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         .clickable { onOpenDetail() },
         verticalAlignment = Alignment.CenterVertically) {
@@ -1487,7 +1491,10 @@ internal fun LanguageRow(
                 )
                 Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
             }
-            else -> Text(snapshot.icon!!, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+            // Name is set; show the language-specific icon if one was
+            // generated, otherwise a neutral 🌐 placeholder so the row
+            // doesn't shift width.
+            else -> Text(snapshot.icon ?: "🌐", fontSize = 16.sp, modifier = Modifier.width(24.dp))
         }
         RowTypeCell("language")
         Column(modifier = Modifier.weight(1f)) {
