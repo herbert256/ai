@@ -3426,11 +3426,29 @@ private fun PairIconDetailOverlay(
             1 -> "fan_out_2"; 2 -> "fan_out"; 3 -> "fan_out_3"
             else -> "fan_out"
         }
+    // Reconstruct the EXACT meta-prompt text the pair was sent so
+    // the API-interaction card matches what hit the wire. The
+    // engine does this in two steps: first resolveSecondaryPrompt
+    // for @QUESTION@/@TITLE@/@COUNT@/@DATE@/@RESULTS@, then
+    // .replace("@RESPONSE@", sourceBody) per pair. Without this,
+    // the card displayed the raw `@RESPONSE@` / `@QUESTION@`
+    // placeholders verbatim, which read as if the literal string
+    // had been sent to the API.
+    val sourceBody = sourceAgent?.responseBody.orEmpty()
+    val resolvedMetaForDisplay = metaPrompt?.text?.let { template ->
+        com.ai.data.resolveSecondaryPrompt(
+            template,
+            question = loadedReportPrompt,
+            results = "",
+            count = 0,
+            title = loadedReportTitle
+        ).replace("@RESPONSE@", sourceBody)
+    }.orEmpty()
     val apiInteraction = when (pair.iconWinningTier) {
         1 -> buildFanOutTier1ApiInteraction(
             reportPrompt = loadedReportPrompt,
-            sourceResponse = sourceAgent?.responseBody,
-            metaPromptText = metaPrompt?.text.orEmpty(),
+            sourceResponse = sourceBody,
+            metaPromptText = resolvedMetaForDisplay,
             pairContent = pair.content,
             chatPrompt = chatPrompt?.text.orEmpty(),
             iconResponse = pair.icon
@@ -3438,8 +3456,8 @@ private fun PairIconDetailOverlay(
         2 -> {
             val resolved = (tier2Prompt?.text.orEmpty())
                 .replace("@QUESTION@", loadedReportPrompt)
-                .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
-                .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
+                .replace("@SOURCE_RESPONSE@", sourceBody)
+                .replace("@META_PROMPT@", resolvedMetaForDisplay)
                 .replace("@RESPONSE@", pair.content.orEmpty())
             buildOneShotApiInteraction(resolved, pair.icon)
         }
@@ -3453,8 +3471,8 @@ private fun PairIconDetailOverlay(
             // template as a sensible default.
             val resolved = (tier2Prompt?.text.orEmpty())
                 .replace("@QUESTION@", loadedReportPrompt)
-                .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
-                .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
+                .replace("@SOURCE_RESPONSE@", sourceBody)
+                .replace("@META_PROMPT@", resolvedMetaForDisplay)
                 .replace("@RESPONSE@", pair.content.orEmpty())
             buildOneShotApiInteraction(resolved, pair.icon)
         }
