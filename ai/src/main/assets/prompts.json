@@ -89,7 +89,7 @@
   },
   {
     "name": "report_3",
-    "title": "Find a fitting emoji for a report, 3rd try",
+    "title": "Find a fitting emoji for a report, 3th try",
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
@@ -113,7 +113,7 @@
   },
   {
     "name": "fan_out_3",
-    "title": "Find a fitting emoji for a fan-out pair response, 3rd try",
+    "title": "Find a fitting emoji for a fan-out pair response, 3th try",
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
@@ -145,17 +145,65 @@
   },
   {
     "name": "language",
-    "title": "Detect a prompt's language",
+    "title": "Detect a prompt's language + a fitting emoji",
     "reference": false,
     "category": "internal",
     "agent": "DeepSeek",
-    "text": "Identify the language of the text below. Reply with EXACTLY one line and nothing else, in this format:\n\nlanguage: <English name of the language>\n\nTEXT:\n@PROMPT@"
+    "text": "Identify the language of the text below.\n\nReply with EXACTLY two lines and nothing else:\nlanguage: <English name of the language>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@"
+  },
+  {
+    "name": "response",
+    "title": "Just the response",
+    "reference": false,
+    "category": "fan_out",
+    "agent": "*n/a",
+    "text": "@RESPONSE@"
+  },
+  {
+    "name": "factcheck",
+    "title": "Combine cross factchecks into one report",
+    "reference": false,
+    "category": "fan_out",
+    "agent": "*n/a",
+    "text": "Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@"
+  },
+  {
+    "name": "test",
+    "title": "Combine fan-out factcheck responses into one report",
+    "reference": false,
+    "category": "fan_in",
+    "agent": "*select",
+    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
+  },
+  {
+    "name": "factcheck",
+    "title": "Combine fan-out factchecks into one report",
+    "reference": false,
+    "category": "fan_in",
+    "agent": "*select",
+    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
+  },
+  {
+    "name": "m (a)",
+    "title": "model (a)",
+    "reference": false,
+    "category": "fan-in-model",
+    "agent": "*select",
+    "text": "model (a)"
+  },
+  {
+    "name": "m (n)",
+    "title": "model (b)",
+    "reference": false,
+    "category": "fan-in-model",
+    "agent": "*select",
+    "text": "model (b)"
   },
   {
     "name": "language",
     "title": "Find a fitting emoji for the report's detected language",
     "reference": false,
-    "category": "icons",
+    "category": "internal",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
@@ -208,51 +256,27 @@
     "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
   },
   {
-    "name": "response",
-    "title": "Just the response",
+    "name": "language",
+    "title": "Find a fitting emoji for the report's detected language",
     "reference": false,
-    "category": "fan_out",
-    "agent": "*n/a",
-    "text": "@RESPONSE@"
+    "category": "internal",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
-    "name": "factcheck",
-    "title": "Combine cross factchecks into one report",
+    "name": "language",
+    "title": "Find a fitting emoji for the report's detected language",
     "reference": false,
-    "category": "fan_out",
-    "agent": "*n/a",
-    "text": "Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@"
+    "category": "internal",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
-    "name": "test",
-    "title": "Combine fan-out factcheck responses into one report",
+    "name": "language",
+    "title": "Find a fitting emoji for the report's detected language",
     "reference": false,
-    "category": "fan_in",
-    "agent": "*select",
-    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
-  },
-  {
-    "name": "factcheck",
-    "title": "Combine fan-out factchecks into one report",
-    "reference": false,
-    "category": "fan_in",
-    "agent": "*select",
-    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
-  },
-  {
-    "name": "m (a)",
-    "title": "model (a)",
-    "reference": false,
-    "category": "fan-in-model",
-    "agent": "*select",
-    "text": "model (a)"
-  },
-  {
-    "name": "m (n)",
-    "title": "model (b)",
-    "reference": false,
-    "category": "fan-in-model",
-    "agent": "*select",
-    "text": "model (b)"
+    "category": "icons",
+    "agent": "DeepSeek",
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   }
 ]
