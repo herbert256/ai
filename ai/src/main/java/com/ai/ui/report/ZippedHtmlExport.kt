@@ -61,9 +61,15 @@ import java.util.zip.ZipOutputStream
 internal fun buildZippedHtmlBytes(
     context: Context,
     report: Report,
-    /** Language filter. null = include every language (current default,
-     *  per-language top-level dirs). "" = original only. Non-empty =
-     *  single named language, matched via [languageKey]. */
+    /** Language filter. null = include every language (per-language
+     *  top-level dirs, the multi-language layout documented above).
+     *  "" = original only. Non-empty = single named language, matched
+     *  via [languageKey]. Both single-language modes drop the
+     *  `<langKey>/` wrapping dir + the multi-language root index —
+     *  the single language's sections are emitted at the zip root so
+     *  the bundle is `index.html` + `Reports/` etc. directly. Drives
+     *  the `dutch/html/...` directory inside the bulk export master
+     *  zip when the user picks One language. */
     language: String? = null
 ): ByteArray {
     val data = buildHtmlReportData(context, report)
@@ -72,25 +78,31 @@ internal fun buildZippedHtmlBytes(
         val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
         allLanguages.filter { it.key == targetKey }.ifEmpty { allLanguages.take(1) }
     }
-    val originalView = languages.first()
-    // Trace + report indexes are built off the Original view only —
-    // translations don't add new traces beyond those tagged with the
-    // source report's id (which already live in originalView.data).
-    val originalTraces = traceLocsForOwn(originalView.data, jsonRoot = "original/JSON/")
-    val originalReportIndex = buildReportIndex(originalView.data, basePath = "original/", origin = "this")
+    val flat = language != null
     val baos = ByteArrayOutputStream()
     ZipOutputStream(baos.buffered()).use { zos ->
         emit(zos, "style.css", sharedCss())
-        emit(zos, "index.html", zipRootIndex(data, languages))
+        // Multi-language root index — skipped in flat mode where the
+        // single language's own index takes the root slot.
+        if (!flat) emit(zos, "index.html", zipRootIndex(data, languages))
         languages.forEach { lv ->
             val isOriginal = (lv.key == "original")
+            // Flat: section files land at the zip root (no `dutch/`
+            // prefix). Multi-lang: each language gets its own subdir.
+            val basePath = if (flat) "" else "${lv.key}/"
+            // Trace + report cross-link indexes need the same root —
+            // bug links from agent / secondary pages back to the JSON
+            // trace pages and inverse `📄 report` links must resolve
+            // to wherever this language actually writes its files.
+            val traceIndex = if (isOriginal) traceLocsForOwn(lv.data, jsonRoot = "${basePath}JSON/") else emptyList()
+            val reportIndex = if (isOriginal) buildReportIndex(lv.data, basePath = basePath, origin = "this") else emptyList()
             emitLanguageSections(
                 zos = zos,
                 data = lv.data,
                 lv = lv,
-                traceIndex = if (isOriginal) originalTraces else emptyList(),
-                reportIndex = if (isOriginal) originalReportIndex else emptyList(),
-                basePath = "${lv.key}/",
+                traceIndex = traceIndex,
+                reportIndex = reportIndex,
+                basePath = basePath,
                 isOriginal = isOriginal
             )
         }
@@ -112,21 +124,24 @@ private fun emitLanguageSections(
     basePath: String,
     isOriginal: Boolean
 ) {
+    // Empty basePath = flat single-language layout. Breadcrumbs skip
+    // the language hop since the language IS the root.
+    val langDisplay = if (basePath.isEmpty()) null else lv.displayName
     emit(zos, "${basePath}index.html", languageIndex(data, lv, basePath, isOriginal))
 
-    if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath, lv.displayName)
-    emitMetaSections(zos, data, traceIndex, basePath, lv.displayName)
+    if (data.agents.isNotEmpty()) emitReports(zos, data, traceIndex, basePath, langDisplay)
+    emitMetaSections(zos, data, traceIndex, basePath, langDisplay)
     if (isOriginal) {
-        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath, lv.displayName)
-        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath, lv.displayName)
+        emitSecondaryKind(zos, data, SecondaryKind.RERANK, "Reranks", traceIndex, basePath, langDisplay)
+        emitSecondaryKind(zos, data, SecondaryKind.MODERATION, "Moderations", traceIndex, basePath, langDisplay)
     }
-    if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath, lv.displayName)
+    if (data.prompt.isNotBlank()) emitPrompt(zos, data, basePath, langDisplay)
     if (isOriginal) {
         if (data.agents.any { it.inputCost != null } || data.secondary.any { it.inputTokens != null }) {
-            emitCosts(zos, data, basePath, lv.displayName)
+            emitCosts(zos, data, basePath, langDisplay)
         }
         if (data.traces.any { it.origin == "this" }) {
-            emitTraces(zos, data, reportIndex, basePath, lv.displayName)
+            emitTraces(zos, data, reportIndex, basePath, langDisplay)
         }
     }
 }
@@ -319,26 +334,47 @@ private fun zipRootIndex(data: HtmlReportData, languages: List<HtmlLanguageView>
 }
 
 /** Per-language index page — lists the sections inside this language's
- *  directory. Sits at `<langKey>/index.html`. Links upward to the zip
- *  root via "../index.html". */
+ *  directory. In the multi-language layout it sits at
+ *  `<langKey>/index.html` with a breadcrumb back to the zip root; in
+ *  the flat (single-language) layout it sits at `index.html` directly
+ *  and there's no root to link back to, so the breadcrumb is dropped
+ *  and the report title fronts the body. */
 private fun languageIndex(data: HtmlReportData, lv: HtmlLanguageView, basePath: String, isOriginal: Boolean): String {
     val sb = StringBuilder()
+    val flat = basePath.isEmpty()
     sb.append(htmlHead(title = "${lv.displayName} - ${data.title}", depth = 0, basePath = basePath))
-    // Two-step breadcrumb back up to the zip root.
-    sb.append("<nav>")
-        .append("<a href='../index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>")
-        .append(" <span class='sep'>›</span> ")
-        .append("<span class='here'>${esc(lv.displayName)}</span>")
-        .append("</nav>")
+    if (!flat) {
+        // Two-step breadcrumb back up to the zip root.
+        sb.append("<nav>")
+            .append("<a href='../index.html'>${esc(data.title.ifBlank { "AI Report" })}</a>")
+            .append(" <span class='sep'>›</span> ")
+            .append("<span class='here'>${esc(lv.displayName)}</span>")
+            .append("</nav>")
+    }
     sb.append("<main>")
-    sb.append("<h1>").append(esc(lv.displayName))
-    if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
-    sb.append("</h1>")
-    sb.append("<h2>Sections</h2><ul class='section-list'>")
+    if (flat) {
+        // Flat layout has no zip-root page, so this IS the root —
+        // surface the report title + timestamp + rapport text here
+        // (the same content zipRootIndex would otherwise show).
+        sb.append("<h1>").append(esc(data.title.ifBlank { "AI Report" })).append("</h1>")
+        sb.append("<div class='meta'>").append(esc(data.timestamp)).append("</div>")
+        if (!data.rapportText.isNullOrBlank()) sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(data.rapportText)}</div>")
+        sb.append("<h2>").append(esc(lv.displayName))
+        if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
+        sb.append("</h2>")
+    } else {
+        sb.append("<h1>").append(esc(lv.displayName))
+        if (lv.nativeName != null) sb.append(" <span class='count'>").append(esc(lv.nativeName)).append("</span>")
+        sb.append("</h1>")
+        sb.append("<h2>Sections</h2>")
+    }
+    sb.append("<ul class='section-list'>")
     languageSections(data, isOriginal).forEach { (label, href) ->
         sb.append("<li><a href='${esc(href)}index.html'>").append(esc(label)).append("</a></li>")
     }
-    sb.append("</ul></main></body></html>")
+    sb.append("</ul>")
+    if (flat && !data.closeText.isNullOrBlank()) sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(data.closeText)}</div>")
+    sb.append("</main></body></html>")
     return sb.toString()
 }
 
