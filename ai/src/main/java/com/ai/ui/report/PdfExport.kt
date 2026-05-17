@@ -42,6 +42,18 @@ enum class ReportExportFormat(val displayName: String) {
 enum class ReportExportDetail { SHORT, COMPLETE }
 enum class ReportExportAction { SHARE, VIEW }
 
+/** Where the user wants the export to land. Drives the Target
+ *  card on [com.ai.ui.report.ReportExportScreen]:
+ *  ANDROID_SHARE → system share sheet (ReportExportAction.SHARE),
+ *  VIEW_BROWSER → external browser / viewer (ReportExportAction.VIEW),
+ *  VIEW_APP → inline WebView preview inside the app
+ *  (calls onViewInApp directly, bypasses the runExport path). */
+enum class ReportExportTarget(val displayName: String) {
+    ANDROID_SHARE("Android share"),
+    VIEW_BROWSER("View in browser"),
+    VIEW_APP("View in app")
+}
+
 internal const val REDACTED = "[REDACTED]"
 internal val SENSITIVE_HEADERS = setOf("authorization", "proxy-authorization", "x-api-key", "api-key", "cookie", "set-cookie")
 internal val SENSITIVE_JSON_KEYS = setOf("api_key", "apikey", "authorization", "token", "access_token", "refresh_token", "password", "secret")

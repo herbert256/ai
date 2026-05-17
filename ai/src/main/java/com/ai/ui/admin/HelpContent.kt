@@ -588,13 +588,15 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "report_export" to HelpContent(
         title = "Export report",
         cards = listOf(
-            HelpCard("Overview", "Pick a format and (when relevant) a detail level, then either share to another app, view in browser, or build the master Export-all zip."),
+            HelpCard("Overview", "Pick a format, a detail level, and a target (where the export lands), then tap the green Export button at the top of the page to commit. The page also exposes a separate Export-all-zip button at the bottom."),
+            HelpCard("Export button (top)", "The single green CTA at the top of the page. Fires whichever Target chip is selected — Android share / View in browser / View in app. Disabled while a previous export is still building."),
             HelpCard("Format chips", "HTML, PDF, MS Word, OpenDocument, JSON, Zipped HTML — wrap to a second row on narrow phones via FlowRow. JSON and Zipped HTML ignore the detail picker; everything else honors it."),
             HelpCard("Detail — Short", "Prompt, per-model results (with citations and related questions), Meta sections (one per Meta prompt) plus Moderations. No index, no costs, no traces."),
             HelpCard("Detail — Complete", "Index, prompt, every Meta section, Reranks / Moderations / Translations, the cost table, and every captured API trace with redacted bodies."),
-            HelpCard("Android share", "Builds the file and hands it to the system share sheet. Closes the Export screen so back from the chooser doesn't loop here."),
-            HelpCard("View in browser", "Builds the file and opens it as a separate Android intent. Stays on this screen so you can come back and try a different format without rebuilding the picker state."),
-            HelpCard("Export all (zip)", "Bundles all 8 documents (Short + Complete × HTML / PDF / DOCX / ODT) plus the JSON traces zip into one master zip and shares it. Pops the screen on success."),
+            HelpCard("Target — Android share", "Builds the file and hands it to the system share sheet. Closes the Export screen so back from the chooser doesn't loop here."),
+            HelpCard("Target — View in browser", "Builds the file and opens it as a separate Android intent (system browser for HTML; viewer app for PDF / Word / ODT). Stays on this screen so you can come back and try a different format without rebuilding picker state."),
+            HelpCard("Target — View in app", "Renders the HTML inline in the in-app WebView preview — no external app launched. Only available when Format is HTML; the chip disappears for other formats and the selection auto-falls back to View in browser."),
+            HelpCard("Export all (zip)", "Bundles all 8 documents (Short + Complete × HTML / PDF / DOCX / ODT) plus the JSON traces zip into one master zip and shares it. Pops the screen on success. Bypasses the Format / Detail / Target picks."),
             HelpCard("Progress dialog", "While building, a non-dismissable dialog shows a linear progress bar driven by (done, total) updates from the export. Failures show a Toast with the exception class + message; the dialog clears."),
         )
     ),

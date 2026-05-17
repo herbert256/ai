@@ -48,7 +48,18 @@ fun ReportExportScreen(
     val scope = rememberCoroutineScope()
     var format by rememberSaveable { mutableStateOf(ReportExportFormat.HTML) }
     var detail by rememberSaveable { mutableStateOf(ReportExportDetail.COMPLETE) }
+    var target by rememberSaveable { mutableStateOf(ReportExportTarget.VIEW_BROWSER) }
     var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val showViewInApp = format == ReportExportFormat.HTML
+    // If the user had VIEW_APP picked and then flips Format to a
+    // non-HTML option, the chip vanishes — reset the selection so
+    // we don't render with a hidden chip "selected" and an Export
+    // button that fires the wrong path.
+    LaunchedEffect(showViewInApp) {
+        if (!showViewInApp && target == ReportExportTarget.VIEW_APP) {
+            target = ReportExportTarget.VIEW_BROWSER
+        }
+    }
 
     progress?.let { (done, total) ->
         AlertDialog(
@@ -67,8 +78,50 @@ fun ReportExportScreen(
         )
     }
 
+    fun runExport(action: ReportExportAction) {
+        val pickedFormat = format
+        val pickedDetail = detail
+        scope.launch {
+            progress = 0 to 1
+            try {
+                onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
+                progress = null
+                // For SHARE the share sheet itself is the user's last action so we
+                // collapse this screen away. For VIEW the file just opened in the
+                // browser as a separate app — keep the Export screen alive so back
+                // from the browser lands here with the format/detail choices intact.
+                if (action == ReportExportAction.SHARE) onBack()
+            } catch (e: Exception) {
+                AppLog.e("ReportExport", "Export failed", e)
+                progress = null
+                android.widget.Toast.makeText(
+                    context,
+                    "Export failed: ${e.javaClass.simpleName}: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_export", title = "Export", onBackClick = onBack)
+        // Primary CTA hoisted to the top — same rule the settings
+        // edit screens follow (commit ea047c17). Dispatches based
+        // on the Target chip below.
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = {
+                when (target) {
+                    ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
+                    ReportExportTarget.VIEW_BROWSER -> runExport(ReportExportAction.VIEW)
+                    ReportExportTarget.VIEW_APP -> onViewInApp(detail)
+                }
+            },
+            enabled = progress == null,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Export", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -117,60 +170,39 @@ fun ReportExportScreen(
                     }
                 }
             }
-        }
 
-        fun runExport(action: ReportExportAction) {
-            val pickedFormat = format
-            val pickedDetail = detail
-            scope.launch {
-                progress = 0 to 1
-                try {
-                    onExport(pickedFormat, pickedDetail, action) { d, t -> progress = d to t }
-                    progress = null
-                    // For SHARE the share sheet itself is the user's last action so we
-                    // collapse this screen away. For VIEW the file just opened in the
-                    // browser as a separate app — keep the Export screen alive so back
-                    // from the browser lands here with the format/detail choices intact.
-                    if (action == ReportExportAction.SHARE) onBack()
-                } catch (e: Exception) {
-                    AppLog.e("ReportExport", "Export failed", e)
-                    progress = null
-                    android.widget.Toast.makeText(
-                        context,
-                        "Export failed: ${e.javaClass.simpleName}: ${e.message}",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
+            // Target card — where the export should land. Mirrors
+            // the Detail card's FilterChip layout. The VIEW_APP chip
+            // is omitted when the format isn't HTML (the in-app
+            // viewer only renders HTML).
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Target", fontWeight = FontWeight.Bold, color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ReportExportTarget.entries
+                            .filter { it != ReportExportTarget.VIEW_APP || showViewInApp }
+                            .forEach { t ->
+                                FilterChip(
+                                    selected = target == t,
+                                    onClick = { target = t },
+                                    label = { Text(t.displayName) }
+                                )
+                            }
+                    }
+                    Text(
+                        when (target) {
+                            ReportExportTarget.ANDROID_SHARE ->
+                                "Hand off the rendered file via Android's system share sheet."
+                            ReportExportTarget.VIEW_BROWSER ->
+                                "Open the rendered file in the system browser (HTML) or a viewer app (PDF / Word / ODT)."
+                            ReportExportTarget.VIEW_APP ->
+                                "Render the HTML inline in the in-app WebView preview — no external app launched."
+                        },
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
                 }
             }
         }
-
-        val showViewInApp = format == ReportExportFormat.HTML
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
-                onClick = { runExport(ReportExportAction.SHARE) },
-                enabled = progress == null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("Android share", maxLines = 1, softWrap = false) }
-
-            Button(
-                onClick = { runExport(ReportExportAction.VIEW) },
-                enabled = progress == null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-            ) { Text("View in browser", maxLines = 1, softWrap = false) }
-
-            if (showViewInApp) {
-                Button(
-                    onClick = { onViewInApp(detail) },
-                    enabled = progress == null,
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("View in app", maxLines = 1, softWrap = false) }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
 
         // "Export all" — bundle all 8 documents (Short + Complete × HTML
         // / PDF / DOCX / ODT) plus the JSON traces zip into a single
