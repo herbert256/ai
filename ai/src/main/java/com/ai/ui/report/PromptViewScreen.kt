@@ -112,7 +112,15 @@ fun PromptViewScreen(
     ) { virtualCount }
     val currentLanguage = if (languages.isEmpty()) ""
         else languages[((pagerState.currentPage % languages.size) + languages.size) % languages.size]
-    val subject = currentLanguage.ifBlank { "Original" }
+    // Subject = the language's emoji icon (source-language icon for
+    // Original, cached translation icon for translated pages). Hidden
+    // entirely (null) when the report has no translations — a single-
+    // language report doesn't need a per-page indicator.
+    val subject = when {
+        languages.size <= 1 -> null
+        currentLanguage.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() }
+        else -> com.ai.data.InternalPromptIconCache.get("translation_icon", currentLanguage)
+    }
 
     // Android back returns to the parent View screen AND tells it
     // which language ended up active here, so the parent's picker
@@ -180,7 +188,7 @@ private fun PromptPageCard(body: String, reportIcon: String?) {
             // emoji so the page still feels anchored to its report
             // even after the previous header row was removed.
             if (!reportIcon.isNullOrBlank()) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text(text = reportIcon, fontSize = 26.sp)
                 }
             }
