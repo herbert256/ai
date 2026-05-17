@@ -189,13 +189,20 @@ internal fun buildEveryItems(
     // Translate: one item per translationRunId. The locked-language
     // parameter is ignored — a translation run is inherently
     // single-language; there's no picker to suppress downstream.
+    // sourceRows surfaces the run's first row so the Report - view
+    // tile click can route to a content-only TranslateViewScreen
+    // (it reads translationRunId off the seed row to load the run).
     val translate = secondaryRuns
         .filter { it.kind == SecondaryKind.TRANSLATE }
         .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
         .map { (runId, rows) ->
             val first = rows.first()
             val label = first.targetLanguageNative ?: first.targetLanguage ?: "(language)"
-            EveryItem(label) { _ -> onOpenTranslationRun(runId) }
+            EveryItem(
+                label = label,
+                sourceRows = listOf(first),
+                open = { _ -> onOpenTranslationRun(runId) }
+            )
         }
     return mapOf(
         "meta" to meta,

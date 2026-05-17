@@ -213,6 +213,19 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Translate "View" overlay — keyed by translationRunId so all
+    // siblings of a single Translate batch render together as a
+    // stacked source/translation list.
+    var translateViewRunId by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeTranslateViewRunId = translateViewRunId
+    if (activeTranslateViewRunId != null) {
+        TranslateViewScreen(
+            reportId = reportId,
+            translationRunId = activeTranslateViewRunId,
+            onBack = { translateViewRunId = null }
+        )
+        return
+    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -642,7 +655,8 @@ internal fun ViewAiReportScreen(
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
                                 openFanIn = { id -> fanInViewRowId = id },
-                                openFanInModel = { id -> fanInModelViewRowId = id })
+                                openFanInModel = { id -> fanInModelViewRowId = id },
+                                openTranslate = { runId -> translateViewRunId = runId })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
                     }
@@ -792,7 +806,8 @@ internal fun ViewAiReportScreen(
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
                                 openFanIn = { id -> fanInViewRowId = id },
-                                openFanInModel = { id -> fanInModelViewRowId = id })
+                                openFanInModel = { id -> fanInModelViewRowId = id },
+                                openTranslate = { runId -> translateViewRunId = runId })
                         }
                     )
                 }
@@ -1250,14 +1265,24 @@ private fun openComputedItem(
     openRerank: (String) -> Unit,
     openModeration: (String) -> Unit,
     openFanIn: (String) -> Unit,
-    openFanInModel: (String) -> Unit
+    openFanInModel: (String) -> Unit,
+    openTranslate: (String) -> Unit
 ) {
-    val rowId = item.sourceRows?.firstOrNull()?.id
+    val seed = item.sourceRows?.firstOrNull()
+    val rowId = seed?.id
     when (key) {
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
         "fan-in-model" -> if (rowId != null) openFanInModel(rowId) else item.open(language)
+        "translate" -> {
+            // Translate items key by translationRunId (or a synthesised
+            // lang:<name> sentinel for legacy rows missing a runId).
+            // Same scheme buildEveryItems uses for grouping; the
+            // TranslateViewScreen then loads every row sharing this id.
+            val runKey = seed?.translationRunId ?: seed?.targetLanguage?.let { "lang:$it" }
+            if (runKey != null) openTranslate(runKey) else item.open(language)
+        }
         else -> item.open(language)
     }
 }
