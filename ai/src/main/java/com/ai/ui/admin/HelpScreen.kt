@@ -17,6 +17,20 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.ui.shared.*
 
+/** Help topics that were originally inline sections on the Help
+ *  home and have been promoted to their own subpages. Two effects:
+ *  (a) HelpScreen renders the matching table Composable after the
+ *  topic's cards loop (so the topic acts as a thin frame around
+ *  the legacy table widget); (b) titleBarHelpTopic returns "" for
+ *  these ids so the ❓ icon in the subpage's title bar goes back
+ *  to Help home instead of opening the help-of-help meta page. */
+private val HELP_HOME_SUBPAGES = setOf(
+    "help_home_icons",
+    "help_home_info_providers",
+    "help_home_ai_providers",
+    "concepts"
+)
+
 
 @Composable
 fun HelpScreen(
@@ -47,9 +61,18 @@ fun HelpScreen(
     // for this screen"). The meta-topic's own page hides ❓ so it
     // doesn't loop. The bare Help home (topicId == null) leaves ❓
     // off because the home view IS the general help.
+    //
+    // Help-home subpages (the icons / info providers / AI providers
+    // tables that used to render inline, plus the "concepts" how-it-
+    // works page) get a ❓ that returns to Help home instead — the
+    // user already came from there, so a second-tier "help for
+    // help" page would be more confusing than useful. Empty string
+    // routes through rootNavigateHelp → NavRoutes.HELP, which is
+    // the topic-less landing page.
     val titleBarHelpTopic = when {
         topicId.isNullOrBlank() -> null
         topicId == "help_topic_view" -> null
+        topicId in HELP_HOME_SUBPAGES -> ""
         else -> "help_topic_view"
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -57,6 +80,16 @@ fun HelpScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
+                // The three table subpages of Help home (icons /
+                // info providers / AI providers) attach their
+                // legacy table widget here, below the topic's
+                // Overview card. Kept out of HelpContent.kt because
+                // those tables are Composables, not strings.
+                when (topicId) {
+                    "help_home_icons" -> HelpIconTable()
+                    "help_home_info_providers" -> InfoProviderTable(onNavigateToTopic)
+                    "help_home_ai_providers" -> CloudProviderTable(onNavigateToTopic)
+                }
             } else {
                 CompactOverview(onNavigateToTopic, onNavigateToAbout)
             }
@@ -117,6 +150,26 @@ private fun HelpFooter(
     }
 }
 
+/** Tap-through card used on Help home to jump to a topic-style
+ *  subpage. Same chrome as a HelpSection (Card + 14 dp padding),
+ *  but the body is a single description line under a clickable
+ *  title and the whole Row carries the click handler. */
+@Composable
+private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(icon, fontSize = 14.sp, modifier = Modifier.width(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(blurb, fontSize = 12.sp, color = AppColors.TextSecondary)
+            }
+        }
+    }
+}
+
 @Composable
 private fun CompactOverview(
     onNavigateToTopic: (String) -> Unit = {},
@@ -130,36 +183,36 @@ private fun CompactOverview(
         "Per-screen help",
         "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
-    // "How it works" — the cross-screen behaviours topic. Surfaced
-    // as a tap-through card next to "Per-screen help" so the user
-    // discovers it from the Help landing page. The same destination
-    // is also linked from every per-topic page's HelpFooter.
-    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .clickable { onNavigateToTopic("concepts") }
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("🔧", fontSize = 14.sp, modifier = Modifier.width(24.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("How it works", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy. Anything the app does that isn't tied to one screen.",
-                    fontSize = 12.sp, color = AppColors.TextSecondary
-                )
-            }
-        }
-    }
+    // Tap-through subpage links — each opens its own help topic.
+    // Promoted out of the previous inline-table layout so the home
+    // page stays scannable. Each topic page's ❓ icon routes back to
+    // here (Help home), so navigation is one-tap out + one-tap back.
+    HomeSubpageLink(
+        "🔧", "How it works",
+        "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy. Anything the app does that isn't tied to one screen.",
+        onClick = { onNavigateToTopic("concepts") }
+    )
+    HomeSubpageLink(
+        "🧭", "Help icons",
+        "Legend for every title-bar / action-row / list icon in the app — what each glyph means and where it shows up.",
+        onClick = { onNavigateToTopic("help_home_icons") }
+    )
+    HomeSubpageLink(
+        "🛰", "Info providers",
+        "External services the app fetches metadata from — model lists, pricing tiers, capability flags. Drill in to see each one's freshness rules + fallback chain.",
+        onClick = { onNavigateToTopic("help_home_info_providers") }
+    )
+    HomeSubpageLink(
+        "☁️", "AI providers (cloud)",
+        "Every cloud LLM / embedder / reranker the app can talk to. Drill in for endpoint, auth, model-list freshness.",
+        onClick = { onNavigateToTopic("help_home_ai_providers") }
+    )
     HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +
             "2. Housekeeping → Refresh → Refresh all — verify keys + fetch model lists + seed default agents.\n" +
             "3. From the Hub, pick Reports / Chat / Knowledge / Models / Setup / Housekeeping."
     )
-    HelpIconTable()
-    InfoProviderTable(onNavigateToTopic)
-    CloudProviderTable(onNavigateToTopic)
     HelpSection(
         "Privacy",
         "All data stays on this device. API keys are sent only to their provider. No telemetry."

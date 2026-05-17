@@ -229,6 +229,24 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending the second rewrite pass — they link back to the original `doc/<name>.md` in the repo. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
         )
     ),
+    "help_home_icons" to HelpContent(
+        title = "Help icons",
+        cards = listOf(
+            HelpCard("Overview", "Legend for every icon you'll see in the app's title bars, action rows and lists. The table below pairs each glyph with what it does and where it shows up. Reached from the Help home → \"Help icons\" link.")
+        )
+    ),
+    "help_home_info_providers" to HelpContent(
+        title = "Info providers",
+        cards = listOf(
+            HelpCard("Overview", "External services the app fetches metadata from — model lists, pricing tiers, capability flags, free / spot pools. Tap a row in the table below to drill into that one provider's detail topic (where it's read, when it refreshes, fallback chain, …). Reached from the Help home → \"Info providers\" link.")
+        )
+    ),
+    "help_home_ai_providers" to HelpContent(
+        title = "AI providers (cloud)",
+        cards = listOf(
+            HelpCard("Overview", "Every cloud LLM / embedder / reranker provider the app can talk to. Tap a row in the table below for that provider's setup notes — endpoint, auth shape, model-list freshness, anything that's worth knowing before pasting an API key. Reached from the Help home → \"AI providers\" link.")
+        )
+    ),
     "concepts" to HelpContent(
         title = "How it works",
         cards = listOf(
