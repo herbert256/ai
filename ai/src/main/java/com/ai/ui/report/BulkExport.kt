@@ -19,14 +19,18 @@ import java.util.zip.ZipOutputStream
  * them into a single zip the user can hand off via the standard share
  * sheet.
  *
- * Layout depends on the [language] selector:
+ * Layout depends on whether the report has more than one language view
+ * and on the [language] selector:
  *
- * - `null` (All languages) — every language slice from
- *   [buildLanguageViews] gets its own top-level directory:
+ * - `null` (All languages) AND >1 language view — every language slice
+ *   from [buildLanguageViews] gets its own top-level directory:
  *     original/docs/<title>_short.html  …  original/docs/<title>_complete.odt
  *     original/html/                    (per-language Zipped HTML)
  *     dutch/docs/…                      german/docs/…
  *     json/                             (language-agnostic trace bundle)
+ * - `null` AND only 1 language view (the common no-translations case)
+ *   collapses to the same flat layout the explicit One-language modes
+ *   produce; the wrapping `original/` dir is dropped.
  * - `""` or non-empty (One language) — flat layout for that single
  *   language:
  *     docs/<title>_short.html  …  docs/<title>_complete.odt
@@ -74,6 +78,11 @@ internal suspend fun bulkExportAndShare(
         val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
         allViews.filter { it.key == targetKey }.ifEmpty { allViews.take(1) }
     }
+    // Per-language top-level dirs only when there's actually >1
+    // language. The common case (a report with no translations) keeps
+    // the pre-refactor flat `docs/` + `html/` + `json/` layout instead
+    // of pointlessly wrapping the single Original view in `original/`.
+    val perLanguageDirs = (language == null && viewsToRender.size > 1)
     // 9 artifacts per language (2 HTML + 2 DOCX + 2 ODT + 2 PDF +
     // 1 zipped HTML) plus a single trace bundle.
     val total = viewsToRender.size * 9 + 1
@@ -92,7 +101,7 @@ internal suspend fun bulkExportAndShare(
         // `html/` (one-language mode).
         val zippedHtmlPerLang = LinkedHashMap<String, ByteArray>()
         viewsToRender.forEach { lv ->
-            val langDir = if (language == null) {
+            val langDir = if (perLanguageDirs) {
                 File(workDir, lv.key).also { it.mkdirs() }
             } else workDir
             val data = lv.data
@@ -151,7 +160,7 @@ internal suspend fun bulkExportAndShare(
         }
         val masterZip = File(outDir, "ai_report_${safeTitle}_all${langTag}_$ts.zip")
         ZipOutputStream(masterZip.outputStream().buffered()).use { zos ->
-            if (language == null) {
+            if (perLanguageDirs) {
                 viewsToRender.forEach { lv ->
                     val langDir = File(workDir, lv.key)
                     langDir.listFiles()?.sortedBy { it.name }?.forEach { f ->
