@@ -59,7 +59,7 @@ import com.ai.R
 @Composable
 fun ViewScreenTitleBar(
     reportTitle: String?,
-    screenTitle: String,
+    screenTitle: String?,
     subject: String?,
     helpTopic: String,
     @Suppress("UNUSED_PARAMETER") onBack: () -> Unit
@@ -133,16 +133,18 @@ fun ViewScreenTitleBar(
                 modifier = Modifier.clickable { navigateHelp(helpTopic) }
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = screenTitle,
-            color = AppColors.Orange,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (!screenTitle.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = screenTitle,
+                color = AppColors.Orange,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         if (!subject.isNullOrBlank()) {
             Spacer(modifier = Modifier.height(2.dp))
             Text(

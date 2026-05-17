@@ -123,6 +123,13 @@ internal fun LanguagePickerRow(
      *  emoji); otherwise falls back to the plain "Original" text. */
     useIcons: Boolean = false,
     originalIcon: String? = null,
+    /** Font size for the language emoji in icon mode. Defaults to
+     *  28 sp; the Report - view tile grid bumps this to surface the
+     *  picker as the dominant row. */
+    iconFontSize: androidx.compose.ui.unit.TextUnit = 28.sp,
+    /** When true the FlowRow's children centre horizontally
+     *  (defaults to start-aligned, which is the original behaviour). */
+    centered: Boolean = false,
     // Icon-mode children carry their own 6dp left padding (tap-area
     // headroom), so the FlowRow's own start padding is dropped to
     // 10dp — the first glyph then lands at 10 + 6 = 16dp, lined up
@@ -138,7 +145,8 @@ internal fun LanguagePickerRow(
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = if (centered) Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                                else Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         languages.forEach { lang ->
@@ -156,7 +164,7 @@ internal fun LanguagePickerRow(
                 val isEmoji = emoji != null
                 Text(
                     content,
-                    fontSize = if (isEmoji) 28.sp else 12.sp,
+                    fontSize = if (isEmoji) iconFontSize else 12.sp,
                     color = if (isEmoji) Color.Unspecified else Color.White,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1, softWrap = false,
