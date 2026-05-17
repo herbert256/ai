@@ -2607,6 +2607,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  so the L1/L2/L3 classifier reads the pair as "no icon yet"
      *  rather than ❌. A subsequent fan-icons batch will pick them
      *  up via the standard `icon == null` pending filter. */
+    /** A pair counts as "in error from the icon-chain's POV"
+     *  whenever it has either an explicit iconErrorMessage stamp
+     *  OR landed as a "no content, but the original call
+     *  finished" SR (Gemini safety filter, etc.). The latter
+     *  can't ever produce an icon — runFanIconsBatch skips
+     *  no-content pairs at its pending filter — but iconStatus
+     *  still surfaces them as ERROR, so the L1 stats counter
+     *  treats them as errors and so should Remove / Restart. */
+    private fun isFanIconError(sr: SecondaryResult): Boolean =
+        !sr.iconErrorMessage.isNullOrBlank() ||
+            (sr.content.isNullOrBlank() && (sr.errorMessage != null || sr.durationMs != null))
+
     fun clearFanIconErrors(context: Context, reportId: String, metaPromptId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
@@ -2616,10 +2628,25 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.metaPromptId == metaPromptId &&
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
-                            !it.iconErrorMessage.isNullOrBlank()
+                            isFanIconError(it)
                     }
                 for (e in errored) {
-                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                    if (e.content.isNullOrBlank()) {
+                        // No-content pair — the icon chain can never
+                        // run on it, so the user pressing Remove or
+                        // Restart on this row should commit the 📝
+                        // sentinel as a permanent "no source content
+                        // to inspect" marker. The pair flips to DONE
+                        // in iconStatus and stops appearing as an
+                        // error on subsequent loads.
+                        SecondaryResultStorage.setFanOutIconAndTier(
+                            context, reportId, e.id,
+                            icon = "📝", winningTier = null,
+                            promptUsed = null
+                        )
+                    } else {
+                        SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                    }
                 }
                 AppLog.i(
                     "FanIcons",
@@ -2630,10 +2657,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Clear errors via [clearFanIconErrors], then re-fire the
-     *  fan-icons batch. The batch's standard pending filter
-     *  (`icon == null`) picks up the just-cleared pairs and
-     *  re-runs the chain on them; DONE pairs are left alone. */
+    /** Clear errors via the [isFanIconError] filter, then re-fire
+     *  the fan-icons batch. Pairs with content get their icon
+     *  state cleared and a fresh chain attempt; no-content pairs
+     *  get the 📝 fallback stamped directly because the batch's
+     *  pending filter would skip them anyway. */
     fun restartFanIconErrors(context: Context, reportId: String, metaPromptId: String): Job? {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
@@ -2643,16 +2671,29 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         it.metaPromptId == metaPromptId &&
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
-                            !it.iconErrorMessage.isNullOrBlank()
+                            isFanIconError(it)
                     }
+                var cleared = 0
+                var stamped = 0
                 for (e in errored) {
-                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                    if (e.content.isNullOrBlank()) {
+                        SecondaryResultStorage.setFanOutIconAndTier(
+                            context, reportId, e.id,
+                            icon = "📝", winningTier = null,
+                            promptUsed = null
+                        )
+                        stamped++
+                    } else {
+                        SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                        cleared++
+                    }
                 }
                 AppLog.i(
                     "FanIcons",
-                    "cleared icon state on ${errored.size} errored pair(s) — restarting batch"
+                    "restart: $cleared pair(s) cleared for re-chain, $stamped no-content pair(s) stamped 📝"
                 )
             }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
         return runFanIconsBatch(context, reportId, metaPromptId)
     }
