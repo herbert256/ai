@@ -11,17 +11,21 @@
   it would mis-render in the home-screen grid.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="58dp"
-    android:height="76dp"
-    android:viewportWidth="58"
-    android:viewportHeight="76">
-    <!-- Shift the original 108 x 108 paths so the content bbox
-         (originally x:26..82, y:16..88) starts at (1,2). The
-         extra 1-unit left/right + 2-unit top/bottom margins keep
-         the bottom-middle node (the lowest pixel of the artwork)
-         from getting nibbled by anti-aliasing when the asset is
-         scaled into a square container. -->
-    <group android:translateX="-25" android:translateY="-14">
+    android:width="62dp"
+    android:height="96dp"
+    android:viewportWidth="62"
+    android:viewportHeight="96">
+    <!-- Shift the original 108 x 108 paths to fit the cropped
+         viewport. The "M X,Y a r,r 0 1,0 0.01,0 z" circle paths
+         render with the visual center offset DOWN by r from the
+         M-point in SVG arc semantics, so the bottom-middle node
+         (M54,84 r=4) actually paints at center (54,88), bottom
+         edge y=92. Plus the strokes from I to bottom-middle node
+         end at y=87. With strokeWidth=1.5 half-stroke pushes
+         visible y to ~88. So the real content y-range is roughly
+         16..92 in original coords. Margin viewport at 62 x 96 with
+         translate(-23, -13) keeps everything inside the box. -->
+    <group android:translateX="-23" android:translateY="-13">
 
         <!-- Letter A -->
         <path
