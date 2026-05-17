@@ -529,6 +529,16 @@ fun AppNavHost(
             // toggle. Doing it here at the nav arg level would
             // freeze the recorded mode to the entry path even after
             // the user toggled inside the screen.
+            //
+            // Per-report system-prompt setter surfaced via Composition-
+            // Local so [ReportRunScreen]'s Edit Row 2 "System prompt"
+            // dialog can fire it without adding another arg to
+            // [ReportsScreen]'s 60+ param signature.
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalSystemPromptChange provides { id ->
+                    appViewModel.setReportSystemPromptId(id)
+                }
+            ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -610,6 +620,7 @@ fun AppNavHost(
                         navController.navigate(NavRoutes.aiReportView())
                     }
                 })
+            }
         }
         composable(NavRoutes.AI_PROMPT_HISTORY) {
             PromptHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,

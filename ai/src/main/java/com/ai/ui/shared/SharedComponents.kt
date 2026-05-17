@@ -206,6 +206,15 @@ val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
  *  takes the user back to the active report's result page. */
 val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
 
+/** Per-report system-prompt setter, provided around the AI_REPORTS
+ *  composable in AppNavHost so descendants (Report - manage's Edit
+ *  Row 2) can fire the per-report system-prompt picker without
+ *  needing the callback threaded through 30+ function arguments —
+ *  ReportsScreen's signature sits at the JVM 64 KB per-method
+ *  bytecode ceiling, so a CompositionLocal is the cheapest way to
+ *  surface the function to nested screens. Default no-op. */
+val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid
@@ -325,7 +334,20 @@ data class TitleBarIcons(
      *  time. Cannot be re-read from the local inside BottomIconBar
      *  itself — the bar lives at AppNavHost scope where the per-screen
      *  CompositionLocalProvider override isn't visible. */
-    val onMemo: (() -> Unit)?
+    val onMemo: (() -> Unit)?,
+    /** Optional 📑 duplicate-report hook. Distinct from [onCopy] which
+     *  is clipboard-copy: this one calls `ReportViewModel.copyReport`
+     *  to make a `(Copy)`-suffixed duplicate of the underlying report.
+     *  Wired from Report - manage. Null → icon hidden. */
+    val onCopyReport: (() -> Unit)? = null,
+    /** Optional 📌 pin / unpin hook. Toggles `Report.pinned` so the
+     *  report surfaces in the Hub's Pinned section. Wired from
+     *  Report - manage. Null → icon hidden. */
+    val onPin: (() -> Unit)? = null,
+    /** Current pinned state, read by the bottom bar to colour the 📌
+     *  glyph (orange when pinned, white when not). Ignored when
+     *  [onPin] is null. */
+    val isPinned: Boolean = false
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -552,6 +574,16 @@ fun TitleBar(
      *  title double as a navigation toggle between them. Null →
      *  title is non-interactive. */
     onTitleClick: (() -> Unit)? = null,
+    /** Optional 📑 duplicate-report hook. Different from [onCopy]
+     *  (which is clipboard copy) — this one duplicates the underlying
+     *  report. Used by Report - manage. Null → icon hidden. */
+    onCopyReport: (() -> Unit)? = null,
+    /** Optional 📌 pin / unpin hook. Toggles `Report.pinned`. Used by
+     *  Report - manage. Null → icon hidden. */
+    onPin: (() -> Unit)? = null,
+    /** Current pinned state, drives the 📌 glyph colour in the bottom
+     *  bar (orange when pinned). Ignored when [onPin] is null. */
+    isPinned: Boolean = false,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -590,7 +622,10 @@ fun TitleBar(
         onDelete = onDelete,
         onTrace = onTrace,
         onTranslationCompare = onTranslationCompare,
-        onMemo = null
+        onMemo = null,
+        onCopyReport = onCopyReport,
+        onPin = onPin,
+        isPinned = isPinned
     )
     if (state != null) {
         SideEffect { state.value = captured }
@@ -747,6 +782,9 @@ private fun TitleBarActionStrip(
     onDelete: (() -> Unit)?,
     onTrace: (() -> Unit)?,
     onMemo: (() -> Unit)?,
+    onCopyReport: (() -> Unit)? = null,
+    onPin: (() -> Unit)? = null,
+    isPinned: Boolean = false,
     scale: Float = 1f,
     /** Extra horizontal gap inserted between every adjacent icon —
      *  on top of the per-pair Spacers already coded into the strip. */
@@ -759,6 +797,8 @@ private fun TitleBarActionStrip(
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
+        if (onCopyReport != null) TitleBarIcon("📑", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
+        if (onPin != null) TitleBarIcon("📌", if (isPinned) AppColors.Orange else Color.Unspecified, onPin, width = 28.dp, scale = scale)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
         // 🌐 globe: the screen is rendering a translation. Tapping
@@ -816,6 +856,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onTrace = icons?.onTrace
     val onTranslationCompare = icons?.onTranslationCompare
     val onMemo = icons?.onMemo
+    val onCopyReport = icons?.onCopyReport
+    val onPin = icons?.onPin
+    val isPinned = icons?.isPinned == true
     val extraGap = 2
     var stripBase = 0
     var slotCount = 0
@@ -823,6 +866,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     if (onChat != null) slot(28)
     if (onInfo != null) slot(28)
     if (onCopy != null) slot(28)
+    if (onCopyReport != null) slot(28)
+    if (onPin != null) slot(28)
     if (onShare != null) slot(28)
     if (onReload != null) slot(28)
     if (onTranslationCompare != null) slot(28)
@@ -885,6 +930,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onDelete = onDelete,
                 onTrace = onTrace,
                 onMemo = onMemo,
+                onCopyReport = onCopyReport,
+                onPin = onPin,
+                isPinned = isPinned,
                 scale = scale,
                 extraSpacing = extraGap.dp
             )

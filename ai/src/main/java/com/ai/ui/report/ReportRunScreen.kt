@@ -7,9 +7,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.ai.data.AnalysisResponse
+import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.model.ReportModel
@@ -17,6 +24,8 @@ import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /** Post-Generate page in the report flow — the per-report manage
  *  view. Shows per-agent rows, the Action row (View / Edit /
@@ -64,6 +73,30 @@ internal fun ReportRunScreen(
     onChatWithReportPrompt: (String) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
+    val context = LocalContext.current
+    // Bumped every time the user taps the bottom-bar 📌 icon so the
+    // isPinned produceState re-reads from disk and the 📌 tint flips
+    // immediately (orange when pinned). Keyed on currentReportId so
+    // switching reports also reseeds the read.
+    var pinTick by remember(currentReportId) { mutableStateOf(0) }
+    val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
+        value = currentReportId?.let { rid ->
+            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
+        } ?: false
+    }
+    // Per-report system-prompt picker — owns its visibility state +
+    // renders the SystemPromptSelectorDialog. Returns the trigger
+    // lambda that Edit Row 2's "System prompt" button fires. Lives
+    // here (not in ReportScreen) so its bytecode stays out of the
+    // 64 KB-ceiling-hugging ReportsScreen. The select callback is
+    // pulled from LocalSystemPromptChange so we don't need to thread
+    // it through the call site as another arg.
+    val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
+    val editSystemPromptTrigger = rememberEditSystemPromptDialog(
+        aiSettings = aiSettings,
+        selectedId = uiState.reportSystemPromptId,
+        onSelect = systemPromptChange
+    )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -90,7 +123,12 @@ internal fun ReportRunScreen(
                 onChat = if (uiState.genericPromptText.isNotBlank()) {
                     { onChatWithReportPrompt(uiState.genericPromptText) }
                 } else null,
-                onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null
+                onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
+                onCopyReport = if (currentReportId != null) generationHandlers.onCopy else null,
+                onPin = if (currentReportId != null) {
+                    { generationHandlers.onTogglePin(); pinTick++ }
+                } else null,
+                isPinned = isPinned
             )
         }
 
@@ -118,6 +156,7 @@ internal fun ReportRunScreen(
             reportsAgentResults = reportsAgentResults,
             currentReportId = currentReportId,
             handlers = generationHandlers,
+            editSystemPromptTrigger = editSystemPromptTrigger,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,
             secondaryRuns = secondaryRuns,

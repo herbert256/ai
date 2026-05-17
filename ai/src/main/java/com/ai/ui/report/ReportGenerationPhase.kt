@@ -304,6 +304,12 @@ internal fun ColumnScope.GenerationPhase(
     reportsAgentResults: Map<String, AnalysisResponse>,
     currentReportId: String?,
     handlers: GenerationPhaseHandlers,
+    /** Opens the per-report system-prompt picker dialog from the
+     *  Edit Row 2 "System prompt" button. Plumbed separately from
+     *  [GenerationPhaseHandlers] so the dialog state + body stay
+     *  inside [ReportRunScreen], keeping the bytecode out of
+     *  [ReportsScreen] which sits at the JVM 64 KB ceiling. */
+    editSystemPromptTrigger: () -> Unit = {},
     secondaryCounts: SecondaryResultStorage.Counts = SecondaryResultStorage.Counts(0, 0, 0, 0),
     /** Sum of costs the user dropped from this report via Delete actions
      *  on agents / secondaries / fan-out pairs / translations. Surfaces
@@ -365,8 +371,6 @@ internal fun ColumnScope.GenerationPhase(
     val onShare = handlers.onShare
     val onTrace = handlers.onTrace
     val onDelete = handlers.onDelete
-    val onCopy = handlers.onCopy
-    val onTogglePin = handlers.onTogglePin
     val onTranslate = handlers.onTranslate
     val onOpenMetaPicker = handlers.onOpenMetaPicker
     val onOpenFanOutPicker = handlers.onOpenFanOutPicker
@@ -414,11 +418,12 @@ internal fun ColumnScope.GenerationPhase(
     }
 
     // ===== Action row (lives at the top of the page) =====
-    // Two-tier toggle: Row 1 has View / Edit / Create / Action; tapping
-    // a Row 1 button opens Row 2 (its sub-actions) inline; tapping the
-    // same Row 1 button again closes Row 2. Sub-actions fire and then
-    // collapse Row 2. The TitleBar 🔄 / 🗑 / 📤 / 💬 / ℹ️ icons stay
-    // wired in parallel — duplicates with Row "Action" are intentional.
+    // Two-tier toggle: Row 1 has Edit / Create; tapping a Row 1 button
+    // opens Row 2 (its sub-actions) inline; tapping the same Row 1
+    // button again closes Row 2. Sub-actions fire and then collapse
+    // Row 2. The "Action" group is gone — Regenerate / Delete / Share /
+    // Chat / View live on the title bar, Pin and Copy on the bottom
+    // bar (📌 / 📑).
     @OptIn(ExperimentalLayoutApi::class)
     @Composable fun ActionRow(
         startPadding: Dp = 0.dp,
@@ -431,14 +436,7 @@ internal fun ColumnScope.GenerationPhase(
             content = content
         )
     }
-    var pinTick by remember(currentReportId) { mutableStateOf(0) }
-    val isPinned by produceState(initialValue = false, currentReportId, pinTick) {
-        value = currentReportId?.let { rid ->
-            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
-        } ?: false
-    }
-
-    // Row 1 active group: "view" / "edit" / "create" / "action" / null.
+    // Row 1 active group: "view" / "edit" / "create" / null.
     // rememberSaveable so a rotation doesn't collapse the sub-row in
     // the middle of the user reading it.
     var activeBar by rememberSaveable { mutableStateOf<String?>(null) }
@@ -459,7 +457,6 @@ internal fun ColumnScope.GenerationPhase(
     val viewColor = AppColors.Purple
     val editColor = AppColors.Indigo
     val createColor = AppColors.Orange
-    val actionColor = AppColors.Red
     fun rowOneColor(name: String, active: Color): Color =
         if (activeBar == name) active else active.copy(alpha = 0.32f)
 
@@ -500,7 +497,6 @@ internal fun ColumnScope.GenerationPhase(
         // stay in place so re-adding the button is a one-line revert.
         CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
         CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
-        CompactButton(onClick = { toggleBar("action") }, color = rowOneColor("action", actionColor), text = "Action")
         Spacer(modifier = Modifier.weight(1f))
         // Inner Row so the two chevrons sit at zero spacing — the
         // outer Row's spacedBy(6.dp) would otherwise add a gap
@@ -554,6 +550,7 @@ internal fun ColumnScope.GenerationPhase(
             ActionRow {
                 CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
                 CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
+                CompactButton(onClick = { close(); editSystemPromptTrigger() }, color = editColor, text = "System prompt")
                 CompactButton(
                     onClick = { close(); onEditModelsInline() },
                     color = editColor, text = "Models",
@@ -608,23 +605,6 @@ internal fun ColumnScope.GenerationPhase(
                     enabled = fanOutPrompts.isNotEmpty()
                 )
                 CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
-            }
-        }
-        "action" -> {
-            Spacer(modifier = Modifier.height(4.dp))
-            // Regenerate / Delete / Export moved to the title-bar
-            // icon row (🔄 / 🗑 / 📤) — they used to also live here
-            // but a duplicate hit area on the same screen is just
-            // noise. Copy + Pin/Unpin stay because they have no
-            // matching title-bar icon.
-            // Indent the sub-row so it starts roughly under the
-            // "Action" Row 1 button (past Edit + Create + gaps).
-            ActionRow(startPadding = 110.dp) {
-                CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
-                CompactButton(
-                    onClick = { onTogglePin(); pinTick++; close() },
-                    color = actionColor, text = if (isPinned) "Unpin" else "Pin"
-                )
             }
         }
         else -> { /* no Row 2 */ }
