@@ -168,21 +168,24 @@ fun ReportsViewScreen(
             }
             return@Column
         }
-        // Counter "X / Y" — moved up so it sits directly under the
-        // title, above the prompt card.
+        // Prompt card: centered report icon + the report's prompt
+        // text — gives the user the question while they read each
+        // model's answer below.
+        PromptCard(report = report)
+        // Counter "X / Y" — sits between the prompt card and the
+        // green model-name subject so the page index reads as the
+        // header for the response below.
         Text(
             text = "${pagerState.currentPage + 1} / ${agents.size}",
             color = AppColors.TextTertiary, fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
         )
-        // Prompt card: centered report icon + the report's prompt
-        // text — gives the user the question while they read each
-        // model's answer below.
-        PromptCard(report = report)
-        Spacer(modifier = Modifier.height(10.dp))
-        // Green subject line — the active page's model name.
+        // Green subject line — the active page's model name. Extra
+        // vertical breathing room above + below so the subject reads
+        // as its own band, not crowded between the counter and the
+        // response card.
         Text(
             text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
             color = AppColors.Green,
@@ -190,7 +193,7 @@ fun ReportsViewScreen(
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp)
         )
         HorizontalPager(
             state = pagerState,
