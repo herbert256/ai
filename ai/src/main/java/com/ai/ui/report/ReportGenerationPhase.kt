@@ -402,9 +402,12 @@ internal fun ColumnScope.GenerationPhase(
     // collapse Row 2. The TitleBar 🔄 / 🗑 / 📤 / 💬 / ℹ️ icons stay
     // wired in parallel — duplicates with Row "Action" are intentional.
     @OptIn(ExperimentalLayoutApi::class)
-    @Composable fun ActionRow(content: @Composable FlowRowScope.() -> Unit) {
+    @Composable fun ActionRow(
+        startPadding: Dp = 0.dp,
+        content: @Composable FlowRowScope.() -> Unit
+    ) {
         FlowRow(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(start = startPadding),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             content = content
@@ -543,7 +546,9 @@ internal fun ColumnScope.GenerationPhase(
         }
         "create" -> {
             Spacer(modifier = Modifier.height(4.dp))
-            ActionRow {
+            // Indent the sub-row so it starts roughly under the
+            // "Create" Row 1 button (after Edit + 6dp gap).
+            ActionRow(startPadding = 52.dp) {
                 CompactButton(
                     onClick = { close(); onOpenMetaPicker() },
                     color = createColor, text = "Meta",
@@ -580,7 +585,9 @@ internal fun ColumnScope.GenerationPhase(
             // but a duplicate hit area on the same screen is just
             // noise. Copy + Pin/Unpin stay because they have no
             // matching title-bar icon.
-            ActionRow {
+            // Indent the sub-row so it starts roughly under the
+            // "Action" Row 1 button (after Edit + Create + gaps).
+            ActionRow(startPadding = 120.dp) {
                 CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
                 CompactButton(
                     onClick = { onTogglePin(); pinTick++; close() },
