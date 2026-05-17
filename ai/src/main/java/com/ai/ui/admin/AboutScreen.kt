@@ -67,7 +67,7 @@ fun AboutScreen(
                 "Version ${BuildConfig.VERSION_NAME}",
                 fontSize = 16.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             // Monospace + padded labels so the two timestamps line up
             // to the column under each other. Matches the Installed
             // version card on Update-from-cloud.
@@ -82,7 +82,7 @@ fun AboutScreen(
                 fontSize = 13.sp, color = AppColors.TextTertiary,
                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             // Source-repository link — opens the system browser.
             // Rendered as plain underlined text rather than a chip
             // so it sits unobtrusively under the build stamp.
