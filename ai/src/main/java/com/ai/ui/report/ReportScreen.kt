@@ -3089,15 +3089,7 @@ private fun ReportPrimaryOverlays(
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
                 onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
-                onViewLog = {
-                    val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
-                        .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                    val filename = "applog_" +
-                        day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
-                    onNavigateToAppLog(filename, "#$currentReportId")
-                },
                 onViewIcons = { onShowIconsViewChange(true) },
-                onViewTrace = { onNavigateToTrace(currentReportId) },
                 onTranslateMissingItems = { items, target, targetNative ->
                     onTranslateMissingItems(currentReportId, items, target, targetNative)
                 },

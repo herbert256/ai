@@ -119,11 +119,7 @@ internal fun ViewAiReportScreen(
      *  opened sub-screen can lock itself to that language. null = no
      *  force; "" = force Original; non-empty = displayName. */
     onOpenHtmlPreview: () -> Unit,
-    onViewLog: () -> Unit,
     onViewIcons: () -> Unit,
-    /** Open the API trace list filtered to this report — mirrors
-     *  the 🐞 icon on the result-page title bar. */
-    onViewTrace: () -> Unit,
     /** Fired when the "Language missing" popup's row is tapped.
      *  Dispatches a one-off translation of the picked items to the
      *  active target language. Hosted by ReportScreen which routes
@@ -536,7 +532,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onOpenHtmlPreview, onViewIcons) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -558,10 +554,11 @@ internal fun ViewAiReportScreen(
             }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
-            add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
-            // 🐞 mirrors the title-bar trace icon — opens the API
-            // trace list pre-filtered to this report.
-            add(IdentifiedTile("doc:Trace", ViewTile("Trace", "🐞", AppColors.Red) { onViewTrace() }))
+            // Log + Trace tiles are deliberately omitted from the View
+            // grid — the content-only View surface focuses on the
+            // report's outputs, not its operational logs / API traces.
+            // Both destinations remain reachable from the result page's
+            // bottom-bar icons (📜 App Log, 🐞 Trace list).
             if (perModelIconGenEnabled) {
                 add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
             }
