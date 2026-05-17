@@ -189,6 +189,17 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Fan-in "View" overlay — keyed by the fan-in META row id.
+    var fanInViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    val activeFanInViewRowId = fanInViewRowId
+    if (activeFanInViewRowId != null) {
+        FanInViewScreen(
+            reportId = reportId,
+            resultId = activeFanInViewRowId,
+            onBack = { fanInViewRowId = null }
+        )
+        return
+    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -616,7 +627,8 @@ internal fun ViewAiReportScreen(
                         when (items.size) {
                             1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
-                                openModeration = { id -> moderationViewRowId = id })
+                                openModeration = { id -> moderationViewRowId = id },
+                                openFanIn = { id -> fanInViewRowId = id })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
                     }
@@ -764,7 +776,8 @@ internal fun ViewAiReportScreen(
                             expandedKind = null
                             openComputedItem(active.key, item, currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
-                                openModeration = { id -> moderationViewRowId = id })
+                                openModeration = { id -> moderationViewRowId = id },
+                                openFanIn = { id -> fanInViewRowId = id })
                         }
                     )
                 }
@@ -1220,12 +1233,14 @@ private fun openComputedItem(
     item: EveryItem,
     language: String?,
     openRerank: (String) -> Unit,
-    openModeration: (String) -> Unit
+    openModeration: (String) -> Unit,
+    openFanIn: (String) -> Unit
 ) {
     val rowId = item.sourceRows?.firstOrNull()?.id
     when (key) {
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
+        "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
         else -> item.open(language)
     }
 }

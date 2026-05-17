@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "fan_in_view" to HelpContent(
+        title = "Help - Fan-in — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the fan-in META detail. Reached from the 🪢 Fan-in tile on Report - view. Renders the synthesised output as a single hero card with a Green accent gradient, then a compact 'Synthesised from' credits strip naming each source agent that fed into the run."),
+            HelpCard("What's on this screen", "Synthesis hero: 🪢 + 'Synthesis' header, the synthesising provider + shortened model below, then the synthesised body rendered through the shared markdown pipeline (tables, code, headings, <think> regions all behave the same as everywhere else). Credits strip: one rounded Green pill per source agent showing its icon (or 🤖 fallback) + provider / shortened model."),
+            HelpCard("Reached from", "🪢 Fan-in tile on Report - view. With a single fan-in row the tile opens this screen directly; with N≥2 rows the tile expands an inline picker first. For the original prompt body, regenerate, delete, or trace, drop back to Report - manage."),
+        )
+    ),
     "moderation_view" to HelpContent(
         title = "Help - Moderation — view",
         cards = listOf(
@@ -2872,6 +2880,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "meta_view" to listOf("help_glossary_operations", "report_meta"),
     "rerank_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_view" to listOf("help_glossary_operations", "concepts"),
+    "fan_in_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====
