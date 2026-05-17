@@ -798,7 +798,7 @@ private fun TitleBarActionStrip(
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
-        if (onPin != null) TitleBarIcon("📌", if (isPinned) AppColors.Orange else Color.Unspecified, onPin, width = 28.dp, scale = scale)
+        if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
         // 🌐 globe: the screen is rendering a translation. Tapping
@@ -824,10 +824,17 @@ private fun TitleBarIcon(
     tint: Color,
     onClick: () -> Unit,
     width: Dp = 28.dp,
-    scale: Float = 1f
+    scale: Float = 1f,
+    /** Render alpha for the glyph. Defaults to fully opaque. Used by
+     *  the bottom-bar 📌 pin icon to fade itself when the report isn't
+     *  pinned — emoji glyphs ignore [tint] on Android (they're bitmap-
+     *  rendered) so alpha is the reliable way to show an "off" state. */
+    alpha: Float = 1f
 ) {
     Box(
-        modifier = Modifier.size(width = width * scale, height = 32.dp * scale).clickable(onClick = onClick),
+        modifier = Modifier.size(width = width * scale, height = 32.dp * scale)
+            .clickable(onClick = onClick)
+            .alpha(alpha),
         contentAlignment = Alignment.Center
     ) {
         Text(
