@@ -61,6 +61,7 @@ fun ModerationViewScreen(
     resultId: String,
     onBack: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
 
     data class Loaded(

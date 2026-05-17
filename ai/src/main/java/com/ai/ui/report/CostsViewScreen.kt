@@ -65,6 +65,7 @@ fun CostsViewScreen(
     reportId: String,
     onBack: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
     val reportState = produceState<Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }

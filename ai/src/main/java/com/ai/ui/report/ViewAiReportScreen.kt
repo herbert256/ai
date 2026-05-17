@@ -128,6 +128,13 @@ internal fun ViewAiReportScreen(
                               targetLanguageNative: String) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
 ) {
+    // Android back returns to Report - manage. Without this handler
+    // the back press would fall through to ReportScreen's own handler,
+    // which pops the route — wrong layer. See plan
+    // /Users/herbert/.claude/plans/meta-items-and-fa-in-flickering-piglet.md
+    // for the LIFO BackHandler model that keeps every View layer
+    // popping one step at a time.
+    androidx.activity.compose.BackHandler { onBack() }
     // Per-tile content-only "View" overlay state. Owned by
     // ViewAiReportScreen rather than the parent so adding new view
     // overlays one-per-commit doesn't grow ReportsScreen's bytecode
