@@ -6135,18 +6135,26 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 return ((myAvg / cheapest - 1.0) * mult)
                                     .coerceIn(0.0, cap).toLong()
                             }
-                            // Re-evaluating loop — the penalty is
-                            // re-read every 1s chunk so a mid-hesitation
-                            // mode flip (COST → SPEED) interrupts within
-                            // a second instead of finishing the prior
-                            // hesitation. Worker also notices the run
-                            // finishing (channel closed) promptly via
-                            // the remaining.get() guard.
+                            // Wait out the penalty in 1s chunks so the
+                            // worker still notices the run finishing
+                            // (channel closed) promptly instead of
+                            // sitting out a long hesitation. The
+                            // penalty is captured once at entry so the
+                            // loop is finite — re-reading every chunk
+                            // would loop forever for an expensive
+                            // model whose ratio never drops. The mid-
+                            // chunk re-check below catches a user
+                            // flipping to a less-aggressive mode and
+                            // exits early when the new (smaller)
+                            // penalty has already been satisfied.
                             suspend fun costHesitate() {
-                                while (remaining.get() > 0) {
-                                    val penalty = costPenaltyMs()
-                                    if (penalty <= 0L) return
-                                    delay(minOf(1_000L, penalty))
+                                val penalty = costPenaltyMs()
+                                var waited = 0L
+                                while (waited < penalty && remaining.get() > 0) {
+                                    val chunk = minOf(1_000L, penalty - waited)
+                                    delay(chunk)
+                                    waited += chunk
+                                    if (waited >= costPenaltyMs()) return
                                 }
                             }
                             // A benched model stops pulling — its share
