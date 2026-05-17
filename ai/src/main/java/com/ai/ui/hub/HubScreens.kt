@@ -134,7 +134,15 @@ fun HubScreen(
                         it.reportStatus == ReportStatus.RUNNING
                 }) || r.id in activeTranslationReportIds
             }
+            val runningIds = running.map { it.id }.toSet()
             val problems = all.filter { r ->
+                // Skip reports that are already showing in the
+                // Running card — disk-side red crosses that are
+                // actively being healed (in-flight retry / resume)
+                // shouldn't double up as "problems". When the
+                // running state clears, any persistent red cross
+                // resurfaces here on the next 5 s tick.
+                if (r.id in runningIds) return@filter false
                 // Cheap check first — agent-level error is in-memory
                 // on the already-loaded Report.
                 if (r.agents.any { it.reportStatus == ReportStatus.ERROR }) return@filter true
