@@ -2882,7 +2882,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "report_single_result" to listOf("help_glossary_operations", "help_costs"),
     "report_icons_grid" to listOf("help_glossary_operations"),
     "report_fan_out_confirm" to listOf("help_glossary_operations", "help_costs"),
-    "view_ai_report" to listOf("help_glossary_operations", "help_translations"),
 
     // ===== Translation =====
     "translation_run_l1" to listOf("help_translations", "concepts", "help_glossary_operations", "help_costs"),
@@ -2900,16 +2899,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_l2" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
-    "fan_out_view" to listOf("help_glossary_operations", "help_translations"),
-    "costs_view" to listOf("help_glossary_operations", "help_costs"),
-    "meta_view" to listOf("help_glossary_operations", "report_meta"),
-    "rerank_view" to listOf("help_glossary_operations", "concepts"),
-    "moderation_view" to listOf("help_glossary_operations", "concepts"),
-    "fan_in_view" to listOf("help_glossary_operations", "concepts"),
-    "fan_in_model_view" to listOf("help_glossary_operations", "concepts"),
-    "translate_view" to listOf("help_glossary_operations", "help_translations"),
-    "prompt_view_screen" to listOf("help_glossary_operations", "help_translations"),
-    "reports_view" to listOf("help_glossary_operations", "help_translations"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====
