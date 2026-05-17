@@ -230,30 +230,133 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "help_home_icons" to HelpContent(
-        title = "Help icons",
+        title = "Help - Icons",
         cards = listOf(
-            HelpCard("Overview", "Legend for every icon you'll see in the app's title bars, action rows and lists. The table below pairs each glyph with what it does and where it shows up. Reached from the Help home → \"Help icons\" link.")
+            HelpCard("Overview", "Legend for every icon you'll see in the app's title bars, action rows and lists. The table below pairs each glyph with what it does and where it shows up. Reached from the Help home → \"Help - Icons\" link.")
         )
     ),
     "help_home_info_providers" to HelpContent(
-        title = "Info providers",
+        title = "Help - Info providers",
         cards = listOf(
-            HelpCard("Overview", "External services the app fetches metadata from — model lists, pricing tiers, capability flags, free / spot pools. Tap a row in the table below to drill into that one provider's detail topic (where it's read, when it refreshes, fallback chain, …). Reached from the Help home → \"Info providers\" link.")
+            HelpCard("Overview", "External services the app fetches metadata from — model lists, pricing tiers, capability flags, free / spot pools. Tap a row in the table below to drill into that one provider's detail topic (where it's read, when it refreshes, fallback chain, …). Reached from the Help home → \"Help - Info providers\" link.")
         )
     ),
     "help_home_ai_providers" to HelpContent(
-        title = "AI providers (cloud)",
+        title = "Help - AI providers (cloud)",
         cards = listOf(
-            HelpCard("Overview", "Every cloud LLM / embedder / reranker provider the app can talk to. Tap a row in the table below for that provider's setup notes — endpoint, auth shape, model-list freshness, anything that's worth knowing before pasting an API key. Reached from the Help home → \"AI providers\" link.")
+            HelpCard("Overview", "Every cloud LLM / embedder / reranker provider the app can talk to. Tap a row in the table below for that provider's setup notes — endpoint, auth shape, model-list freshness, anything that's worth knowing before pasting an API key. Reached from the Help home → \"Help - AI providers\" link.")
         )
     ),
     "concepts" to HelpContent(
-        title = "How it works",
+        title = "Help - How it works",
         cards = listOf(
             HelpCard("What this page is", "Behaviours that span multiple screens. The per-screen ❓ help covers buttons / cards / fields on one screen; this page collects the things that quietly happen across the whole app — background sweeps, auto-reconcile, retry policy. Reach it from any per-screen help page's footer (\"How it works\") or from the Help home."),
             HelpCard("Stalled translation auto-reconcile", "Live translation rows (⏳ + 'done / total') auto-heal when their in-memory state has drifted from disk. Two triggers: (a) every report-open, the resume pass scans for any in-memory run flagged in-flight with no live dispatch job — those are demonstrably stuck (a cross-translate / restart-failed coroutine died before flipping the finished flag) and get rebuilt immediately; (b) a 10-second sanity poll on the result page catches rows where the done count already equals total but the row is still flagged in-flight. Either trigger silently rebuilds the in-memory state from the persisted SecondaryResult rows. The hourglass clears, the per-status counts on the run drill-in turn truthful, and any placeholder rows the rebuild surfaces show as Queue so you can decide whether to Restart them."),
             HelpCard("App-wide background resume sweep", "Once on app start and then every 30 seconds the app runs the same per-report stale-runs resume across every report modified in the last 7 days — translation placeholders that never converged, fan-out pairs the previous session abandoned, single-Meta calls left in PENDING. You don't have to open each report individually for its dropped work to come back. Logs land under the BgResumeSweep tag. Reports older than 7 days are skipped (out of the active-work window); a kill+restart catches them on next open."),
-            HelpCard("429 / 529 handling", "Translation runs with ≤ 3 models retry rate-limited (429) or overloaded (529) calls inline on the same model up to 3 times (1 s backoff each, configurable in Settings → Network). Runs with > 3 models skip the inline retry: a 429 / 529 finalises immediately as a Failed attempt and the item is requeued for a different model — the cross-model bounce is faster than sleeping on the same one when alternatives are available. Long Retry-After (> 1 h) still benches the model on ModelCooldownStore either way.")
+            HelpCard("429 / 529 handling", "Translation runs with ≤ 3 models retry rate-limited (429) or overloaded (529) calls inline on the same model up to 3 times (1 s backoff each, configurable in Settings → Network). Runs with > 3 models skip the inline retry: a 429 / 529 finalises immediately as a Failed attempt and the item is requeued for a different model — the cross-model bounce is faster than sleeping on the same one when alternatives are available. Long Retry-After (> 1 h) still benches the model on ModelCooldownStore either way."),
+            HelpCard("Cost-aware hesitation (Speed / Mixed / Cost)", "In a multi-model translation run each worker hesitates before pulling its next item, proportional to how much pricier its model is than the cheapest. Cost mode (default) is the full bias — the cheapest model drains the queue first, expensive ones only pick up what the cheap ones can't keep up with. Mixed softens the bias (caps at 5 s). Speed disables hesitation entirely — every model pulls as fast as its per-host caps allow. Toggle is on the Translation L1 screen, switchable mid-run; the worker re-reads the mode before every pull so a change takes effect within ~1 s."),
+            HelpCard("Translation mode persistence", "The Speed / Mixed / Cost choice is saved per-runId in SharedPreferences (TranslationModeStore). A process kill / app restart resumes the run in the same mode. Deleting the run clears the entry so prefs don't leak.")
+        )
+    ),
+    "help_about" to HelpContent(
+        title = "Help - About the app",
+        cards = listOf(
+            HelpCard("What this app is", "A multi-provider AI client for Android. Send one prompt to many models at once (Reports), or chat with one model at a time (Chat), or build a knowledge base and let retrieval feed your prompts (RAG). Talks to 40+ cloud providers and runs on-device models too."),
+            HelpCard("Who it's for", "Power users who want to compare model outputs side-by-side, work offline / privately when needed, or batch-process prompts at scale. Not a chat-only tool — the Report flow is the centre of gravity."),
+            HelpCard("Headline features", "Multi-model reports with per-row results · meta-prompt operations (rerank, summarize, compare, moderate, translate) over completed reports · fan-out (N×M variations) · knowledge bases with local or cloud embedders · multi-language translation runs · cost tracking down to the per-call level · everything-local-first with no telemetry."),
+            HelpCard("Where to start", "Settings → AI Setup → Providers — paste an API key for at least one provider. Housekeeping → Refresh → Refresh all — verifies keys and fetches model lists. Then build your first report from the Hub. See \"Getting started\" on the Help home for the same checklist."),
+            HelpCard("Per-screen help", "Every screen has its own ❓ icon in the title bar that explains that screen's specific controls. This About page is the cross-cutting orientation; the per-screen pages cover the details.")
+        )
+    ),
+    "help_glossary" to HelpContent(
+        title = "Help - Concepts & glossary",
+        cards = listOf(
+            HelpCard("Overview", "The app's domain vocabulary, grouped into four buckets. Tap a category below; each lists the terms it covers with a one-paragraph explainer for each.")
+        )
+    ),
+    "help_glossary_blocks" to HelpContent(
+        title = "Help - Concepts: Building blocks",
+        cards = listOf(
+            HelpCard("Provider", "A vendor with an endpoint the app can talk to — OpenAI, Anthropic, Google, Mistral, Cohere, … plus on-device runtimes (Local LLM, Local embedder). 40+ cloud providers ship with the app; you can add custom ones too. Each carries the API key, base URL, throttle caps, and a list of available models."),
+            HelpCard("Model", "A specific weight / size at one provider — gpt-5-mini, claude-haiku-4-5, gemini-2.5-flash, qwen-2.5-7b-instruct, etc. Reachable by id; pricing + capability flags (vision, web search, reasoning) attach to the model, not the provider."),
+            HelpCard("Agent", "A saved combination of (provider, model, parameter set, optional system prompt). The atomic unit the rest of the app composes. Reports / Chats / Flocks / Swarms all dispatch agents — never raw (provider, model) pairs. Edit on Settings → Agents.")
+        )
+    ),
+    "help_glossary_groupings" to HelpContent(
+        title = "Help - Concepts: Groupings",
+        cards = listOf(
+            HelpCard("Flock", "An ordered list of agents you launch together as a unit. A Flock of 5 agents fired at a single prompt gives 5 parallel responses, one per agent's configured (provider, model, parameters). Useful when you've curated a regular comparison group."),
+            HelpCard("Swarm", "A list of (provider, model) tuples that gets expanded into ad-hoc agents at run time — each tuple becomes a one-off Agent with default parameters. Useful when you want to spray a prompt at every available model from a provider, or a custom subset, without saving each as a named Agent first.")
+        )
+    ),
+    "help_glossary_operations" to HelpContent(
+        title = "Help - Concepts: Operations",
+        cards = listOf(
+            HelpCard("Report", "The headline feature: one prompt, N models, every response rendered side-by-side. Each report stores its prompt, the model list, every per-model response with token / cost stats, plus any meta-prompt outputs run against those responses. Lives on disk as one JSON file under <filesDir>/reports/."),
+            HelpCard("Chat", "A two-way conversation with a single model. Lighter than a Report — no fan-out, no per-row comparison. The chat history lives on disk separately under <filesDir>/chats/."),
+            HelpCard("Meta prompt", "A stored prompt template you apply to a Report's results. Built-in kinds: Rerank (order rows), Summarize / Compare (chat-type meta prompt that consumes all results and produces one text output), Moderate (per-row safety scoring), Translate (per-row language render). User-defined chat meta prompts are also supported — Settings → Internal prompts."),
+            HelpCard("Fan-out", "Run a chat meta prompt against every pair of source agents (or a curated subset). Produces N×M responses where each pair is one cell. Useful for cross-agent comparisons (\"how does Claude critique GPT's answer\")."),
+            HelpCard("Rerank", "Asks a model to assign a rank to each Report row, optionally with rationale. Output is a structured table — anchor links from each rerank cell back to the agent card it scored."),
+            HelpCard("Moderation", "Per-row content safety scoring against a provider's moderation endpoint (OpenAI / Mistral). Returns per-row category flags + scores."),
+            HelpCard("Translation", "Translates a Report's title + prompt + every successful agent response + every chat-type meta result into one or more target languages. Multi-model translation runs use the Speed / Mixed / Cost mode toggle — see Help - How it works for the hesitation mechanics.")
+        )
+    ),
+    "help_glossary_retrieval" to HelpContent(
+        title = "Help - Concepts: Retrieval",
+        cards = listOf(
+            HelpCard("Knowledge base", "A collection of indexed documents you can attach to a report. Sources include uploaded files (PDF / DOCX / TXT / MD / HTML), share-target ingest, and web URLs. Each document is chunked, embedded, and stored in <filesDir>/knowledge/. At report time, the prompt is embedded and the top-K most similar chunks are injected into every dispatched call."),
+            HelpCard("Embedder", "The model that turns text into vectors. Cloud (OpenAI text-embedding-3-*, Cohere embed-v3, Voyage, Mistral, Google) or on-device (gecko / nomic-embed-text). The embedder you pick at KB creation is what every later retrieval uses — switching it invalidates the KB's vectors."),
+            HelpCard("Reranker", "Optional second-stage filter. Top-K embedding retrieval is fast but coarse; a reranker re-scores the candidate chunks with a more accurate (and slower) model so only the truly relevant chunks end up in the prompt. Cohere rerank-3, Voyage rerank-2, Jina, etc.")
+        )
+    ),
+    "help_costs" to HelpContent(
+        title = "Help - Costs & pricing",
+        cards = listOf(
+            HelpCard("Pricing tier chain", "When the app needs to attribute a USD cost to a call, it walks a chain of sources in order: provider self-report (OpenRouter / Together when caller is them) → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → OpenRouter cross-provider fallback → Helicone → DEFAULT (a low-cost placeholder so totals never NaN). The first hit wins."),
+            HelpCard("Manual overrides take precedence", "Settings → AI Setup → Cost overrides. A manual override for a (provider, model) pair is consulted before the curated tiers — useful when a tier source is stale or wrong, or when you've negotiated custom pricing. Persisted in SharedPreferences."),
+            HelpCard("Where costs surface", "Per-report cost table (Manage screen) — every API call this report fired, grouped by type / model / agent. Per-call trace — the 🐞 trace files include their own cost. Usage screen — global aggregates across every report. Result-page subject row — running 💰 total in cents. Export bundles — the same cost table in HTML / PDF / DOCX / ODT."),
+            HelpCard("Currency + decimals", "Everything is USD, rendered as cents with two decimals (e.g. \"3.42¢\"). Fractions below 0.01¢ round to 0.")
+        )
+    ),
+    "help_privacy" to HelpContent(
+        title = "Help - Privacy & data",
+        cards = listOf(
+            HelpCard("Local-first", "Everything the app generates — reports, chats, knowledge bases, traces, logs — lives on this device only. There is no cloud sync, no account, no backup-to-cloud unless you make a Backup zip and move it yourself."),
+            HelpCard("What leaves the device", "API requests to whichever providers you've configured. They see your prompts and produce your responses. Some info-providers (HuggingFace / models.dev / etc.) see model id queries when you refresh model lists. That's it."),
+            HelpCard("API keys", "Your API keys are sent only in the Authorization header (or query param for Google) to the matching provider. They never leave for anything else. Settings → AI Setup → Providers stores them in SharedPreferences on this device."),
+            HelpCard("Telemetry", "None. No crash reporting, no analytics, no \"phone home\". The app does no network beyond what you explicitly trigger."),
+            HelpCard("Logs and traces", "App log and API traces are stored on disk under <filesDir>/. Useful for debugging; never sent anywhere. Wipe with Housekeeping → Reset, or delete individual reports / chats from their list screens."),
+            HelpCard("Data ownership", "You own the data. Uninstalling the app removes <filesDir>/ and its contents (Android sandbox guarantee). The Backup file you can export is the only off-device copy — and only if you choose to share / save it.")
+        )
+    ),
+    "help_backup" to HelpContent(
+        title = "Help - Backup & restore",
+        cards = listOf(
+            HelpCard("What's in a backup", "Every saved report + every secondary result row + every captured API trace + every prompt / agent / system-prompt / parameter-set + cooldown store + general & AI settings. Bundled as a single zip with a fixed top-level layout (see doc/backup-restore.md for the byte-level schema)."),
+            HelpCard("What's NOT in a backup", "The on-device LLM weights (local_llms/) and the local embedder models (local_models/) — they can be re-downloaded from the curated catalogs in Housekeeping. Excluding them keeps the zip small and shareable; trying to include a multi-GB LiteRT model in a Backup zip would be a usability disaster."),
+            HelpCard("Backup flow", "Housekeeping → Backup → Backup all. The app composes the zip in-place (atomic temp-file + rename) and hands the resulting file to the Android share sheet. Save it to Drive / email it to yourself / dump it to local storage — your call."),
+            HelpCard("Restore flow", "Housekeeping → Backup → Restore from file → pick the zip. The app validates the zip's contents before touching disk; if validation fails, nothing changes. On success it clears the relevant filesDir subtrees (preserving the excluded local_llms / local_models) and writes every entry back atomically."),
+            HelpCard("Version compatibility", "Backups carry an export version. The app currently writes version 24 and accepts restore from versions 11..24. Restoring a newer-version zip into an older app is refused; restoring an older zip into a newer app applies any migrations the app already knows about.")
+        )
+    ),
+    "help_local_ai" to HelpContent(
+        title = "Help - Local AI (on-device)",
+        cards = listOf(
+            HelpCard("What runs on-device", "Both an LLM runtime (LiteRT via MediaPipe GenAI) and an embedder. Models are downloaded once from a curated catalog (Housekeeping → Local LiteRT models / Local embedders) and stored under <filesDir>/local_llms/ and <filesDir>/local_models/. They appear in pickers as a normal \"Local\" provider entry."),
+            HelpCard("How to add a local model", "Housekeeping → Local LiteRT models → pick a model from the curated list, or paste a HuggingFace URL pointing at a .task / .bin file. Download progress is shown inline; the model is usable as soon as the download finishes."),
+            HelpCard("When local is the right pick", "Privacy-sensitive prompts you don't want to send to a cloud provider. Offline use. No API key required. Cost-zero (after the initial download). Practical for short prompts on modern phones."),
+            HelpCard("Performance expectations", "First call after launch warms the model (~5–15 s on a phone); subsequent calls are faster. A small quantised model on a phone won't match a frontier cloud model on output quality. Long contexts strain the KV cache. Pick local for the right tasks; pick cloud for everything else."),
+            HelpCard("Local embedder caveat", "Each embedder produces vectors in its own vector space. A KB embedded with the local Gecko embedder isn't readable by an OpenAI embedder — switching the embedder requires re-indexing the KB. The KB stores which embedder produced it; using the wrong one at retrieval time is refused with a clear error.")
+        )
+    ),
+    "help_translations" to HelpContent(
+        title = "Help - Translations & multi-language",
+        cards = listOf(
+            HelpCard("What gets translated", "Title + prompt + every successful agent response + every chat-type meta result on the report. Reranks, moderations and the cost table aren't translated — they're structured data, not narrative text. The original Report stays untouched; translations live as TRANSLATE-kind SecondaryResult rows alongside everything else."),
+            HelpCard("Single- vs multi-model", "Pick one model at the Translate prompt → every item runs on that model in sequence. Pick several → the work is shared across them via a queue. Multi-model is faster end-to-end but spreads cost across the chosen set."),
+            HelpCard("Speed / Mixed / Cost mode", "On the Translation L1 screen (the per-run drill-in) a three-way toggle controls how much the cheaper models dominate the queue. Cost = aggressive bias (cheap models drain the queue first), Mixed = softened bias, Speed = no bias (every model pulls as fast as its per-host caps allow). Switchable mid-run; the worker re-reads on every pull. See Help - How it works for the exact hesitation formula."),
+            HelpCard("Restart failed", "When a multi-model run has errored rows, Restart failed reassigns each one to a different model than the one that failed — round-robin over the remaining models. On a single-model run, the row retries on the same model. Benched rows (rate-limit cooldown) recover automatically when the cooldown lifts."),
+            HelpCard("Self-healing background", "Translation runs that get interrupted by an app restart, a coroutine cancellation, or a mid-flight kill are recovered by the auto-reconcile + background sweep paths (see Help - How it works). You don't have to manually restart a stuck run in most cases.")
         )
     ),
     "help_topic_view" to HelpContent(

@@ -25,10 +25,28 @@ import com.ai.ui.shared.*
  *  these ids so the ❓ icon in the subpage's title bar goes back
  *  to Help home instead of opening the help-of-help meta page. */
 private val HELP_HOME_SUBPAGES = setOf(
+    // Existing direct subpages of Help home.
     "help_home_icons",
     "help_home_info_providers",
     "help_home_ai_providers",
-    "concepts"
+    "concepts",
+    // New direct subpages — added by the help-home-subpages pass.
+    "help_about",
+    "help_glossary",
+    "help_costs",
+    "help_privacy",
+    "help_backup",
+    "help_local_ai",
+    "help_translations",
+    // Sub-subpages of help_glossary. Reached from the glossary
+    // subpage's own tap-throughs (rendered by the table-style
+    // dispatch in HelpScreen). Same ❓-returns-to-Help-home
+    // semantics — the user can step back to the glossary page
+    // via Android back / title-bar back arrow.
+    "help_glossary_blocks",
+    "help_glossary_groupings",
+    "help_glossary_operations",
+    "help_glossary_retrieval"
 )
 
 
@@ -85,10 +103,38 @@ fun HelpScreen(
                 // legacy table widget here, below the topic's
                 // Overview card. Kept out of HelpContent.kt because
                 // those tables are Composables, not strings.
+                //
+                // help_glossary is the same shape but its dispatch
+                // renders a stack of HomeSubpageLink tap-throughs to
+                // the four sub-subpages (building blocks /
+                // groupings / operations / retrieval) — also Composable,
+                // not data.
                 when (topicId) {
                     "help_home_icons" -> HelpIconTable()
                     "help_home_info_providers" -> InfoProviderTable(onNavigateToTopic)
                     "help_home_ai_providers" -> CloudProviderTable(onNavigateToTopic)
+                    "help_glossary" -> {
+                        HomeSubpageLink(
+                            "🧱", "Building blocks",
+                            "Provider · Model · Agent — the atomic units the rest of the app composes.",
+                            onClick = { onNavigateToTopic("help_glossary_blocks") }
+                        )
+                        HomeSubpageLink(
+                            "🪺", "Groupings",
+                            "Flock · Swarm — how the app bundles agents for a single launch.",
+                            onClick = { onNavigateToTopic("help_glossary_groupings") }
+                        )
+                        HomeSubpageLink(
+                            "⚙️", "Operations",
+                            "Report · Chat · Meta prompt · Fan-out · Rerank · Moderation · Translation — the things you actually run.",
+                            onClick = { onNavigateToTopic("help_glossary_operations") }
+                        )
+                        HomeSubpageLink(
+                            "📚", "Retrieval",
+                            "Knowledge base · Embedder · Reranker — how RAG works in this app.",
+                            onClick = { onNavigateToTopic("help_glossary_retrieval") }
+                        )
+                    }
                 }
             } else {
                 CompactOverview(onNavigateToTopic, onNavigateToAbout)
@@ -183,17 +229,55 @@ private fun CompactOverview(
         "Per-screen help",
         "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
-    // Tap-through subpage links — each opens its own help topic.
-    // Promoted out of the previous inline-table layout so the home
-    // page stays scannable. Each topic page's ❓ icon routes back to
-    // here (Help home), so navigation is one-tap out + one-tap back.
+    // Tap-through subpage links — each opens its own help topic
+    // prefixed "Help - …". Order is curated: About first
+    // (orientation), then the cross-cutting behaviour topics, then
+    // the references (Costs / Privacy / Backup / Local AI /
+    // Translations), then the table-style reference subpages
+    // (Icons / Info providers / AI providers). Each subpage's ❓
+    // icon routes back to Help home.
+    HomeSubpageLink(
+        "🧭", "About the app",
+        "What this app does, who it's for, headline features, where to start. The orientation page.",
+        onClick = { onNavigateToTopic("help_about") }
+    )
     HomeSubpageLink(
         "🔧", "How it works",
-        "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy. Anything the app does that isn't tied to one screen.",
+        "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy, cost-aware hesitation. Anything the app does that isn't tied to one screen.",
         onClick = { onNavigateToTopic("concepts") }
     )
     HomeSubpageLink(
-        "🧭", "Help icons",
+        "📖", "Concepts & glossary",
+        "Provider · Agent · Report · Meta · Fan-out · Knowledge base · … — the app's vocabulary, grouped into four categories with a one-paragraph explainer each.",
+        onClick = { onNavigateToTopic("help_glossary") }
+    )
+    HomeSubpageLink(
+        "💰", "Costs & pricing",
+        "How the app attributes a USD cost to every call — pricing-tier chain, manual overrides, where costs surface in the UI.",
+        onClick = { onNavigateToTopic("help_costs") }
+    )
+    HomeSubpageLink(
+        "🔒", "Privacy & data",
+        "Local-first principle, what leaves the device, what never does. Telemetry: none. Data ownership: yours.",
+        onClick = { onNavigateToTopic("help_privacy") }
+    )
+    HomeSubpageLink(
+        "💾", "Backup & restore",
+        "What a backup zip contains, how to make one, restore semantics, version compatibility.",
+        onClick = { onNavigateToTopic("help_backup") }
+    )
+    HomeSubpageLink(
+        "📱", "Local AI (on-device)",
+        "The LiteRT LLM + embedder that run on the phone. How to add a model, when to pick local, perf expectations.",
+        onClick = { onNavigateToTopic("help_local_ai") }
+    )
+    HomeSubpageLink(
+        "🌐", "Translations & multi-language",
+        "How translation runs work — what gets translated, single- vs multi-model, the Speed / Mixed / Cost mode toggle, Restart-failed semantics, the self-healing background paths.",
+        onClick = { onNavigateToTopic("help_translations") }
+    )
+    HomeSubpageLink(
+        "🎨", "Icons",
         "Legend for every title-bar / action-row / list icon in the app — what each glyph means and where it shows up.",
         onClick = { onNavigateToTopic("help_home_icons") }
     )
@@ -213,10 +297,9 @@ private fun CompactOverview(
             "2. Housekeeping → Refresh → Refresh all — verify keys + fetch model lists + seed default agents.\n" +
             "3. From the Hub, pick Reports / Chat / Knowledge / Models / Setup / Housekeeping."
     )
-    HelpSection(
-        "Privacy",
-        "All data stays on this device. API keys are sent only to their provider. No telemetry."
-    )
+    // Privacy moved to its own "Help - Privacy & data" subpage —
+    // the inline one-liner here was always too thin to carry the
+    // full story.
     HelpSection(
         "Copyright",
         "Copyright © Herbert Groot Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
