@@ -119,7 +119,6 @@ internal fun ViewAiReportScreen(
      *  opened sub-screen can lock itself to that language. null = no
      *  force; "" = force Original; non-empty = displayName. */
     onViewPrompt: (String?) -> Unit,
-    onViewCosts: () -> Unit,
     onViewReports: (String?) -> Unit,
     onOpenHtmlPreview: () -> Unit,
     onViewLog: () -> Unit,
@@ -136,6 +135,23 @@ internal fun ViewAiReportScreen(
                               targetLanguageNative: String) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
 ) {
+    // Per-tile content-only "View" overlay state. Owned by
+    // ViewAiReportScreen rather than the parent so adding new view
+    // overlays one-per-commit doesn't grow ReportsScreen's bytecode
+    // past the JVM 64 KB per-method ceiling. When the costs overlay is
+    // open we render [CostsViewScreen] in place of the tile grid;
+    // tapping back inside that overlay clears the flag and returns to
+    // the grid here. rememberSaveable so a rotation while the costs
+    // screen is up doesn't snap back to the grid.
+    var showCostsView by rememberSaveable { mutableStateOf(false) }
+    if (showCostsView) {
+        CostsViewScreen(
+            reportId = reportId,
+            onBack = { showCostsView = false }
+        )
+        return
+    }
+
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
     // so a rotation doesn't snap the list shut mid-read.
@@ -420,7 +436,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewPrompt, onViewCosts, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewPrompt, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -434,7 +450,7 @@ internal fun ViewAiReportScreen(
                 enabled = reportsEnabled,
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
             ) { onViewReports(currentLanguageState.value) }))
-            add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { onViewCosts() }))
+            add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))
             add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
             add(IdentifiedTile("doc:Log", ViewTile("Log", "📜", AppColors.Brown) { onViewLog() }))
             // 🐞 mirrors the title-bar trace icon — opens the API

@@ -737,6 +737,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "Tile labelled 🌀 <prompt name> on Report - view. The View screen's language picker is carried through — picking a translated tab shows the matching META TRANSLATE row for each pair when one exists (pairs without a translation fall back to the original reply so the thread stays continuous). For management (Restart failed, Remove benched, Run fan-icons, Run combine reports, …) drop back and open the run from Report - manage instead."),
         )
     ),
+    "costs_view" to HelpContent(
+        title = "Help - Costs — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the report cost table. Reached from the 💰 Costs tile on Report - view. Surfaces a single hero card with the grand-total USD figure and a stack of horizontal-bar rows — one per spend bucket (Reports, Meta, Fan-out, Fan-in, Translate, Moderation, Rerank, Icons, Language). Bar length is proportional to that bucket's share of the total."),
+            HelpCard("What's on this screen", "Hero card: 💰 Total in big Yellow type plus a tally of total call count and bucket count. Per-bucket rows: percentage of grand total, absolute USD amount, a horizontal bar coloured Yellow-to-Orange that visualises that share at a glance, and the bucket's per-call count. Zero-cost buckets are skipped entirely; sub-1% buckets still render a sliver so they don't disappear."),
+            HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
+        )
+    ),
     "secondary_scope" to HelpContent(
         title = "Help - Secondary scope",
         cards = listOf(
@@ -2836,6 +2844,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
     "fan_out_view" to listOf("help_glossary_operations", "help_translations"),
+    "costs_view" to listOf("help_glossary_operations", "help_costs"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====

@@ -3094,11 +3094,6 @@ private fun ReportPrimaryOverlays(
                     onViewerLockedLanguageChange(lang)
                     onShowViewerChange(true)
                 },
-                onViewCosts = {
-                    onSelectedAgentForViewerChange(null)
-                    onViewerSectionChange("costs")
-                    onShowViewerChange(true)
-                },
                 onViewReports = { lang ->
                     onSelectedAgentForViewerChange(null)
                     onViewerSectionChange(null)
