@@ -1258,6 +1258,17 @@ object ReportStorage {
             // on the source.
             copy.icon = src.icon
             copy.iconErrorMessage = src.iconErrorMessage
+            // Same shape for the language-detection visible state:
+            // without these three, the language row would also spin
+            // ⏳ "Detecting…" forever on the copy even though no
+            // detection is running. Tokens / costs / trace files /
+            // raw responses + the icon-prompt metadata are
+            // deliberately left at defaults — the source already
+            // paid for those calls; double-counting would skew any
+            // cross-report aggregate.
+            copy.languageName = src.languageName
+            copy.languageIcon = src.languageIcon
+            copy.languageIconErrorMessage = src.languageIconErrorMessage
             saveReport(copy)
             newId
         }
