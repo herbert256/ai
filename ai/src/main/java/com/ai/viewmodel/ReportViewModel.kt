@@ -4329,7 +4329,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  - **Unrecoverable** (legacy rows missing fields, prompts since
      *    deleted, fan-in / model-fan-in rows whose substitution data
      *    can't be reconstructed): falls back to the existing
-     *    "Interrupted by app restart" marker so the row renders ❌
+     *    "No data yet" marker so the row renders ❌
      *    and the user can manually retry.
      *
      *  Only rows interrupted by app death (content blank, errorMessage
@@ -4467,7 +4467,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (row.translationRunId in activeTranslationRunIds ||
                     row.translationRunId in translationRunIds)) return@forEach
             // Anything still standing here is unrecoverable — mark ❌.
-            markRowAsInterrupted(context, reportId, row.id, "Interrupted by app restart")
+            markRowAsInterrupted(context, reportId, row.id, "No data yet")
         }
     }
 

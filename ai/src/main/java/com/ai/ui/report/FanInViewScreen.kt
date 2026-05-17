@@ -171,7 +171,7 @@ private fun SynthesisHero(providerDisplay: String, model: String, body: String) 
         }
         if (body.isBlank()) {
             Text(
-                text = "(no content)",
+                text = "No data yet",
                 color = AppColors.TextTertiary, fontSize = 13.sp
             )
         } else {
