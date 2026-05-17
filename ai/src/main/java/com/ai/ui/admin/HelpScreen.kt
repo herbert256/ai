@@ -174,45 +174,49 @@ private fun HelpFooter(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            if (onNavigateToHelpHome != null) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (onNavigateToHelpHome != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ic_launcher_foreground),
+                            contentDescription = "Help home",
+                            alpha = 0.75f,
+                            modifier = Modifier.size(40.dp).padding(end = 6.dp)
+                        )
+                        Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    androidx.compose.foundation.Image(
-                        painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ic_launcher_foreground),
-                        contentDescription = "Help home",
-                        alpha = 0.75f,
-                        modifier = Modifier.size(40.dp).padding(end = 6.dp)
-                    )
-                    Text("Help home", fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text("ℹ️", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                    Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                 }
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("ℹ️", fontSize = 24.sp, modifier = Modifier.width(40.dp))
-                Text("About", fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable {
-                    context.startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse("https://github.com/herbert256/ai")
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://github.com/herbert256/ai")
+                            )
                         )
+                    },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🐙", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                    Text(
+                        "GitHub: herbert256/ai",
+                        fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
                     )
-                },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("🐙", fontSize = 24.sp, modifier = Modifier.width(40.dp))
-                Text(
-                    "GitHub: herbert256/ai",
-                    fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
-                )
+                }
             }
         }
     }
