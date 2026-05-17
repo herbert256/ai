@@ -219,6 +219,12 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
 data class ReportListIconBundle(
     val onOpenManage: (String) -> Unit = {},
     val onOpenView: (String) -> Unit = {},
+    /** Per-row 🗑 delete target. Default no-op keeps the icon hidden
+     *  in [ReportListRow] (the row only renders 🗑 when this is
+     *  non-default-equivalent, i.e. callers pass a real lambda).
+     *  Wired from AppNavHost so the delete runs on Dispatchers.IO
+     *  + bumps a refresh tick to re-list. */
+    val onDelete: (String) -> Unit = {},
     /** When true, the report screen flips its [showViewReportScreen]
      *  saveable flag on first composition so the user lands on the
      *  View tile grid instead of Manage. */
@@ -1069,7 +1075,16 @@ fun HubCard(
  *  Local semantic), the Trace Detail "Open report" button, and the
  *  +Report previous-report picker. */
 @Composable
-fun ReportRowActionIcons(onOpenManage: () -> Unit, onOpenView: () -> Unit) {
+fun ReportRowActionIcons(
+    onOpenManage: () -> Unit,
+    onOpenView: () -> Unit,
+    /** Optional 🗑 row-delete callback. When both [onDelete] and
+     *  [reportId] are non-null the trailing 🗑 icon renders; tap
+     *  fires the lambda with [reportId]. Existing call sites that
+     *  omit these get the same two-icon behaviour as before. */
+    onDelete: ((String) -> Unit)? = null,
+    reportId: String? = null
+) {
     Text(
         "🔧", fontSize = 18.sp,
         modifier = Modifier
@@ -1082,4 +1097,69 @@ fun ReportRowActionIcons(onOpenManage: () -> Unit, onOpenView: () -> Unit) {
             .clickable { onOpenView() }
             .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
     )
+    if (onDelete != null && reportId != null) {
+        Text(
+            "🗑", fontSize = 18.sp, color = AppColors.Red,
+            modifier = Modifier
+                .clickable { onDelete(reportId) }
+                .padding(start = 6.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+        )
+    }
+}
+
+/** One full report-list row. Renders the per-report icon (when
+ *  icon-gen is on), the report title (single-line, ellipsised),
+ *  and the trailing 🔧 / 👁 / 🗑 action triplet. The outer row is
+ *  clickable → [onOpenManage], matching the historical "tap a row
+ *  to manage" default. 🗑 owns its own confirm dialog that calls
+ *  [onDelete] only after the user confirms — the dialog state is
+ *  internal to the row.
+ *
+ *  Mirrors the visual shape of `HistoryReportRow` and the home
+ *  Running / Problems list rows so every report list across the
+ *  app reads the same. */
+@Composable
+fun ReportListRow(
+    report: com.ai.data.Report,
+    onOpenManage: (String) -> Unit,
+    onOpenView: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var showDelete by remember(report.id) { mutableStateOf(false) }
+    if (showDelete) {
+        DeleteConfirmationDialog(
+            entityType = "Report",
+            entityName = report.title.ifBlank { "Untitled" },
+            onConfirm = { showDelete = false; onDelete(report.id) },
+            onDismiss = { showDelete = false }
+        )
+    }
+    val iconGenEnabled = LocalIconGenEnabled.current
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clickable { onOpenManage(report.id) }
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (iconGenEnabled) {
+            Text(
+                text = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+                fontSize = 16.sp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Text(
+            text = report.title.ifBlank { "Untitled" },
+            fontSize = 14.sp, color = Color.White,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        ReportRowActionIcons(
+            onOpenManage = { onOpenManage(report.id) },
+            onOpenView = { onOpenView(report.id) },
+            onDelete = { showDelete = true },
+            reportId = report.id
+        )
+    }
 }

@@ -110,66 +110,9 @@ fun HubScreen(
         value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context).isNotEmpty() }
     }
 
-    // "Running reports" + "Reports with problems" cards. Disk scan
-    // every 5 s while the home screen is visible — bounded cost
-    // (one getAllReports + per-report listForReport, the latter
-    // fingerprint-cached inside SecondaryResultStorage). The
-    // translationRuns flow drives sub-second updates when a
-    // translation starts / finishes; the 5 s tick confirms disk
-    // state and catches changes outside the live in-memory set.
-    val translationRuns by reportViewModel.translationRuns.collectAsState()
-    val cardsTick by produceState(initialValue = 0) {
-        while (true) {
-            kotlinx.coroutines.delay(5_000L)
-            value = value + 1
-        }
-    }
-    val homeReportLists by produceState(
-        initialValue = HomeReportLists(emptyList(), emptyList()),
-        refreshTick, cardsTick, translationRuns
-    ) {
-        value = withContext(Dispatchers.IO) {
-            val all = ReportStorage.getAllReports(context)
-            val activeTranslationReportIds = translationRuns.values
-                .filter { !it.isFinished && !it.cancelled }
-                .map { it.sourceReportId }
-                .toSet()
-            val running = all.filter { r ->
-                (r.completedAt == null && r.agents.any {
-                    it.reportStatus == ReportStatus.PENDING ||
-                        it.reportStatus == ReportStatus.RUNNING
-                }) || r.id in activeTranslationReportIds
-            }
-            val runningIds = running.map { it.id }.toSet()
-            val problems = all.filter { r ->
-                // Skip reports that are already showing in the
-                // Running card — disk-side red crosses that are
-                // actively being healed (in-flight retry / resume)
-                // shouldn't double up as "problems". When the
-                // running state clears, any persistent red cross
-                // resurfaces here on the next 5 s tick.
-                if (r.id in runningIds) return@filter false
-                // Cheap check first — agent-level error is in-memory
-                // on the already-loaded Report.
-                if (r.agents.any { it.reportStatus == ReportStatus.ERROR }) return@filter true
-                // Secondary scan: every condition that puts a red
-                // cross on the Manage screen. TRANSLATE rows whose
-                // model is currently rate-limit-benched are excluded
-                // since those auto-recover — same filter the L1
-                // uses to split errorCount vs benchCount.
-                val secs = SecondaryResultStorage.listForReport(context, r.id)
-                secs.any { sec ->
-                    val hasError = sec.errorMessage != null &&
-                        !(sec.kind == SecondaryKind.TRANSLATE &&
-                            ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
-                    val stuckPlaceholder = sec.content.isNullOrBlank() &&
-                        sec.errorMessage == null && sec.durationMs == null
-                    hasError || stuckPlaceholder
-                }
-            }
-            HomeReportLists(running, problems)
-        }
-    }
+    // "Running reports" + "Reports with problems" cards — shared
+    // loader so the Reports hub renders the exact same buckets.
+    val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
     val homeCardsExtra = (if (homeReportLists.running.isNotEmpty()) 1 else 0) +
         (if (homeReportLists.problems.isNotEmpty()) 1 else 0)
 
@@ -294,10 +237,89 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
  *  HubScreen's `produceState` block; both lists naturally land
  *  newest-first because [ReportStorage.getAllReports] returns
  *  sorted-by-timestamp-descending. */
-internal data class HomeReportLists(
+data class HomeReportLists(
     val running: List<Report>,
     val problems: List<Report>
 )
+
+/** Disk scan that powers both the home screen's Running / Problems
+ *  cards and the Reports hub's Problems / Running list cards.
+ *  Centralised here so the two screens stay in sync — the filter
+ *  rules (active translations counted as Running, errored agents +
+ *  stuck-placeholder secondaries counted as Problems, cooled-down
+ *  TRANSLATE rows excluded, Running reports excluded from Problems)
+ *  used to live inline in HubScreen and were a copy-paste risk.
+ *
+ *  Pulls the live `translationRuns` StateFlow from the supplied
+ *  [reportViewModel] so an in-flight translation flips a report
+ *  into Running sub-second. The 5 s [cardsTick] catches background
+ *  state changes (resume-from-disk, cooldown clear, etc.). The
+ *  [refreshTick] keys onto the screen's resume lifecycle so
+ *  navigating back from a delete / reload picks the fresh state. */
+@Composable
+fun rememberHomeReportLists(
+    refreshTick: Int,
+    reportViewModel: ReportViewModel
+): State<HomeReportLists> {
+    val context = LocalContext.current
+    val translationRuns by reportViewModel.translationRuns.collectAsState()
+    val cardsTick by produceState(initialValue = 0) {
+        while (true) {
+            kotlinx.coroutines.delay(5_000L)
+            value = value + 1
+        }
+    }
+    return produceState(
+        initialValue = HomeReportLists(emptyList(), emptyList()),
+        refreshTick, cardsTick, translationRuns
+    ) {
+        value = withContext(Dispatchers.IO) {
+            computeHomeReportLists(context, translationRuns)
+        }
+    }
+}
+
+/** Pure-IO computation that produces the Running + Problems splits
+ *  for the home / hub list cards. Run on [Dispatchers.IO] by
+ *  [rememberHomeReportLists] — kept as a top-level so the same
+ *  filter logic can be invoked from any screen-scoped coroutine
+ *  without dragging the Compose plumbing along. */
+internal fun computeHomeReportLists(
+    context: android.content.Context,
+    translationRuns: Map<String, ReportViewModel.TranslationRunState>
+): HomeReportLists {
+    val all = ReportStorage.getAllReports(context)
+    val activeTranslationReportIds = translationRuns.values
+        .filter { !it.isFinished && !it.cancelled }
+        .map { it.sourceReportId }
+        .toSet()
+    val running = all.filter { r ->
+        (r.completedAt == null && r.agents.any {
+            it.reportStatus == ReportStatus.PENDING ||
+                it.reportStatus == ReportStatus.RUNNING
+        }) || r.id in activeTranslationReportIds
+    }
+    val runningIds = running.map { it.id }.toSet()
+    val problems = all.filter { r ->
+        // Skip reports that are already showing in the Running card
+        // — disk-side red crosses that are actively being healed
+        // (in-flight retry / resume) shouldn't double up as
+        // "problems". When the running state clears, any persistent
+        // red cross resurfaces here on the next 5 s tick.
+        if (r.id in runningIds) return@filter false
+        if (r.agents.any { it.reportStatus == ReportStatus.ERROR }) return@filter true
+        val secs = SecondaryResultStorage.listForReport(context, r.id)
+        secs.any { sec ->
+            val hasError = sec.errorMessage != null &&
+                !(sec.kind == SecondaryKind.TRANSLATE &&
+                    ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
+            val stuckPlaceholder = sec.content.isNullOrBlank() &&
+                sec.errorMessage == null && sec.durationMs == null
+            hasError || stuckPlaceholder
+        }
+    }
+    return HomeReportLists(running, problems)
+}
 
 /** Home-screen card with a title line + one tappable row per
  *  report. Each row carries the report icon (📝 fallback) and
