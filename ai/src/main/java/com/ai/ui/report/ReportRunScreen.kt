@@ -97,6 +97,30 @@ internal fun ReportRunScreen(
         selectedId = uiState.reportSystemPromptId,
         onSelect = systemPromptChange
     )
+    // 👯 duplicate-report tap shows a yes/no first so an accidental
+    // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
+    var showCopyConfirm by remember { mutableStateOf(false) }
+    if (showCopyConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showCopyConfirm = false },
+            title = { androidx.compose.material3.Text("Duplicate report?") },
+            text = {
+                androidx.compose.material3.Text(
+                    "Make a copy of this report — same prompt, agents, parameters, and every existing response. The copy opens immediately; the original stays put."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showCopyConfirm = false; generationHandlers.onCopy() }
+                ) { androidx.compose.material3.Text("Duplicate", color = com.ai.ui.shared.AppColors.Blue) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showCopyConfirm = false }
+                ) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -124,7 +148,9 @@ internal fun ReportRunScreen(
                     { onChatWithReportPrompt(uiState.genericPromptText) }
                 } else null,
                 onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
-                onCopyReport = if (currentReportId != null) generationHandlers.onCopy else null,
+                onCopyReport = if (currentReportId != null) {
+                    { showCopyConfirm = true }
+                } else null,
                 onPin = if (currentReportId != null) {
                     { generationHandlers.onTogglePin(); pinTick++ }
                 } else null,

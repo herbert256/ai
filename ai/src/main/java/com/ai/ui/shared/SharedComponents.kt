@@ -797,7 +797,6 @@ private fun TitleBarActionStrip(
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
-        if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
         if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
         if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
         if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
@@ -806,6 +805,11 @@ private fun TitleBarActionStrip(
         // The callback is only ever non-null on translated screens,
         // so the icon's presence already implies translation content.
         if (onTranslationCompare != null) TitleBarIcon("🌐", Color.Unspecified, onTranslationCompare, width = 28.dp, scale = scale)
+        // 👯 Copy-report sits immediately before 🗑 Delete — both are
+        // "operates on the report itself" actions, and grouping them
+        // keeps the destructive icon flanked by its sibling action
+        // rather than mixed in with the per-content viewers.
+        if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace != null) {
             Spacer(modifier = Modifier.width(2.dp * scale))
@@ -873,11 +877,11 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     if (onChat != null) slot(28)
     if (onInfo != null) slot(28)
     if (onCopy != null) slot(28)
-    if (onCopyReport != null) slot(28)
     if (onPin != null) slot(28)
     if (onShare != null) slot(28)
     if (onReload != null) slot(28)
     if (onTranslationCompare != null) slot(28)
+    if (onCopyReport != null) slot(28)
     if (onDelete != null) slot(22)
     if (onDelete != null && onTrace != null) stripBase += 2
     if (onTrace != null) slot(22)
