@@ -120,14 +120,14 @@ fun AboutScreen(
 }
 
 /** Format the most-recent install / upgrade time of THIS APK as
- *  "yyyy-MM-dd HH:mm:ss z". Reads PackageInfo.lastUpdateTime —
+ *  "yyyy-MM-dd HH:mm:ss". Reads PackageInfo.lastUpdateTime —
  *  always matches the user's most recent `adb install`. Distinct
  *  from build time: install can lag build by minutes (release
  *  flow) or be hours apart (Play Store install of a prior CI
  *  build). */
 internal fun formatAppInstalledTime(context: android.content.Context): String = try {
     val info = context.packageManager.getPackageInfo(context.packageName, 0)
-    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
         .format(java.util.Date(info.lastUpdateTime))
 } catch (_: Exception) { "?" }
 
@@ -144,6 +144,6 @@ internal fun formatAppInstalledTime(context: android.content.Context): String = 
 internal fun readBundledBuildStamp(context: android.content.Context): String = try {
     val millis = context.assets.open("build-timestamp.txt")
         .bufferedReader().use { it.readText().trim() }.toLong()
-    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss z", java.util.Locale.US)
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
         .format(java.util.Date(millis))
 } catch (_: Exception) { "?" }
