@@ -6332,93 +6332,115 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ) else it
             }))
         }
-        AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
-        val resolved = template
-            .replace("@LANGUAGE@", targetLanguageName)
-            .replace("@TEXT@", item.sourceText)
-        val agent = Agent(
-            id = "translate:${provider.id}:$model",
-            name = "Translate / ${provider.id} / $model",
-            provider = provider, model = model, apiKey = apiKey
-        )
-        val callStart = System.currentTimeMillis()
-        // Capture the trace filename so the View → Prompt screen
-        // can wire a 🐞 directly to this exact translation call.
-        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-        val response = try {
-            withTraceFilenameSink(traceSink) {
-                appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolved, AgentParameters(), null, context, baseUrl
+        // Belt-and-braces against a coroutine cancellation between
+        // the RUNNING-state set above and the terminal DONE/Failed
+        // update below — a cancelled `runOneTranslation` returns no
+        // outcome to its caller (no `finalizeTranslationError` runs),
+        // so without this catch the item is stranded as RUNNING in
+        // the in-memory run state forever (disk is unaffected). Demote
+        // back to PENDING and rethrow; a subsequent retry/reload will
+        // pick it up cleanly.
+        try {
+            AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
+            val resolved = template
+                .replace("@LANGUAGE@", targetLanguageName)
+                .replace("@TEXT@", item.sourceText)
+            val agent = Agent(
+                id = "translate:${provider.id}:$model",
+                name = "Translate / ${provider.id} / $model",
+                provider = provider, model = model, apiKey = apiKey
+            )
+            val callStart = System.currentTimeMillis()
+            // Capture the trace filename so the View → Prompt screen
+            // can wire a 🐞 directly to this exact translation call.
+            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+            val response = try {
+                withTraceFilenameSink(traceSink) {
+                    appViewModel.repository.analyzeWithAgent(
+                        agent, "", resolved, AgentParameters(), null, context, baseUrl
+                    )
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
+            }
+            val callDurationMs = System.currentTimeMillis() - callStart
+            val capturedTraceFile = traceSink.get()
+            val tu = response.tokenUsage
+            val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
+            // A failed call (incl. a benched-on-this-call >1h 429) is
+            // non-terminal here — the caller retries the item on another
+            // model, up to 3 attempts, and only then finalizes ERROR via
+            // finalizeTranslationError. So a failure leaves _translationRuns
+            // untouched (the item stays RUNNING) and persists nothing.
+            if (!response.isSuccess) {
+                AppLog.d(
+                    "Translation",
+                    "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
+                )
+                return TranslationOutcome.Failed(response.error ?: "Empty response")
+            }
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                val updated = cur.items.map {
+                    if (it.id != item.id) it
+                    else it.copy(
+                        status = TranslationStatus.DONE,
+                        translatedText = response.analysis,
+                        costDollars = costDollars,
+                        tokenUsage = tu,
+                        durationMs = callDurationMs,
+                        providerId = provider.id,
+                        model = model,
+                        traceFile = capturedTraceFile
+                    )
+                }
+                runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
+            }
+            // Persist this item as soon as the call settles so the row
+            // survives a process kill mid-batch. Previously the whole
+            // batch was held in-memory and only flushed to disk via
+            // saveTranslationSecondaries after awaitAll(); a redeploy
+            // or an OS kill halfway through silently lost everything.
+            // Use the in-memory runId as the on-disk translationRunId so
+            // every item this batch writes groups under the same run on
+            // the result screen and survives restart with the same
+            // identity.
+            val freshRun = _translationRuns.value[runId]
+            val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
+            if (freshRun != null && freshItem != null) {
+                saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
+            }
+            // Roll the translation call into per-(provider, model) usage so
+            // it shows up on the AI Usage screen alongside report / chat
+            // calls.
+            if (tu != null) {
+                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                    provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
+                    kind = "translate"
                 )
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            AnalysisResponse(provider, null, e.message ?: "Unknown error", agentName = agent.name)
-        }
-        val callDurationMs = System.currentTimeMillis() - callStart
-        val capturedTraceFile = traceSink.get()
-        val tu = response.tokenUsage
-        val costDollars = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
-        // A failed call (incl. a benched-on-this-call >1h 429) is
-        // non-terminal here — the caller retries the item on another
-        // model, up to 3 attempts, and only then finalizes ERROR via
-        // finalizeTranslationError. So a failure leaves _translationRuns
-        // untouched (the item stays RUNNING) and persists nothing.
-        if (!response.isSuccess) {
             AppLog.d(
                 "Translation",
-                "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
+                "← item ${item.id} ok ${callDurationMs}ms" +
+                    (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
+                    " cost=${"%.5f".format(costDollars)}"
             )
-            return TranslationOutcome.Failed(response.error ?: "Empty response")
-        }
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            val updated = cur.items.map {
-                if (it.id != item.id) it
-                else it.copy(
-                    status = TranslationStatus.DONE,
-                    translatedText = response.analysis,
-                    costDollars = costDollars,
-                    tokenUsage = tu,
-                    durationMs = callDurationMs,
-                    providerId = provider.id,
-                    model = model,
-                    traceFile = capturedTraceFile
-                )
+            return TranslationOutcome.Success(costDollars)
+        } catch (t: Throwable) {
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(items = cur.items.map {
+                    if (it.id == item.id && it.status == TranslationStatus.RUNNING) it.copy(
+                        status = TranslationStatus.PENDING,
+                        providerId = null,
+                        model = null
+                    ) else it
+                }))
             }
-            runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
+            throw t
         }
-        // Persist this item as soon as the call settles so the row
-        // survives a process kill mid-batch. Previously the whole
-        // batch was held in-memory and only flushed to disk via
-        // saveTranslationSecondaries after awaitAll(); a redeploy
-        // or an OS kill halfway through silently lost everything.
-        // Use the in-memory runId as the on-disk translationRunId so
-        // every item this batch writes groups under the same run on
-        // the result screen and survives restart with the same
-        // identity.
-        val freshRun = _translationRuns.value[runId]
-        val freshItem = freshRun?.items?.firstOrNull { it.id == item.id }
-        if (freshRun != null && freshItem != null) {
-            saveOneTranslationItem(context, runId, freshRun, freshItem, provider, model, pricing)
-        }
-        // Roll the translation call into per-(provider, model) usage so
-        // it shows up on the AI Usage screen alongside report / chat
-        // calls.
-        if (tu != null) {
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
-                kind = "translate"
-            )
-        }
-        AppLog.d(
-            "Translation",
-            "← item ${item.id} ok ${callDurationMs}ms" +
-                (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
-                " cost=${"%.5f".format(costDollars)}"
-        )
-        return TranslationOutcome.Success(costDollars)
     }
 
     /** Persist one TRANSLATE [SecondaryResult] for a single completed
@@ -7025,6 +7047,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
 
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        // Mirror startTranslation's per-attempt wall-clock budget.
+        // Without this, a pathologically slow (or OkHttp-retry-stuck)
+        // call on the resume/restart path can hold an item RUNNING for
+        // minutes — observed in the wild at 240s+ on SiliconFlow and
+        // 600s+ on OpenAI. Timeout produces a Failed outcome that the
+        // existing finalize path turns into a terminal ERROR row.
+        val callBudgetMs = 90_000L
         try {
             withTracerTags(reportId = sourceReportId, category = "Translation", runId = runId) {
                 coroutineScope {
@@ -7051,11 +7080,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 // is finalized ERROR immediately, as
                                                 // before. runOneTranslation no longer
                                                 // self-finalizes, so do it here.
-                                                val outcome = runOneTranslation(
-                                                    runId, context, ctx.provider, ctx.apiKey,
-                                                    ctx.model, ctx.baseUrl, template,
-                                                    targetLanguageName, item, ctx.pricing
-                                                )
+                                                val outcome = kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
+                                                    runOneTranslation(
+                                                        runId, context, ctx.provider, ctx.apiKey,
+                                                        ctx.model, ctx.baseUrl, template,
+                                                        targetLanguageName, item, ctx.pricing
+                                                    )
+                                                } ?: run {
+                                                    AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s")
+                                                    TranslationOutcome.Failed("${ctx.provider.id}/${ctx.model} timed out after ${callBudgetMs / 1000}s")
+                                                }
                                                 if (outcome is TranslationOutcome.Failed) {
                                                     finalizeTranslationError(
                                                         context, runId, item,
