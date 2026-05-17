@@ -177,7 +177,14 @@ internal fun FanOutL2Screen(
             subject = subject,
             onBackClick = onBack,
             onDelete = { confirmModelDelete = true },
-            onInfo = AppService.findById(activePid)?.let { svc -> { actions.onNavigateToModelInfo(svc, activeMdl) } }
+            onInfo = AppService.findById(activePid)?.let { svc -> { actions.onNavigateToModelInfo(svc, activeMdl) } },
+            // 👯 takes over the in-page "Report" button — fires the
+            // same onCreateReportFromFanOut handler that the inline
+            // button used to call. Icons mode never had the button
+            // (action row is hidden there); hide the icon there too.
+            onCopyReport = if (!isIconsMode) {
+                { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) }
+            } else null
         )
         com.ai.ui.shared.HardcodedSubjectRow(subject)
 
@@ -206,23 +213,18 @@ internal fun FanOutL2Screen(
 
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Action buttons all packed in one row — Report / Fan In are
-        // always shown; Remove + Restart appear when there are
-        // errored pairs; onepage when rows exist; Icons when at
-        // least one pair has a generated icon. equalWeight keeps
-        // each button at the same width and labels stay short so a
-        // 4–6 button row still fits on a phone.
+        // Action buttons all packed in one row — Fan In is always
+        // shown; Remove + Restart appear when there are errored
+        // pairs; onepage when rows exist; Icons when at least one
+        // pair has a generated icon. Report is gone — moved to the
+        // bottom-bar 👯 icon. equalWeight keeps each button at the
+        // same width and labels stay short so a 3–5 button row still
+        // fits on a phone.
         val hasIcons = remember(rawRows) { rawRows.any { !it.icon.isNullOrBlank() } }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Button(
-                onClick = { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-                modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-            ) { Text("Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             Button(
                 onClick = { actions.onRunModelFanIn(run.key, activePid, activeMdl) },
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
