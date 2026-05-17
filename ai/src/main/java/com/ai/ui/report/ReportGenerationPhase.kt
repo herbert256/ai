@@ -587,8 +587,8 @@ internal fun ColumnScope.GenerationPhase(
             // noise. Copy + Pin/Unpin stay because they have no
             // matching title-bar icon.
             // Indent the sub-row so it starts roughly under the
-            // "Create" Row 1 button (just past Edit + 6 dp gap).
-            ActionRow(startPadding = 50.dp) {
+            // "Action" Row 1 button (past Edit + Create + gaps).
+            ActionRow(startPadding = 110.dp) {
                 CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
                 CompactButton(
                     onClick = { onTogglePin(); pinTick++; close() },
