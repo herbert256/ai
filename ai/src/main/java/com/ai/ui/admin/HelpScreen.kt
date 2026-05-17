@@ -68,7 +68,11 @@ fun HelpScreen(
             if (topic != null) {
                 HelpFooter(
                     onNavigateToHelpHome = onNavigateToHelpHome,
-                    onNavigateToAbout = onNavigateToAbout
+                    onNavigateToAbout = onNavigateToAbout,
+                    // Suppress the "How it works" footer link when
+                    // we're already viewing it — no self-link.
+                    onNavigateToConcepts = if (topicId == "concepts") null
+                                           else ({ onNavigateToTopic("concepts") })
                 )
             }
         }
@@ -76,7 +80,14 @@ fun HelpScreen(
 }
 
 @Composable
-private fun HelpFooter(onNavigateToHelpHome: () -> Unit, onNavigateToAbout: () -> Unit) {
+private fun HelpFooter(
+    onNavigateToHelpHome: () -> Unit,
+    onNavigateToAbout: () -> Unit,
+    /** Tap target for the "How it works" cross-screen-behaviour
+     *  topic. Null when the user is already on that page so the
+     *  footer doesn't link to itself. */
+    onNavigateToConcepts: (() -> Unit)? = null
+) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -85,6 +96,15 @@ private fun HelpFooter(onNavigateToHelpHome: () -> Unit, onNavigateToAbout: () -
             ) {
                 Text("←", fontSize = 14.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
                 Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            }
+            if (onNavigateToConcepts != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToConcepts() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("🔧", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+                    Text("How it works", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
@@ -110,6 +130,27 @@ private fun CompactOverview(
         "Per-screen help",
         "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
+    // "How it works" — the cross-screen behaviours topic. Surfaced
+    // as a tap-through card next to "Per-screen help" so the user
+    // discovers it from the Help landing page. The same destination
+    // is also linked from every per-topic page's HelpFooter.
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clickable { onNavigateToTopic("concepts") }
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("🔧", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("How it works", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy. Anything the app does that isn't tied to one screen.",
+                    fontSize = 12.sp, color = AppColors.TextSecondary
+                )
+            }
+        }
+    }
     HelpSection(
         "Getting started",
         "1. Settings → AI Setup → Providers — paste an API key.\n" +

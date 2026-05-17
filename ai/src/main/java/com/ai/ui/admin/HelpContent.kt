@@ -229,6 +229,15 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending the second rewrite pass — they link back to the original `doc/<name>.md` in the repo. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
         )
     ),
+    "concepts" to HelpContent(
+        title = "How it works",
+        cards = listOf(
+            HelpCard("What this page is", "Behaviours that span multiple screens. The per-screen ❓ help covers buttons / cards / fields on one screen; this page collects the things that quietly happen across the whole app — background sweeps, auto-reconcile, retry policy. Reach it from any per-screen help page's footer (\"How it works\") or from the Help home."),
+            HelpCard("Stalled translation auto-reconcile", "Live translation rows (⏳ + 'done / total') auto-heal when their in-memory state has drifted from disk. Two triggers: (a) every report-open, the resume pass scans for any in-memory run flagged in-flight with no live dispatch job — those are demonstrably stuck (a cross-translate / restart-failed coroutine died before flipping the finished flag) and get rebuilt immediately; (b) a 10-second sanity poll on the result page catches rows where the done count already equals total but the row is still flagged in-flight. Either trigger silently rebuilds the in-memory state from the persisted SecondaryResult rows. The hourglass clears, the per-status counts on the run drill-in turn truthful, and any placeholder rows the rebuild surfaces show as Queue so you can decide whether to Restart them."),
+            HelpCard("App-wide background resume sweep", "Once on app start and then every 30 seconds the app runs the same per-report stale-runs resume across every report modified in the last 7 days — translation placeholders that never converged, fan-out pairs the previous session abandoned, single-Meta calls left in PENDING. You don't have to open each report individually for its dropped work to come back. Logs land under the BgResumeSweep tag. Reports older than 7 days are skipped (out of the active-work window); a kill+restart catches them on next open."),
+            HelpCard("429 / 529 handling", "Translation runs with ≤ 3 models retry rate-limited (429) or overloaded (529) calls inline on the same model up to 3 times (1 s backoff each, configurable in Settings → Network). Runs with > 3 models skip the inline retry: a 429 / 529 finalises immediately as a Failed attempt and the item is requeued for a different model — the cross-model bounce is faster than sleeping on the same one when alternatives are available. Long Retry-After (> 1 h) still benches the model on ModelCooldownStore either way.")
+        )
+    ),
     "help_topic_view" to HelpContent(
         title = "Help (this screen)",
         cards = listOf(
@@ -281,8 +290,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — 💬", "Results phase only, and only when the prompt is non-blank. Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn."),
             HelpCard("Per-row 🐞", "Each agent row carries the trace icon when its API call left a recording. Tapping opens that single trace file."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
-            HelpCard("Stalled translation auto-reconcile", "Live translation rows (⏳ + 'done / total') auto-heal when their in-memory state has drifted from disk. Two triggers: (a) every report-open, the resume pass scans for any in-memory run flagged in-flight with no live dispatch job — those are demonstrably stuck (a cross-translate / restart-failed coroutine died before flipping the finished flag) and get rebuilt immediately; (b) a 10-second sanity poll on the result page catches rows where the done count already equals total but the row is still flagged in-flight. Either trigger silently rebuilds the in-memory state from the persisted SecondaryResult rows. The hourglass clears, the per-status counts on the run drill-in turn truthful, and any placeholder rows the rebuild surfaces show as Queue so you can decide whether to Restart them."),
-            HelpCard("App-wide background resume sweep", "Once on app start and then every 30 seconds the app runs the same per-report stale-runs resume across every report modified in the last 7 days — translation placeholders that never converged, fan-out pairs the previous session abandoned, single-Meta calls left in PENDING. You don't have to open each report individually for its dropped work to come back. Logs land under the BgResumeSweep tag. Reports older than 7 days are skipped (out of the active-work window); a kill+restart catches them on next open.")
+            // "Stalled translation auto-reconcile" + "App-wide
+            // background resume sweep" relocated to the new "concepts"
+            // topic — they're cross-screen behaviours, not specific
+            // to this screen. The Help-home "How it works" link
+            // surfaces them.
         )
     ),
     "update_from_cloud" to HelpContent(
@@ -759,7 +771,10 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Level 1 of the translation run drill-in: every model that picked up work in this run. The run uses a shared work queue — items aren't pre-assigned, so a model's row appears (and its bar grows) as that model pulls items. Tap a model to see the items it translated."),
             HelpCard("Mode (Speed / Mixed / Cost)", "Three-way toggle above the stats panel. Cost (default) — cheap models drain the queue first, expensive ones hesitate proportional to their price ratio (up to 2 min between pulls). Mixed — softened bias (up to 5 s). Speed — no hesitation, every model pulls as fast as its per-host caps allow; highest throughput, highest spend. Switchable mid-run; the change takes effect on the next queue pull (within ~1 s). Saved per-run on disk so a process kill / app restart preserves your choice."),
-            HelpCard("429 / 529 handling", "Runs with ≤ 3 models retry rate-limited (429) or overloaded (529) calls inline on the same model up to 3 times (1 s backoff each, configurable in Settings → Network). Runs with > 3 models skip the inline retry: a 429 / 529 finalises immediately as a Failed attempt and the item is requeued for a different model — the cross-model bounce is faster than sleeping on the same one when alternatives are available. Long Retry-After (> 1 h) still benches the model on ModelCooldownStore either way."),
+            // "429 / 529 handling" relocated to the "concepts" topic
+            // (Help home → How it works) — same OkHttp retry behaviour
+            // applies across every screen that fires a translation
+            // call, not just this one.
             HelpCard("Stats panel", "Pinned at the top, kept visible even once the run is done: Total, Done, Errors, Bench (errored because the model is on a >1h rate-limit cooldown — will recover when it lifts, counted apart from genuine errors), Run (in-flight), Queue (items not yet picked up by any model), Costs (run total in cents, 2 decimals)."),
             HelpCard("Per-model bar", "Each row's background bar is that model's share of the WHOLE run — green for done, red for errored. A per-model progress bar isn't possible: with the work queue you can't know how many items a model will end up taking. A model that did half the run shows a half-filled row."),
             HelpCard("Per-model row", "Status glyph (⏳ running / ❌ errored / ✅ all done / 🕓 mixed), model name, a '<done>/<total> done' summary, and that model's cost. Sorted running first, then errored, then fully-done. Once the whole run is done the glyph + fill drop so it reads calmly — and a leading numeric column appears showing how many translations that model contributed, sorted descending so the busiest model stays at the top."),
