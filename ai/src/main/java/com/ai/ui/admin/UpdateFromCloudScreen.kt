@@ -212,9 +212,12 @@ fun UpdateFromCloudScreen(
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     // Two columns so the timestamps line up despite
                     // the different label widths ("built" / "installed").
+                    // Both labels padded to 10 chars ("installed " is 10
+                    // including the separator space) so the monospace
+                    // timestamps line up to the column.
                     Row {
                         Text(
-                            "built    ",
+                            "built     ",
                             color = AppColors.TextTertiary, fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
@@ -226,12 +229,12 @@ fun UpdateFromCloudScreen(
                     }
                     Row {
                         Text(
-                            "installed",
+                            "installed ",
                             color = AppColors.TextTertiary, fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            " " + com.ai.ui.admin.formatAppInstalledTime(context),
+                            com.ai.ui.admin.formatAppInstalledTime(context),
                             color = AppColors.TextTertiary, fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )
