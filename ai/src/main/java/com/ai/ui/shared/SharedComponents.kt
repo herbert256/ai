@@ -580,7 +580,7 @@ fun TitleBar(
     ) {
         AiLogoButton(
             onClick = navigateHome,
-            modifier = Modifier.offset(x = (-14).dp, y = (-6).dp)
+            modifier = Modifier.offset(x = (-14).dp, y = (-7).dp)
         )
         HelpButton(
             onClick = { navigateHelp(helpTopic) },
