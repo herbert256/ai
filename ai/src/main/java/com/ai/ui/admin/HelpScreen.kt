@@ -28,6 +28,26 @@ import com.ai.ui.shared.*
  *  the legacy table widget); (b) titleBarHelpTopic returns "" for
  *  these ids so the ❓ icon in the subpage's title bar goes back
  *  to Help home instead of opening the help-of-help meta page. */
+/** Per-screen help topics for the 11 child View screens. When the
+ *  user is reading one of these help pages and taps the title-bar
+ *  ❓, route them to the parent View page's help (view_ai_report,
+ *  the tile-grid overview) — that's the canonical "help for the
+ *  View functionality" entry point and reads more naturally as
+ *  the next layer up than the generic help-of-help meta page. */
+private val VIEW_CHILD_HELP_TOPICS = setOf(
+    "costs_view",
+    "meta_view",
+    "rerank_view",
+    "moderation_view",
+    "fan_in_view",
+    "fan_in_model_view",
+    "translate_view",
+    "prompt_view_screen",
+    "reports_view",
+    "fan_out_view",
+    "report_html_preview"
+)
+
 private val HELP_HOME_SUBPAGES = setOf(
     // Existing direct subpages of Help home.
     "help_home_icons",
@@ -96,6 +116,7 @@ fun HelpScreen(
         topicId.isNullOrBlank() -> null
         topicId == "help_topic_view" -> null
         topicId in HELP_HOME_SUBPAGES -> ""
+        topicId in VIEW_CHILD_HELP_TOPICS -> "view_ai_report"
         else -> "help_topic_view"
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
