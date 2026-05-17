@@ -74,6 +74,19 @@ fun ViewScreenTitleBar(
     val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
     val effectiveLogoClick: () -> Unit = onLogoClick ?: { navigateHome() }
+    // Proactively clear the global BottomIconBar state. A parent
+    // screen's TitleBar (Manage flow, Single-result, etc.) may have
+    // SideEffect-published its icons just before this View overlay
+    // mounted; if its DisposableEffect cleanup raced with the View
+    // overlay swap, those icons would otherwise linger at the bottom
+    // of every View screen. View screens are deliberately icon-free
+    // so we nuke any stale state on every recomposition of the bar.
+    val bottomIconState = com.ai.ui.shared.LocalBottomIconState.current
+    if (bottomIconState != null) {
+        androidx.compose.runtime.SideEffect {
+            if (bottomIconState.value != null) bottomIconState.value = null
+        }
+    }
     // Pull the whole bar up 16 dp AND shrink its measured height by
     // the same amount so the AI logo lands at the same y as the
     // Report - manage TitleBar (which uses the same trick — see
