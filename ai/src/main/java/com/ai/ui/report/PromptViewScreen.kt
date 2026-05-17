@@ -1,31 +1,34 @@
 package com.ai.ui.report
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.Report
@@ -39,49 +42,83 @@ import kotlinx.coroutines.withContext
 
 /**
  * Content-only "View" variant of the report prompt. Reached from the
- * 📝 Prompt tile on Report - view. The management-heavy view (with
- * copy / share / trace / Translation-compare ↔ icons) keeps living on
- * the [ReportsViewerScreen] section="prompt" path used elsewhere.
+ * 📝 Prompt tile on Report - view.
  *
- * Layout: a single hero typography card. The card carries a soft
- * Purple-to-Indigo gradient background, a ✍️ Prompt badge in the
- * header strip + the report's emoji on the right, then the prompt
- * body in markdown with a slightly larger font than other body cards
- * so it reads as a primary document. Language slicing: when
- * [language] is non-blank we look up the matching PROMPT TRANSLATE
- * row and render its content instead of the original.
+ * Layout: a single hero typography card with a soft Purple-to-Indigo
+ * gradient. When the report carries more than one language, the card
+ * lives inside a [HorizontalPager] that wraps end-to-end so the user
+ * can swipe through every language without hitting a hard stop. The
+ * active language is reflected in the title bar's green subject row
+ * and is propagated back to [onBack] so the parent View screen can
+ * adopt the new active language.
+ *
+ * [availableLanguages] is the ordered list of language display names
+ * the parent View screen tracks. "" represents Original (the report's
+ * own prompt). Non-empty entries are the targetLanguage values of the
+ * report's TRANSLATE rows. If the list is empty or only contains
+ * Original, the pager degenerates to a single page.
  */
 @Composable
 fun PromptViewScreen(
     reportId: String,
-    language: String?,
-    onBack: () -> Unit
+    availableLanguages: List<String>,
+    initialLanguage: String?,
+    onBack: (activeLanguage: String?) -> Unit
 ) {
     val context = LocalContext.current
 
-    data class Loaded(val report: Report?, val translatedPrompt: String?)
+    // Normalise / dedupe. Original ("") is always available since
+    // the report.prompt itself is shown for it.
+    val languages = remember(availableLanguages) {
+        val seen = linkedSetOf<String>()
+        seen += ""
+        availableLanguages.forEach { seen += (it ?: "") }
+        seen.toList()
+    }
+    val initialIndex = remember(languages, initialLanguage) {
+        val target = initialLanguage ?: ""
+        languages.indexOf(target).coerceAtLeast(0)
+    }
+
+    data class Loaded(val report: Report?, val translatedByLang: Map<String, String>)
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, null),
-        reportId, language
+        initialValue = Loaded(null, emptyMap()),
+        reportId
     ) {
         value = withContext(Dispatchers.IO) {
             val rep = ReportStorage.getReport(context, reportId)
-            val translated = if (!language.isNullOrEmpty()) {
-                SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                    .firstOrNull {
-                        it.translateSourceKind == "PROMPT" &&
-                            it.targetLanguage == language &&
-                            !it.content.isNullOrBlank()
-                    }?.content
-            } else null
+            val translated = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter {
+                    it.translateSourceKind == "PROMPT" &&
+                        !it.content.isNullOrBlank() &&
+                        !it.targetLanguage.isNullOrBlank()
+                }
+                .associate { it.targetLanguage!! to it.content!! }
             Loaded(rep, translated)
         }
     }
     val loaded = loadedState.value
     val report = loaded.report
-    val body = loaded.translatedPrompt ?: report?.prompt.orEmpty()
-    val reportIcon = report?.icon
+
+    // Wrap-around: virtual large page count, modular index against
+    // [languages]. Start mid-way so swiping back from page 0 still
+    // works.
+    val virtualCount = if (languages.isEmpty()) 1 else Int.MAX_VALUE
+    val pagerState = rememberPagerState(
+        initialPage = if (languages.size <= 1) 0
+                      else (virtualCount / 2) - ((virtualCount / 2) % languages.size) + initialIndex
+    ) { virtualCount }
+    val currentLanguage = if (languages.isEmpty()) ""
+        else languages[((pagerState.currentPage % languages.size) + languages.size) % languages.size]
+    val subject = currentLanguage.ifBlank { "Original" }
+
+    // Android back returns to the parent View screen AND tells it
+    // which language ended up active here, so the parent's picker
+    // matches what the user was last reading.
+    val activeLangState = rememberUpdatedState(currentLanguage)
+    BackHandler { onBack(activeLangState.value.ifBlank { null }) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -90,36 +127,11 @@ fun PromptViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Prompt - view",
-            subject = null,
+            screenTitle = "Prompt",
+            subject = subject,
             helpTopic = "prompt_view_screen",
-            onBack = onBack
+            onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "✍️", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
-            Text(
-                text = "Prompt",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.Purple,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            if (!language.isNullOrEmpty()) {
-                Text(
-                    text = "🌍 $language",
-                    fontSize = 12.sp, color = AppColors.Orange,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AppColors.SurfaceDark)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-        }
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
@@ -129,50 +141,60 @@ fun PromptViewScreen(
             }
             return@Column
         }
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { virtualPage ->
+            val lang = if (languages.isEmpty()) ""
+                else languages[((virtualPage % languages.size) + languages.size) % languages.size]
+            val body = if (lang.isBlank()) report.prompt.orEmpty()
+                else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
+            PromptPageCard(body = body, reportIcon = report.icon)
+        }
+    }
+}
+
+@Composable
+private fun PromptPageCard(body: String, reportIcon: String?) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+    ) {
+        Spacer(modifier = Modifier.height(4.dp))
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Column(
-                modifier = Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                AppColors.Purple.copy(alpha = 0.32f),
-                                AppColors.Indigo.copy(alpha = 0.08f)
-                            )
+            modifier = Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            AppColors.Purple.copy(alpha = 0.32f),
+                            AppColors.Indigo.copy(alpha = 0.08f)
                         )
                     )
-                    .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "✍️ Prompt",
-                        color = AppColors.Purple,
-                        fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = reportIcon?.takeIf { it.isNotBlank() } ?: "📊",
-                        fontSize = 26.sp
-                    )
-                }
-                if (body.isBlank()) {
-                    Text(
-                        text = "(no prompt recorded)",
-                        color = AppColors.TextTertiary, fontSize = 14.sp
-                    )
-                } else {
-                    // Body via the shared markdown pipeline so the
-                    // prompt's own formatting (fences, tables, lists)
-                    // renders properly.
-                    ContentWithThinkSections(analysis = body)
+                )
+                .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // The icon strip above the body keeps the report's own
+            // emoji so the page still feels anchored to its report
+            // even after the previous header row was removed.
+            if (!reportIcon.isNullOrBlank()) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                    Text(text = reportIcon, fontSize = 26.sp)
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            if (body.isBlank()) {
+                Text(
+                    text = "(no prompt recorded)",
+                    color = AppColors.TextTertiary, fontSize = 14.sp
+                )
+            } else {
+                // Body via the shared markdown pipeline so the
+                // prompt's own formatting (fences, tables, lists)
+                // renders properly.
+                ContentWithThinkSections(analysis = body)
+            }
         }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }

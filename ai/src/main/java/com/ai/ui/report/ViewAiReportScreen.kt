@@ -219,20 +219,15 @@ internal fun ViewAiReportScreen(
         )
         return
     }
-    // Prompt "View" overlay — language captured at tap time so the
-    // opened screen renders the matching PROMPT TRANSLATE row for the
-    // active picker language. A "" string distinguishes "Prompt view
-    // open, locked to Original" from "Prompt view closed" (null).
+    // Prompt "View" overlay state — only the var declarations sit
+    // here so the tile click below this block (which sets
+    // [promptViewOpen] = true) can reach them. The actual early-
+    // return + PromptViewScreen mount lives after the language-
+    // picker setup further down, because it reads [viewLangTabs] +
+    // [selectedViewLangKey] to propagate the user's swiped-to
+    // language back up.
     var promptViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var promptViewOpen by rememberSaveable { mutableStateOf(false) }
-    if (promptViewOpen) {
-        PromptViewScreen(
-            reportId = reportId,
-            language = promptViewLanguage?.takeIf { it.isNotEmpty() },
-            onBack = { promptViewOpen = false; promptViewLanguage = null }
-        )
-        return
-    }
     // Reports "View" overlay — per-agent response stack. Language
     // captured at tap time so AGENT TRANSLATE rows render in place of
     // the original responseBody when locked.
@@ -354,6 +349,38 @@ internal fun ViewAiReportScreen(
     androidx.compose.runtime.LaunchedEffect(selectedViewLangKey, viewLangTabs) {
         currentLanguageState.value = if (selectedViewLangKey == LangTab.ORIGINAL_KEY) ""
             else viewLangTabs.firstOrNull { it.key == selectedViewLangKey }?.displayName ?: ""
+    }
+
+    // Prompt "View" overlay — language captured at tap time so the
+    // opened screen renders the matching PROMPT TRANSLATE row for
+    // the active picker language. Hosted here (rather than alongside
+    // the other overlays at the top of the function) because the
+    // onBack callback needs [viewLangTabs] + [selectedViewLangKey]
+    // to propagate the user's swiped-to language back up.
+    if (promptViewOpen) {
+        val promptLanguages = remember(viewLangTabs) {
+            buildList {
+                add("")
+                viewLangTabs.forEach { tab ->
+                    if (tab.key != LangTab.ORIGINAL_KEY) add(tab.displayName)
+                }
+            }
+        }
+        PromptViewScreen(
+            reportId = reportId,
+            availableLanguages = promptLanguages,
+            initialLanguage = promptViewLanguage,
+            onBack = { activeLang ->
+                val target = activeLang ?: ""
+                val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
+                    else viewLangTabs.firstOrNull { it.displayName == target }?.key
+                        ?: selectedViewLangKey
+                selectedViewLangKey = newKey
+                promptViewOpen = false
+                promptViewLanguage = null
+            }
+        )
+        return
     }
 
     // "Language missing" popup state — opened when the user taps a
