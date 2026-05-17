@@ -6771,7 +6771,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         translateRows: List<SecondaryResult>,
         report: Report,
         secondaries: List<SecondaryResult>,
-        deleteSet: Set<String>
+        deleteSet: Set<String>,
+        /** When true, placeholder rows (no content, no error, no
+         *  durationMs) materialise as PENDING items rather than
+         *  being dropped. Display path (L1 fallback) wants this so
+         *  the screen shows the full run size + Queue count even
+         *  before the resume dispatch has re-seeded in-memory
+         *  state. Resume seeding path leaves the default false so
+         *  the placeholders aren't double-counted alongside the
+         *  fresh items runTranslationSubset is about to build for
+         *  them. */
+        includePlaceholders: Boolean = false
     ): List<TranslationItem> = translateRows
         .filter { it.id !in deleteSet }
         .mapNotNull { row ->
@@ -6802,7 +6812,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val status = when {
                 row.errorMessage != null -> TranslationStatus.ERROR
                 !row.content.isNullOrBlank() -> TranslationStatus.DONE
-                else -> return@mapNotNull null  // stale placeholder; a resume dispatch covers it
+                includePlaceholders -> TranslationStatus.PENDING
+                else -> return@mapNotNull null  // resume dispatch covers it
             }
             TranslationItem(
                 id = itemId, label = label, kind = kind,
@@ -6814,8 +6825,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 costDollars = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0),
                 tokenUsage = row.tokenUsage,
                 durationMs = row.durationMs,
-                providerId = row.providerId,
-                model = row.model,
+                // Placeholders carry blank providerId/model (no model
+                // has picked them up yet); leave the item's fields
+                // null so translationModelKey returns null and the
+                // L1 keeps them in the Queue rather than grouping them
+                // under a phantom "" / "" model row.
+                providerId = row.providerId.takeIf { it.isNotBlank() },
+                model = row.model.takeIf { it.isNotBlank() },
                 persistedRowId = row.id
             )
         }
@@ -6836,7 +6852,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val anchor = rows.first()
         val report = ReportStorage.getReport(context, reportId) ?: return@withContext null
         val secondaries = SecondaryResultStorage.listForReport(context, reportId)
-        val items = reconstructTranslationItemsFromDisk(rows, report, secondaries, emptySet())
+        // includePlaceholders=true: a run interrupted by app restart
+        // has placeholder rows on disk that the L1 should surface as
+        // PENDING (Queue) items so the Total + per-status counts match
+        // what the manage page shows for the same runId. The resume
+        // dispatch later replaces these in the live state with real
+        // items as workers pick them up.
+        val items = reconstructTranslationItemsFromDisk(rows, report, secondaries, emptySet(), includePlaceholders = true)
         TranslationRunState(
             runId = runId,
             sourceReportId = reportId,
