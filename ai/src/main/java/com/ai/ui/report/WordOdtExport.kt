@@ -648,7 +648,12 @@ internal fun shareReportAsDocxOrOdt(
     /** Pre-built per-language data slice from
      *  [com.ai.ui.report.buildLanguageViews]. Null means caller hasn't
      *  resolved one — we build the all-languages base here. */
-    data: com.ai.ui.report.HtmlReportData? = null
+    data: com.ai.ui.report.HtmlReportData? = null,
+    /** Language filter that produced [data], threaded through purely
+     *  for the output filename so Short / Complete × Dutch / Original
+     *  exports don't collide on `ai_report_<title>_<ts>.docx`. Same
+     *  encoding as [com.ai.ui.report.shareReportAsExport]. */
+    language: String? = null
 ): Boolean {
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return false
     val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
@@ -663,7 +668,16 @@ internal fun shareReportAsDocxOrOdt(
             "application/vnd.oasis.opendocument.text", "OpenDocument")
         else -> return false
     }
-    val file = File(dir, "ai_report_${safeTitle}_$ts.$ext")
+    // Filename mirrors the HTML / PDF dispatchers (PdfExport.kt):
+    // detail tag + optional language tag prevent collisions when the
+    // user exports several variants in quick succession.
+    val detailTag = detail.name.lowercase()
+    val langTag = when {
+        language == null -> ""
+        language.isBlank() -> "_${com.ai.ui.report.LangTab.ORIGINAL_KEY}"
+        else -> "_${com.ai.ui.report.languageKey(language)}"
+    }
+    val file = File(dir, "ai_report_${safeTitle}_${detailTag}${langTag}_$ts.$ext")
     file.writeBytes(bytes)
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     when (action) {

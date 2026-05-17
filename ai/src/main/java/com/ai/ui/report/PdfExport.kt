@@ -125,7 +125,7 @@ suspend fun shareReportAsExport(
 
     if (format == ReportExportFormat.DOCX || format == ReportExportFormat.ODT) {
         onProgress(0, 1)
-        val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action, data)
+        val ok = shareReportAsDocxOrOdt(context, reportId, format, detail, action, data, language)
         onProgress(1, 1)
         return ok
     }
