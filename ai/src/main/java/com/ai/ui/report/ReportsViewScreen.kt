@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.data.AppService
 import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
@@ -93,6 +94,12 @@ fun ReportsViewScreen(
     val report = loaded.report
     val translatedByAgentId = loaded.translatedByAgentId
 
+    val agents = report?.agents?.filter {
+        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+    }.orEmpty()
+    val pagerState = rememberPagerState(initialPage = 0) { agents.size.coerceAtLeast(1) }
+    val activeAgent = agents.getOrNull(pagerState.currentPage)
+
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -100,36 +107,11 @@ fun ReportsViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Reports - view",
-            subject = null,
+            screenTitle = "Model reports",
+            subject = activeAgent?.let { shortModelName(it.model) },
             helpTopic = "reports_view",
             onBack = onBack
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "📊", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
-            Text(
-                text = "Reports",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.Blue,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            if (!language.isNullOrEmpty()) {
-                Text(
-                    text = "🌍 $language",
-                    fontSize = 12.sp, color = AppColors.Orange,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AppColors.SurfaceDark)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-        }
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
@@ -138,9 +120,6 @@ fun ReportsViewScreen(
                 Text("Loading…", color = AppColors.TextTertiary, fontSize = 14.sp)
             }
             return@Column
-        }
-        val agents = report.agents.filter {
-            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
         }
         if (agents.isEmpty()) {
             Box(
@@ -170,18 +149,23 @@ fun ReportsViewScreen(
             }
             return@Column
         }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-        ) {
-            items(agents) { agent ->
-                AgentResponseCard(
-                    agent = agent,
-                    overrideBody = translatedByAgentId[agent.agentId],
-                    language = language?.takeIf { it.isNotEmpty() }
-                )
-            }
+        // Counter "X / Y" — centred above the swipe-able card.
+        Text(
+            text = "${pagerState.currentPage + 1} / ${agents.size}",
+            color = AppColors.TextTertiary, fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val agent = agents[page]
+            AgentResponseCard(
+                agent = agent,
+                overrideBody = translatedByAgentId[agent.agentId]
+            )
         }
     }
 }
@@ -189,57 +173,32 @@ fun ReportsViewScreen(
 @Composable
 private fun AgentResponseCard(
     agent: ReportAgent,
-    overrideBody: String?,
-    language: String?
+    overrideBody: String?
 ) {
-    val provider = AppService.findById(agent.provider)?.id ?: agent.provider
     val body = overrideBody ?: agent.responseBody.orEmpty()
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖"
-    Row(
-        modifier = Modifier.fillMaxWidth()
+    Column(
+        modifier = Modifier.fillMaxSize()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.Top
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         Box(
-            modifier = Modifier.size(48.dp).clip(CircleShape).background(AppColors.Blue.copy(alpha = 0.22f)),
+            modifier = Modifier
+                .padding(bottom = 10.dp)
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(AppColors.Blue.copy(alpha = 0.22f)),
             contentAlignment = Alignment.Center
         ) {
             Text(text = emoji, fontSize = 26.sp)
         }
-        Spacer(modifier = Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = provider,
-                color = AppColors.Blue,
-                fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = shortModelName(agent.model),
-                color = AppColors.TextTertiary,
-                fontSize = 12.sp,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            if (language != null) {
-                Text(
-                    text = "🌍 $language",
-                    color = AppColors.Orange,
-                    fontSize = 11.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AppColors.SurfaceDark)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                )
-            }
-            Spacer(modifier = Modifier.size(2.dp))
-            if (body.isBlank()) {
-                Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
-            } else {
-                ContentWithThinkSections(analysis = body)
-            }
+        if (body.isBlank()) {
+            Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+        } else {
+            ContentWithThinkSections(analysis = body)
         }
     }
 }
