@@ -580,7 +580,7 @@ fun TitleBar(
     ) {
         AiLogoButton(
             onClick = navigateHome,
-            modifier = Modifier.offset(x = (-14).dp, y = (-2).dp)
+            modifier = Modifier.offset(x = (-14).dp, y = (-6).dp)
         )
         HelpButton(
             onClick = { navigateHelp(helpTopic) },
@@ -629,7 +629,7 @@ private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         painter = painterResource(R.drawable.brand_glyph),
         contentDescription = "Home",
         alpha = 0.75f,
-        modifier = modifier.size(44.dp).clickable(onClick = onClick)
+        modifier = modifier.size(52.dp).clickable(onClick = onClick)
     )
 }
 
