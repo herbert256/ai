@@ -892,6 +892,7 @@ fun ReportsScreen(
     val reportIcon = runtime.reportIcon
     val reportIconError = runtime.reportIconError
     val reportIconCost = runtime.reportIconCost
+    val languageDetectCost = runtime.languageDetectCost
     val reportIconModel = runtime.reportIconModel
     val reportIconTraceFile = runtime.reportIconTraceFile
     val languageIconCost = runtime.languageIconCost
@@ -2404,6 +2405,7 @@ fun ReportsScreen(
         reportIconCost = reportIconCost,
         reportIconModel = reportIconModel,
         languageIconCost = languageIconCost,
+        languageDetectCost = languageDetectCost,
         languageName = languageName,
         agentIconRows = agentIconRows,
         hasPrevReport = hasPrevReport,
@@ -2450,6 +2452,7 @@ private data class ReportRuntimeState(
     val reportIconModel: String?,
     val reportIconTraceFile: String?,
     val languageIconCost: Double,
+    val languageDetectCost: Double,
     val languageName: String?,
     val agentIconRows: Map<String, AgentIconRow>,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
@@ -2489,6 +2492,7 @@ private fun rememberReportRuntimeState(
     var reportIconModel by remember { mutableStateOf<String?>(null) }
     var reportIconTraceFile by remember { mutableStateOf<String?>(null) }
     var languageIconCost by remember { mutableStateOf(0.0) }
+    var languageDetectCost by remember { mutableStateOf(0.0) }
     var languageName by remember { mutableStateOf<String?>(null) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
@@ -2505,6 +2509,7 @@ private fun rememberReportRuntimeState(
             reportIconModel = null
             reportIconTraceFile = null
             languageIconCost = 0.0
+            languageDetectCost = 0.0
             languageName = null
             agentIconRows = emptyMap()
             agentRecordsByAgentId = emptyMap()
@@ -2519,6 +2524,7 @@ private fun rememberReportRuntimeState(
             reportIconModel = r?.iconModel
             reportIconTraceFile = r?.iconTraceFile
             languageIconCost = (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
+            languageDetectCost = (r?.languageInputCost ?: 0.0) + (r?.languageOutputCost ?: 0.0)
             languageName = r?.languageName
             agentIconRows = r?.agents?.associate { ra ->
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
@@ -2604,7 +2610,8 @@ private fun rememberReportRuntimeState(
                     inputTokens = all.sumOf { it.tokenUsage?.inputTokens ?: 0 },
                     outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
                     inputCost = all.sumOf { it.inputCost ?: 0.0 },
-                    outputCost = all.sumOf { it.outputCost ?: 0.0 }
+                    outputCost = all.sumOf { it.outputCost ?: 0.0 },
+                    fanOutIconCost = all.sumOf { it.iconInputCost + it.iconOutputCost }
                 )
             }
         }
@@ -2644,6 +2651,7 @@ private fun rememberReportRuntimeState(
         reportIconModel = reportIconModel,
         reportIconTraceFile = reportIconTraceFile,
         languageIconCost = languageIconCost,
+        languageDetectCost = languageDetectCost,
         languageName = languageName,
         agentIconRows = agentIconRows,
         agentRecordsByAgentId = agentRecordsByAgentId,

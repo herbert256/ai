@@ -312,9 +312,14 @@ internal fun ColumnScope.GenerationPhase(
      *  agent's resolved model. */
     reportIconModel: String? = null,
     /** Report.languageIconInputCost + outputCost in USD. Folded into
-     *  the report total so the language-detection call is visible
-     *  in the grand-total row. */
+     *  the report total so the language-icon call is visible in the
+     *  grand-total row. */
     languageIconCost: Double = 0.0,
+    /** Report.languageInputCost + languageOutputCost in USD — the
+     *  first call of the 2-step language flow (detection). Surfaces
+     *  as the cost-table `language` row but also has to be folded
+     *  into Report-Manage's total so the two screens agree. */
+    languageDetectCost: Double = 0.0,
     /** Report.languageName mirrored from disk. When non-null and the
      *  report has any TRANSLATE secondaries, untranslated meta rows
      *  surface this as their "default language" tag so the user can
@@ -674,8 +679,16 @@ internal fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
+    // Per-agent icon-chain cost — every successful tier of the
+    // 3-tier per-agent icon chain bumps ReportAgent.iconInputCost
+    // + iconOutputCost. agentIconRows is the parent's mirror of
+    // those two fields per agent. Without this fold the icon
+    // chain's spend (often several cents on long runs) would only
+    // show on the cost table.
+    val agentIconCost = agentIconRows.values.sumOf { it.cost }
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost
+        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
+        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
 
     // Totals — sums tokens and cents across the per-agent rows, every
     // persisted meta run (rerank / summarize / compare / moderation /
@@ -1477,9 +1490,14 @@ internal data class SecondaryTotals(
     val inputTokens: Int,
     val outputTokens: Int,
     val inputCost: Double,
-    val outputCost: Double
+    val outputCost: Double,
+    /** Sum of `SecondaryResult.iconInputCost + iconOutputCost`
+     *  across every fan-out pair. Folded into the Report-Manage
+     *  grand-total so the per-pair Fan-icons chain spend doesn't
+     *  silently vanish from the headline number. */
+    val fanOutIconCost: Double = 0.0
 ) {
-    companion object { val ZERO = SecondaryTotals(0, 0, 0.0, 0.0) }
+    companion object { val ZERO = SecondaryTotals(0, 0, 0.0, 0.0, 0.0) }
 }
 
 /** One synthetic row for the agent list per Translate invocation. The
