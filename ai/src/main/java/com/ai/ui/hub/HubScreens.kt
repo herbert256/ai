@@ -290,7 +290,8 @@ internal fun computeHomeReportLists(
 fun ReportsHubScreen(
     onNavigateBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
-    onOpenReport: (String) -> Unit = {},
+    onOpenReportManage: (String) -> Unit,
+    onOpenReportView: (String) -> Unit,
     onNavigateToNewAiReport: () -> Unit,
     onNavigateToSearchAiReports: () -> Unit,
     onNavigateToAllReports: () -> Unit,
@@ -337,8 +338,8 @@ fun ReportsHubScreen(
     // board's four cards all share one source of truth.
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
-            onOpenManage = onOpenReport,
-            onOpenView = onOpenReport,
+            onOpenManage = onOpenReportManage,
+            onOpenView = onOpenReportView,
             onDelete = bumpDelete
         )
     ) {
@@ -351,7 +352,7 @@ fun ReportsHubScreen(
         if (inFlightReports.isNotEmpty()) {
             InFlightPill(
                 count = inFlightReports.size,
-                onResume = { onOpenReport(inFlightReports.first().id) }
+                onResume = { onOpenReportManage(inFlightReports.first().id) }
             )
             Spacer(modifier = Modifier.height(12.dp))
         }

@@ -305,10 +305,16 @@ fun AppNavHost(
             ReportsHubScreen(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
-                onOpenReport = { reportId ->
+                onOpenReportManage = { reportId ->
                     scope.launch {
                         reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.AI_REPORTS)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { reportId ->
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportView())
                     }
                 },
                 onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
