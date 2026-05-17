@@ -38,7 +38,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.ViewScreenTitleBar
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,11 +65,12 @@ fun ModerationViewScreen(
 
     data class Loaded(
         val result: SecondaryResult?,
-        val agentLabels: Map<Int, String>
+        val agentLabels: Map<Int, String>,
+        val reportTitle: String?
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap()),
+        initialValue = Loaded(null, emptyMap(), null),
         reportId, resultId
     ) {
         value = withContext(Dispatchers.IO) {
@@ -82,7 +83,7 @@ fun ModerationViewScreen(
                     (idx + 1) to "$provDisplay / ${shortModelName(agent.model)}"
                 }?.toMap()
                 ?: emptyMap()
-            Loaded(r, labels)
+            Loaded(r, labels, report?.title)
         }
     }
     val loaded = loadedState.value
@@ -100,10 +101,12 @@ fun ModerationViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(
+        ViewScreenTitleBar(
+            reportTitle = loaded.reportTitle,
+            screenTitle = "Moderation - view",
+            subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "moderation_view",
-            title = "Moderation - view",
-            onBackClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

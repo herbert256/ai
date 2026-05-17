@@ -41,7 +41,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.ViewScreenTitleBar
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -139,10 +139,12 @@ fun FanOutViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(
+        ViewScreenTitleBar(
+            reportTitle = report?.title,
+            screenTitle = "Fan-out - view",
+            subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_view",
-            title = "Fan-out - view",
-            onBackClick = onBack
+            onBack = onBack
         )
         // Subject row carries the fan-out's prompt name in big
         // green text — same emphasis the Report - view tile shows.

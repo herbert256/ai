@@ -35,7 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.ViewScreenTitleBar
 import com.ai.ui.shared.formatUsd
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -76,10 +76,12 @@ fun CostsViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(
+        ViewScreenTitleBar(
+            reportTitle = report?.title,
+            screenTitle = "Costs - view",
+            subject = null,
             helpTopic = "costs_view",
-            title = "Costs - view",
-            onBackClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

@@ -59,8 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.SecondaryKind
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.HardcodedSubjectRow
-import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.ViewScreenTitleBar
 
 /**
  * First-version "View AI Report" page — the home for every "look at
@@ -697,35 +696,30 @@ internal fun ViewAiReportScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(
+        ViewScreenTitleBar(
+            reportTitle = loadedReport?.title ?: promptTitle,
+            screenTitle = "Report - view",
+            subject = null,
             helpTopic = "view_ai_report",
-            title = "Report - view",
-            // Tap title → flip back to "Report - manage" (same as
-            // back). Pairs with onTitleClick on Report - manage so
-            // the two screens toggle from the title text.
-            onTitleClick = onBack,
-            reportIcon = reportIcon,
-            onBackClick = onBack
+            onBack = onBack
         )
-        // Grid vs list mode — toggled by the icon on the right of the
-        // green subject row. The icon shown is always the OTHER
-        // mode's emblem (☰ in grid mode → switch to list; ⊞ in list
-        // mode → switch to grid). rememberSaveable so the mode
-        // sticks across navigation, not config-change-only.
+        // Grid vs list mode — moved out of the old HardcodedSubjectRow
+        // trailing slot into its own right-aligned row directly below
+        // the new title bar so the shared title-bar layout stays
+        // identical across every View screen.
         var viewMode by rememberSaveable { mutableStateOf("grid") }
-        HardcodedSubjectRow(
-            text = promptTitle,
-            trailing = {
-                Text(
-                    text = if (viewMode == "grid") "☰" else "⊞",
-                    fontSize = 28.sp,
-                    color = AppColors.Blue,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clickable { viewMode = if (viewMode == "grid") "list" else "grid" }
-                )
-            }
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = if (viewMode == "grid") "☰" else "⊞",
+                fontSize = 28.sp,
+                color = AppColors.Blue,
+                modifier = Modifier
+                    .clickable { viewMode = if (viewMode == "grid") "list" else "grid" }
+            )
+        }
 
         // One picker for the whole View screen; tile clicks below
         // forward the active language to the opened sub-screen.

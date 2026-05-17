@@ -18,7 +18,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.ViewScreenTitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -83,16 +83,15 @@ fun HtmlPreviewScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        .padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val titleSubject = (state.value as? PreviewState.Ready)?.report?.title?.takeIf { it.isNotBlank() }
-        val reportIcon = (state.value as? PreviewState.Ready)?.report?.icon?.takeIf { it.isNotBlank() } ?: "📝"
-        TitleBar(
+        ViewScreenTitleBar(
+            reportTitle = titleSubject,
+            screenTitle = if (detail == ReportExportDetail.SHORT) "HTML preview (short)" else "HTML preview",
+            subject = null,
             helpTopic = "report_html_preview",
-            title = if (detail == ReportExportDetail.SHORT) "HTML preview (short)" else "HTML preview",
-            reportIcon = reportIcon,
-            subject = titleSubject,
-            onBackClick = onBack,
-            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
+            onBack = onBack
         )
 
         when (val s = state.value) {
