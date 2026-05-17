@@ -69,14 +69,19 @@ fun AboutScreen(
                 fontSize = 16.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
+            // Monospace + padded labels so the two timestamps line up
+            // to the column under each other. Matches the Installed
+            // version card on Update-from-cloud.
             Text(
-                "Built ${readBundledBuildStamp(context)}",
-                fontSize = 13.sp, color = AppColors.TextTertiary
+                "Built     ${readBundledBuildStamp(context)}",
+                fontSize = 13.sp, color = AppColors.TextTertiary,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 "Installed ${formatAppInstalledTime(context)}",
-                fontSize = 13.sp, color = AppColors.TextTertiary
+                fontSize = 13.sp, color = AppColors.TextTertiary,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
             )
             Spacer(modifier = Modifier.height(8.dp))
             // Source-repository link — opens the system browser.
