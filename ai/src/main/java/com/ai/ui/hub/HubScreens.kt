@@ -309,12 +309,20 @@ internal fun ReportListCard(
                 Spacer(modifier = Modifier.weight(1f))
                 Text(text = reports.size.toString(), fontSize = 14.sp, color = AppColors.TextTertiary)
             }
-            reports.forEach { r ->
+            // Indent the report rows so each row's icon lines up
+            // horizontally with the title text above (past the
+            // title icon ~22sp + its 10dp spacer). Cap at 5 rows
+            // to keep the home screen scrollable on small phones;
+            // surplus surfaced as a "+ N more" line at the bottom.
+            val maxRows = 5
+            val visible = reports.take(maxRows)
+            val overflowCount = (reports.size - visible.size).coerceAtLeast(0)
+            visible.forEach { r ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .clickable { onOpenReport(r.id) }
-                        .padding(vertical = 4.dp),
+                        .padding(start = 32.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -329,6 +337,14 @@ internal fun ReportListCard(
                         modifier = Modifier.weight(1f)
                     )
                 }
+            }
+            if (overflowCount > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "+ $overflowCount more",
+                    fontSize = 12.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(start = 32.dp, top = 2.dp, bottom = 2.dp)
+                )
             }
         }
     }
