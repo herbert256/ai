@@ -58,7 +58,7 @@ fun AboutScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
             Image(
-                painter = painterResource(id = R.drawable.ai_logo),
+                painter = painterResource(id = R.drawable.brand_glyph),
                 contentDescription = "AI App Logo",
                 alpha = 0.75f,
                 modifier = Modifier.size(180.dp)

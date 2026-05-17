@@ -184,7 +184,7 @@ private fun HelpFooter(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         androidx.compose.foundation.Image(
-                            painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ai_logo),
+                            painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.brand_glyph),
                             contentDescription = "Help home",
                             alpha = 0.75f,
                             modifier = Modifier.size(64.dp).padding(end = 6.dp)

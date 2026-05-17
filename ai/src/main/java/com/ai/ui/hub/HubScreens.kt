@@ -190,7 +190,7 @@ fun HubScreen(
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(40.dp))
             Image(
-                painter = painterResource(id = R.drawable.ai_logo),
+                painter = painterResource(id = R.drawable.brand_glyph),
                 contentDescription = "AI App Logo",
                 alpha = 0.75f,
                 modifier = Modifier.size(logoSize).offset(y = (-32).dp)

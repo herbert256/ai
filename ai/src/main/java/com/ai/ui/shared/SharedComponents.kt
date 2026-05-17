@@ -626,7 +626,7 @@ fun TitleBar(
 @Composable
 private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Image(
-        painter = painterResource(R.drawable.ai_logo),
+        painter = painterResource(R.drawable.brand_glyph),
         contentDescription = "Home",
         alpha = 0.75f,
         modifier = modifier.size(64.dp).clickable(onClick = onClick)
