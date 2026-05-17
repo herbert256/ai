@@ -8,6 +8,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,6 +36,7 @@ private val HELP_HOME_SUBPAGES = setOf(
     "concepts",
     // New direct subpages — added by the help-home-subpages pass.
     "help_about",
+    "help_getting_started",
     "help_glossary",
     "help_costs",
     "help_privacy",
@@ -136,6 +141,17 @@ fun HelpScreen(
                         )
                     }
                 }
+                // "Relevant Help pages" footer — populated from the
+                // RELATED_HOME_HELP map. Most per-screen topics carry
+                // 2–4 cross-links to the home-help reference pages
+                // (Concepts, Costs, Privacy, Translations, etc.). Topics
+                // with no entry get nothing — the footer renders only
+                // when the list is non-empty.
+                val related = RELATED_HOME_HELP[topicId].orEmpty()
+                    .mapNotNull { id -> HELP_TOPICS[id]?.let { id to it.title } }
+                if (related.isNotEmpty()) {
+                    RelevantHelpPagesCard(related, onNavigateToTopic)
+                }
             } else {
                 CompactOverview(onNavigateToTopic, onNavigateToAbout)
             }
@@ -221,6 +237,30 @@ private fun CompactOverview(
     onNavigateToTopic: (String) -> Unit = {},
     onNavigateToAbout: () -> Unit = {}
 ) {
+    // Help-home search box — case-insensitive substring search
+    // across every topic title + every card title + every card
+    // body. Non-blank query suppresses the rest of the home
+    // content so the result list stays in the top viewport. The
+    // per-topic pages don't carry their own search; users go back
+    // to Help home to search.
+    var query by remember { mutableStateOf("") }
+    OutlinedTextField(
+        value = query,
+        onValueChange = { query = it },
+        placeholder = {
+            Text(
+                "Search help (try \"translation\", \"cost\", \"agent\"…)",
+                fontSize = 13.sp, color = Color(0xFF888888)
+            )
+        },
+        leadingIcon = { Text("🔍", fontSize = 14.sp) },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth()
+    )
+    if (query.isNotBlank()) {
+        SearchResults(query, onNavigateToTopic)
+        return
+    }
     HelpSection(
         "Welcome",
         "This app runs AI reports, chats, and dual chats against ${AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
@@ -230,16 +270,21 @@ private fun CompactOverview(
         "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
     // Tap-through subpage links — each opens its own help topic
-    // prefixed "Help - …". Order is curated: About first
-    // (orientation), then the cross-cutting behaviour topics, then
-    // the references (Costs / Privacy / Backup / Local AI /
-    // Translations), then the table-style reference subpages
-    // (Icons / Info providers / AI providers). Each subpage's ❓
-    // icon routes back to Help home.
+    // prefixed "Help - …". Order is curated: About + Getting
+    // started first (orientation), then the cross-cutting
+    // behaviour topics, then the references (Costs / Privacy /
+    // Backup / Local AI / Translations), then the table-style
+    // reference subpages (Icons / Info providers / AI providers).
+    // Each subpage's ❓ icon routes back to Help home.
     HomeSubpageLink(
         "🧭", "About the app",
         "What this app does, who it's for, headline features, where to start. The orientation page.",
         onClick = { onNavigateToTopic("help_about") }
+    )
+    HomeSubpageLink(
+        "🚀", "Getting started",
+        "Step-by-step: add an API key → refresh model lists → first Agent → first Report → optional Knowledge base. Plus common first-week pitfalls.",
+        onClick = { onNavigateToTopic("help_getting_started") }
     )
     HomeSubpageLink(
         "🔧", "How it works",
@@ -292,15 +337,6 @@ private fun CompactOverview(
         onClick = { onNavigateToTopic("help_home_ai_providers") }
     )
     HelpSection(
-        "Getting started",
-        "1. Settings → AI Setup → Providers — paste an API key.\n" +
-            "2. Housekeeping → Refresh → Refresh all — verify keys + fetch model lists + seed default agents.\n" +
-            "3. From the Hub, pick Reports / Chat / Knowledge / Models / Setup / Housekeeping."
-    )
-    // Privacy moved to its own "Help - Privacy & data" subpage —
-    // the inline one-liner here was always too thin to carry the
-    // full story.
-    HelpSection(
         "Copyright",
         "Copyright © Herbert Groot Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
     )
@@ -314,6 +350,151 @@ private fun CompactOverview(
         ) {
             Text("ℹ️", fontSize = 14.sp, modifier = Modifier.width(24.dp))
             Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+/** Single result row in the Help-home search panel. [matchedCardTitle]
+ *  is null when the topic's title alone matched (no specific card
+ *  was the better hit). [snippet] is ~120 chars of body text around
+ *  the needle, used as a preview line under the link. */
+private data class HelpSearchHit(
+    val topicId: String,
+    val topicTitle: String,
+    val matchedCardTitle: String?,
+    val snippet: String,
+    val score: Int
+)
+
+/** Walk every topic + every card and score (title weight 3, card-
+ *  title match weight 2, card-body match weight 1). Multiple cards
+ *  from the same topic collapse to the best-scoring one so the
+ *  results list stays unique-by-topic. Top 12 sorted desc. */
+private fun searchHelp(q: String): List<HelpSearchHit> {
+    val needle = q.trim().lowercase()
+    if (needle.isBlank()) return emptyList()
+    return HELP_TOPICS.entries.mapNotNull { (id, content) ->
+        val topicTitleMatch = content.title.lowercase().contains(needle)
+        val cardHits = content.cards.mapNotNull { card ->
+            val titleMatch = card.title.lowercase().contains(needle)
+            val bodyMatch = card.body.lowercase().contains(needle)
+            if (!titleMatch && !bodyMatch) null
+            else HelpSearchHit(
+                topicId = id,
+                topicTitle = content.title,
+                matchedCardTitle = card.title,
+                snippet = snippetAround(card.body, needle),
+                score = (if (topicTitleMatch) 3 else 0) +
+                        (if (titleMatch) 2 else 0) +
+                        (if (bodyMatch) 1 else 0)
+            )
+        }
+        when {
+            cardHits.isNotEmpty() -> cardHits.maxBy { it.score }
+            topicTitleMatch -> HelpSearchHit(
+                topicId = id,
+                topicTitle = content.title,
+                matchedCardTitle = null,
+                snippet = content.cards.firstOrNull()?.body?.take(120).orEmpty(),
+                score = 3
+            )
+            else -> null
+        }
+    }
+        .sortedByDescending { it.score }
+        .take(12)
+}
+
+/** Carve a ~120-char window around the first occurrence of [needle]
+ *  in [body], padded with ellipses when the window starts / ends
+ *  mid-sentence. Falls back to the head of [body] when the needle
+ *  isn't actually in the body (the topic title was the match). */
+private fun snippetAround(body: String, needle: String): String {
+    val window = 120
+    val haystack = body.lowercase()
+    val at = haystack.indexOf(needle)
+    if (at < 0) return body.take(window) + (if (body.length > window) "…" else "")
+    val halfPad = (window - needle.length).coerceAtLeast(40) / 2
+    val from = (at - halfPad).coerceAtLeast(0)
+    val to = (at + needle.length + halfPad).coerceAtMost(body.length)
+    val head = if (from > 0) "…" else ""
+    val tail = if (to < body.length) "…" else ""
+    return head + body.substring(from, to) + tail
+}
+
+/** Renders the search hits — one card per topic with the topic
+ *  title, the matched card's title (if any), and a preview snippet
+ *  with the needle approximately centred. Empty result list renders
+ *  a single "no matches" card so the user knows the search ran. */
+@Composable
+private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
+    val hits = searchHelp(query)
+    if (hits.isEmpty()) {
+        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("No matches", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Nothing in any help topic matched \"$query\". Try a shorter or differently-spelled term.",
+                    fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp
+                )
+            }
+        }
+        return
+    }
+    Text(
+        "${hits.size} match${if (hits.size == 1) "" else "es"} for \"$query\"",
+        fontSize = 12.sp, color = Color(0xFFAAAAAA),
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
+    )
+    hits.forEach { hit ->
+        Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { onNavigateToTopic(hit.topicId) }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                Text("🔍", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(hit.topicTitle, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    if (hit.matchedCardTitle != null) {
+                        Text(hit.matchedCardTitle, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (hit.snippet.isNotBlank()) {
+                        Text(hit.snippet, fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** "Relevant Help pages" footer — rendered at the bottom of a per-
+ *  topic page when [RELATED_HOME_HELP] has an entry for that topic.
+ *  Same chrome as [HomeSubpageLink] but more compact (smaller right
+ *  arrow, no body line) so it doesn't compete with the topic's own
+ *  cards. Each row navigates via [onNavigateToTopic]. */
+@Composable
+private fun RelevantHelpPagesCard(
+    related: List<Pair<String, String>>,
+    onNavigateToTopic: (String) -> Unit
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Spacer(modifier = Modifier.height(6.dp))
+            related.forEach { (id, title) ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onNavigateToTopic(id) }
+                        .padding(vertical = 5.dp)
+                ) {
+                    Text("→", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                    Text(title, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }

@@ -14,7 +14,7 @@ internal data class HelpContent(val title: String, val cards: List<HelpCard>)
 internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     // ===== Per-card help on the provider settings screen =====
     "provider_card_state" to HelpContent(
-        title = "Provider state",
+        title = "Help - Provider state",
         cards = listOf(
             HelpCard("What the four states mean", "🔑 ok — a working API key has been tested against the picked Default Model. Pickers, Refresh All, the active-only filter all treat this provider as usable.\n❌ error — the last test failed; the trace icon links to the captured request/response.\n💤 inactive — the user explicitly turned the provider off. Calls and pickers skip it.\n⭕ not-used — no key set yet."),
             HelpCard("Activation flow (Switch ON)", "Flipping the inactive Switch to OFF kicks off two network calls in sequence: 1) a fetch of the live model list from the provider's /models endpoint, 2) a test call against the picked Default Model using the API key from the card below. Both must pass before the state goes 🔑."),
@@ -24,7 +24,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_apikey" to HelpContent(
-        title = "API Key card",
+        title = "Help - API Key card",
         cards = listOf(
             HelpCard("Where it's stored", "Per-provider SharedPreferences slot named `<id>_api_key` (e.g. `OpenAI_api_key`). Masked behind the eye toggle on the input field — never logged in API traces, never shipped through any export bundle marked 'no keys'."),
             HelpCard("Test button", "Fires one round-trip request against the model picked below using this key. Shows 'Connection successful' green on pass, the provider error message red on fail. Tagged with a per-test trace so the bug icon next to a failure links straight to the captured request / response."),
@@ -34,7 +34,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_basics" to HelpContent(
-        title = "Basics",
+        title = "Help - Basics",
         cards = listOf(
             HelpCard("Base URL", "Root of every API call to this provider. Paths declared on the API card (`v1/chat/completions`, `v1/messages`, etc.) append to this. Should end with a slash; the dispatcher normalises both shapes."),
             HelpCard("Admin URL", "Provider's web dashboard — where the user gets / rotates an API key. Optional. Rendered as a tappable link on the per-provider help page so the user can jump out and grab a key."),
@@ -42,7 +42,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_api" to HelpContent(
-        title = "API",
+        title = "Help - API",
         cards = listOf(
             HelpCard("Format", "Selects the dispatch path:\n• OPENAI_COMPATIBLE — the default. Bearer auth, /v1/chat/completions request shape, SSE streaming via `data:` lines.\n• ANTHROPIC — `x-api-key` header + `anthropic-version: 2023-06-01`, /v1/messages, mandatory max_tokens on every request.\n• GOOGLE — `?key=` query param (NOT Bearer), generateContent path, no streaming for vision."),
             HelpCard("Type paths", "Per-provider override of the global per-type defaults from AI Setup → Model Types. Leave blank to inherit the user / hardcoded fallback (the placeholder shows what you'd inherit). Wrong path here yields HTTP 404 on every dispatch."),
@@ -52,7 +52,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_models" to HelpContent(
-        title = "Models",
+        title = "Help - Models",
         cards = listOf(
             HelpCard("Default source", "Decides where the per-provider Models screen seeds its list from on the first open + on Refresh:\n• API — hits the provider's /models endpoint on every refresh. Live catalog.\n• MANUAL — hands you an empty list to populate by hand from Hardcoded models. Useful for providers whose /models shape isn't supported, or when you want to lock the picker down to a curated subset."),
             HelpCard("Model filter regex", "Java regex (case-insensitive) that trims the live or hardcoded list to entries whose id matches. Examples:\n• `gpt|o1|o3|o4` on OpenAI hides the Whisper / DALL·E / TTS rows.\n• `claude` on Anthropic strips legacy aliases.\nLeave blank to keep everything the API returns. A bad regex compiles silently to a no-op — the field accepts the typo but the persisted value stays at the last good one."),
@@ -60,7 +60,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_pricing" to HelpContent(
-        title = "Pricing & cost",
+        title = "Help - Pricing & cost",
         cards = listOf(
             HelpCard("OpenRouter name", "Maps this provider into OpenRouter's catalog so cross-provider pricing fan-out works. Example: Anthropic ships `openRouterName: 'anthropic'` so the layered lookup finds `anthropic/claude-3-5-sonnet` pricing on OpenRouter when no native source has it. Required for layered-pricing pickup; harmless when blank for fully self-priced providers."),
             HelpCard("LiteLLM prefix", "Slug used as the lookup key in the LiteLLM catalog. Per-provider override over the lowercased provider id fallback. Example: Together ships `litellmPrefix: 'together_ai'` because LiteLLM uses that slug, not 'together'. Leave blank to use the lowercased id."),
@@ -69,7 +69,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_throttle" to HelpContent(
-        title = "Throttle & retry",
+        title = "Help - Throttle & retry",
         cards = listOf(
             HelpCard("How the override works", "Every field is a per-provider override of the global default (Settings → Per-provider throttling / 429 / 529 error handling). Leave a field blank to inherit the global value. Useful when one provider has a stricter API tier than the rest, or is more sensitive to bursts."),
             HelpCard("Max calls per minute", "Sliding-window cap enforced by the OkHttp ProviderThrottleInterceptor on this provider's baseUrl host plus any aux hosts. A 61st call inside a 60-second window blocks until the oldest call exits the window. Blank = use the global value."),
@@ -80,7 +80,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_features" to HelpContent(
-        title = "Features",
+        title = "Help - Features",
         cards = listOf(
             HelpCard("Supports citations", "When ON, the response parser pulls the Perplexity-style `citations` array out of the response and surfaces it inline on the per-agent result card. Only Perplexity sets this today. OpenAI's Responses-API web search uses a different shape and is gated separately by the Responses API patterns under Model patterns."),
             HelpCard("Supports search recency", "When ON, the dispatcher attaches Perplexity's `search_recency_filter` request param (`day` / `week` / `month` / `year`) when the user picks one on the report's web-search dropdown. Providers without this flag get the recency dropdown hidden — there's no point offering a knob the API can't honour."),
@@ -88,7 +88,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_native" to HelpContent(
-        title = "Native APIs",
+        title = "Help - Native APIs",
         cards = listOf(
             HelpCard("Aux hosts", "Comma-separated list of alternate hostnames the provider's traffic lands on besides its baseUrl host. Example: Cohere — its compat shim lives on `api.cohere.ai` but the native rerank / capability endpoints land on `api.cohere.com`. Without the aux host the trace-list Provider filter would attribute those calls to '(unknown)'."),
             HelpCard("Native rerank URL", "Full URL of a Cohere v2/rerank-shaped POST endpoint. When set, Reports → Rerank routes through it instead of the chat-model fallback. Blank = the user is told to pick a chat model and the prompt-based rerank flow runs. Cohere's `https://api.cohere.com/v2/rerank` is the canonical example."),
@@ -97,7 +97,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_capability" to HelpContent(
-        title = "Capability flags",
+        title = "Help - Capability flags",
         cards = listOf(
             HelpCard("Pricing from /models", "Provider's /v1/models response carries authoritative pricing (input/output per million tokens) which the fetcher harvests as a self-report tier in PricingCache — wins over LiteLLM, models.dev, etc. Together AI is the canonical example: ships `pricing: {input, output}` per row."),
             HelpCard("Cross-provider model list", "Provider's /models response drives pricing + type fan-out into every OTHER provider via the openRouterName prefix. Only OpenRouter has this today; exactly one provider should. When set, fetching this provider's catalog also enriches sibling providers' model-type labels and gives them a layered-pricing fallback row."),
@@ -106,7 +106,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_patterns" to HelpContent(
-        title = "Model patterns",
+        title = "Help - Model patterns",
         cards = listOf(
             HelpCard("Pattern syntax", "Each pattern is a JSON object with any combination of `exact` / `prefix` / `contains` / `suffix`, matched against modelId.lowercase(). Every non-null part must match (intersection). Empty list = the feature is OFF for this provider. Example: `{prefix: \"grok-4-\", contains: \"reasoning\"}` matches only the grok-4 reasoning variants."),
             HelpCard("Responses API patterns", "Models routed to OpenAI's /v1/responses instead of /v1/chat/completions. OpenAI bundle ships gpt-5 / o-series / gpt-4.1 here. Other providers leave it empty — Anthropic and Google have their own request shapes selected by the API card's Format dropdown, not by per-model patterns."),
@@ -118,7 +118,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_card_endpoints" to HelpContent(
-        title = "Built-in endpoints",
+        title = "Help - Built-in endpoints",
         cards = listOf(
             HelpCard("Shape", "List of `{id, name, url, isDefault}` entries. The first `isDefault: true` shows up first when the user picks an endpoint while assigning a model to an Agent or sending a Test request. Empty list = a single synthesised default is used (built from the API card's Base URL + chat type path)."),
             HelpCard("Bundled values", "OpenAI ships Chat Completions + Responses API.\nMistral ships Chat Completions + Codestral.\nDeepSeek ships Chat Completions + Beta (FIM).\nZ.AI ships Chat Completions + Coding.\nEvery other provider ships nothing here and falls back to the synthesised default."),
@@ -128,7 +128,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "info_provider_huggingface" to HelpContent(
-        title = "HuggingFace (info provider)",
+        title = "Help - HuggingFace (info provider)",
         cards = listOf(
             HelpCard("Overview", "Hugging Face Inc. runs the largest public registry of machine-learning models, datasets, and demo \"Spaces\". For this app it's a metadata source: we read its model-card API to pull license, context length, capability tags, and the README blurb that surfaces on Model Info."),
             HelpCard("What we use it for", "Per-model lookups against `https://huggingface.co/api/models/{id}`. Surfaces in Model Info → Sources card under HuggingFace as the raw JSON the call returned. Not a pricing source — HF doesn't publish per-token costs."),
@@ -138,7 +138,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_openrouter" to HelpContent(
-        title = "OpenRouter (info provider)",
+        title = "Help - OpenRouter (info provider)",
         cards = listOf(
             HelpCard("Overview", "OpenRouter is an aggregator that proxies requests to dozens of upstream AI providers behind a single API. The app uses it in two roles: as an AI provider itself (chat / completion) AND as a metadata + pricing catalog spanning every model OpenRouter routes to."),
             HelpCard("What we use it for", "Two endpoints: a global catalog with prompt / completion prices, and a per-model specs lookup with capability fields (context, supports vision, supports tools, etc.). Both feed the layered pricing lookup and Model Info."),
@@ -148,7 +148,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_litellm" to HelpContent(
-        title = "LiteLLM (info provider)",
+        title = "Help - LiteLLM (info provider)",
         cards = listOf(
             HelpCard("Overview", "LiteLLM is an open-source library by BerriAI that abstracts the SDKs of every major AI provider behind one shape. It also ships a curated JSON catalog of every model the maintainers know about, with input/output token prices, context windows, and capability flags."),
             HelpCard("What we use it for", "We pull the JSON catalog (no SDK / no proxy server — just the data file) and use it as the primary pricing tier in the layered lookup. Also feeds the capability sets (vision, web search, system-message support, …) that drive UI badges."),
@@ -158,7 +158,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_models_dev" to HelpContent(
-        title = "models.dev (info provider)",
+        title = "Help - models.dev (info provider)",
         cards = listOf(
             HelpCard("Overview", "models.dev is a community-curated catalog of AI models with a single JSON dump endpoint. Slimmer than LiteLLM but covers some entries (and some capability fields) that LiteLLM lags on, so it sits as a per-field fallback in our pricing chain."),
             HelpCard("What we use it for", "Pricing + capability fallback when LiteLLM has no entry for a model. Same shape as LiteLLM: prompt/completion price + context window + supports-X flags."),
@@ -168,7 +168,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_helicone" to HelpContent(
-        title = "Helicone (info provider)",
+        title = "Help - Helicone (info provider)",
         cards = listOf(
             HelpCard("Overview", "Helicone is an AI observability platform — they run a hosted service that logs LLM API calls. As a side product they publish a public LLM-costs JSON aggregating per-model prices across every provider they instrument."),
             HelpCard("What we use it for", "Pricing-only fallback. We never send Helicone any data — we only read the public llm-costs endpoint and slot it into the layered lookup."),
@@ -178,7 +178,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_llm_prices" to HelpContent(
-        title = "llm-prices.com (info provider)",
+        title = "Help - llm-prices.com (info provider)",
         cards = listOf(
             HelpCard("Overview", "llm-prices is Simon Willison's hand-curated tracker of frontier-model pricing across roughly 10 vendors (OpenAI, Anthropic, Google, xAI, Meta, Mistral, DeepSeek, …). Smaller scope than LiteLLM but updated quickly when prices change."),
             HelpCard("What we use it for", "Pricing fallback. Per-vendor JSON files in the simonw/llm-prices GitHub repo; one file per vendor, fetched on demand."),
@@ -188,7 +188,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "info_provider_artificial_analysis" to HelpContent(
-        title = "Artificial Analysis (info provider)",
+        title = "Help - Artificial Analysis (info provider)",
         cards = listOf(
             HelpCard("Overview", "Artificial Analysis is an independent benchmarking company. They publish curated model metadata + pricing alongside their own latency / quality benchmarks. We use only the metadata + pricing slice."),
             HelpCard("What we use it for", "Pricing + capability fallback in the layered lookup. Their dataset is hand-curated and tends to align well with the provider's own pricing page."),
@@ -198,7 +198,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "about" to HelpContent(
-        title = "About",
+        title = "Help - About",
         cards = listOf(
             HelpCard("Overview", "Lightweight hub reached from the home screen's About card (or the bottom-bar app icon). Shows the AI logo, the installed version, the build date stamped into the APK at compile time, and a link to the GitHub source. Two cards underneath route to the bundled documentation: the end-user Manual and the developer Technical documentation."),
             HelpCard("Version + build + install times", "`Version <X.Y.Z>` is the `versionName` from the manifest (set in `ai/build.gradle`). `Built <stamp>` is read from the bundled `assets/build-timestamp.txt`, written on every Gradle build by the never-up-to-date `generateBuildStamp` task — always matches the moment the APK was produced (sidesteps the configuration-cache trap that made the old `BuildConfig.BUILD_TIMESTAMP` go stale). `Installed <stamp>` is `PackageInfo.lastUpdateTime` — the moment the APK was last written to the device. Both surface so you can tell the difference between 'old build still installed' and 'fresh install of a fresh build'."),
@@ -210,7 +210,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "manual" to HelpContent(
-        title = "Manual",
+        title = "Help - Manual",
         cards = listOf(
             HelpCard("Overview", "End-user walkthrough of every screen and feature, bundled in the APK at `assets/docs/manual/`. Mirrors what a printed quick-start would cover: how to send a report, what each screen does, where the controls live. Sibling hub to the Technical documentation for developer-oriented reference. No network — every page is read from disk."),
             HelpCard("Index", "The first page is a card-style table of contents grouped by use case (Getting started, Reports, Chat, Knowledge / RAG, Translation, Settings, etc.). Pages target users, not developers; concrete control names and label quotes match what's on-screen."),
@@ -220,7 +220,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "technical_documentation" to HelpContent(
-        title = "Technical documentation",
+        title = "Help - Technical documentation",
         cards = listOf(
             HelpCard("Overview", "Developer-oriented hub over the project's technical documentation, bundled in the APK at `assets/docs/technical/`. Mobile-friendly rewrite of the `doc/` markdown tree: collapsible cards instead of wide tables, nested HTML trees instead of ASCII diagrams, dark theme matching the app. Sibling hub to the end-user Manual. No network — every page is read from disk."),
             HelpCard("Index", "The first page is a card-style table of contents. Sections: For developers (Architecture, Development, API formats, Data structures, Secondary results, Model test, Cooldowns, Help system, AppLog, Report icons, Throttle), Subsystem deep dives (Knowledge / RAG, Local runtime, Translation, Share target, Backup & restore), Reference data (Providers, Repositories, Persistent state), Backlog (TODO)."),
@@ -261,106 +261,154 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "help_about" to HelpContent(
         title = "Help - About the app",
         cards = listOf(
-            HelpCard("What this app is", "A multi-provider AI client for Android. Send one prompt to many models at once (Reports), or chat with one model at a time (Chat), or build a knowledge base and let retrieval feed your prompts (RAG). Talks to 40+ cloud providers and runs on-device models too."),
-            HelpCard("Who it's for", "Power users who want to compare model outputs side-by-side, work offline / privately when needed, or batch-process prompts at scale. Not a chat-only tool — the Report flow is the centre of gravity."),
-            HelpCard("Headline features", "Multi-model reports with per-row results · meta-prompt operations (rerank, summarize, compare, moderate, translate) over completed reports · fan-out (N×M variations) · knowledge bases with local or cloud embedders · multi-language translation runs · cost tracking down to the per-call level · everything-local-first with no telemetry."),
-            HelpCard("Where to start", "Settings → AI Setup → Providers — paste an API key for at least one provider. Housekeeping → Refresh → Refresh all — verifies keys and fetches model lists. Then build your first report from the Hub. See \"Getting started\" on the Help home for the same checklist."),
-            HelpCard("Per-screen help", "Every screen has its own ❓ icon in the title bar that explains that screen's specific controls. This About page is the cross-cutting orientation; the per-screen pages cover the details.")
+            HelpCard("What this app is", "A multi-provider AI client for Android. The headline feature is the Report flow: one prompt fired at many models in parallel, every response rendered side-by-side, with token/cost stats per row and post-hoc operations (rerank, compare, translate, moderate, fan-out) you can run over the completed results. There's also a one-model Chat flow and a knowledge-base / RAG flow for prompts that need document grounding."),
+            HelpCard("Who it's for", "Power users who want to compare what different models do with the same prompt, work offline or privately for sensitive prompts, batch-process prompts at scale, or build their own meta-workflows on top of multi-model output. The app is opinionated towards the Report flow — it's the centre of gravity. If you only want a single-model ChatGPT-style conversation, this app is over-spec'd for that."),
+            HelpCard("Multi-model Reports", "Pick a Flock, Swarm, or ad-hoc set of agents, paste a prompt, fire. Each agent's call runs in parallel up to the per-host throttle gates; results stream into the result page as they arrive. The completed Report is one JSON file on disk that survives app restarts, can be exported (HTML / PDF / DOCX / ODT / JSON traces), and is the input to every Meta operation."),
+            HelpCard("Meta operations", "After a Report finishes, you can chain operations over its results: Rerank (order by relevance / quality), Compare / Summarize / Critique (any user-defined chat-type meta prompt; cross-result synthesis), Moderate (per-row safety scoring), Translate (multi-language render), and Fan-out (run a chat meta against every pair of source results). Outputs persist alongside the Report so you can revisit them later."),
+            HelpCard("Knowledge bases (RAG)", "Build a Knowledge base from uploaded files (PDF / DOCX / TXT / MD / HTML), share-target ingest, or web URLs. The app chunks, embeds, and indexes locally. Attach a KB to a Report and the prompt is embedded at run time — the top-K most similar chunks are injected into every dispatched call so the models see the relevant context without you copy-pasting it."),
+            HelpCard("Local AI", "Both an on-device LLM runtime (LiteRT via MediaPipe GenAI) and an on-device embedder. Useful for privacy-sensitive prompts, offline use, or zero-cost experiments. Appears as a normal \"Local\" provider in every picker. Performance is bounded by phone hardware — pick local for the right tasks, cloud for everything else."),
+            HelpCard("Architecture at a glance", "Single Activity, Jetpack Compose UI, Kotlin coroutines for concurrency, Retrofit + OkHttp + custom interceptors for the network, plain JSON files on disk for persistence (no SQLite, no Room). Every cloud provider is hit through one of three API formats (OpenAI-compatible, Anthropic, Google) so adding a provider is mostly registration, not code. The app log + per-call API tracer help you debug behaviour."),
+            HelpCard("Privacy stance", "Local-first by default. Your data lives on this device under the app's private storage; uninstalling removes it. The only network traffic is the API calls you explicitly trigger to the providers you configured. No telemetry, no analytics, no \"phone home\". See Help - Privacy & data for the full inventory."),
+            HelpCard("Open source + cost", "Source on GitHub (link from the About screen on Home). Licensed GPLv2. The app itself is free; you pay only for the API calls your configured providers bill you for. Local-only flows cost nothing after the initial weights download."),
+            HelpCard("Where to start", "Help - Getting started has the step-by-step. Short version: Settings → AI Setup → Providers (paste at least one API key) → Housekeeping → Refresh → Refresh all (verify keys + fetch model lists) → Hub → AI Reports → New report.")
+        )
+    ),
+    "help_getting_started" to HelpContent(
+        title = "Help - Getting started",
+        cards = listOf(
+            HelpCard("Step 1 — Add an API key", "Settings → AI Setup → Providers → pick a provider you have an account with (OpenAI / Anthropic / Google / OpenRouter are good starting points) → paste the key in the API Key card. The key stays on this device; it's only ever sent in the Authorization header to that one provider. Per-screen ❓ on the API Key card explains the key format."),
+            HelpCard("Step 2 — Verify + fetch model lists", "Housekeeping → Refresh → Refresh all. This pings each configured provider to confirm the key works, then fetches their model catalog. Successful providers turn green; bad keys / wrong endpoints turn red with the error inline. You only need to refresh when you change providers or want to pick up newly-released models."),
+            HelpCard("Step 3 — Create an Agent (optional but recommended)", "Settings → Agents → + Agent → name it, pick a provider + model, optionally a parameter set + system prompt. An Agent is the saved combination the rest of the app composes — Reports / Chats / Flocks all dispatch named Agents rather than raw (provider, model) pairs. Quick agents for the providers you just added let you stop picking from scratch every time."),
+            HelpCard("Step 4 — Fire your first Report", "Hub → AI Reports → +Agent / +Flock / +Swarm / +Model picks the model set; type a prompt below; Generate. The result page populates as each model returns. Subject row shows the running cost in cents. Once every row has settled, the action row exposes View / Edit / Regenerate / Export / Translate / Meta / Fan out."),
+            HelpCard("Step 5 — Try a Meta operation", "On a finished Report, Action row → Meta → pick a meta prompt (Rerank / Summarize / Compare / your own). The meta call runs over the Report's results and lands as a new card on the result page. Rerank produces a sorted table, chat metas produce a single synthesis card. Same Report can carry multiple meta runs side by side."),
+            HelpCard("Step 6 — Knowledge base (optional)", "Hub → AI Knowledge → +KB → pick an embedder (cloud or local) → add documents (Upload, paste a URL, or share-target a file from another app). Documents are chunked and embedded once. On the New Report screen there's an Attach KBs row — attach a KB and every dispatched call gets the top-K matching chunks injected from the prompt."),
+            HelpCard("Step 7 — Translate the Report", "Action row → Translate → pick target languages and the model(s) to use. Multi-model translations parallelise the work and use the Speed / Mixed / Cost mode toggle to bias which model picks up what. See Help - Translations & multi-language for the workflow's specifics."),
+            HelpCard("Common first-week pitfalls", "(1) Forgetting Refresh after adding a key → model lists empty. (2) Picking a tiny model for a long prompt → output truncates. (3) Building a KB with embedder A then trying to attach to a Report run by embedder B → the app refuses (different vector spaces). (4) Hitting a 429 burst with a slow retry budget → bump Settings → Network → Max calls / minute for that provider. (5) Big translation runs feeling slow → the Cost mode hesitation is biasing toward cheaper models; flip the L1 toggle to Speed."),
+            HelpCard("Help anywhere", "Every screen has its own ❓ icon in the title bar — opens the help page for that screen specifically. The Help home (this section's parent) collects cross-cutting topics; the search box at the top searches across everything.")
         )
     ),
     "help_glossary" to HelpContent(
         title = "Help - Concepts & glossary",
         cards = listOf(
-            HelpCard("Overview", "The app's domain vocabulary, grouped into four buckets. Tap a category below; each lists the terms it covers with a one-paragraph explainer for each.")
+            HelpCard("Overview", "The app's domain vocabulary, grouped into four buckets. Tap a category below; each lists the terms it covers with a one-paragraph explainer for each."),
+            HelpCard("How the four buckets relate", "Building blocks are the atoms — Provider, Model, Agent. Groupings (Flock, Swarm) bundle Agents for one launch. Operations (Report, Chat, Meta, Fan-out, …) are the things you fire those agents at. Retrieval (Knowledge base, Embedder, Reranker) feeds context into the prompts before any of the above sees them."),
+            HelpCard("Why these names matter", "The UI uses the vocabulary literally. Settings → Agents edits Agents; Settings → Flocks bundles them; the Report result page lists Agent rows; the Meta picker chooses meta prompts. If a term feels alien, finding its glossary entry usually clears up whatever screen confused you.")
         )
     ),
     "help_glossary_blocks" to HelpContent(
         title = "Help - Concepts: Building blocks",
         cards = listOf(
-            HelpCard("Provider", "A vendor with an endpoint the app can talk to — OpenAI, Anthropic, Google, Mistral, Cohere, … plus on-device runtimes (Local LLM, Local embedder). 40+ cloud providers ship with the app; you can add custom ones too. Each carries the API key, base URL, throttle caps, and a list of available models."),
-            HelpCard("Model", "A specific weight / size at one provider — gpt-5-mini, claude-haiku-4-5, gemini-2.5-flash, qwen-2.5-7b-instruct, etc. Reachable by id; pricing + capability flags (vision, web search, reasoning) attach to the model, not the provider."),
-            HelpCard("Agent", "A saved combination of (provider, model, parameter set, optional system prompt). The atomic unit the rest of the app composes. Reports / Chats / Flocks / Swarms all dispatch agents — never raw (provider, model) pairs. Edit on Settings → Agents.")
+            HelpCard("Provider", "A vendor with an endpoint the app can talk to — OpenAI, Anthropic, Google, Mistral, Cohere, OpenRouter, … plus on-device runtimes (Local LLM, Local embedder). 40+ cloud providers ship with the app; you can also add custom providers via Settings → AI Setup → Providers → +Provider. Each Provider carries its API key, base URL, throttle caps (requests/min + concurrent), retry policy (429/529 budget + backoff), and the discovered model catalog."),
+            HelpCard("Model", "A specific weight / size at one provider — gpt-5-mini, claude-haiku-4-5, gemini-2.5-flash, qwen-2.5-7b-instruct, etc. Reachable by id under one Provider. Pricing per million input/output tokens, capability flags (vision, web search, reasoning), and context-length attach to the Model, not the Provider. The same model id at two different providers (OpenAI gpt-4o-mini vs OpenRouter openai/gpt-4o-mini) is two separate Models."),
+            HelpCard("Agent", "A saved combination of (provider, model, parameter set, optional system prompt). The atomic unit the rest of the app composes — Reports / Chats / Flocks / Swarms all dispatch Agents, never raw (provider, model) pairs. Settings → Agents edits the list. Naming Agents (\"Fast Sonnet\", \"Cheap o4-mini\") lets you pick a row by purpose rather than re-configuring each time."),
+            HelpCard("Why Agent over raw pair", "Two reasons. (1) Parameter sets matter — a model called with temperature 0.2 + a strict system prompt behaves very differently from the same model with temperature 1.4 + no system prompt. The Agent freezes both. (2) When you change a model's parameters in one Agent, every Report that referenced it picks up the new behaviour on the next run — central knob, not a hundred per-Report tweaks.")
         )
     ),
     "help_glossary_groupings" to HelpContent(
         title = "Help - Concepts: Groupings",
         cards = listOf(
-            HelpCard("Flock", "An ordered list of agents you launch together as a unit. A Flock of 5 agents fired at a single prompt gives 5 parallel responses, one per agent's configured (provider, model, parameters). Useful when you've curated a regular comparison group."),
-            HelpCard("Swarm", "A list of (provider, model) tuples that gets expanded into ad-hoc agents at run time — each tuple becomes a one-off Agent with default parameters. Useful when you want to spray a prompt at every available model from a provider, or a custom subset, without saving each as a named Agent first.")
+            HelpCard("Flock", "An ordered list of Agents you launch together as a unit. A Flock of 5 agents fired at a single prompt gives 5 parallel responses, one per Agent's configured (provider, model, parameters). Useful when you've curated a regular comparison group — \"my top 3 reasoning models\" or \"the cheap-and-fast trio\". Settings → Flocks edits the list."),
+            HelpCard("Swarm", "A set of (provider, model) tuples that gets expanded into ad-hoc Agents at run time. Each tuple becomes a one-off Agent with default parameters. Useful when you want to spray a prompt at every available model from a provider, or a custom subset, without saving each as a named Agent first. Settings → Swarms edits the list."),
+            HelpCard("Flock vs Swarm — when to use which", "Flock = saved Agents. Use when each Agent's parameter set / system prompt matters. Swarm = saved (provider, model) tuples. Use for breadth-first exploration — \"what does every OpenRouter Llama variant say to this prompt\" — where you don't care about per-model tuning. You can mix: a Flock of 3 hand-tuned Agents plus a Swarm dropped in via +Swarm on the new Report screen."),
+            HelpCard("Practical limits", "Both are bounded by your throttle caps. A Swarm of 30 models all on the same host saturates the per-host concurrent gate; the runner will serialise them. For broad comparisons, mix providers so the per-host cap isn't the bottleneck.")
         )
     ),
     "help_glossary_operations" to HelpContent(
         title = "Help - Concepts: Operations",
         cards = listOf(
-            HelpCard("Report", "The headline feature: one prompt, N models, every response rendered side-by-side. Each report stores its prompt, the model list, every per-model response with token / cost stats, plus any meta-prompt outputs run against those responses. Lives on disk as one JSON file under <filesDir>/reports/."),
-            HelpCard("Chat", "A two-way conversation with a single model. Lighter than a Report — no fan-out, no per-row comparison. The chat history lives on disk separately under <filesDir>/chats/."),
-            HelpCard("Meta prompt", "A stored prompt template you apply to a Report's results. Built-in kinds: Rerank (order rows), Summarize / Compare (chat-type meta prompt that consumes all results and produces one text output), Moderate (per-row safety scoring), Translate (per-row language render). User-defined chat meta prompts are also supported — Settings → Internal prompts."),
-            HelpCard("Fan-out", "Run a chat meta prompt against every pair of source agents (or a curated subset). Produces N×M responses where each pair is one cell. Useful for cross-agent comparisons (\"how does Claude critique GPT's answer\")."),
-            HelpCard("Rerank", "Asks a model to assign a rank to each Report row, optionally with rationale. Output is a structured table — anchor links from each rerank cell back to the agent card it scored."),
-            HelpCard("Moderation", "Per-row content safety scoring against a provider's moderation endpoint (OpenAI / Mistral). Returns per-row category flags + scores."),
-            HelpCard("Translation", "Translates a Report's title + prompt + every successful agent response + every chat-type meta result into one or more target languages. Multi-model translation runs use the Speed / Mixed / Cost mode toggle — see Help - How it works for the hesitation mechanics.")
+            HelpCard("Report", "The headline operation: one prompt, N models, every response rendered side-by-side. Each Report stores its prompt, the model list, every per-model response with token / cost stats, plus any meta-prompt outputs run against those responses. Lives on disk as one JSON file under <filesDir>/reports/. Survives restarts; doesn't expire; appears in History, on the result-page navigation, and in the Pin / Hub recent-reports surfaces."),
+            HelpCard("Chat", "A two-way conversation with a single model. Lighter than a Report — no fan-out, no per-row comparison, no meta operations. The chat history lives on disk separately under <filesDir>/chats/. Useful for follow-up exchanges (\"now refactor that to use a sealed class\"). Reports stash an entry-point into Chat: the title bar's 💬 icon on a finished Report copies its prompt + a chosen response and launches a fresh chat."),
+            HelpCard("Meta prompt", "A stored prompt template you apply to a Report's results. Built-in kinds: Rerank (order rows), Summarize / Compare / Critique etc. (chat-type meta prompt that consumes all results and produces one text output), Moderate (per-row safety scoring), Translate (per-row language render). User-defined chat meta prompts edit-able at Settings → Internal prompts. Outputs persist as SecondaryResult rows on the Report; revisitable later."),
+            HelpCard("Fan-out", "Run a chat meta prompt against every pair (or curated subset of pairs) of source agents. Produces N×M responses where each pair is one cell. Useful for cross-agent comparisons — \"how does Claude critique GPT's answer\" gives 1 cell per (Claude-as-evaluator, GPT-as-source) pair. Lives in the same SecondaryResult table; the Fan-out drill-in (L1/L2/L3) lets you inspect cells individually, restart failed ones, generate per-cell icons."),
+            HelpCard("Rerank", "A meta operation that asks a model to assign a rank to each Report row, optionally with rationale. Output is a structured table — each cell carries an anchor link back to the agent card it scored, so tapping a Rerank row jumps to the original response. Useful for picking \"which of these 8 answers is best\"."),
+            HelpCard("Moderation", "Per-row content safety scoring against a provider's moderation endpoint (OpenAI / Mistral). Returns per-row category flags + scores. Useful for batch-screening generated text before pasting into a downstream system; also useful for self-audit if you're testing model outputs on contentious prompts."),
+            HelpCard("Translation", "Translates a Report's title + prompt + every successful agent response + every chat-type meta result into one or more target languages. Multi-model translation runs use the Speed / Mixed / Cost mode toggle on the L1 — see Help - How it works for the hesitation mechanics. Translations live as TRANSLATE-kind SecondaryResult rows alongside the original; the language picker on the result viewer toggles which language renders."),
+            HelpCard("Operation composition", "Operations chain. A Report's results feed Meta operations; a Translation's per-language renders include any Meta results too; Fan-out can target the products of an earlier Meta. The Report is the root; everything else hangs off it.")
         )
     ),
     "help_glossary_retrieval" to HelpContent(
         title = "Help - Concepts: Retrieval",
         cards = listOf(
-            HelpCard("Knowledge base", "A collection of indexed documents you can attach to a report. Sources include uploaded files (PDF / DOCX / TXT / MD / HTML), share-target ingest, and web URLs. Each document is chunked, embedded, and stored in <filesDir>/knowledge/. At report time, the prompt is embedded and the top-K most similar chunks are injected into every dispatched call."),
-            HelpCard("Embedder", "The model that turns text into vectors. Cloud (OpenAI text-embedding-3-*, Cohere embed-v3, Voyage, Mistral, Google) or on-device (gecko / nomic-embed-text). The embedder you pick at KB creation is what every later retrieval uses — switching it invalidates the KB's vectors."),
-            HelpCard("Reranker", "Optional second-stage filter. Top-K embedding retrieval is fast but coarse; a reranker re-scores the candidate chunks with a more accurate (and slower) model so only the truly relevant chunks end up in the prompt. Cohere rerank-3, Voyage rerank-2, Jina, etc.")
+            HelpCard("Knowledge base", "A collection of indexed documents you can attach to a Report. Sources include uploaded files (PDF / DOCX / TXT / MD / HTML / CSV / JSON), share-target ingest from other apps, and web URLs (the app fetches + extracts). Each document is chunked, embedded, and stored under <filesDir>/knowledge/<kb-id>/. At Report time, the prompt is embedded and the top-K most similar chunks are injected into every dispatched call — every Agent sees the same context."),
+            HelpCard("Embedder", "The model that turns text into vectors. Cloud (OpenAI text-embedding-3-*, Cohere embed-v3, Voyage, Mistral, Google) or on-device (gecko / nomic-embed-text via LiteRT). The embedder you pick at KB creation is what every later retrieval uses — switching it invalidates the KB's vectors because each embedder produces vectors in its own incompatible vector space. The KB records its embedder; the app refuses to query with a different one."),
+            HelpCard("Reranker", "Optional second-stage filter between embedding-retrieval and prompt-injection. Top-K embedding retrieval is fast but coarse (it can surface chunks that share vocabulary without being relevant); a reranker re-scores the candidate chunks with a more accurate (and slower) model so only the truly relevant chunks end up in the prompt. Cohere rerank-3, Voyage rerank-2, Jina, etc. Optional — a KB without a reranker still works, just less precisely."),
+            HelpCard("Chunking", "Documents are split into overlapping windows (~500 tokens with ~50-token overlap by default) before embedding. The overlap means a fact straddling a chunk boundary still surfaces from either chunk. Smaller chunks → more precise retrieval but more entries; larger chunks → less noise from random co-occurrence but coarser hits."),
+            HelpCard("Why RAG at all", "Two reasons. (1) Context length isn't free — pasting 100 pages into every prompt is slow and expensive, and most models degrade past a few tens of thousands of tokens. RAG sends only the relevant slice. (2) The same KB feeds N Reports; the embedding work is done once. The retrieved chunks change per prompt but the index doesn't have to be rebuilt."),
+            HelpCard("Local vs cloud retrieval", "Both work end-to-end. Local embedders (gecko / nomic) keep document content fully on-device — useful when the documents are confidential. Cloud embedders are typically higher-quality and faster but the document content reaches the embedder provider during indexing.")
         )
     ),
     "help_costs" to HelpContent(
         title = "Help - Costs & pricing",
         cards = listOf(
-            HelpCard("Pricing tier chain", "When the app needs to attribute a USD cost to a call, it walks a chain of sources in order: provider self-report (OpenRouter / Together when caller is them) → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → OpenRouter cross-provider fallback → Helicone → DEFAULT (a low-cost placeholder so totals never NaN). The first hit wins."),
-            HelpCard("Manual overrides take precedence", "Settings → AI Setup → Cost overrides. A manual override for a (provider, model) pair is consulted before the curated tiers — useful when a tier source is stale or wrong, or when you've negotiated custom pricing. Persisted in SharedPreferences."),
-            HelpCard("Where costs surface", "Per-report cost table (Manage screen) — every API call this report fired, grouped by type / model / agent. Per-call trace — the 🐞 trace files include their own cost. Usage screen — global aggregates across every report. Result-page subject row — running 💰 total in cents. Export bundles — the same cost table in HTML / PDF / DOCX / ODT."),
-            HelpCard("Currency + decimals", "Everything is USD, rendered as cents with two decimals (e.g. \"3.42¢\"). Fractions below 0.01¢ round to 0.")
+            HelpCard("How pricing is attributed", "Every API call carries token counts in its response. The app multiplies those by the (input, output) per-million-token prices of the (provider, model) pair and stores the USD cost on the call's record. The result-page subject row, the per-Report cost table, the Usage screen aggregates, the export bundles' cost tables, and the per-call trace files all read from the same persisted cost numbers — they don't recompute."),
+            HelpCard("Pricing tier chain", "When the app needs to look up prices for a (provider, model) pair it walks a chain of sources in order: provider self-report (OpenRouter / Together when caller is them) → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → OpenRouter cross-provider fallback → Helicone → DEFAULT (a low-cost placeholder so totals never NaN). The first hit wins. Sources are refreshed at user-controlled intervals; the cache survives restarts."),
+            HelpCard("Manual overrides take precedence", "Settings → AI Setup → Cost overrides → Add manual override. A manual override for a (provider, model) pair is consulted BEFORE the curated tiers — useful when an info-provider's catalogue is stale or wrong, when you've negotiated custom pricing, or when a brand-new model isn't in the public catalogs yet. Persisted in SharedPreferences and consulted on every cost lookup."),
+            HelpCard("Where costs surface in the UI", "(1) Result-page subject row — running 💰 + cents for the open Report. (2) Per-Report cost table on the Manage screen — every call grouped by type / model / agent / language. (3) Per-call trace file — opening 🐞 from any cell shows that call's cost inline. (4) Usage screen — global aggregates across every Report on the device. (5) Export bundles — the same per-Report cost table in HTML / PDF / DOCX / ODT. (6) Translation L1 — total + per-model cost as the run progresses."),
+            HelpCard("Cost-aware translation mode", "Multi-model translation runs apply a cost-aware hesitation — cheaper models pull items first, expensive ones wait proportional to their price ratio. The L1 Speed / Mixed / Cost toggle controls how aggressive that bias is. Saved per-runId across restarts. See Help - How it works for the exact formula."),
+            HelpCard("Audit trail", "Every API call leaves an entry in the per-Report cost table — even failed / errored / timed-out calls. The Usage screen aggregates across every Report so you can answer \"how much have I spent this month on OpenAI?\" or \"which model produces the most spend per useful output?\". Filterable by date range and provider."),
+            HelpCard("Currency + decimals", "Everything is USD, rendered as cents with two decimals (e.g. \"3.42¢\"). Fractions below 0.01¢ round to 0 in displays but the underlying number on the call record is full-precision so totals don't drift from rounding."),
+            HelpCard("Spend visibility before you commit", "The action-row Generate button shows the model count it will fire. For Fan-out and Translate, the confirmation dialogs show the call count before you commit so a 4-model × 200-row translation doesn't surprise you with 800 calls. Manual sanity check: bigger than expected? Hit Cancel.")
         )
     ),
     "help_privacy" to HelpContent(
         title = "Help - Privacy & data",
         cards = listOf(
-            HelpCard("Local-first", "Everything the app generates — reports, chats, knowledge bases, traces, logs — lives on this device only. There is no cloud sync, no account, no backup-to-cloud unless you make a Backup zip and move it yourself."),
-            HelpCard("What leaves the device", "API requests to whichever providers you've configured. They see your prompts and produce your responses. Some info-providers (HuggingFace / models.dev / etc.) see model id queries when you refresh model lists. That's it."),
-            HelpCard("API keys", "Your API keys are sent only in the Authorization header (or query param for Google) to the matching provider. They never leave for anything else. Settings → AI Setup → Providers stores them in SharedPreferences on this device."),
-            HelpCard("Telemetry", "None. No crash reporting, no analytics, no \"phone home\". The app does no network beyond what you explicitly trigger."),
-            HelpCard("Logs and traces", "App log and API traces are stored on disk under <filesDir>/. Useful for debugging; never sent anywhere. Wipe with Housekeeping → Reset, or delete individual reports / chats from their list screens."),
-            HelpCard("Data ownership", "You own the data. Uninstalling the app removes <filesDir>/ and its contents (Android sandbox guarantee). The Backup file you can export is the only off-device copy — and only if you choose to share / save it.")
+            HelpCard("Local-first principle", "Everything the app generates — Reports, Chats, Knowledge bases, traces, logs, settings, agent definitions — lives on this device only, under the app's private storage (<filesDir>/). No cloud sync, no account, no \"login with Google\". The only way data leaves the device is via API calls you trigger or a Backup zip you explicitly export."),
+            HelpCard("What leaves the device", "API requests to the providers you've configured. They see your prompts and produce your responses; their privacy policy applies to that data. The info-providers (HuggingFace / models.dev / llm-prices / etc.) see model id queries when you refresh model lists or fetch pricing — no prompts, no responses, just \"what does gpt-5-mini cost\". That's the complete network surface."),
+            HelpCard("API key handling", "Your API keys are stored under SharedPreferences on this device. They're sent only in the Authorization header (or query param for Google) to the matching provider. They never go anywhere else — not to the developer, not to a backend, not even to other configured providers. Switching apps doesn't expose them; uninstalling deletes them."),
+            HelpCard("Telemetry — none", "No crash reporting, no analytics SDK, no \"phone home\". The app does no network beyond what you explicitly trigger. You can verify this by capturing traffic from the device or by leaving it offline and watching nothing happen."),
+            HelpCard("Logs and traces", "App log + per-call API traces are stored on disk under <filesDir>/logs/ and <filesDir>/traces/. Useful for debugging — \"why did that call fail\" usually has an answer in the trace bundle. They never leave the device unless you explicitly share / export a trace (the 🐞 icon on any cell). Logs are recycled when they outgrow size limits; you can wipe them from Housekeeping."),
+            HelpCard("Data wipe paths", "(1) Per-Report — long-press a row in History or use the Delete action on the result page. (2) Per-Chat — long-press in the Chats list. (3) Per-KB — Knowledge → tap KB → menu → Delete. (4) Per-API-key — Settings → AI Setup → Providers → tap Provider → clear the key. (5) Everything — Housekeeping → Reset → \"Wipe app data\" (irreversible, recreates a fresh install state). (6) Uninstall the app — Android's sandbox guarantees <filesDir>/ is removed."),
+            HelpCard("Backup file = the only off-device copy", "A Backup zip you create (Housekeeping → Backup) is the only artefact that exists outside this device — and only if you choose to share / save it. Treat the file as you'd treat your API keys: it contains them. If you upload it to a cloud you don't control, you've moved trust to that cloud."),
+            HelpCard("Sandbox guarantees", "Android's per-app sandbox means no other app on this device can read <filesDir>/. The app uses MODE_PRIVATE for every SharedPreferences file. Knowledge base documents are stored inside the same sandbox; even on a rooted device they require root + a UID match to read."),
+            HelpCard("Pitfalls", "Sharing a Backup zip via a non-private channel (public Drive folder, email forwarded) exposes API keys + every Report. If you do need to share data with someone, export the specific Report's HTML / PDF instead — those don't include keys.")
         )
     ),
     "help_backup" to HelpContent(
         title = "Help - Backup & restore",
         cards = listOf(
-            HelpCard("What's in a backup", "Every saved report + every secondary result row + every captured API trace + every prompt / agent / system-prompt / parameter-set + cooldown store + general & AI settings. Bundled as a single zip with a fixed top-level layout (see doc/backup-restore.md for the byte-level schema)."),
-            HelpCard("What's NOT in a backup", "The on-device LLM weights (local_llms/) and the local embedder models (local_models/) — they can be re-downloaded from the curated catalogs in Housekeeping. Excluding them keeps the zip small and shareable; trying to include a multi-GB LiteRT model in a Backup zip would be a usability disaster."),
-            HelpCard("Backup flow", "Housekeeping → Backup → Backup all. The app composes the zip in-place (atomic temp-file + rename) and hands the resulting file to the Android share sheet. Save it to Drive / email it to yourself / dump it to local storage — your call."),
-            HelpCard("Restore flow", "Housekeeping → Backup → Restore from file → pick the zip. The app validates the zip's contents before touching disk; if validation fails, nothing changes. On success it clears the relevant filesDir subtrees (preserving the excluded local_llms / local_models) and writes every entry back atomically."),
-            HelpCard("Version compatibility", "Backups carry an export version. The app currently writes version 24 and accepts restore from versions 11..24. Restoring a newer-version zip into an older app is refused; restoring an older zip into a newer app applies any migrations the app already knows about.")
+            HelpCard("What's in a backup", "Every saved Report (the JSON files under reports/) + every SecondaryResult row (under secondary/) + every captured API trace (under traces/) + every prompt / agent / system prompt / parameter set / flock / swarm / cost override (the AI settings file) + general app settings + the ModelCooldownStore (rate-limit-bench state) + the PromptCache (recently used prompts) + the InternalPromptIconCache (rendered emoji icons). One zip; fixed layout."),
+            HelpCard("What's NOT in a backup", "On-device LLM weights (<filesDir>/local_llms/) and local embedder models (<filesDir>/local_models/). They're re-downloadable from the curated catalogs in Housekeeping → Local LiteRT models / Local embedders, and including multi-GB weights in a Backup zip would make it unshareable. The Backup excludes them explicitly via the FILES_DIR_BACKUP_EXCLUDES set; the same set is preserved through Restore so a Restore on a device with local weights doesn't wipe them."),
+            HelpCard("Backup flow", "Housekeeping → Backup → Backup all. The app composes the zip in <filesDir>/backups/ (atomic temp-file + rename so a mid-write crash doesn't leave a half-zip), then hands the resulting file URI to the Android share sheet. From the share sheet pick where it goes — Drive, email, Files, local storage, your call. The zip survives between sessions in <filesDir>/backups/ until you delete it; the app doesn't auto-clean."),
+            HelpCard("Restore flow", "Housekeeping → Backup → Restore from file → pick the zip via the system file picker. The app first validates the zip's contents end-to-end before touching disk — wrong layout / unknown version / corrupt entries refuse the restore with an inline error and nothing changes. On successful validation it clears the relevant <filesDir>/ subtrees (preserving the excluded local_llms / local_models), writes every entry back atomically, and then asks you to restart the app so the in-memory caches re-read from disk."),
+            HelpCard("Version compatibility", "Backups carry an export version stamped in the zip's manifest. The app currently writes version 24 and accepts restore from versions 11..24. Restoring a newer-version zip into an older app is refused (we don't know what fields a newer schema introduced). Restoring an older zip into a newer app applies any migrations the app knows about — typically adding default values for fields that didn't exist when the zip was written."),
+            HelpCard("Local-weights exclusion rationale", "If we backed up the local LLM and embedder weights, a single Backup zip could be 10–20 GB. That's a fairly hostile object to drop into Drive or email yourself. The exclusion keeps the backup zip in the single-megabyte range for most users (Reports + traces dominate the size). The curated catalogs cover re-downloading the local models in one tap each, so the exclusion is cheap."),
+            HelpCard("Pitfalls", "(1) Don't restore while a translation / fan-out is in flight — the running coroutines will write to disk under the about-to-be-cleared subtree. Force-stop first, then restore. (2) Restoring resets the cooldown store — any benched models become \"available\" again until they get a fresh 429. (3) The cost overrides come along with the backup; if you restore on a different device, your custom prices follow."),
+            HelpCard("Migration semantics", "When the restore picks up an older zip the migration runs once during the unpack. Fields the new code added but the zip lacks get defaulted. Fields the new code removed are dropped silently. Fields renamed across versions are mapped explicitly in the migration table. doc/backup-restore.md has the version-by-version notes."),
+            HelpCard("Verifying a backup", "Quick smoke test: after a backup, install a fresh copy of the app on a second device, restore the zip there, confirm the History list looks identical. The export version field at the bottom of the Backup dialog also tells you which schema you just wrote.")
         )
     ),
     "help_local_ai" to HelpContent(
         title = "Help - Local AI (on-device)",
         cards = listOf(
-            HelpCard("What runs on-device", "Both an LLM runtime (LiteRT via MediaPipe GenAI) and an embedder. Models are downloaded once from a curated catalog (Housekeeping → Local LiteRT models / Local embedders) and stored under <filesDir>/local_llms/ and <filesDir>/local_models/. They appear in pickers as a normal \"Local\" provider entry."),
-            HelpCard("How to add a local model", "Housekeeping → Local LiteRT models → pick a model from the curated list, or paste a HuggingFace URL pointing at a .task / .bin file. Download progress is shown inline; the model is usable as soon as the download finishes."),
-            HelpCard("When local is the right pick", "Privacy-sensitive prompts you don't want to send to a cloud provider. Offline use. No API key required. Cost-zero (after the initial download). Practical for short prompts on modern phones."),
-            HelpCard("Performance expectations", "First call after launch warms the model (~5–15 s on a phone); subsequent calls are faster. A small quantised model on a phone won't match a frontier cloud model on output quality. Long contexts strain the KV cache. Pick local for the right tasks; pick cloud for everything else."),
-            HelpCard("Local embedder caveat", "Each embedder produces vectors in its own vector space. A KB embedded with the local Gecko embedder isn't readable by an OpenAI embedder — switching the embedder requires re-indexing the KB. The KB stores which embedder produced it; using the wrong one at retrieval time is refused with a clear error.")
+            HelpCard("What runs on-device", "Two distinct runtimes. (1) Local LLM — text generation, via Google's MediaPipe LiteRT GenAI runtime. Models are .task files downloaded once from a curated catalog or pasted-URL. (2) Local embedder — text → vector for KB retrieval; also via LiteRT or a small native model. Both appear in pickers as a normal \"Local\" provider entry that you compose into Agents like any other (provider, model)."),
+            HelpCard("How to add a local LLM", "Housekeeping → Local LiteRT models → +Model. Either pick from the curated list (one tap downloads and installs) or paste a HuggingFace URL pointing at a .task file. Download progress is shown inline; the model is usable the moment the download finishes. Storage lives under <filesDir>/local_llms/ — these files are large (1–5 GB typical) and aren't included in Backup zips by design."),
+            HelpCard("How to add a local embedder", "Housekeeping → Local embedders → +Embedder. Same flow as LLMs: curated list or paste a URL. Storage lives under <filesDir>/local_models/. Once installed the embedder is selectable when creating a Knowledge base."),
+            HelpCard("When local is the right pick", "(1) Privacy-sensitive prompts you don't want to send to a cloud provider. (2) Offline use — flying, no cell coverage, network outage. (3) No API key required (some users want zero-config). (4) Cost-zero after the initial weights download (you pay battery, not dollars). (5) Practical for short prompts on modern phones — first-page reads, quick rewrites, single-turn questions."),
+            HelpCard("Performance expectations", "First call after launch warms the model (~5–15 s on a modern phone); subsequent calls run at ~5–30 tokens/sec for a small (3–7B parameter) quantised model. A small Q4 model on a phone will never match a frontier cloud model on output quality — they're complementary, not substitutes. Long contexts (>4K tokens) strain the KV cache; expect slower decode."),
+            HelpCard("KB + embedder coupling", "Each embedder produces vectors in its own incompatible vector space. A KB embedded with the local Gecko embedder isn't readable by an OpenAI embedder — switching the embedder for an existing KB requires re-indexing every chunk. The KB stores which embedder produced it; using the wrong one at retrieval time is refused with a clear error. So pick the embedder you'll commit to before bulk-loading documents."),
+            HelpCard("Storage budget", "LLM weights are large — 1–5 GB each. The phone tells you free space; the app doesn't enforce a budget but a low-storage situation degrades the whole device. If you're tight, delete unused models from Housekeeping → Local LiteRT models. Backup zips don't include local weights so cleanup doesn't lose anything that can't be re-downloaded."),
+            HelpCard("Troubleshooting", "Slow first call → expected (warmup). Hangs for >60 s → the LiteRT init failed; check Settings → Logs for the stack trace, then long-press the model in Housekeeping to delete and re-download. Out-of-memory on generate → the prompt or context is too large; truncate or switch to a smaller model. KB retrieval returns nothing → the KB was indexed with a different embedder; check the KB's recorded embedder and re-index if needed."),
+            HelpCard("Why MediaPipe LiteRT", "It's Google's actively-maintained on-device GenAI runtime, ships with Android, handles the LiteRT (TFLite) model format, and supports the .task bundles that wrap LLM weights + tokenizer + run config. The alternative would be GGML/llama.cpp via JNI which is heavier to maintain and has worse Android integration.")
         )
     ),
     "help_translations" to HelpContent(
         title = "Help - Translations & multi-language",
         cards = listOf(
-            HelpCard("What gets translated", "Title + prompt + every successful agent response + every chat-type meta result on the report. Reranks, moderations and the cost table aren't translated — they're structured data, not narrative text. The original Report stays untouched; translations live as TRANSLATE-kind SecondaryResult rows alongside everything else."),
-            HelpCard("Single- vs multi-model", "Pick one model at the Translate prompt → every item runs on that model in sequence. Pick several → the work is shared across them via a queue. Multi-model is faster end-to-end but spreads cost across the chosen set."),
-            HelpCard("Speed / Mixed / Cost mode", "On the Translation L1 screen (the per-run drill-in) a three-way toggle controls how much the cheaper models dominate the queue. Cost = aggressive bias (cheap models drain the queue first), Mixed = softened bias, Speed = no bias (every model pulls as fast as its per-host caps allow). Switchable mid-run; the worker re-reads on every pull. See Help - How it works for the exact hesitation formula."),
-            HelpCard("Restart failed", "When a multi-model run has errored rows, Restart failed reassigns each one to a different model than the one that failed — round-robin over the remaining models. On a single-model run, the row retries on the same model. Benched rows (rate-limit cooldown) recover automatically when the cooldown lifts."),
-            HelpCard("Self-healing background", "Translation runs that get interrupted by an app restart, a coroutine cancellation, or a mid-flight kill are recovered by the auto-reconcile + background sweep paths (see Help - How it works). You don't have to manually restart a stuck run in most cases.")
+            HelpCard("What gets translated", "Title + prompt + every successful agent response + every chat-type meta result on the Report. Reranks, moderations, fan-out structured outputs and the cost table aren't translated — they're structured data, not narrative text. The original Report stays untouched; translations live as TRANSLATE-kind SecondaryResult rows alongside everything else and surface via the language picker on the result viewer."),
+            HelpCard("Picking a target language", "Action row → Translate → language picker. Built-in list covers 30+ languages; the picker also accepts custom languages typed in. Multiple languages per launch are supported — a single Translate fires N×items parallel work, one stream per target language."),
+            HelpCard("Single- vs multi-model", "Pick one model at the Translate model picker → every item runs on that model in a single queue. Pick several → the work is shared across them via a single shared queue. Multi-model is faster end-to-end (parallelism) but spreads cost across the chosen set. The L1 drill-in shows per-model rows so you can see who's doing what."),
+            HelpCard("Speed / Mixed / Cost mode", "On the Translation L1 screen a three-way toggle controls how much the cheaper models dominate the queue. Cost (default) — aggressive bias, the cheapest model drains the queue first while expensive ones hesitate proportional to their price ratio (up to 2 min between pulls). Mixed — softened bias (cap 5 s). Speed — no bias, every model pulls as fast as its per-host caps allow. Switchable mid-run; the worker re-reads on every pull so the change takes effect within ~1 s. See Help - How it works for the exact hesitation formula."),
+            HelpCard("Mode persistence", "Your Speed / Mixed / Cost pick is saved per-runId in SharedPreferences (TranslationModeStore). A process kill / app restart resumes the run in the same mode. Deleting the run clears the entry so prefs don't leak."),
+            HelpCard("Restart failed", "When a multi-model run has errored rows, Restart failed reassigns each one to a different model than the one that failed — round-robin over the remaining models. On a single-model run, the row retries on the same model (no alternatives). Benched rows (rate-limit cooldown) auto-recover when the cooldown lifts and don't need a manual Restart."),
+            HelpCard("Self-healing background", "Translation runs that get interrupted by an app restart, a coroutine cancellation, or a mid-flight kill are recovered by two coordinated paths: a 10-second sanity poll on the result page (catches stalled rows where done == total but !isFinished) and a 30-second app-wide background sweep across reports modified in the last 7 days (catches stalled rows in reports you haven't opened recently). Either path auto-reconciles the state and re-dispatches placeholders — see Help - How it works."),
+            HelpCard("Cross-translate after a fan-out", "When a fan-out adds new meta rows after a translation has already run, the existing translation run automatically dispatches translations for the new rows too (addCrossTranslationItems). You don't need to re-launch the translation; the new content surfaces in the existing language picker."),
+            HelpCard("Cost notes", "Translation is per-row: 1 Report with 5 agents + 3 meta results = 9 source items × N languages × M models worth of API calls. Use the Translate confirm dialog's count preview to avoid surprises. Mix cheap models with Cost-mode to keep total spend low; the bias means the expensive ones barely fire."),
+            HelpCard("Limitations", "(1) Rerank tables aren't translated (they're structured ranks, not prose). (2) JSON traces aren't translated. (3) Source-content updates after a translation are not auto-retranslated — restart the translation. (4) Translations don't carry their own cost-override store; they use the same pricing as any other call.")
         )
     ),
     "help_topic_view" to HelpContent(
-        title = "Help (this screen)",
+        title = "Help - Help (this screen)",
         cards = listOf(
             HelpCard("Overview", "You're looking at one help topic. Each topic is a stack of cards — Overview / What we use it for / Endpoint / Freshness / Pitfalls / Related is the typical shape, but topics differ in detail. Card titles are blue; bodies are dim."),
             HelpCard("Title bar — ◀ Back", "Returns to wherever you came from — the home Help page if you tapped a row in the Info-providers table; otherwise the screen whose ℹ️ icon brought you here."),
@@ -371,7 +419,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reports_hub" to HelpContent(
-        title = "AI Reports",
+        title = "Help - AI Reports",
         cards = listOf(
             HelpCard("Overview", "Reports send the same prompt to multiple models in parallel and collect every response. Each result is saved to disk and can be reopened, exported, translated, summarised, or fed forward into a chat."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
@@ -384,7 +432,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_new" to HelpContent(
-        title = "New AI Report",
+        title = "Help - New AI Report",
         cards = listOf(
             HelpCard("Overview", "Two-stage: type a title + prompt here, then on Next pick which agents / flocks / swarms / models receive the prompt. The title and prompt are saved to LAST_AI_REPORT_TITLE / _PROMPT and to the last-100 prompt history."),
             HelpCard("Title and prompt", "Both are required for Next to enable. Title is single-line; prompt is multi-line with a 10-line minimum height. Clear wipes both fields plus any attached image."),
@@ -397,7 +445,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_result_generation" to HelpContent(
-        title = "Report — selection and results",
+        title = "Help - Report — selection and results",
         cards = listOf(
             HelpCard("Overview", "Single screen with two phases. Selection: empty list with +Agent / +Flock / +Swarm / +Model / +Report buttons + Params + Generate. Results: the same screen flips into per-agent rows + Action row once Generate fires."),
             HelpCard("Add buttons (selection)", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the single-select all-providers picker, +Report copies the model list from a previous report."),
@@ -419,7 +467,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "update_from_cloud" to HelpContent(
-        title = "Update from cloud",
+        title = "Help - Update from cloud",
         cards = listOf(
             HelpCard("Overview", "Installs the app's latest APK from a file you've already synced to this phone — typically a Drive sync folder where a new build lands automatically. Replaces the manual flow (open Drive → wait for download → tap APK → install) with two taps: Update in this screen, then Install in the system dialog."),
             HelpCard("One-time setup", "Tap Pick APK source. The system file picker opens — navigate to your Drive folder (or any storage location), select the APK file. The selection is persisted; you only do this once. Drive's local file provider fetches the latest cloud copy on each read, so re-picking after every update isn't needed."),
@@ -431,7 +479,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "moderation_call_detail" to HelpContent(
-        title = "Moderation result",
+        title = "Help - Moderation result",
         cards = listOf(
             HelpCard("Overview", "Drill-in for a single moderation API call's per-input result. Reached by tapping a row in the moderation table on the secondary detail screen. Shows the moderated agent's label, the flag verdict, every category the moderation API returned (with its score), and the original text that was classified."),
             HelpCard("Flag verdict", "🚩 Flagged means the moderation model marked at least one category as true. ✓ Clean means no category fired. The category list below the verdict surfaces every category the API returned — fired ones in red with a 🚩 prefix, rest in dim grey — sorted by score (descending)."),
@@ -440,7 +488,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "view_ai_report" to HelpContent(
-        title = "View AI Report",
+        title = "Help - View AI Report",
         cards = listOf(
             HelpCard("Overview", "Tile-grid launcher reached from the result screen's bottom-bar ℹ️ icon. Replaces the old Row 1 \"View\" CompactButton — every sub-view it used to expose lives here as a card, with breathing room."),
             HelpCard("Documents", "Always-on tiles: Prompt opens the resolved prompt text · Reports shows the per-agent response list · Costs is the per-call cost table · HTML is the in-app HTML preview · Log opens the App Log Viewer pre-filtered to this report. Icons (the per-model emoji grid) only appears when Settings → Generate per model icons is on."),
@@ -458,7 +506,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     // API interaction / Emoji / Find-alt / Cost / Trace) but the
     // first card and the cost-attribution card are scope-specific.
     "icon_lookup_main" to HelpContent(
-        title = "Icon lookup — main report icon",
+        title = "Help - Icon lookup — main report icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for the main report icon — the emoji shown next to the report title. Reached by tapping the 📝 icon on the report's result screen. Produced by the bundled `icons/main` one-shot prompt with `@PROMPT@` substituted to the report's prompt text."),
             HelpCard("Subject (green row)", "Always `main` (or `main_alt` after a Find-alt pick). Legacy rows whose `iconPromptUsed` is null fall back to `main`."),
@@ -470,7 +518,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "icon_lookup_agent" to HelpContent(
-        title = "Icon lookup — per-agent icon",
+        title = "Help - Icon lookup — per-agent icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for one agent's per-model icon (one icon per agent on a report). Reached by tapping the agent's emoji cell on the result / manage screen. Produced by the bundled 3-tier chain `report_2` (chat-continuation) → `report` (one-shot) → `report_3` (fixed-agent fallback). The first tier that returns a usable emoji wins."),
             HelpCard("Subject (green row)", "The bundled prompt name that won — `report_2`, `report`, or `report_3`. After a Find-alt pick the subject flips to `report_alt`. Legacy rows fall back to deriving the name from `iconWinningTier`."),
@@ -482,7 +530,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "icon_lookup_meta" to HelpContent(
-        title = "Icon lookup — meta-prompt icon",
+        title = "Help - Icon lookup — meta-prompt icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for the cached icon on a Meta-prompt row (Compare / Summarize / Critique / Rerank / Moderation / fan-in / fan-out summary). Reached by tapping the emoji on a Meta row. The icon is keyed `(prompt.name, prompt.title)` on the cross-report `InternalPromptIconCache`, so every report that uses the same prompt sees the same icon."),
             HelpCard("Subject (green row)", "The cached `promptName` field on the cache entry — defaults to `meta`. Find-alt picks flip it to `meta_alt`."),
@@ -494,7 +542,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "icon_lookup_translation" to HelpContent(
-        title = "Icon lookup — translation row icon",
+        title = "Help - Icon lookup — translation row icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for the cached icon on a per-target-language translation row (one per language the report has been translated into). Reached by tapping the emoji on a Translate row. Keyed `(\"translation_icon\", language)` on the cross-report `InternalPromptIconCache`."),
             HelpCard("Subject (green row)", "`translation` (or `translation_alt` after a Find-alt pick)."),
@@ -506,7 +554,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "icon_lookup_language" to HelpContent(
-        title = "Icon lookup — detected-language icon",
+        title = "Help - Icon lookup — detected-language icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for the report's detected-language icon — the emoji rendered next to a translated report header. Produced by the 2-step `language-detect` → `language` flow: detect first (returns the language NAME), then run the bundled `icons/language` prompt with `@LANGUAGE@` substituted to that name."),
             HelpCard("Subject (green row)", "`language` (or `language_alt` after a Find-alt pick). Legacy rows fall back to `language`."),
@@ -518,7 +566,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "icon_lookup_pair" to HelpContent(
-        title = "Icon lookup — fan-out pair icon",
+        title = "Help - Icon lookup — fan-out pair icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single (source × responder) cell in a fan-out run. Optional — only present once you've tapped *Run Fan Icons* on the L1 of a Fan Out drill-in. Produced by the per-pair 3-tier chain `fan_out_2` (chat-continuation, 6 messages) → `fan_out` (one-shot) → `fan_out_3` (fixed-agent fallback)."),
             HelpCard("Subject (green row)", "The bundled prompt name that won — `fan_out_2`, `fan_out`, or `fan_out_3`. After a Find-alt pick the subject flips to `fan_out_alt`."),
@@ -531,7 +579,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "find_icons_selection" to HelpContent(
-        title = "Find icons",
+        title = "Help - Find icons",
         cards = listOf(
             HelpCard("Overview", "Model picker that fans the bundled internal/icon prompt across whatever (provider, model) pairs you choose. Reached from the Icon detail screen's 'Find alternative icons' button."),
             HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
@@ -543,7 +591,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_models" to HelpContent(
-        title = "Pick translation models",
+        title = "Help - Pick translation models",
         cards = listOf(
             HelpCard("Overview", "Model picker for a Translate run, reached after choosing a target language. Translation work spreads round-robin across every (provider, model) pair you pick."),
             HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
@@ -553,7 +601,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "alternative_icons" to HelpContent(
-        title = "Alternative icons",
+        title = "Help - Alternative icons",
         cards = listOf(
             HelpCard("Overview", "Live progress list for an in-flight or completed icon fan-out. One row per (provider, model) pair you picked on the previous screen. State sits in AppViewModel.iconFanOutByReport — survives navigating away and back into the screen for the same report."),
             HelpCard("Row meanings", "⏳ = the icon call is still running (or queued behind the per-provider throttle). The emoji shown big = the call returned a usable response and the row is tappable. ❌ = the call failed or returned an empty body; the error reason renders underneath in red. The row is non-tappable."),
@@ -564,7 +612,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_icons_grid" to HelpContent(
-        title = "Icons",
+        title = "Help - Icons",
         cards = listOf(
             HelpCard("Overview", "Minimal viewer reached from the result screen's View → Icons button. Renders every agent's per-model emoji from the 3-tier chain at 72sp, centered, no model labels or costs — pure glanceability."),
             HelpCard("Surfacing", "The View → Icons button only appears when Settings → Generate per model icons is on. With the toggle off there's nothing for this screen to show, so the button is hidden and this overlay is unreachable."),
@@ -575,7 +623,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_single_result" to HelpContent(
-        title = "Single agent result",
+        title = "Help - Single agent result",
         cards = listOf(
             HelpCard("Overview", "Detail view for one agent's response, reached by tapping a row on the result screen. Renders <conclusion> and <motivation> blocks separately when present, then the rest of the body, with collapsible <think> sections."),
             HelpCard("Header", "Provider name in the title bar; provider — model line in blue is tappable to open Model Info. Errors render as a red Error block with the underlying message; blank bodies show 'No analysis available'."),
@@ -589,7 +637,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_continue_in_chat" to HelpContent(
-        title = "Continue in chat",
+        title = "Help - Continue in chat",
         cards = listOf(
             HelpCard("Overview", "Three-row picker that hands this agent's response off to a fresh chat session as the seed turn. Reached from the 💬 button on the single-agent result."),
             HelpCard("📜 with current history and model", "Reuses the same provider/model and the agent's resolved system prompt + parameters from current settings. The chat starts with the report prompt + this response already in the transcript."),
@@ -599,7 +647,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_list" to HelpContent(
-        title = "Secondary results — list",
+        title = "Help - Secondary results — list",
         cards = listOf(
             HelpCard("Overview", "Lists every persisted secondary of one kind (Rerank / Meta / Moderation). Translate has its own per-run screen; Fan-out has its own drilldown. The bar reads the user-given Meta-prompt name (or the legacy kind label for older rows)."),
             HelpCard("Polling", "While at least one batch is in flight, the list re-reads disk every 500 ms so newly-stamped placeholders flip from ⏳ to ✅/❌ without leaving the screen."),
@@ -610,7 +658,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_detail" to HelpContent(
-        title = "Secondary result — detail",
+        title = "Help - Secondary result — detail",
         cards = listOf(
             HelpCard("Overview", "Full content of one Rerank / Meta / Moderation row. Errors render as a red Error block; blank content shows '(no content)'."),
             HelpCard("Rerank rendering", "Tries to parse the structured JSON ([{id, rank, score, reason}, ...]) and render a sorted RerankTable. Falls back to raw markdown via ContentWithThinkSections when the model deviated from the schema."),
@@ -624,7 +672,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_fan_out_l1" to HelpContent(
-        title = "Fan out — answerers",
+        title = "Help - Fan out — answerers",
         cards = listOf(
             HelpCard("Overview", "Top of the fan-out drilldown. Lists every answerer model on this fan-out run with its current status. Tap an answerer to step into its sources at L2."),
             HelpCard("Status icons", "Per-row: ✅ all pairs done, ❌ at least one errored, ⏳ at least one running, queued = no row on disk yet. Derived from latestByPair across all results."),
@@ -637,7 +685,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_fan_out_l2" to HelpContent(
-        title = "Fan out — model",
+        title = "Help - Fan out — model",
         cards = listOf(
             HelpCard("Overview", "Per-answerer drilldown. Shows the sources fed into the chosen answerer (or, in Initiator role, every pair where this model was the source). Tap a source row → L3 pair detail."),
             HelpCard("Role toggle", "Responder = the active model received others' sources (default). Initiator = the active model's report fed into others. The role chip swaps the row list between the two views."),
@@ -649,7 +697,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_fan_out_l3" to HelpContent(
-        title = "Fan out — pair",
+        title = "Help - Fan out — pair",
         cards = listOf(
             HelpCard("Overview", "Single cell view. Source content (the row this answerer was given) is on top; the fan-out response (this answerer's reply to that source) is underneath. Two scrollable panes split half-and-half by default."),
             HelpCard("Title bar — 🐞", "Opens this fan-out call's captured trace when tracing was on at the time of the call."),
@@ -658,7 +706,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_fan_out_onepage" to HelpContent(
-        title = "Fan out — one page",
+        title = "Help - Fan out — one page",
         cards = listOf(
             HelpCard("Overview", "Concatenates every (source, response) pair under the active answerer onto one page so you can scan the whole drilldown without tapping each cell."),
             HelpCard("Layout", "Per pair: source label + body, then the fan-out response body. Sources render in the order activeAgents (the row stack visible on L2)."),
@@ -668,7 +716,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "secondary_scope" to HelpContent(
-        title = "Secondary scope",
+        title = "Help - Secondary scope",
         cards = listOf(
             HelpCard("Overview", "Inserted between a Meta-prompt button and the model picker. Picks which rows feed into the next run + (when relevant) which target languages."),
             HelpCard("All model reports", "Default. Uses every successful agent on the report (count shown in the sublabel)."),
@@ -680,7 +728,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_meta" to HelpContent(
-        title = "Meta",
+        title = "Help - Meta",
         cards = listOf(
             HelpCard("Overview", "Unified Meta screen. Top: every persisted Meta-prompt result (TRANSLATE excluded — those live in the cost table only), newest first. Bottom: an Add card with one button per saved Meta prompt."),
             HelpCard("Polling", "While isRunning is true, refreshTick bumps every 500 ms — placeholders that runSecondary writes from its IO coroutine surface as ⏳ rows here without bouncing in/out of the screen."),
@@ -692,7 +740,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_edit_prompt" to HelpContent(
-        title = "Edit prompt",
+        title = "Help - Edit prompt",
         cards = listOf(
             HelpCard("Overview", "Modify the report's prompt. Saving stamps hasPendingPromptChange so the result screen surfaces a yellow 'Changes pending: prompt' banner — the existing rows aren't re-rendered until you tap Regenerate."),
             HelpCard("Prompt field", "Multi-line, fills the screen. Update prompt is disabled when the body trims to blank."),
@@ -701,7 +749,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_edit_title" to HelpContent(
-        title = "Edit title",
+        title = "Help - Edit title",
         cards = listOf(
             HelpCard("Overview", "Rename the report. Title is metadata only — no outbound API call references it, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
             HelpCard("Title field", "Single-line. Update title is disabled when the body trims to blank."),
@@ -709,7 +757,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_parameters" to HelpContent(
-        title = "Advanced Parameters",
+        title = "Help - Advanced Parameters",
         cards = listOf(
             HelpCard("Overview", "Per-report parameter override that wins over each agent's own settings for this run only. Apply stamps hasPendingParametersChange so the result screen shows the pending banner."),
             HelpCard("Numeric fields", "Temperature (0.0–2.0), max tokens, top P (0.0–1.0), top K, frequency / presence penalty (-2.0–2.0), seed. Empty fields mean 'inherit' — only non-blank values become part of the override."),
@@ -721,7 +769,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_export" to HelpContent(
-        title = "Export report",
+        title = "Help - Export report",
         cards = listOf(
             HelpCard("Overview", "Pick a format, a detail level, and a target (where the export lands), then tap the green Export button at the top of the page to commit. The purple Export-all-zip button sits right next to it for one-shot bulk export."),
             HelpCard("Export button (top)", "Green CTA in the top button row. Fires whichever Target chip is selected — Android share / View in browser / View in app. Disabled while a previous export is still building."),
@@ -741,7 +789,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_manage" to HelpContent(
-        title = "Manage reports",
+        title = "Help - Manage reports",
         cards = listOf(
             HelpCard("Overview", "Hub-level housekeeping for saved reports — two cards: Delete old reports, and Export all (backup)."),
             HelpCard("Delete old reports", "Numeric field (digits, max 4) for 'Older than (days)'. Pinned reports are skipped. Confirm dialog shows the candidate count before any file is touched."),
@@ -752,7 +800,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_view_picker" to HelpContent(
-        title = "View — picker",
+        title = "Help - View — picker",
         cards = listOf(
             HelpCard("Overview", "Full-screen picker reached from the Report Result action row's View button. Each row is a separate view of the current report."),
             HelpCard("Reports", "Opens the per-agent reports viewer. Detail line shows N of M agents succeeded so you can spot a partially-failed run before drilling in."),
@@ -763,7 +811,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_edit_picker" to HelpContent(
-        title = "Edit — picker",
+        title = "Help - Edit — picker",
         cards = listOf(
             HelpCard("Overview", "Full-screen picker reached from the Report Result action row's Edit button. Each row routes to a separate edit screen for one slice of the report."),
             HelpCard("Prompt", "Opens the multi-line prompt editor. Detail line previews the first non-blank line (≤80 chars). Saving stamps a 'Changes pending: prompt' banner on the result screen until you Regenerate."),
@@ -773,7 +821,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_fan_out_confirm" to HelpContent(
-        title = "Fan out — confirm run",
+        title = "Help - Fan out — confirm run",
         cards = listOf(
             HelpCard("Overview", "Confirmation screen shown after the Fan out scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
             HelpCard("Counts grid", "answerers × responses-per-report = total calls. Falls back to a flat 'N calls' line when scope is uneven enough that the grid math doesn't divide cleanly."),
@@ -784,7 +832,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "developer_select_model" to HelpContent(
-        title = "API Test — Select Model",
+        title = "Help - API Test — Select Model",
         cards = listOf(
             HelpCard("Overview", "Full-screen picker over the active provider's model list. Tap a row to drop the chosen model into the API Test request."),
             HelpCard("Search field", "Filters by model id (case-insensitive). The ✕ trailing icon clears the field. Counter line shows '<filtered> of <total> models'."),
@@ -793,7 +841,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "developer_select_endpoint" to HelpContent(
-        title = "API Test — Select Endpoint",
+        title = "Help - API Test — Select Endpoint",
         cards = listOf(
             HelpCard("Overview", "Full-screen picker over the active provider's endpoints. The first row is the provider's default base URL; saved custom endpoints follow."),
             HelpCard("Default row", "Drops the provider.baseUrl into the API Test request. Always present even when there are no custom endpoints saved."),
@@ -801,7 +849,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "refresh_result" to HelpContent(
-        title = "Refresh — result",
+        title = "Help - Refresh — result",
         cards = listOf(
             HelpCard("Overview", "Result screen shown after a Refresh sub-action finishes (catalog refresh, provider state, model refresh, default-agent generation). Replaces the popup result dialogs the screen used to show."),
             HelpCard("Description block", "Short explanation of what the refresh did and why. Failure states explain what to check (API key, connectivity, etc)."),
@@ -811,7 +859,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_flock" to HelpContent(
-        title = "Pick a flock",
+        title = "Help - Pick a flock",
         cards = listOf(
             HelpCard("Overview", "Modal dialog that lists every saved flock with its agent count and a synthetic per-million-tokens cost band. Tap a row to add every member to the report."),
             HelpCard("Search field", "Filters by name (case-insensitive). The ✕ trailing icon clears the field."),
@@ -823,7 +871,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_agent" to HelpContent(
-        title = "Pick an agent",
+        title = "Help - Pick an agent",
         cards = listOf(
             HelpCard("Overview", "Agent dialog reached by +Agent on the selection phase. Lists every saved agent with name + provider · model + per-million-token pricing. Search filters by name or provider name. Tap a row to add the agent to the report."),
             HelpCard("Pricing badge", "Red when the model has real pricing data; grey-on-grey when the row fell through to DEFAULT_PRICING. Updates as PricingCache loads tier blobs in the background."),
@@ -832,7 +880,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_previous" to HelpContent(
-        title = "Pick previous report",
+        title = "Help - Pick previous report",
         cards = listOf(
             HelpCard("Overview", "Single-select picker over saved reports, reached by +Report on the selection phase. Newest first by Report.timestamp. Tap to copy that report's model list into the current selection."),
             HelpCard("Search", "Filters by title or prompt. The count line above the list reads '<filtered> of <total> reports'."),
@@ -842,7 +890,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_swarm" to HelpContent(
-        title = "Pick a swarm",
+        title = "Help - Pick a swarm",
         cards = listOf(
             HelpCard("Overview", "Full-screen swarm picker reached by +Swarm on the New AI Report selection phase. Lists every saved swarm with member count + summed per-million pricing. Tap a row to add every (provider, model) pair to the report."),
             HelpCard("Search field", "Filters by swarm name (case-insensitive). The ✕ trailing icon clears the field."),
@@ -853,7 +901,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_pick_model" to HelpContent(
-        title = "Pick model",
+        title = "Help - Pick model",
         cards = listOf(
             HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Fan-in-model / Translate / Rerank) when they need a model."),
             HelpCard("List", "Joins every active provider's catalog plus, when a model-type filter is set, on-device LiteRT models exposed under the synthetic Local provider."),
@@ -867,7 +915,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_swarm_info" to HelpContent(
-        title = "Swarm info",
+        title = "Help - Swarm info",
         cards = listOf(
             HelpCard("Overview", "Per-swarm detail screen reached by tapping the ℹ️ icon next to a row on Pick a swarm. Lists every (provider, model) member of the swarm in member order."),
             HelpCard("Per-row content", "Provider id in blue on top, model id in white below. Capability badges (vision / web search / reasoning) only appear when the catalog reports the capability for this model. Per-million-token prompt / completion price pair on the right — red when real pricing data exists, grey badge when the row fell through to DEFAULT_PRICING."),
@@ -877,7 +925,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_flock_info" to HelpContent(
-        title = "Flock info",
+        title = "Help - Flock info",
         cards = listOf(
             HelpCard("Overview", "Per-flock detail screen reached by tapping the ℹ️ icon next to a row on Pick a flock. Lists every member agent of the flock in member order."),
             HelpCard("Flock overrides header", "Shown at the top only when the flock pins its own params or system-prompt preset(s). These override the matching agent-level presets at report-run time — surfacing them once at the top tells you what'll actually drive the run after the merge."),
@@ -888,7 +936,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_run_l1" to HelpContent(
-        title = "Translation run — models",
+        title = "Help - Translation run — models",
         cards = listOf(
             HelpCard("Overview", "Level 1 of the translation run drill-in: every model that picked up work in this run. The run uses a shared work queue — items aren't pre-assigned, so a model's row appears (and its bar grows) as that model pulls items. Tap a model to see the items it translated."),
             HelpCard("Mode (Speed / Mixed / Cost)", "Three-way toggle above the stats panel. Cost (default) — cheap models drain the queue first, expensive ones hesitate proportional to their price ratio (up to 2 min between pulls). Mixed — softened bias (up to 5 s). Speed — no hesitation, every model pulls as fast as its per-host caps allow; highest throughput, highest spend. Switchable mid-run; the change takes effect on the next queue pull (within ~1 s). Saved per-run on disk so a process kill / app restart preserves your choice."),
@@ -906,7 +954,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_run_l2" to HelpContent(
-        title = "Translation run — model",
+        title = "Help - Translation run — model",
         cards = listOf(
             HelpCard("Overview", "Level 2: the items one model translated. The header carries the model name; ℹ️ jumps to its Model Info. A summary line shows item / done / error counts plus this model's cost."),
             HelpCard("Per-row content", "Status glyph, a broad kind label (prompt / report / meta), the item's source label, and the per-item cost. Each row's fill is green when done, red when errored."),
@@ -915,7 +963,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_run_l3" to HelpContent(
-        title = "Translation",
+        title = "Help - Translation",
         cards = listOf(
             HelpCard("Overview", "Level 3: a single translation. Original (source) text on top, capped at half the screen; the translated text fills the rest. Both panes scroll independently."),
             HelpCard("Source resolution", "PROMPT pulls report.prompt; report (AGENT) pulls the matching agent's response; meta (META) pulls the source SecondaryResult's content. Live in-flight items also carry the source inline, so no disk read is needed mid-run."),
@@ -925,7 +973,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_compare" to HelpContent(
-        title = "Translation compare",
+        title = "Help - Translation compare",
         cards = listOf(
             HelpCard("Overview", "Generic side-by-side viewer for any 'original ↔ translation' pair. Reached from the Translation info button on a translated single-agent result, or on a translated Meta secondary."),
             HelpCard("Layout", "Both panes get equal weight (1f each) — original on top in blue, translation on bottom in green, separated by a 2dp divider."),
@@ -936,7 +984,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "translation_language" to HelpContent(
-        title = "Pick target language",
+        title = "Help - Pick target language",
         cards = listOf(
             HelpCard("Overview", "Single-select picker over a curated list of 50+ languages — most-requested by speaker count for the head, alphabetical for the tail."),
             HelpCard("Search", "Filters by English name OR native name (case-insensitive). The ✕ trailing icon clears the field."),
@@ -948,7 +996,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "content_model_response" to HelpContent(
-        title = "Model response",
+        title = "Help - Model response",
         cards = listOf(
             HelpCard("Overview", "Full-screen viewer for one agent's response on a saved report. The agent picker dropdown sits below the title bar; the active model's body fills the rest of the screen. Other content modes — Prompt, Cost summary, View on one page — have their own help pages."),
             HelpCard("Loading state", "Reports are loaded on Dispatchers.IO via produceState — a Loading sentinel keeps the empty-state text from flashing while the JSON parse runs."),
@@ -959,7 +1007,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "content_one_page" to HelpContent(
-        title = "View on one page",
+        title = "Help - View on one page",
         cards = listOf(
             HelpCard("Overview", "Concatenates the prompt and every successful agent's response onto one scrollable page so you can scan the entire report without flipping through the agent picker."),
             HelpCard("Layout", "Title at the top (or folded into the title bar in Subject mode), then the prompt block, then one section per agent with the agent label as a sub-header and the response body underneath."),
@@ -968,7 +1016,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "cost_view" to HelpContent(
-        title = "Cost summary",
+        title = "Help - Cost summary",
         cards = listOf(
             HelpCard("Overview", "Read-only cost view for the report — three compact, sortable lists (By type · By model · All calls) covering every API call counted against this report (agents + secondaries + translations). Reached from the result page's View → Costs button."),
             HelpCard("Tap a row", "Opens a popup with the full breakdown for that group or call — calls, in/out tokens, in/out cents, total, plus tier and duration on All-calls rows. Tap Close to dismiss."),
@@ -980,7 +1028,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "knowledge_new" to HelpContent(
-        title = "New knowledge base",
+        title = "Help - New knowledge base",
         cards = listOf(
             HelpCard("Overview", "Form to create a new knowledge base. The KB binds an embedder model + a chunk strategy at creation time; both are immutable for the KB's lifetime once chunks land."),
             HelpCard("Name field", "Free-form display name. Used as the KB title in pickers and in the chat-attach dialog. Required — Create is disabled until non-blank."),
@@ -991,7 +1039,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_search" to HelpContent(
-        title = "Search chats",
+        title = "Help - Search chats",
         cards = listOf(
             HelpCard("Overview", "Full-text search over saved chat sessions. Reached from the Chat History list's search icon."),
             HelpCard("Search field", "Filters by anything: session title, message content, model, provider name, system prompt. The match is substring + case-insensitive."),
@@ -1001,7 +1049,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "models_per_provider" to HelpContent(
-        title = "Provider — Models",
+        title = "Help - Provider — Models",
         cards = listOf(
             HelpCard("Overview", "Per-provider model list for one provider. Reached from AI Setup → Providers → <provider> → Models. The all-providers Models hub is a different screen."),
             HelpCard("Source picker", "API / Manual chips at the top. API mode pulls models from the provider's catalog endpoint; Manual mode lets you paste / curate a fixed list (one model id per line)."),
@@ -1011,7 +1059,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "prompt_view" to HelpContent(
-        title = "Prompt view",
+        title = "Help - Prompt view",
         cards = listOf(
             HelpCard("Overview", "Read-only viewer for the report's prompt as it was actually saved. Reached from the result page's View → Prompt button."),
             HelpCard("Translated prompt", "When the report has a TRANSLATE row whose translateSourceKind is PROMPT, the language picker at the top lets you flip between the original and the translated body."),
@@ -1022,7 +1070,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "history" to HelpContent(
-        title = "History",
+        title = "Help - History",
         cards = listOf(
             HelpCard("Overview", "All saved reports, newest-first. Re-fetches on every ON_RESUME so coming back from a delete / regenerate shows the updated list."),
             HelpCard("Search card", "Toggle expands to three independent fields: Title, Prompt, Response. Each narrows the list further (logical AND). 'Search (active)' label appears on the toggle when any field is non-blank."),
@@ -1035,7 +1083,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "prompt_history" to HelpContent(
-        title = "Prompt History",
+        title = "Help - Prompt History",
         cards = listOf(
             HelpCard("Overview", "The last 100 unique (title, prompt) pairs you sent to a report, newest-first. Tap a row to open New Report seeded with that title and prompt."),
             HelpCard("Search field", "Single field that filters by title OR prompt (case-insensitive)."),
@@ -1047,7 +1095,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "example_prompt_picker" to HelpContent(
-        title = "Pick an example prompt",
+        title = "Help - Pick an example prompt",
         cards = listOf(
             HelpCard("Overview", "Reached from AI Reports → Start with an example prompt. Lists every Example prompt in your library, sorted alphabetically by title. Tap a row to open New Report seeded with the prompt's (title, text)."),
             HelpCard("Search field", "Filters by title OR text (case-insensitive). The trailing ✕ clears."),
@@ -1057,7 +1105,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     )
 ,
     "chat_hub" to HelpContent(
-        title = "AI Chat",
+        title = "Help - AI Chat",
         cards = listOf(
             HelpCard("Overview", "Landing screen for everything chat-shaped. Top section starts a new conversation; below it, pinned and recent sessions plus tools to continue, search, or manage existing chats."),
             HelpCard("Unfinished pill", "When at least one chat ended on a user turn with no assistant reply (you navigated away mid-stream), an envelope pill appears at the very top with a Resume link to the most recent such session."),
@@ -1072,7 +1120,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_session" to HelpContent(
-        title = "Chat",
+        title = "Help - Chat",
         cards = listOf(
             HelpCard("Overview", "Live single-model conversation. Messages stream chunk-by-chunk; the input box clears the moment Send fires; the assistant bubble bottom-anchors so short conversations sit just above the input row instead of pinned at the top."),
             HelpCard("Header row", "Provider / model label is clickable and opens Model Info. To its right: a Knowledge chip (only when at least one KB exists) and a Pin chip. The pin state is written to the session record immediately, so the hub reflects it without waiting for the next message save."),
@@ -1087,7 +1135,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_parameters" to HelpContent(
-        title = "Chat Parameters",
+        title = "Help - Chat Parameters",
         cards = listOf(
             HelpCard("Overview", "Pre-flight setup screen for a configure-on-the-fly chat. Pick optional presets, optionally override individual fields, then Start Chat hands the resolved ChatParameters to the session screen."),
             HelpCard("Provider/model line", "Read-only label under the title bar. Clickable — taps open Model Info for the picked (provider, model)."),
@@ -1101,7 +1149,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_history" to HelpContent(
-        title = "Chat History",
+        title = "Help - Chat History",
         cards = listOf(
             HelpCard("Overview", "Paged list of every saved chat session. Each row shows first user-message preview, provider · model, and last-updated date. Tap a row to resume that session."),
             HelpCard("Pagination", "Page size auto-fits the screen height (rows of ~80dp). Previous / Next buttons sit above and below the list with the current page indicator and total chat count between them."),
@@ -1114,7 +1162,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_continue" to HelpContent(
-        title = "Chat",
+        title = "Help - Chat",
         cards = listOf(
             HelpCard("Overview", "Same screen as Chat session, but seeded with the stored messages, parameters, knowledge attachments, pinned flag, and persisted web-search / reasoning effort from the saved session record."),
             HelpCard("State you keep", "ChatHistoryManager.loadSession brings back: every message (system prompt repinned in place if Parameters changed), the original ChatParameters, the per-session knowledgeBaseIds, and the pinned flag."),
@@ -1127,7 +1175,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_manage" to HelpContent(
-        title = "Manage chats",
+        title = "Help - Manage chats",
         cards = listOf(
             HelpCard("Overview", "Two housekeeping actions for chat history: bulk-delete sessions older than N days, and zip-export every chat-history JSON for backup or sharing."),
             HelpCard("Delete old chats card", "Number-only field for the cutoff (max 4 digits). Pinned chats are skipped; the helper line under the field reminds you. Defaults to 30 days; the Delete button is enabled only when the value parses to a positive integer."),
@@ -1140,7 +1188,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "dual_chat_setup" to HelpContent(
-        title = "Dual AI Chat",
+        title = "Help - Dual AI Chat",
         cards = listOf(
             HelpCard("Overview", "Configures two models that take turns chatting about a subject. State is persisted to a dedicated SharedPreferences (dual_chat_prefs) so reopening the screen restores your last configuration."),
             HelpCard("Model 1 card (blue)", "Tap the model button to drill into the active-providers picker, then the model picker. System Prompt and Parameters preset buttons sit below — both turn purple-tinted when set."),
@@ -1154,7 +1202,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "dual_chat_session" to HelpContent(
-        title = "Dual Chat",
+        title = "Help - Dual Chat",
         cards = listOf(
             HelpCard("Overview", "Both models alternate turns automatically until the round budget is hit. Bubbles align left for Model 1 (blue) and right for Model 2 (green). The screen drives a single coroutine job — leaving the screen cancels it via DisposableEffect."),
             HelpCard("Cost row", "Three-column running tally just under the title bar: Model 1, Model 2, Total cost in cents. Recomputed via derivedStateOf from per-side input/output token sums × per-side pricing."),
@@ -1169,7 +1217,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "knowledge_list" to HelpContent(
-        title = "AI Knowledge",
+        title = "Help - AI Knowledge",
         cards = listOf(
             HelpCard("Overview", "Lists every saved knowledge base. KBs are RAG corpora that can be attached to a Report or Chat session to inject relevant excerpts before each call. The header line is the one-paragraph reminder of what KBs are for."),
             HelpCard("Shared-content banner", "When you arrive here from the share-target chooser with files / URLs queued, a green sticky banner counts the pending items and explains: pick an existing KB to ingest there, or create a new one. \"Discard share\" abandons the queue."),
@@ -1182,7 +1230,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "knowledge_detail" to HelpContent(
-        title = "Knowledge base",
+        title = "Help - Knowledge base",
         cards = listOf(
             HelpCard("Overview", "Per-KB workspace. Add file or URL sources, see the chunk count, re-index a single source, or delete the whole KB. Indexing runs in the screen's coroutine scope so the status line updates live as the import happens."),
             HelpCard("Header", "Title is the KB name. Below: embedder line (provider · model, monospace) and \"N sources · M chunks\". The trash icon in the title bar deletes the entire KB after a confirm dialog."),
@@ -1197,7 +1245,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "models_search" to HelpContent(
-        title = "Models",
+        title = "Help - Models",
         cards = listOf(
             HelpCard("Overview", "Aggregated browser across every active provider's model list. Used for catalog inspection and as a one-shot picker for Swarm edits and the configure-on-the-fly chat entry."),
             HelpCard("Type + Provider dropdowns", "Type filters by ModelType (chat, embedding, reranker, moderation, etc.). Provider filters to one of the active services with a (count) suffix per row. \"All …\" highlighted in blue when nothing is selected."),
@@ -1212,7 +1260,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_info" to HelpContent(
-        title = "Model Info",
+        title = "Help - Model Info",
         cards = listOf(
             HelpCard("Overview", "Per-model dossier: name, recent usage, capability summary, layered cost breakdown, raw catalog data from seven sources, and an opt-in \"introduce yourself\" call against the model itself."),
             HelpCard("Header card", "Model name + provider; trailing 🐞 (when traces exist for this model) opens the trace list filtered to it. Provider name itself is clickable and jumps to the per-provider edit screen."),
@@ -1228,7 +1276,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_pick_provider" to HelpContent(
-        title = "Select Provider",
+        title = "Help - Select Provider",
         cards = listOf(
             HelpCard("Overview", "Full-screen provider picker. Lists every AppService (or only active services when activeOnly is set). Tap to confirm; back exits without choosing."),
             HelpCard("State emoji", "Each row shows the display name plus a small state emoji: 🔑 ok, ❌ error, 💤 inactive, ⭕ untested."),
@@ -1237,7 +1285,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_pick_model" to HelpContent(
-        title = "Select Model",
+        title = "Help - Select Model",
         cards = listOf(
             HelpCard("Overview", "Full-screen model picker for a chosen provider. Pricing columns on the right (In $/M, Out $/M) read from settings overrides first, then PricingCache. Vision / web / reasoning badges sit between the model name and the price columns."),
             HelpCard("Initial refresh", "For API-mode providers with onRefresh wired, the screen kicks a fetch on entry, waits up to 15 s for it to complete, then reveals the list. Stalled fetches unveil whatever was previously cached so you're never stuck staring at a spinner."),
@@ -1249,7 +1297,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_pick_agent" to HelpContent(
-        title = "Select Agent",
+        title = "Help - Select Agent",
         cards = listOf(
             HelpCard("Overview", "Full-screen agent picker. Reads aiSettings.agents directly — every saved agent appears as a row."),
             HelpCard("Result rows", "Agent name + provider/model line + per-million-token pricing. Pricing badge is red on real source data, grey on DEFAULT_PRICING fallback."),
@@ -1259,7 +1307,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_raw" to HelpContent(
-        title = "Info provider (source detail)",
+        title = "Help - Info provider (source detail)",
         cards = listOf(
             HelpCard("Overview", "Pretty-printed JSON view of one of the seven info providers for a single model. Reached from the Sources buttons on Model Info."),
             HelpCard("Layout", "Title bar reads \"Info provider\". Below it, in green, the provider's display name (LiteLLM / OpenRouter / …) and beneath that the actual URL the app called. Then a single full-screen card containing the JSON, scrollable in both axes — long lines aren't wrapped or truncated."),
@@ -1271,7 +1319,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "search_local" to HelpContent(
-        title = "Extended local search",
+        title = "Help - Extended local search",
         cards = listOf(
             HelpCard("Overview", "On-device keyword search across saved reports. The query is split on whitespace; each token is matched case-insensitively against title + prompt + every successful agent's response body. Score = total token occurrences."),
             HelpCard("Query field", "Multi-line, up to 3 lines. Whitespace-tokenised — multi-word queries become AND-of-substrings with score summed. No regex."),
@@ -1284,7 +1332,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "search_semantic" to HelpContent(
-        title = "Semantic search",
+        title = "Help - Semantic search",
         cards = listOf(
             HelpCard("Overview", "Embedding-based similarity search across saved reports. The user picks an embedding-typed model from any active OpenAI-compatible provider; query and reports are embedded, scored by cosine, top 10 returned."),
             HelpCard("Empty state", "When no provider has an embedding-typed model, an inline panel points you at AI Setup → Manual model types overrides or fetching a provider whose list contains text-embedding-3-small."),
@@ -1299,7 +1347,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "search_quick" to HelpContent(
-        title = "Quick local search",
+        title = "Help - Quick local search",
         cards = listOf(
             HelpCard("Overview", "The cheapest of the search variants — single substring match (case-insensitive) against report prompt and every successful agent response. No tokenisation, no scoring; a report is either a hit or it isn't. Results sorted by recency."),
             HelpCard("Word field", "Single-line input labelled Word. Used as one substring — short whitespace phrases work as a single literal."),
@@ -1312,7 +1360,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "search_local_semantic" to HelpContent(
-        title = "Local semantic search",
+        title = "Help - Local semantic search",
         cards = listOf(
             HelpCard("Overview", "Semantic search using an on-device LiteRT (MediaPipe Tasks Text Embedder) model. Same workflow as the cloud Semantic search but every embedding stays on the phone."),
             HelpCard("Empty state", "When no .tflite is installed in filesDir/local_models/, the inline panel points you at AI Housekeeping → Local LiteRT models — that screen handles download / import / remove."),
@@ -1327,7 +1375,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "share_target" to HelpContent(
-        title = "Send to AI",
+        title = "Help - Send to AI",
         cards = listOf(
             HelpCard("Overview", "Lightweight chooser shown when another app shares content into this app via ACTION_SEND. Lives between the receiving Activity and the standard nav graph; a card tap clears the share state and routes the payload."),
             HelpCard("Preview card", "Top of the screen: shared subject (when present and non-blank), first 300 characters of shared text (with ellipsis when truncated), \"N attachments\" line for any URIs, and the raw mime type. Lets you double-check the payload before picking a destination."),
@@ -1342,7 +1390,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     )
 ,
     "settings_main" to HelpContent(
-        title = "Settings",
+        title = "Help - Settings",
         cards = listOf(
             HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
@@ -1353,7 +1401,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_other" to HelpContent(
-        title = "Other settings",
+        title = "Help - Other settings",
         cards = listOf(
             HelpCard("Overview", "Catch-all bucket for the few preferences that don't fit the network / UI / logging buckets. Two cards — Identity and Generate report icons. Both autosave with a 400 ms debounce."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
@@ -1362,7 +1410,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_network" to HelpContent(
-        title = "Network settings",
+        title = "Help - Network settings",
         cards = listOf(
             HelpCard("Overview", "Four cards for how the app talks to remote providers: read timeouts, per-provider throttling, the in-line 429 retry policy, and the in-line 529 (server overloaded) retry policy. Every field autosaves with a 400 ms debounce."),
             HelpCard("Network read timeouts", "How long the OkHttp client waits for an API response before giving up. Streaming applies to SSE chat / report streams — the timeout is the gap between chunks, so the long default (600 s) is normal for slow-reasoning models. Non-streaming applies to analyze, meta, rerank, fetch-models, translate — anything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."),
@@ -1374,7 +1422,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_network_api_calls" to HelpContent(
-        title = "Maximal API calls",
+        title = "Help - Maximal API calls",
         cards = listOf(
             HelpCard("Overview", "Four caps on how many API calls the app keeps in flight at once. Stack as nested suspending semaphores — every coroutine-level call goes through the global cap first, then through its matching per-kind cap, then through the existing per-provider cap (Network settings → Per-provider throttling). When a cap is full, further calls suspend until a permit frees up; no calls are dropped or errored. Defaults: 50 / 15 / 15 / 15."),
             HelpCard("Concurrent API calls at the same time", "Hard global ceiling, applies to every API call the app keeps in flight — reports, translations, fan-out. Set lower if you're hitting provider rate limits across the board or your device is thermal-throttling. Default 50."),
@@ -1387,7 +1435,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_ui" to HelpContent(
-        title = "UI tweaks",
+        title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
             HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers."),
@@ -1395,7 +1443,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_logging" to HelpContent(
-        title = "Logging and tracing",
+        title = "Help - Logging and tracing",
         cards = listOf(
             HelpCard("Overview", "Two diagnostic preferences. Both flow to background subsystems on save — the next traced call and the next log line pick up the change immediately."),
             HelpCard("API tracing", "Master switch for ApiTracer. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across the result / detail screens disappear. On → every API request and response (headers + body) gets captured to disk under filesDir/trace/."),
@@ -1404,7 +1452,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_setup" to HelpContent(
-        title = "AI Setup",
+        title = "Help - AI Setup",
         cards = listOf(
             HelpCard("Overview", "Top-level hub for AI configuration. Each card opens a sub-hub or list — counts on the right show how many entries you have so you can tell at a glance what is configured."),
             HelpCard("Providers", "Per-provider API keys, state, default model, and the catalog editor. Count = number of registered providers (39 ship by default plus any you have added)."),
@@ -1418,7 +1466,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "agents" to HelpContent(
-        title = "Agents",
+        title = "Help - Agents",
         cards = listOf(
             HelpCard("Overview", "CRUD list of named agent configurations. Each agent ties a provider, model, optional API key override, optional endpoint, parameters preset(s), and system prompt into one reusable unit."),
             HelpCard("Visible entries", "Only agents whose provider is currently active (state == \"ok\") show up — agents bound to inactive or keyless providers are hidden, not deleted."),
@@ -1429,7 +1477,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "agents_list" to HelpContent(
-        title = "Agents",
+        title = "Help - Agents",
         cards = listOf(
             HelpCard("Overview", "List of every saved agent. An agent pairs a provider, model, optional API key override, optional endpoint, parameter presets, and a system-prompt preset — one tappable unit you can add to a report, flock, or swarm."),
             HelpCard("Add Agent", "Top button opens the editor with a blank agent. Name must be unique among existing agents (case-insensitive)."),
@@ -1440,7 +1488,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "agent_edit" to HelpContent(
-        title = "Agent edit",
+        title = "Help - Agent edit",
         cards = listOf(
             HelpCard("Overview", "Form for one agent. All fields autosave on Create / Save — there is no per-field autosave here. Cancel = system back."),
             HelpCard("Agent name", "Required, must be unique among other agents (case-insensitive). The Save / Create button stays disabled until the name validates."),
@@ -1453,7 +1501,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "flocks" to HelpContent(
-        title = "Flocks",
+        title = "Help - Flocks",
         cards = listOf(
             HelpCard("Overview", "CRUD list of Flocks — named groups of Agents, plus optional shared parameters and system prompt. The Report builder uses a flock to fan one prompt out across several agents in a single tap."),
             HelpCard("Item rows", "Show name in white plus a count and comma-separated list of contained agents (active providers only). Tap a row to edit, trash to delete with confirmation."),
@@ -1464,7 +1512,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "flocks_list" to HelpContent(
-        title = "Flocks",
+        title = "Help - Flocks",
         cards = listOf(
             HelpCard("Overview", "List of every saved flock. A flock is a named bundle of agents — pinning a system-prompt preset / parameter preset at flock level overrides the agent-level equivalents at report-run time."),
             HelpCard("Add Flock", "Top button opens the editor with a blank flock. Name must be unique."),
@@ -1474,7 +1522,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "flock_edit" to HelpContent(
-        title = "Flock edit",
+        title = "Help - Flock edit",
         cards = listOf(
             HelpCard("Overview", "Edit one flock. Top row holds the name field and Create / Save button (disabled until the name is valid AND at least one agent is checked)."),
             HelpCard("System Prompt / Parameters", "Optional shared overrides applied to every agent in the flock at run time. Both buttons turn purple when populated. Selected via the same dialogs used in Agents."),
@@ -1486,7 +1534,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "swarms" to HelpContent(
-        title = "Swarms",
+        title = "Help - Swarms",
         cards = listOf(
             HelpCard("Overview", "CRUD list of Swarms — groups of (provider, model) pairs WITHOUT going through Agents. Use a swarm when you want to fire the same prompt at, say, GPT-5 / Claude / Gemini in parallel without creating individual agent rows."),
             HelpCard("Item rows", "Show name plus \"N members: provider/model, provider/model, …\" filtered to active providers. Tap to edit; trash to delete with confirmation."),
@@ -1497,7 +1545,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "swarms_list" to HelpContent(
-        title = "Swarms",
+        title = "Help - Swarms",
         cards = listOf(
             HelpCard("Overview", "List of every saved swarm. A swarm is a named bundle of raw (provider, model) pairs — structural, with no per-agent presets. Use a swarm when you want N specific models on a report without configuring agents."),
             HelpCard("Add Swarm", "Top button opens the editor with a blank swarm. Name must be unique."),
@@ -1507,7 +1555,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "swarm_edit" to HelpContent(
-        title = "Swarm edit",
+        title = "Help - Swarm edit",
         cards = listOf(
             HelpCard("Overview", "Edit one swarm. Top row holds the name + Save / Create button. Save activates once the name is valid and at least one member is added."),
             HelpCard("System Prompt / Parameters", "Optional shared bundle applied to every member at run time. Buttons go purple when populated."),
@@ -1518,7 +1566,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "parameters" to HelpContent(
-        title = "Parameters",
+        title = "Help - Parameters",
         cards = listOf(
             HelpCard("Overview", "CRUD list of parameter presets. A preset bundles temperature / max tokens / top-p / top-k / penalties / seed / system prompt / web-search and reasoning flags into one named row that you can attach to agents, flocks, swarms or one-off report runs."),
             HelpCard("Subtitle", "\"N parameters configured\" — counts how many fields in the preset are non-null, plus a +1 for each web-search flag that's on."),
@@ -1528,7 +1576,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "parameters_list" to HelpContent(
-        title = "Parameters",
+        title = "Help - Parameters",
         cards = listOf(
             HelpCard("Overview", "List of every saved Parameters preset — a bundle of generation knobs (temperature, max tokens, top_p, top_k, frequency / presence penalties, system prompt override, stop sequences, seed, response-format JSON, web-search flags). Agents / flocks pin presets by id."),
             HelpCard("Add Parameter Preset", "Top button opens the editor with a blank preset."),
@@ -1538,7 +1586,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "parameters_edit" to HelpContent(
-        title = "Parameters edit",
+        title = "Help - Parameters edit",
         cards = listOf(
             HelpCard("Overview", "Form for one preset. Save / Create activates once the name is valid; every other field is optional and blank means \"don't send this parameter\"."),
             HelpCard("Parameters block", "Temperature (0.0–2.0), Max tokens, Top P (0.0–1.0), Top K, Frequency / Presence penalty (-2.0–2.0), Seed. All free-text — ill-typed values become null on save."),
@@ -1550,7 +1598,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "system_prompts" to HelpContent(
-        title = "System Prompts",
+        title = "Help - System Prompts",
         cards = listOf(
             HelpCard("Overview", "CRUD list of reusable system-prompt blocks. A row stores a name and a single multi-line text body — assignable to Agents, Flocks, Swarms, Providers, and one-off Report runs."),
             HelpCard("Item rows", "Show the name in white, the first 80 characters of the prompt in dim text below. Tap to edit, trash to delete with confirmation."),
@@ -1560,7 +1608,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "system_prompts_list" to HelpContent(
-        title = "System Prompts",
+        title = "Help - System Prompts",
         cards = listOf(
             HelpCard("Overview", "List of every saved system-prompt preset. Each preset is a named blob of text that an agent (or flock) can pin — the dispatcher prepends it as the first system message of every call."),
             HelpCard("Add System Prompt", "Top button opens the editor with a blank preset."),
@@ -1570,7 +1618,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "system_prompt_edit" to HelpContent(
-        title = "System prompt edit",
+        title = "Help - System prompt edit",
         cards = listOf(
             HelpCard("Overview", "Form for one system prompt. Two fields: Name (single line, required, unique) and System prompt text (6–15 visible lines)."),
             HelpCard("Save", "Disabled while the name is invalid OR the prompt body is blank — the body is required, unlike Parameters' optional systemPrompt field."),
@@ -1580,7 +1628,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "internal_prompts_hub" to HelpContent(
-        title = "Internal prompts (hub)",
+        title = "Help - Internal prompts (hub)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the four categories the app's internal flows consume: Meta, Fan out/in, Icons, and Other internal. Each card opens the matching CRUD list (or, for Fan out/in, a deeper sub-hub)."),
             HelpCard("Meta prompts", "category=\"meta\". Rerank, Summarize, Compare, Moderation — run on the full report from the View → Actions card."),
@@ -1591,7 +1639,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "fan_in_out_prompts_hub" to HelpContent(
-        title = "Fan out/in prompts (hub)",
+        title = "Help - Fan out/in prompts (hub)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
             HelpCard("Fan Out", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
@@ -1601,7 +1649,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "internal_prompts" to HelpContent(
-        title = "Internal prompts (list)",
+        title = "Help - Internal prompts (list)",
         cards = listOf(
             HelpCard("Overview", "CRUD list pinned to one category (meta / fan_out / fan_in / internal). The screen title and Add label adapt — Add meta prompt vs. Add fan-out prompt etc. Other internal is a fixed list — no Add / Delete."),
             HelpCard("Item rows", "Show name plus a chip line: ref · agent (omitted when *select), then \"— title or first 60 chars of body\". Tap to edit; trash to delete (hidden for Other internal)."),
@@ -1610,7 +1658,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "internal_prompts_list" to HelpContent(
-        title = "Internal prompts list",
+        title = "Help - Internal prompts list",
         cards = listOf(
             HelpCard("Overview", "List of every internal prompt within one category — one of meta / fan_out / fan_in / fan-in-model / rerank / internal. The screen title carries the category name."),
             HelpCard("Add", "When the category is editable, the top button opens a blank prompt editor pre-set to this category. The 'Other internal' bucket is fixed-list (no Add, no per-row 🗑) because those entries are bundled defaults."),
@@ -1620,7 +1668,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "internal_prompt_edit" to HelpContent(
-        title = "Internal prompt edit",
+        title = "Help - Internal prompt edit",
         cards = listOf(
             HelpCard("Overview", "Form for one Internal Prompt. Category is fixed by where you arrived from (cannot be changed in this screen)."),
             HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Fan out; optional. For Other internal the Name is read-only."),
@@ -1631,7 +1679,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "providers" to HelpContent(
-        title = "Providers",
+        title = "Help - Providers",
         cards = listOf(
             HelpCard("Overview", "List of every registered provider (42 bundled plus any user-added). The state of each row is shown by an emoji."),
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
@@ -1641,7 +1689,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "provider_edit" to HelpContent(
-        title = "Provider edit",
+        title = "Help - Provider edit",
         cards = listOf(
             HelpCard("Overview", "Two layers in one screen: per-config runtime state at the top (key, default model, parameters, advanced URLs) and the catalog Definition cards underneath (display name, base URL, API format, type paths, pricing/feature flags). All edits autosave."),
             HelpCard("Provider inactive", "Switch at the very top. Toggling on flips state to inactive immediately. Toggling off triggers a fresh API test — pass = state ok, fail = state error, no key = not-used."),
@@ -1655,7 +1703,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "models" to HelpContent(
-        title = "Models",
+        title = "Help - Models",
         cards = listOf(
             HelpCard("Overview", "Top-level list of every active provider with a model count. Each row drills into that provider's per-provider model list (fetch / test / manual CRUD). Inactive providers are hidden — fix their key first."),
             HelpCard("Bulk refresh button", "\"Call all API retrieve models lists\" at the bottom — same path as Refresh → Models. forceRefresh=true bypasses the cache-validity check; an in-progress dialog shows live status."),
@@ -1668,7 +1716,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_edit" to HelpContent(
-        title = "Per-provider models",
+        title = "Help - Per-provider models",
         cards = listOf(
             HelpCard("Overview", "Per-provider model list (the screen you reach by tapping a provider on Models). Same screen also opens via the Models card on Provider Edit. Auto-saves both modelSource and the models list."),
             HelpCard("API / Manual chips", "Switch model-source at the top. Auto-save fires whenever you flip — and switching away from Manual clears any half-typed add/edit state."),
@@ -1681,7 +1729,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_types" to HelpContent(
-        title = "Model Types",
+        title = "Help - Model Types",
         cards = listOf(
             HelpCard("Overview", "Sets the default API path per ModelType (chat / embedding / rerank / image / tts / stt / moderation / classify). Resolution at dispatch time: per-provider override → these defaults → ModelType.DEFAULT_PATHS hardcoded fallback."),
             HelpCard("Auto-save", "Editing a field pushes the trimmed map back through onSave — no Save button. Blank means \"use the hardcoded default\" for that type."),
@@ -1691,7 +1739,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "manual_model_types_list" to HelpContent(
-        title = "Manual model types",
+        title = "Help - Manual model types",
         cards = listOf(
             HelpCard("Overview", "List of manual (provider, model) → type overrides. The app normally derives a model's type (CHAT / RERANK / MODERATION / EMBEDDING / etc.) from the catalog; an override here pins it to a specific type when the catalog is wrong or missing."),
             HelpCard("Add Override", "Top button opens the editor with a blank override."),
@@ -1701,7 +1749,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "manual_model_types" to HelpContent(
-        title = "Manual model types",
+        title = "Help - Manual model types",
         cards = listOf(
             HelpCard("Overview", "CRUD list of (provider, model, type) triples that win over the autodetected type stored on ProviderConfig.modelTypes. Useful when the heuristic and native list APIs both miss — e.g. an embedding model whose name doesn't contain \"embed\"."),
             HelpCard("Item rows", "\"<providerId> / <modelId>\" with \"→ <type>\" plus capability flags (👁 / 🌐 / 🧠) on the second line. Tap to edit, trash to delete with confirmation."),
@@ -1713,7 +1761,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_cooldowns_list" to HelpContent(
-        title = "Model cooldowns",
+        title = "Help - Model cooldowns",
         cards = listOf(
             HelpCard("Overview", "List of (provider, model) pairs that are temporarily benched. A model lands here automatically when a Google call returns a 429 with a retry hint longer than 1 hour (exhausted daily quota). While benched, the model is grayed out and non-selectable in every model picker, and the report / fan-out / translation dispatchers skip it — the in-flight item is removed rather than left as a red error."),
             HelpCard("Add cooldown", "Top button opens the editor blank — lets you manually bench a model (e.g. you know you've hit a limit) by picking provider + model + a duration in hours."),
@@ -1724,7 +1772,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "model_cooldowns" to HelpContent(
-        title = "Model cooldowns",
+        title = "Help - Model cooldowns",
         cards = listOf(
             HelpCard("Overview", "Editor for a single model cooldown. Add mode lets you pick any provider + model; Edit mode locks the provider/model (they're the entry's key) and only lets you change the duration."),
             HelpCard("Provider / Model", "Dropdowns over all providers and the chosen provider's known models. Switching the provider clears the model. Both are read-only when editing an existing cooldown."),
@@ -1733,7 +1781,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "blocked_models" to HelpContent(
-        title = "Blocked models",
+        title = "Help - Blocked models",
         cards = listOf(
             HelpCard("Overview", "A curated list of provider/model pairs flagged as \"blocked\" — dead models, wrong-endpoint models, ones that always error. Blocked pairs show dimmed (but still selectable) in every model picker."),
             HelpCard("Test all models", "On completion, a \"Test all models\" run syncs itself into this list: every model that errored is added with its error as the reason, and every model that passed is removed. Models the run didn't cover are left untouched."),
@@ -1741,14 +1789,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "blocked_model_edit" to HelpContent(
-        title = "Blocked model",
+        title = "Help - Blocked model",
         cards = listOf(
             HelpCard("Pick model", "Opens the same model picker the New Report \"+model\" button uses. Pick the provider/model pair to block."),
             HelpCard("Reason", "Free text shown in the list and beside the dimmed entry in pickers. Optional, but useful when you come back later."),
         )
     ),
     "test_excluded_models" to HelpContent(
-        title = "Test-excluded models",
+        title = "Help - Test-excluded models",
         cards = listOf(
             HelpCard("Overview", "Provider/model pairs the \"Test all models\" sweep skips entirely — never enumerated, never probed, no Total/Done/Errors contribution."),
             HelpCard("Auto-add on expensive probes", "Any probe whose computed cost is more than 5¢ is added to this list on run completion. The next sweep won't pay for that model again. Removing an entry here makes the sweep probe it once more."),
@@ -1756,13 +1804,13 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "test_excluded_model_edit" to HelpContent(
-        title = "Test-excluded model",
+        title = "Help - Test-excluded model",
         cards = listOf(
             HelpCard("Pick model", "Opens the same model picker the New Report \"+model\" button uses. Pick the provider/model pair to exclude from the sweep."),
         )
     ),
     "external_services" to HelpContent(
-        title = "External Services",
+        title = "Help - External Services",
         cards = listOf(
             HelpCard("Overview", "API keys for three non-LLM auxiliary services consumed by the app. Each field auto-saves on every keystroke (no debounce here)."),
             HelpCard("HuggingFace", "Used by the Model Info lookup to pull model cards / context-length / license fields. Get a free token at huggingface.co/settings/tokens."),
@@ -1773,7 +1821,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "refresh" to HelpContent(
-        title = "Refresh",
+        title = "Help - Refresh",
         cards = listOf(
             HelpCard("Overview", "Bulk refresh hub. Top-level page has three rows: \"Refresh all\" at the top, then NavCards into \"AI Info Providers\" and \"AI Runtime workers\" — each opens a dedicated full screen with its own help."),
             HelpCard("Refresh all (auto-restart)", "Sequence: OpenRouter (if key) → LiteLLM → models.dev → Helicone → llm-prices.com → Artificial Analysis (if key) → Providers → Models → Default agents → kill+relaunch via FLAG_ACTIVITY_NEW_TASK / CLEAR_TASK. Saves you from a manual kill/relaunch. Tapping the button routes to the Refresh-all progress screen."),
@@ -1783,7 +1831,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "refresh_info_providers" to HelpContent(
-        title = "AI Info Providers",
+        title = "Help - AI Info Providers",
         cards = listOf(
             HelpCard("Overview", "Refresh-screen sub-page for the six external metadata catalogs (model pricing, capability flags, supported parameters). They have no per-AppService side effects, so the page's \"All info providers\" runs them in parallel."),
             HelpCard("All info providers", "Runs OpenRouter (if its key is set), LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis (if its key is set) in parallel via the same full-screen progress page Refresh-all uses. Skips Providers / Models / Default agents."),
@@ -1798,7 +1846,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "refresh_all" to HelpContent(
-        title = "Refresh all",
+        title = "Help - Refresh all",
         cards = listOf(
             HelpCard("Overview", "Refreshes the six pricing/spec catalogs (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis) AND the per-provider Workers in parallel. The two phases are independent — neither blocks the other."),
             HelpCard("Workers", "For every provider that has an API key and isn't marked Inactive, in parallel: tests the API key, fetches the model list (only when the model source is API — MANUAL providers skip the fetch), writes a default agent named after the provider id, and appends that agent to the `default agents` flock."),
@@ -1809,7 +1857,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "import_export" to HelpContent(
-        title = "Export / Import",
+        title = "Help - Export / Import",
         cards = listOf(
             HelpCard("Overview", "Two card groups (Export, Import). All exports use Android's Storage Access Framework (CreateDocument) — the picker decides where the file lands; the app never sees the location."),
             HelpCard("Export · API Keys", "Just the keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) as a flat JSON object. Toast reports the populated key count."),
@@ -1826,7 +1874,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "local_runtime" to HelpContent(
-        title = "Local models",
+        title = "Help - Local models",
         cards = listOf(
             HelpCard("Overview", "Sub-hub for the two on-device runtimes. Each card shows installed count and drills into a dedicated screen."),
             HelpCard("Local LLMs", "On-device .task chat models (MediaPipe Tasks GenAI). Drives the synthetic Local provider that surfaces in every chat / report flow alongside cloud providers."),
@@ -1836,7 +1884,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "local_litert_models" to HelpContent(
-        title = "Local LiteRT models",
+        title = "Help - Local LiteRT models",
         cards = listOf(
             HelpCard("Overview", "On-device .tflite text embedders. Models live in <filesDir>/local_models/ — nothing leaves the device once installed. Only models with MediaPipe Tasks metadata baked into the .tflite can load — the curated list is the verified set."),
             HelpCard("Curated downloads", "One indigo button per spec in LocalEmbedder.downloadable. Shows displayName plus approximate MB. Already-installed entries display \"<name> ✓\" and become non-clickable."),
@@ -1848,7 +1896,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "local_llms" to HelpContent(
-        title = "Local LLMs",
+        title = "Help - Local LLMs",
         cards = listOf(
             HelpCard("Overview", "On-device LLMs via MediaPipe Tasks GenAI. Most useful models (Gemma, Phi, Llama) are licence-gated — open one of the recommended links in your browser, accept the terms, download the .task file (typically 0.5–2.5 GB), then return and Add LLM from file."),
             HelpCard("Download links", "One indigo button per LocalLlm.recommendedLinks entry. Each opens the model's web page in the system browser — they don't download into the app, they just hand off."),
@@ -1859,7 +1907,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_models" to HelpContent(
-        title = "AI Models setup",
+        title = "Help - AI Models setup",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Three cards: Models (per active provider), Model Types (default API path per type), Manual model types overrides (per-model type assignments)."),
             HelpCard("Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
@@ -1870,7 +1918,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_workers" to HelpContent(
-        title = "AI Workers (setup)",
+        title = "Help - AI Workers (setup)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Three cards (Agents / Flocks / Swarms) — all three disabled until at least one provider has an API key set."),
             HelpCard("Agents", "Named (provider, model, key, params, prompt, endpoint) tuples. Count = active agents (whose provider is currently active)."),
@@ -1881,7 +1929,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_prompts" to HelpContent(
-        title = "Prompt management (setup)",
+        title = "Help - Prompt management (setup)",
         cards = listOf(
             HelpCard("Overview", "Five NavCards: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
@@ -1894,7 +1942,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_local_models" to HelpContent(
-        title = "Local models (setup)",
+        title = "Help - Local models (setup)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Two cards: Local LLMs (.task chat / completion bundles driving the Local provider) and Local LiteRT models (.tflite text embedders driving Local Semantic Search and Local-embedder Knowledge)."),
             HelpCard("Local LLMs", "Counts installed .task files in <filesDir>/local_llms/."),
@@ -1904,7 +1952,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "housekeeping" to HelpContent(
-        title = "Housekeeping",
+        title = "Help - Housekeeping",
         cards = listOf(
             HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ️ for the per-screen detail."),
             HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
@@ -1912,14 +1960,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "test" to HelpContent(
-        title = "Test",
+        title = "Help - Test",
         cards = listOf(
             HelpCard("Overview", "Hub for diagnostic test flows. Each row drills into its own full screen."),
             HelpCard("Test all models", "Probes every configured model of every active provider in one run — a quick way to surface hidden problems (dead models, auth errors, models silently dropped from a provider's catalog)."),
         )
     ),
     "test_all_models_l1" to HelpContent(
-        title = "Test all models",
+        title = "Help - Test all models",
         cards = listOf(
             HelpCard("What you're seeing", "One row per active provider. Each row shows that provider's models-passed count and a green progress fill. Tap a provider to drill into its model list."),
             HelpCard("The stats panel", "Total models · Done (passed) · Errors · Bench · Run (in flight) · Throttled (waiting on a provider rate-limit) · Queue · Costs. Bench counts models whose key is on a >1h-429 cooldown — they failed only because they're rate-limited and will recover on their own, so they're split out from genuine Errors."),
@@ -1931,7 +1979,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "test_all_models_select" to HelpContent(
-        title = "Test all models - pick providers",
+        title = "Help - Test all models - pick providers",
         cards = listOf(
             HelpCard("What you're seeing", "Every active provider that has an API key, each with its configured-model count. All are checked by default."),
             HelpCard("Select all / none", "Quick toggles for the whole list — handy when you only want to test one or two providers."),
@@ -1939,14 +1987,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "test_all_models_l2" to HelpContent(
-        title = "Test all models - provider",
+        title = "Help - Test all models - provider",
         cards = listOf(
             HelpCard("What you're seeing", "Every configured model of one provider, each with its test status — ✅ passed, ❌ failed, ⏳ running, 🕓 queued. Tap a model for the full result detail."),
             HelpCard("Costs", "Per-model cost is shown when the probe reported token usage; the footer totals the provider's spend for this run."),
         )
     ),
     "test_all_models_l3" to HelpContent(
-        title = "Test all models - model",
+        title = "Help - Test all models - model",
         cards = listOf(
             HelpCard("What you're seeing", "One model's test result: pass/fail, the error message when it failed, call latency, cost, and the model's actual reply to the \"Reply with exactly: OK\" probe."),
             HelpCard("Trace link", "When API tracing is enabled (Settings → Developer options), the 🐞 icon opens the captured request/response for this probe."),
@@ -1954,7 +2002,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "backup_restore" to HelpContent(
-        title = "Backup & Restore",
+        title = "Help - Backup & Restore",
         cards = listOf(
             HelpCard("Overview", "Single-zip whole-app backup and restore. Uses Android's Storage Access Framework so the destination/source picker shows Google Drive, Dropbox, OneDrive, local files — whichever cloud apps you have installed. The app never sees the underlying location."),
             HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache, knowledge bases, embeddings. Excluded: `local_llms/` and `local_models/` (FILES_DIR_BACKUP_EXCLUDES) — they're large and re-downloadable."),
@@ -1964,7 +2012,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "trim_by_age" to HelpContent(
-        title = "Trim by age",
+        title = "Help - Trim by age",
         cards = listOf(
             HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, knowledge bases, prompt history, usage statistics — all kept."),
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
@@ -1973,7 +2021,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "usage_statistics" to HelpContent(
-        title = "Usage statistics",
+        title = "Help - Usage statistics",
         cards = listOf(
             HelpCard("Overview", "One purple button that empties the per-(provider, model) call counts, token totals, and accumulated cost. The AI Usage screen empties out; reports, chats, traces, configuration, and pricing tiers stay intact."),
             HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
@@ -1981,7 +2029,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "example_prompts_list" to HelpContent(
-        title = "Example prompts",
+        title = "Help - Example prompts",
         cards = listOf(
             HelpCard("Overview", "List of every saved example prompt. Examples surface in the Hub's prompt-history flow and in the picker reached by Start with a previous prompt — quick-pick a saved prompt body instead of retyping."),
             HelpCard("Add Example", "Top button opens the editor with a blank example."),
@@ -1991,7 +2039,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "example_prompt_edit" to HelpContent(
-        title = "Example prompt (edit)",
+        title = "Help - Example prompt (edit)",
         cards = listOf(
             HelpCard("Overview", "Two-field CRUD: Title (required, also the de-dup key for Load new prompts) plus Text (free-form template body)."),
             HelpCard("Title", "Required. Used as the case-insensitive de-dup key when Housekeeping → Prompts → Add new prompts from assets/examples.json runs — same title means the bundled row is skipped."),
@@ -2000,7 +2048,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset" to HelpContent(
-        title = "Reset",
+        title = "Help - Reset",
         cards = listOf(
             HelpCard("Overview", "Hub of five destructive operations, each drilling into its own full screen with its own help topic. Order is roughly safe → destructive: runtime data → Info provider caches → all configuration → asset restores → full app reset."),
             HelpCard("Clear runtime data", "Wipes app logs, chats, API traces, AI reports (incl. their secondary rows), prompt history, and usage stats. Configuration, knowledge bases, and all caches survive. Tap the row for the full description and the wipe button."),
@@ -2012,7 +2060,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_runtime" to HelpContent(
-        title = "Clear runtime data",
+        title = "Help - Clear runtime data",
         cards = listOf(
             HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
             HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), the prompt-history file, and the usage-statistics ledger."),
@@ -2022,7 +2070,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_info_providers" to HelpContent(
-        title = "Clear Info providers",
+        title = "Help - Clear Info providers",
         cards = listOf(
             HelpCard("Overview", "Wipes the per-provider pricing tier blobs the layered pricing lookup reads from, plus the OpenRouter model-specs cache. Pricing falls back to DEFAULT_PRICING until Refresh repopulates."),
             HelpCard("What it wipes", "Per-tier JSON blobs under <filesDir>/pricing/, the timestamps in pricing_cache.xml, and the OpenRouter model-specs cache. Covers all six Info providers: OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis."),
@@ -2032,7 +2080,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_configuration" to HelpContent(
-        title = "Clear all configuration",
+        title = "Help - Clear all configuration",
         cards = listOf(
             HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts, on-device runtimes — in one shot. Reports, chats, traces, and usage stats are preserved."),
             HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis keys; user name + default email; every installed Local LLM (.task) and LiteRT embedder (.tflite)."),
@@ -2042,7 +2090,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_assets" to HelpContent(
-        title = "assets/*.json",
+        title = "Help - assets/*.json",
         cards = listOf(
             HelpCard("Overview", "Three per-file restore buttons — providers / prompts / examples. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
             HelpCard("back to assets/providers.json", "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads assets/providers.json verbatim. Per-provider API keys, model lists, and agents live outside the registry and survive."),
@@ -2053,7 +2101,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "reset_application" to HelpContent(
-        title = "Reset application",
+        title = "Help - Reset application",
         cards = listOf(
             HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets."),
             HelpCard("Confirmation gate", "A plain Reset / Cancel dialog gates the action — no type-to-confirm. Tap Reset to run."),
@@ -2063,7 +2111,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "statistics" to HelpContent(
-        title = "AI Usage",
+        title = "Help - AI Usage",
         cards = listOf(
             HelpCard("Overview", "Per-provider usage breakdown. Top card is a summary (total calls, total tokens via formatCompactNumber, total cost in green, pricing-source stats). Per-provider rows expand to show per-model details."),
             HelpCard("Pricing fetch", "On entry, if an OpenRouter key is set and the cache is stale, fetchOpenRouterPricing runs in the background; rows display once pricingReady flips true."),
@@ -2075,7 +2123,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "cost_config" to HelpContent(
-        title = "Cost Config",
+        title = "Help - Cost Config",
         cards = listOf(
             HelpCard("Overview", "Per-row Add Manual Override at the top, the list of currently configured overrides in the middle, and at the bottom two collapsed maintenance cards (Cleanup and Layered costs) lifted from the former Housekeeping → Manual cost overrides screen. The maintenance cards stay collapsed by default — the main task here is curating per-row overrides; cleanup and bulk CSV are occasional."),
             HelpCard("Add Manual Override", "Green button — opens AddManualOverrideScreen as a full-screen overlay. The single-row form."),
@@ -2090,7 +2138,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "cost_override" to HelpContent(
-        title = "Cost override (add / edit)",
+        title = "Help - Cost override (add / edit)",
         cards = listOf(
             HelpCard("Overview", "Form to add or edit one (provider, model, input $/M, output $/M) override. Reachable from Cost Config's Add button or directly from Model Info → \"Add manual cost override\"."),
             HelpCard("Provider button", "Outlined button opens SelectProviderScreen as a full-screen overlay. Default = first provider in AppService.entries."),
@@ -2102,7 +2150,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "trace_list" to HelpContent(
-        title = "API Traces",
+        title = "Help - API Traces",
         cards = listOf(
             HelpCard("Overview", "List of every captured API trace. First open of the session populates ApiTracer's cache via streaming parse over the trace dir; subsequent opens are O(1). Title varies: \"Report Traces\" when scoped by reportId, \"Traces — <model>\" when scoped by model, \"API Traces\" otherwise."),
             HelpCard("Filter row", "Up to four slots in one row, each conditionally rendered: Category (when >1 distinct), Hostname (when >2), Provider (when >1), Model (when any pickable). \"(All)\" hides itself on the button label so chips read just \"Category\" instead of \"Category: (All)\"."),
@@ -2115,7 +2163,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "trace_detail" to HelpContent(
-        title = "Trace detail",
+        title = "Help - Trace detail",
         cards = listOf(
             HelpCard("Overview", "One trace's full request/response. First line: \"<HTTP status> - <url>\" with query params stripped (they can carry API keys — see the Get view). Background turns dark red on >=300. Body content is rendered as a colored JSON tree (auto-expands depth 0 and 1) when valid JSON, otherwise plain text."),
             HelpCard("Agent button", "Indigo, only when a saved Agent matches the trace's (provider, model) pair. Drills into the agent's edit screen. Provider drill-in lives on the title-bar ℹ️ instead — directly when there is no model, or via Model Info → Provider when the trace carries a model."),
@@ -2131,7 +2179,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "trace_pick_model" to HelpContent(
-        title = "Trace pick model",
+        title = "Help - Trace pick model",
         cards = listOf(
             HelpCard("Overview", "Full-screen overlay used by the trace list to pick one (provider, model) pair to filter on. Top card is \"(All models)\" — clears the filter when tapped."),
             HelpCard("Item rows", "Provider name in blue (small) plus model id in white (or blue when selected) below. Trailing ✓ marks the current selection."),
@@ -2141,7 +2189,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "developer_test" to HelpContent(
-        title = "API Test",
+        title = "Help - API Test",
         cards = listOf(
             HelpCard("Overview", "Developer fixture for hand-crafting an API call. Selects provider/endpoint/key/model/prompt/system/temperature/max_tokens, persists to eval_prefs, and opens Edit Request to send a real call."),
             HelpCard("Provider selector", "OutlinedButton cycles through AppService.entries on tap (round-robin). LaunchedEffect resets endpoint URL / key / model fields to the new provider's defaults whenever the provider changes."),
@@ -2154,7 +2202,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "developer_edit" to HelpContent(
-        title = "Edit Request",
+        title = "Help - Edit Request",
         cards = listOf(
             HelpCard("Overview", "Raw JSON editor for an API request. Loads either the captured request body of a previous trace OR a freshly-built body from the API Test form (Gson pretty-printed). Provider/model/url come from eval_prefs."),
             HelpCard("Info card", "Top non-editable card with \"<provider> / <model>\" and the endpoint URL — sanity check before submitting."),
@@ -2172,7 +2220,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     // directory on the home Help page.
 
     "provider_openai" to HelpContent(
-        title = "OpenAI",
+        title = "Help - OpenAI",
         cards = listOf(
             HelpCard("Overview", "OpenAI Inc. — the company that turned chat-style LLMs into a mainstream product with ChatGPT (Nov 2022). Headquartered in San Francisco; partly owned by Microsoft. Their API is the de-facto reference shape every \"OpenAI-compatible\" provider mirrors."),
             HelpCard("Setup", "Sign up at platform.openai.com, create an organization, then mint an API key under Settings → API keys. Paid usage from the first call — the free trial credits ended in 2023. New accounts may need a phone-number verification before keys work. Some model families (gpt-4o-search-preview, certain o-series) are gated by tier."),
@@ -2183,7 +2231,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_anthropic" to HelpContent(
-        title = "Anthropic",
+        title = "Help - Anthropic",
         cards = listOf(
             HelpCard("Overview", "Anthropic, founded 2021 by ex-OpenAI researchers (Dario & Daniela Amodei). Based in San Francisco; backed by Amazon, Google. Famous for the Claude family and a constitutional-AI safety approach. Their API has its own shape (`/v1/messages`) — distinct from OpenAI's chat completions."),
             HelpCard("Setup", "Sign up at console.anthropic.com → Settings → API Keys. Pay-as-you-go from the first call; promotional credits sometimes available. Workspace-scoped keys; some accounts need an extra approval for higher rate-limit tiers. Phone verification on new accounts."),
@@ -2194,7 +2242,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_google" to HelpContent(
-        title = "Google",
+        title = "Help - Google",
         cards = listOf(
             HelpCard("Overview", "Google's Gemini API (Generative Language API). Successor to Bard / PaLM; runs on Google Cloud infrastructure but has a separate consumer-friendly API key path under aistudio.google.com. Distinct from Vertex AI — same models, different auth + billing."),
             HelpCard("Setup", "Visit aistudio.google.com/app/apikey, sign in with a Google account, and click \"Create API key\". Generous free tier (rate-limited but free for many models including 2.0/2.5 Flash). Paid \"Pay-as-you-go\" upgrades available; some 2.5 Pro / Ultra tiers require a billing-enabled GCP project."),
@@ -2205,7 +2253,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_xai" to HelpContent(
-        title = "xAI (Grok)",
+        title = "Help - xAI (Grok)",
         cards = listOf(
             HelpCard("Overview", "xAI Corp — Elon Musk's AI company, founded 2023. Models train on real-time X (Twitter) data. The API is OpenAI-compatible at the wire level; pricing returns in \"ticks\" rather than dollars."),
             HelpCard("Setup", "Sign up at console.x.ai, top up with a credit card (no free tier on most models — there's been promotional credit programs on and off). API keys appear under Console → API keys. Some models gate behind X Premium / Premium+ subscriptions for the consumer chat; the API itself is paid usage."),
@@ -2216,7 +2264,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_groq" to HelpContent(
-        title = "Groq",
+        title = "Help - Groq",
         cards = listOf(
             HelpCard("Overview", "Groq Inc. — runs an in-house LPU (Language Processing Unit) ASIC instead of GPUs, giving notably high token-per-second throughput on open-weight Llama / Mixtral / Qwen models. Headquartered in Mountain View. Don't confuse with Elon Musk's xAI Grok — different companies."),
             HelpCard("Setup", "Sign up at console.groq.com → API Keys. Generous free tier with daily request quotas; paid upgrades for production. No phone verification required on most accounts."),
@@ -2227,7 +2275,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_deepseek" to HelpContent(
-        title = "DeepSeek",
+        title = "Help - DeepSeek",
         cards = listOf(
             HelpCard("Overview", "DeepSeek (深度求索) — Chinese AI lab spun out of High-Flyer Capital. Authors of the open-weight DeepSeek-V3 (general) and DeepSeek-R1 (reasoning) models that became prominent in 2024–2025. The proprietary API hosts polished versions of those open models."),
             HelpCard("Setup", "Sign up at platform.deepseek.com (you'll need a phone — China-region accounts use SMS, others may use email). Top up the wallet; pricing is famously low per million tokens. API keys under Console → API keys."),
@@ -2238,7 +2286,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_mistral" to HelpContent(
-        title = "Mistral",
+        title = "Help - Mistral",
         cards = listOf(
             HelpCard("Overview", "Mistral AI — Paris-based lab founded 2023 by ex-Meta / DeepMind researchers. Originally famous for releasing strong open-weight models (Mistral-7B, Mixtral-8x7B); the proprietary API hosts a mix of closed models (Large 2, Codestral) plus open Mistral-Small / Pixtral and the Open Codestral."),
             HelpCard("Setup", "console.mistral.ai → API keys. Free tier (\"La Plateforme Free\") with limited per-minute / per-month quotas; paid plans unlock higher limits + priority. EU-based service (data residency in EU)."),
@@ -2249,7 +2297,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_perplexity" to HelpContent(
-        title = "Perplexity",
+        title = "Help - Perplexity",
         cards = listOf(
             HelpCard("Overview", "Perplexity AI — search-grounded answer engine. Their Sonar API runs LLMs that perform live web searches every turn and return answers with inline citations. Distinct from a vanilla chat API — the response carries a citation list as a first-class field."),
             HelpCard("Setup", "perplexity.ai/settings/api → generate an API key. Paid usage from the first call; per-call cost on Sonar covers both the underlying LLM and the search itself. Some endpoints require Pro subscription tier."),
@@ -2260,7 +2308,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_together" to HelpContent(
-        title = "Together AI",
+        title = "Help - Together AI",
         cards = listOf(
             HelpCard("Overview", "Together AI — open-weight model serving platform founded 2022. Hosts hundreds of community models plus their own fine-tunes (Llama 3.x Instruct Turbo, Mixtral, Qwen, DeepSeek, Stable Diffusion). Headquartered in Menlo Park."),
             HelpCard("Setup", "api.together.xyz/settings/api-keys → create a key. Free \"Build\" tier with a credit allowance; paid plans for production. Phone verification on new accounts to combat abuse."),
@@ -2271,7 +2319,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_openrouter" to HelpContent(
-        title = "OpenRouter",
+        title = "Help - OpenRouter",
         cards = listOf(
             HelpCard("Overview", "OpenRouter — aggregator that exposes dozens of upstream AI providers behind one API. Useful for failover (a single key reaches Anthropic, Google, OpenAI, Meta, Mistral, etc.) and for trying obscure models without separate signups. Also doubles as a metadata source — see the `info_provider_openrouter` page for the catalog role."),
             HelpCard("Setup", "openrouter.ai/keys → mint a key. Pay-as-you-go top-up (Stripe / crypto). They take a margin on top of the upstream provider's price; budget accordingly. Each key can be scoped (allow / deny model lists, per-key spend caps)."),
@@ -2282,7 +2330,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_siliconflow" to HelpContent(
-        title = "SiliconFlow",
+        title = "Help - SiliconFlow",
         cards = listOf(
             HelpCard("Overview", "SiliconFlow (硅基流动) — China-based serverless inference for popular open-weight models. Hosts Qwen, DeepSeek, GLM, Llama, Stable Diffusion, BGE embeddings. Often cheaper per-token than the model authors' own hosted services."),
             HelpCard("Setup", "cloud.siliconflow.com/account/ak → mint a key. Phone verification typically required (China-region accounts use SMS). Free credit allowance on new accounts; pay-as-you-go after."),
@@ -2293,7 +2341,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_zai" to HelpContent(
-        title = "Z.AI (Zhipu)",
+        title = "Help - Z.AI (Zhipu)",
         cards = listOf(
             HelpCard("Overview", "Zhipu AI (智谱清言) — Chinese AI company spun out of Tsinghua University, founded 2019. Authors of the GLM (General Language Model) family, including GLM-4, GLM-4.5, GLM-4.7, plus the CodeGeeX coding family and CharGLM persona models. The Z.AI API is the international rebrand of the BigModel platform."),
             HelpCard("Setup", "open.bigmodel.cn/usercenter/apikeys (the underlying console) → mint a key. Free credits on signup; phone / WeChat verification typical. The Z.AI rebrand provides a friendlier latency profile for non-CN users."),
@@ -2304,7 +2352,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_moonshot" to HelpContent(
-        title = "Moonshot (Kimi)",
+        title = "Help - Moonshot (Kimi)",
         cards = listOf(
             HelpCard("Overview", "Moonshot AI (月之暗面) — Chinese AI company founded 2023, behind the Kimi assistant. Famous for very long-context models (up to 200k+ tokens) and strong Chinese-language performance. Two API surfaces: the China-region platform.moonshot.cn and the international platform.moonshot.ai."),
             HelpCard("Setup", "platform.moonshot.ai/console/api-keys → mint a key (international); platform.moonshot.cn for China-region accounts. Pay-as-you-go; new accounts get a free credit allowance."),
@@ -2315,7 +2363,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_cohere" to HelpContent(
-        title = "Cohere",
+        title = "Help - Cohere",
         cards = listOf(
             HelpCard("Overview", "Cohere — Toronto-based foundation model lab, founded 2019 by ex-Google Brain researchers including Aidan Gomez (one of the Transformer paper's authors). Enterprise-focused with strong RAG and tool-use tuning; the Command-R / Command-A family is their flagship chat line, plus an industry-leading Rerank API."),
             HelpCard("Setup", "dashboard.cohere.com → API keys. Free \"Trial\" key with limited per-minute / per-month quotas; production keys are paid. No phone verification required on most accounts."),
@@ -2326,7 +2374,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_ai21" to HelpContent(
-        title = "AI21 Labs",
+        title = "Help - AI21 Labs",
         cards = listOf(
             HelpCard("Overview", "AI21 Labs — Tel Aviv-based foundation model lab, founded 2017. Famous for the Jurassic-1 / Jurassic-2 generation models and (more recently) the Jamba family — a hybrid State-Space-Model + Transformer architecture that scales gracefully to long context."),
             HelpCard("Setup", "studio.ai21.com → API keys. Free trial credits; pay-as-you-go after."),
@@ -2337,7 +2385,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_dashscope" to HelpContent(
-        title = "DashScope (Alibaba Qwen)",
+        title = "Help - DashScope (Alibaba Qwen)",
         cards = listOf(
             HelpCard("Overview", "DashScope — Alibaba Cloud's model-as-a-service platform, hosting the Qwen family (their flagship LLMs) plus image / audio / embedding models. The bundled URL points at the international mirror (`dashscope-intl.aliyuncs.com/compatible-mode/`); the China-region service runs at `dashscope.aliyuncs.com`."),
             HelpCard("Setup", "dashscope.console.aliyun.com → mint an API key. Requires an Alibaba Cloud account; international accounts can sign up directly. Free credit allowance; usage-based billing after."),
@@ -2348,7 +2396,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_fireworks" to HelpContent(
-        title = "Fireworks AI",
+        title = "Help - Fireworks AI",
         cards = listOf(
             HelpCard("Overview", "Fireworks AI — open-weight model serving founded by ex-Meta PyTorch engineers, 2022. Hosts Llama, Mixtral, DeepSeek, Qwen, plus their own fine-tunes. Strong performance + competitive pricing on open-weight chat models."),
             HelpCard("Setup", "app.fireworks.ai → API keys. Free credits on signup; pay-as-you-go after. Phone verification on new accounts."),
@@ -2359,7 +2407,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_cerebras" to HelpContent(
-        title = "Cerebras",
+        title = "Help - Cerebras",
         cards = listOf(
             HelpCard("Overview", "Cerebras Systems — wafer-scale AI hardware company (their CS-3 chip is a single 46,225 mm² wafer). Their inference cloud delivers very high tokens-per-second (often >1000 tok/s on Llama 3.1-70B) thanks to keeping entire models in on-wafer SRAM."),
             HelpCard("Setup", "cloud.cerebras.ai → API keys. Generous free tier with daily token limits; paid plans for production. Phone verification typical."),
@@ -2370,7 +2418,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_sambanova" to HelpContent(
-        title = "SambaNova",
+        title = "Help - SambaNova",
         cards = listOf(
             HelpCard("Overview", "SambaNova Systems — RDU (Reconfigurable Dataflow Unit) AI hardware company. Like Cerebras, they sell inference speed on open-weight models — Llama, DeepSeek, Qwen — running on their own custom silicon. Headquartered in Palo Alto."),
             HelpCard("Setup", "cloud.sambanova.ai → API keys. Free tier with daily request quotas; paid plans for production."),
@@ -2381,7 +2429,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_baichuan" to HelpContent(
-        title = "Baichuan",
+        title = "Help - Baichuan",
         cards = listOf(
             HelpCard("Overview", "Baichuan Intelligence (百川智能) — Chinese AI lab founded 2023 by Wang Xiaochuan (Sogou founder). Authors of the Baichuan family of LLMs (Baichuan-1 through Baichuan-4-Turbo); strong on Chinese-language tasks plus general bilingual capability."),
             HelpCard("Setup", "platform.baichuan-ai.com → API keys. China-region service; requires Chinese phone verification on most accounts. Free credit allowance; pay-as-you-go after."),
@@ -2392,7 +2440,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_stepfun" to HelpContent(
-        title = "StepFun",
+        title = "Help - StepFun",
         cards = listOf(
             HelpCard("Overview", "StepFun (阶跃星辰) — Chinese AI lab founded 2023, behind the Step model family. Strong long-context performance (Step-2 up to 16k / 32k tokens) plus a multimodal Step-3 line. Known for Chinese-language coding and reasoning."),
             HelpCard("Setup", "platform.stepfun.com → API keys. China-region; SMS verification typical. Free credits on signup."),
@@ -2403,7 +2451,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_minimax" to HelpContent(
-        title = "MiniMax",
+        title = "Help - MiniMax",
         cards = listOf(
             HelpCard("Overview", "MiniMax (稀宇科技) — Chinese AI company founded 2021, behind the abab and MiniMax-M model families. Their Hailuo AI consumer product runs on these models. Known for multimodal generation (text, audio, video) plus Chinese-language strength."),
             HelpCard("Setup", "platform.minimax.io → API keys (international); platform.minimaxi.com for the China-region service. Free credits on signup."),
@@ -2414,7 +2462,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_nvidia" to HelpContent(
-        title = "NVIDIA NIM",
+        title = "Help - NVIDIA NIM",
         cards = listOf(
             HelpCard("Overview", "NVIDIA Inference Microservices (NIM) — NVIDIA's API platform for hosted open-weight models. Hosts NVIDIA's own Nemotron family plus a 3rd-party catalog (Llama, Mistral, DeepSeek, Qwen). Free tier of 1000 credits / month for personal projects."),
             HelpCard("Setup", "build.nvidia.com → sign in with NVIDIA Developer account → mint API key. The free tier for personal accounts gives a generous credit allowance; enterprise accounts get paid scaling."),
@@ -2425,7 +2473,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_replicate" to HelpContent(
-        title = "Replicate",
+        title = "Help - Replicate",
         cards = listOf(
             HelpCard("Overview", "Replicate — model marketplace founded 2019 by Ben Firshman (ex-Docker). Hosts thousands of open-weight models (chat, image, audio, video) with per-second billing. Strong for image generation (Flux, SDXL, Imagen-class community models); chat support is bolted on."),
             HelpCard("Setup", "replicate.com/account/api-tokens → mint a token. Free credits on signup; pay-per-second after. Note the GitHub-style flow — you sign in with GitHub on most accounts."),
@@ -2436,7 +2484,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_huggingface" to HelpContent(
-        title = "HuggingFace Inference",
+        title = "Help - HuggingFace Inference",
         cards = listOf(
             HelpCard("Overview", "Hugging Face Inference API — serverless inference for thousands of open-weight models hosted on the HF Hub. Different from HuggingFace's role as an info-provider for model-card metadata; same API key works for both. The Pro subscription unlocks higher rate limits."),
             HelpCard("Setup", "huggingface.co/settings/tokens → mint a Read token. Anonymous calls are heavily rate-limited; the Free tier with token unlocks meaningful usage; HF Pro lifts limits further. Some gated models require accepting the model card terms in a browser first."),
@@ -2447,7 +2495,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_lambda" to HelpContent(
-        title = "Lambda Labs",
+        title = "Help - Lambda Labs",
         cards = listOf(
             HelpCard("Overview", "Lambda Labs — GPU cloud company (founded 2012); also runs an inference API for open-weight models on their H100 / H200 fleet. Headquartered in San Francisco. Their Inference Cloud is a smaller catalog focused on currently-popular Llama, Mistral, and Hermes fine-tunes."),
             HelpCard("Setup", "cloud.lambdalabs.com/api-keys → API keys. Need an existing Lambda Cloud account (mostly self-service signup; some enterprise gating). Pay-as-you-go."),
@@ -2458,7 +2506,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_lepton" to HelpContent(
-        title = "Lepton AI",
+        title = "Help - Lepton AI",
         cards = listOf(
             HelpCard("Overview", "Lepton AI — serverless model-serving platform, founded 2023 by ex-Alibaba / Caffe creators. Acquired by NVIDIA in 2025. Hosts Llama, Mistral, Gemma, Whisper, plus image/audio. Strong on cold-start performance."),
             HelpCard("Setup", "dashboard.lepton.ai → API keys. Free credit allowance; pay-as-you-go after."),
@@ -2469,7 +2517,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_01ai" to HelpContent(
-        title = "01.AI (Yi)",
+        title = "Help - 01.AI (Yi)",
         cards = listOf(
             HelpCard("Overview", "01.AI (零一万物) — Chinese AI lab founded 2023 by Kai-Fu Lee (ex-Google China, Microsoft Research). Authors of the Yi model family — Yi-Lightning, Yi-Large, Yi-Medium, Yi-Spark — bilingual but optimized for Chinese."),
             HelpCard("Setup", "platform.01.ai → API keys. China-region; SMS verification required for most accounts. Free credit allowance; pay-as-you-go after. The international URL `api.01.ai` is the public surface."),
@@ -2480,7 +2528,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_doubao" to HelpContent(
-        title = "Doubao (ByteDance)",
+        title = "Help - Doubao (ByteDance)",
         cards = listOf(
             HelpCard("Overview", "Doubao (豆包) — ByteDance's AI model family, served via Volcano Engine (火山引擎). Hosted on `ark.cn-beijing.volces.com` — the Beijing region of Volcano Engine's API platform. The chat path is at `v3/chat/completions` (not the standard v1)."),
             HelpCard("Setup", "console.volcengine.com (Volcano Engine console) → mint API key. Requires a Volcano Engine account; phone verification typical (Chinese SMS). Free credit allowance; usage-based billing after."),
@@ -2491,7 +2539,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_reka" to HelpContent(
-        title = "Reka",
+        title = "Help - Reka",
         cards = listOf(
             HelpCard("Overview", "Reka AI — multimodal foundation-model lab founded 2022 by ex-DeepMind / Google Brain / Meta researchers. Headquartered in San Francisco. Reka-Core / Flash / Edge are their model tiers — all natively multimodal (text, image, video, audio)."),
             HelpCard("Setup", "platform.reka.ai → API keys. Pay-as-you-go; commercial pricing similar to mid-tier frontier models."),
@@ -2502,7 +2550,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_writer" to HelpContent(
-        title = "Writer",
+        title = "Help - Writer",
         cards = listOf(
             HelpCard("Overview", "Writer Inc. — enterprise generative AI platform founded 2020. Authors of the Palmyra family — domain-tuned LLMs marketed for legal, medical, finance, marketing copy. Headquartered in San Francisco; primarily B2B."),
             HelpCard("Setup", "app.writer.com → API keys. Enterprise-focused — most accounts come from a sales engagement; self-service signup gives a Free trial. Pay-as-you-go for production."),
@@ -2513,7 +2561,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_cloudflareworkersai" to HelpContent(
-        title = "Cloudflare Workers AI",
+        title = "Help - Cloudflare Workers AI",
         cards = listOf(
             HelpCard("Overview", "Cloudflare Workers AI — Cloudflare's serverless inference for open-weight models, running at the edge across their global network. Hosts a curated catalog of Llama, Mistral, Gemma, Phi, plus image / speech models. Free tier with generous monthly quotas; paid scaling integrated into the Workers / Pages platform."),
             HelpCard("Setup", "dash.cloudflare.com → AI → Workers AI → API tokens. **You must replace `YOUR_ACCOUNT_ID` in the base URL** with your actual Cloudflare account id (visible on the right rail of the Workers dashboard) before keys work. Token + account-id together authorize the call."),
@@ -2524,7 +2572,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_deepinfra" to HelpContent(
-        title = "DeepInfra",
+        title = "Help - DeepInfra",
         cards = listOf(
             HelpCard("Overview", "DeepInfra — open-weight model serving founded 2022. Hosts Llama, Mistral, DeepSeek, Qwen, Mixtral, plus embedding and image models. Headquartered in Palo Alto; competitive per-token pricing on the popular open-weight chat models."),
             HelpCard("Setup", "deepinfra.com/dash/api_keys → mint a key. Free credit allowance on signup; pay-as-you-go after."),
@@ -2535,7 +2583,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_hyperbolic" to HelpContent(
-        title = "Hyperbolic",
+        title = "Help - Hyperbolic",
         cards = listOf(
             HelpCard("Overview", "Hyperbolic Labs — open-weight model serving plus image / audio APIs, founded 2023. Hosts DeepSeek, Llama, Qwen, Mistral, plus vision and TTS models. Compute is sourced from a mix of in-house and partner GPU capacity."),
             HelpCard("Setup", "app.hyperbolic.xyz/settings → API keys. Free credit allowance; pay-as-you-go after."),
@@ -2546,7 +2594,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_novitaai" to HelpContent(
-        title = "Novita.ai",
+        title = "Help - Novita.ai",
         cards = listOf(
             HelpCard("Overview", "Novita.ai — open-weight serverless inference, founded 2023. Hosts Llama, Mistral, Qwen, DeepSeek; competitive per-token pricing on common open-weight models. Headquartered in Singapore."),
             HelpCard("Setup", "novita.ai/settings/key-management → mint a key. Free credit allowance; pay-as-you-go after."),
@@ -2557,7 +2605,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_featherlessai" to HelpContent(
-        title = "Featherless.ai",
+        title = "Help - Featherless.ai",
         cards = listOf(
             HelpCard("Overview", "Featherless.ai — serverless host for HuggingFace open-weight models, founded 2024. Subscription-based pricing (flat monthly fee for unlimited usage on chosen tier) rather than per-token, making it distinctive in the open-weight serving space."),
             HelpCard("Setup", "featherless.ai/account/api-keys → mint a key. Subscription tiers (Feather / Wing / Falcon-class) determine which models you can run; pay-monthly upfront."),
@@ -2568,7 +2616,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_liquidai" to HelpContent(
-        title = "Liquid AI",
+        title = "Help - Liquid AI",
         cards = listOf(
             HelpCard("Overview", "Liquid AI — Boston-based foundation-model lab, founded 2023 by MIT researchers. Famous for the LFM (Liquid Foundation Models) series — non-Transformer architectures derived from continuous-time recurrent networks. Strong performance per parameter, especially on long context."),
             HelpCard("Setup", "platform.liquid.ai → API keys. Pay-as-you-go from signup; smaller free trial credit than larger providers."),
@@ -2579,7 +2627,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_llamaapi" to HelpContent(
-        title = "Llama API (Meta)",
+        title = "Help - Llama API (Meta)",
         cards = listOf(
             HelpCard("Overview", "Meta's official Llama API — direct hosted inference for the Llama family, run by Meta themselves. Distinct from Llama-on-other-providers (Together, Groq, Fireworks, …) which run open-weight derivatives. Beta product; integration with developer.meta.com."),
             HelpCard("Setup", "llama.developer.meta.com → API keys. Beta / waitlist depending on signup timing; some accounts get instant access."),
@@ -2590,7 +2638,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_krutrim" to HelpContent(
-        title = "Krutrim (Ola)",
+        title = "Help - Krutrim (Ola)",
         cards = listOf(
             HelpCard("Overview", "Ola Krutrim — Indian AI lab and inference platform, part of Ola Cabs founder Bhavish Aggarwal's tech portfolio. Founded 2023 with a focus on Indian-language understanding alongside general-purpose open-weight model serving."),
             HelpCard("Setup", "cloud.olakrutrim.com/console → API keys. Indian-region service; international signups possible. Free credit allowance."),
@@ -2601,7 +2649,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_nebiusaistudio" to HelpContent(
-        title = "Nebius AI Studio",
+        title = "Help - Nebius AI Studio",
         cards = listOf(
             HelpCard("Overview", "Nebius AI Studio — inference platform from Nebius (the AI-cloud arm of the former Yandex international assets). Headquartered in Amsterdam; runs a large GPU fleet across European data centers. Hosts Llama, DeepSeek, Qwen, Mistral, Mixtral."),
             HelpCard("Setup", "studio.nebius.com/settings/api-keys → mint a key. Free credits on signup; pay-as-you-go after. Strong European data residency story for users with that preference."),
@@ -2612,7 +2660,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_chutes" to HelpContent(
-        title = "Chutes",
+        title = "Help - Chutes",
         cards = listOf(
             HelpCard("Overview", "Chutes — open-weight inference platform built on top of the Bittensor decentralized AI network. Compute is sourced from Bittensor miners (subnet 64 / Chutes); pricing reflects the decentralized economics. Founded 2024."),
             HelpCard("Setup", "chutes.ai/app/api → mint a key. Free credit allowance; pay-as-you-go after via TAO (Bittensor's native token) or fiat."),
@@ -2623,7 +2671,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     ),
 
     "provider_inferencenet" to HelpContent(
-        title = "Inference.net",
+        title = "Help - Inference.net",
         cards = listOf(
             HelpCard("Overview", "Inference.net — open-weight serverless inference, founded 2024. Hosts Llama, DeepSeek, Qwen on a low-priced compute pool. Headquartered in San Francisco."),
             HelpCard("Setup", "inference.net/dashboard/api-keys → mint a key. Free credit allowance; pay-as-you-go after."),
@@ -2633,7 +2681,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "applog_list" to HelpContent(
-        title = "Application log — file list",
+        title = "Help - Application log — file list",
         cards = listOf(
             HelpCard("Overview", "List of daily-rotating application log files stored under `<filesDir>/applog/`. Each file captures one calendar day filtered by the level threshold set in Settings → Logging. Rows show the date (YYYY-MM-DD) and on-disk size."),
             HelpCard("Title bar — 🗑", "Clears every log file after confirmation. The currently-active in-memory session writes are dropped too — the next log call starts a fresh file."),
@@ -2645,7 +2693,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "applog_detail" to HelpContent(
-        title = "Application log — file detail",
+        title = "Help - Application log — file detail",
         cards = listOf(
             HelpCard("Overview", "Filtered view of one log file's entries, newest-first. Stack traces are folded into their header line; tap any row to expand it full-screen."),
             HelpCard("Title bar — Copy / Share / 🗑", "Copy and Share open a chooser dialog (last N lines / complete log / filtered-only). 🗑 deletes the entire file with confirmation — back returns to the file list with the deletion already reflected."),
@@ -2659,7 +2707,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "external_intent" to HelpContent(
-        title = "External request",
+        title = "Help - External request",
         cards = listOf(
             HelpCard("Overview", "Confirmation gate shown before this app fulfils a cross-app share / `ACTION_SEND` request. Another app is asking AI to generate a report with instructions embedded in the intent — review what will happen before spending API credits."),
             HelpCard("Title bar — Back", "Cancels the request and returns to the calling app. Nothing is sent; no API calls fire."),
@@ -2672,7 +2720,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "inaccessible_models" to HelpContent(
-        title = "Inaccessible models",
+        title = "Help - Inaccessible models",
         cards = listOf(
             HelpCard("Overview", "Curated list of model definitions that your account genuinely can't reach — no API key, capability mismatch, Together's non-serverless tier, geo-blocked endpoints, etc. Entries are dimmed in pickers and dropped from Test All Models runs instead of marked FAIL."),
             HelpCard("Title bar — Back / 🏠", "Back returns to Settings → AI Models. 🏠 jumps to the home screen."),
@@ -2685,7 +2733,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_html_preview" to HelpContent(
-        title = "HTML preview",
+        title = "Help - HTML preview",
         cards = listOf(
             HelpCard("Overview", "Inline WebView rendering of a report's HTML — the same HTML the file export produces, but rendered live with JavaScript enabled so table sorting / collapsibles / rerank anchors stay interactive."),
             HelpCard("Title bar", "Back returns to the Report detail screen. The title reads *HTML preview* (full) or *HTML preview (short)* depending on which detail level you launched. The report's emoji + title appear as the subject when set."),
@@ -2697,7 +2745,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_meta_run" to HelpContent(
-        title = "Run a meta prompt",
+        title = "Help - Run a meta prompt",
         cards = listOf(
             HelpCard("Overview", "Full-screen editor for the meta prompt's text body, shown between the Scope screen and the model picker. Lets you tweak the template for this run only — the stored InternalPrompt is left untouched."),
             HelpCard("Title bar — Back", "Cancels and returns to the Scope screen. The state survives the trip so re-entering the Run page shows your unedited starting text again (the editor reseeds from the prompt's stored body)."),
@@ -2707,5 +2755,259 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "Settings → Internal prompts → run a meta-category prompt, OR from a report's Run → Meta → pick a prompt → Continue (after the Scope screen).")
         )
     )
+)
+
+/** Per-screen → home-help cross-link table. Keyed by topic id; the
+ *  value is the ordered list of home-help topic ids the user reading
+ *  this screen's help would likely also benefit from. Rendered as
+ *  the "Relevant Help pages" footer at the bottom of any per-topic
+ *  help page (HelpScreen.kt). Topics with no entry get no footer.
+ *
+ *  Reach is intentionally wide — most per-screen topics carry at
+ *  least one cross-link. The home-help reference pages themselves
+ *  also appear as keys (e.g. help_translations → concepts) so the
+ *  user can hop between the reference pages without going back to
+ *  Help home first. */
+internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
+    // ===== Reports / generation =====
+    "reports_hub" to listOf("help_about", "help_getting_started", "concepts", "help_glossary_operations"),
+    "report_new" to listOf("help_getting_started", "help_glossary_operations", "help_costs"),
+    "report_result_generation" to listOf("concepts", "help_costs", "help_glossary_operations"),
+    "report_view_picker" to listOf("help_glossary_operations"),
+    "report_edit_picker" to listOf("help_glossary_operations"),
+    "report_pick_flock" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "report_pick_agent" to listOf("help_glossary_blocks", "help_glossary_groupings"),
+    "report_pick_previous" to listOf("help_glossary_operations"),
+    "report_pick_swarm" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "report_pick_model" to listOf("help_glossary_blocks", "help_costs"),
+    "report_swarm_info" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "report_flock_info" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "report_continue_in_chat" to listOf("help_glossary_operations"),
+    "report_meta" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "report_edit_prompt" to listOf("help_glossary_operations"),
+    "report_edit_title" to listOf("help_glossary_operations"),
+    "report_parameters" to listOf("help_glossary_blocks", "concepts"),
+    "report_export" to listOf("help_glossary_operations", "help_privacy", "help_translations"),
+    "report_manage" to listOf("help_glossary_operations", "help_costs", "concepts"),
+    "report_html_preview" to listOf("help_glossary_operations", "help_translations"),
+    "report_meta_run" to listOf("help_glossary_operations", "help_costs"),
+    "report_single_result" to listOf("help_glossary_operations", "help_costs"),
+    "report_icons_grid" to listOf("help_glossary_operations"),
+    "report_fan_out_confirm" to listOf("help_glossary_operations", "help_costs"),
+    "view_ai_report" to listOf("help_glossary_operations", "help_translations"),
+
+    // ===== Translation =====
+    "translation_run_l1" to listOf("help_translations", "concepts", "help_glossary_operations", "help_costs"),
+    "translation_run_l2" to listOf("help_translations", "concepts"),
+    "translation_run_l3" to listOf("help_translations", "concepts"),
+    "translation_compare" to listOf("help_translations", "concepts"),
+    "translation_language" to listOf("help_translations"),
+    "translation_models" to listOf("help_translations", "help_costs", "help_glossary_blocks"),
+
+    // ===== Fan-out / Meta / Secondary results =====
+    "secondary_list" to listOf("help_glossary_operations", "concepts"),
+    "secondary_detail" to listOf("help_glossary_operations"),
+    "secondary_scope" to listOf("help_glossary_operations"),
+    "secondary_fan_out_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "secondary_fan_out_l2" to listOf("help_glossary_operations", "concepts"),
+    "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
+    "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
+    "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
+
+    // ===== Chat =====
+    "chat_hub" to listOf("help_glossary_operations", "help_about"),
+    "chat_session" to listOf("help_glossary_operations", "concepts"),
+    "chat_parameters" to listOf("help_glossary_blocks"),
+    "chat_history" to listOf("help_glossary_operations"),
+    "chat_continue" to listOf("help_glossary_operations"),
+    "chat_manage" to listOf("help_glossary_operations"),
+    "chat_search" to listOf("help_glossary_operations"),
+    "dual_chat_setup" to listOf("help_glossary_operations", "help_glossary_blocks"),
+    "dual_chat_session" to listOf("help_glossary_operations"),
+
+    // ===== Knowledge base / RAG =====
+    "knowledge_new" to listOf("help_glossary_retrieval", "help_privacy", "help_local_ai"),
+    "knowledge_list" to listOf("help_glossary_retrieval", "help_privacy"),
+    "knowledge_detail" to listOf("help_glossary_retrieval", "help_privacy", "help_local_ai"),
+
+    // ===== Provider settings (per-card) =====
+    "provider_card_state" to listOf("help_home_ai_providers", "concepts"),
+    "provider_card_apikey" to listOf("help_home_ai_providers", "help_privacy"),
+    "provider_card_basics" to listOf("help_home_ai_providers"),
+    "provider_card_api" to listOf("help_home_ai_providers", "concepts"),
+    "provider_card_models" to listOf("help_home_ai_providers", "help_home_info_providers"),
+    "provider_card_pricing" to listOf("help_costs", "help_home_info_providers"),
+    "provider_card_throttle" to listOf("concepts", "help_home_ai_providers"),
+    "provider_card_features" to listOf("help_home_ai_providers"),
+    "provider_card_native" to listOf("help_home_ai_providers"),
+    "provider_card_capability" to listOf("help_home_ai_providers"),
+    "provider_card_patterns" to listOf("help_home_ai_providers"),
+    "provider_card_endpoints" to listOf("help_home_ai_providers", "concepts"),
+    "providers" to listOf("help_home_ai_providers", "help_getting_started", "help_privacy"),
+    "provider_edit" to listOf("help_home_ai_providers", "help_costs"),
+
+    // ===== Info providers =====
+    "info_provider_huggingface" to listOf("help_home_info_providers", "help_costs"),
+    "info_provider_openrouter" to listOf("help_home_info_providers", "help_costs", "help_home_ai_providers"),
+    "info_provider_litellm" to listOf("help_home_info_providers", "help_costs"),
+    "info_provider_models_dev" to listOf("help_home_info_providers", "help_costs"),
+    "info_provider_helicone" to listOf("help_home_info_providers", "help_costs"),
+    "info_provider_llm_prices" to listOf("help_home_info_providers", "help_costs"),
+    "info_provider_artificial_analysis" to listOf("help_home_info_providers", "help_costs"),
+
+    // ===== Models / model metadata =====
+    "models" to listOf("help_home_ai_providers", "help_glossary_blocks"),
+    "model_edit" to listOf("help_glossary_blocks", "help_costs"),
+    "model_info" to listOf("help_glossary_blocks", "help_costs", "help_home_info_providers"),
+    "model_pick_provider" to listOf("help_home_ai_providers", "help_glossary_blocks"),
+    "model_pick_model" to listOf("help_glossary_blocks"),
+    "model_pick_agent" to listOf("help_glossary_blocks", "help_glossary_groupings"),
+    "model_raw" to listOf("help_glossary_blocks"),
+    "models_per_provider" to listOf("help_home_ai_providers", "help_glossary_blocks"),
+    "models_search" to listOf("help_glossary_blocks"),
+    "model_types" to listOf("help_glossary_blocks"),
+    "manual_model_types" to listOf("help_glossary_blocks"),
+    "manual_model_types_list" to listOf("help_glossary_blocks"),
+    "model_cooldowns" to listOf("concepts", "help_glossary_blocks"),
+    "model_cooldowns_list" to listOf("concepts", "help_glossary_blocks"),
+    "blocked_models" to listOf("help_glossary_blocks"),
+    "blocked_model_edit" to listOf("help_glossary_blocks"),
+    "test_excluded_models" to listOf("help_glossary_blocks"),
+    "test_excluded_model_edit" to listOf("help_glossary_blocks"),
+    "inaccessible_models" to listOf("help_glossary_blocks", "help_home_ai_providers"),
+
+    // ===== Agents / Flocks / Swarms / Parameters / Prompts =====
+    "agents" to listOf("help_glossary_blocks", "help_glossary_groupings", "help_getting_started"),
+    "agents_list" to listOf("help_glossary_blocks", "help_glossary_groupings"),
+    "agent_edit" to listOf("help_glossary_blocks"),
+    "flocks" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "flocks_list" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "flock_edit" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "swarms" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "swarms_list" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "swarm_edit" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "parameters" to listOf("help_glossary_blocks"),
+    "parameters_list" to listOf("help_glossary_blocks"),
+    "parameters_edit" to listOf("help_glossary_blocks"),
+    "system_prompts" to listOf("help_glossary_blocks", "help_glossary_operations"),
+    "system_prompts_list" to listOf("help_glossary_blocks"),
+    "system_prompt_edit" to listOf("help_glossary_blocks"),
+    "internal_prompts_hub" to listOf("help_glossary_operations"),
+    "fan_in_out_prompts_hub" to listOf("help_glossary_operations"),
+    "internal_prompts" to listOf("help_glossary_operations"),
+    "internal_prompts_list" to listOf("help_glossary_operations"),
+    "internal_prompt_edit" to listOf("help_glossary_operations"),
+
+    // ===== Local AI =====
+    "local_runtime" to listOf("help_local_ai", "help_privacy", "help_glossary_retrieval"),
+    "local_litert_models" to listOf("help_local_ai", "help_privacy"),
+    "local_llms" to listOf("help_local_ai", "help_privacy"),
+    "setup_local_models" to listOf("help_local_ai", "help_glossary_retrieval"),
+
+    // ===== Costs / Usage / Statistics =====
+    "statistics" to listOf("help_costs", "help_privacy"),
+    "cost_config" to listOf("help_costs", "help_home_info_providers"),
+    "cost_override" to listOf("help_costs", "help_home_info_providers"),
+    "cost_view" to listOf("help_costs"),
+    "usage_statistics" to listOf("help_costs"),
+
+    // ===== API tracing / Developer =====
+    "trace_list" to listOf("concepts", "help_privacy"),
+    "trace_detail" to listOf("concepts", "help_privacy", "help_home_info_providers"),
+    "trace_pick_model" to listOf("concepts"),
+    "developer_test" to listOf("concepts", "help_home_ai_providers"),
+    "developer_edit" to listOf("help_home_ai_providers", "concepts"),
+    "developer_select_model" to listOf("help_glossary_blocks"),
+    "developer_select_endpoint" to listOf("help_home_ai_providers"),
+    "external_services" to listOf("help_home_info_providers", "help_home_ai_providers"),
+    "external_intent" to listOf("help_privacy", "help_glossary_operations"),
+
+    // ===== Settings =====
+    "settings_main" to listOf("help_about", "help_privacy"),
+    "settings_other" to listOf("help_about", "help_privacy"),
+    "settings_network" to listOf("concepts", "help_about"),
+    "settings_network_api_calls" to listOf("concepts", "help_costs"),
+    "settings_ui" to listOf("help_about"),
+    "settings_logging" to listOf("help_privacy", "concepts"),
+    "settings_setup" to listOf("help_about", "help_getting_started"),
+
+    // ===== Housekeeping / Backup / Reset =====
+    "housekeeping" to listOf("help_backup", "help_privacy", "help_local_ai"),
+    "backup_restore" to listOf("help_backup", "help_privacy"),
+    "trim_by_age" to listOf("help_backup", "help_privacy"),
+    "reset" to listOf("help_backup", "help_privacy"),
+    "reset_runtime" to listOf("help_privacy"),
+    "reset_info_providers" to listOf("help_home_info_providers", "help_privacy"),
+    "reset_configuration" to listOf("help_privacy"),
+    "reset_assets" to listOf("help_privacy"),
+    "reset_application" to listOf("help_backup", "help_privacy"),
+    "import_export" to listOf("help_backup", "help_privacy"),
+
+    // ===== Refresh / Update =====
+    "refresh" to listOf("help_home_info_providers", "help_home_ai_providers", "help_getting_started"),
+    "refresh_info_providers" to listOf("help_home_info_providers", "help_costs"),
+    "refresh_all" to listOf("help_home_info_providers", "help_home_ai_providers", "help_getting_started"),
+    "refresh_result" to listOf("help_home_info_providers"),
+    "update_from_cloud" to listOf("help_home_info_providers"),
+
+    // ===== Test =====
+    "test" to listOf("help_home_ai_providers", "concepts"),
+    "test_all_models_l1" to listOf("help_home_ai_providers", "concepts"),
+    "test_all_models_l2" to listOf("help_home_ai_providers", "concepts"),
+    "test_all_models_l3" to listOf("help_home_ai_providers", "concepts"),
+    "test_all_models_select" to listOf("help_home_ai_providers"),
+
+    // ===== Search =====
+    "search_local" to listOf("help_glossary_retrieval"),
+    "search_semantic" to listOf("help_glossary_retrieval", "help_local_ai"),
+    "search_quick" to listOf("help_glossary_retrieval"),
+    "search_local_semantic" to listOf("help_glossary_retrieval", "help_local_ai"),
+
+    // ===== Setup hubs =====
+    "setup_models" to listOf("help_home_ai_providers", "help_getting_started"),
+    "setup_workers" to listOf("help_glossary_blocks", "help_glossary_groupings"),
+    "setup_prompts" to listOf("help_glossary_operations"),
+
+    // ===== Prompts / examples / history =====
+    "example_prompts_list" to listOf("help_glossary_operations"),
+    "example_prompt_edit" to listOf("help_glossary_operations"),
+    "example_prompt_picker" to listOf("help_glossary_operations"),
+    "prompt_view" to listOf("help_glossary_operations"),
+    "prompt_history" to listOf("help_glossary_operations"),
+    "history" to listOf("help_glossary_operations", "help_about"),
+
+    // ===== Share / external content =====
+    "share_target" to listOf("help_glossary_operations", "help_glossary_retrieval", "help_privacy"),
+
+    // ===== App log =====
+    "applog_list" to listOf("help_privacy", "concepts"),
+    "applog_detail" to listOf("help_privacy"),
+
+    // ===== Icon lookup / content viewers =====
+    "icon_lookup_main" to listOf("help_home_icons"),
+    "icon_lookup_agent" to listOf("help_home_icons", "help_glossary_blocks"),
+    "icon_lookup_meta" to listOf("help_home_icons", "help_glossary_operations"),
+    "icon_lookup_translation" to listOf("help_home_icons", "help_translations"),
+    "icon_lookup_language" to listOf("help_home_icons", "help_translations"),
+    "icon_lookup_pair" to listOf("help_home_icons", "help_glossary_operations"),
+    "find_icons_selection" to listOf("help_home_icons"),
+    "alternative_icons" to listOf("help_home_icons"),
+    "content_model_response" to listOf("help_glossary_operations"),
+    "content_one_page" to listOf("help_glossary_operations"),
+
+    // ===== Home-help cross-links (concept-to-concept) =====
+    "help_about" to listOf("help_getting_started", "concepts"),
+    "help_getting_started" to listOf("help_about", "concepts"),
+    "concepts" to listOf("help_glossary", "help_translations", "help_costs"),
+    "help_glossary" to listOf("concepts", "help_about"),
+    "help_glossary_blocks" to listOf("help_glossary", "help_glossary_groupings"),
+    "help_glossary_groupings" to listOf("help_glossary", "help_glossary_blocks"),
+    "help_glossary_operations" to listOf("help_glossary", "concepts"),
+    "help_glossary_retrieval" to listOf("help_glossary", "help_local_ai", "help_privacy"),
+    "help_costs" to listOf("concepts", "help_home_info_providers"),
+    "help_privacy" to listOf("help_backup", "help_local_ai"),
+    "help_backup" to listOf("help_privacy"),
+    "help_local_ai" to listOf("help_glossary_retrieval", "help_privacy"),
+    "help_translations" to listOf("concepts", "help_glossary_operations", "help_costs")
 )
 
