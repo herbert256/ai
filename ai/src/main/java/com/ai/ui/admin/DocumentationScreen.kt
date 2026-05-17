@@ -33,8 +33,9 @@ fun DocumentationScreen(
     docsSubdir: String = "technical",
     /** Title shown in the TitleBar. */
     title: String = "Documentation",
-    /** Help topic id wired into the TitleBar's ? icon. */
-    helpTopic: String = "documentation"
+    /** Help topic id wired into the TitleBar's ? icon. Caller
+     *  passes `"manual"` or `"technical_documentation"` per route. */
+    helpTopic: String = "technical_documentation"
 ) {
     // Hold a WebView reference so the system back button can walk the
     // WebView's own history before exiting the screen — gives the user

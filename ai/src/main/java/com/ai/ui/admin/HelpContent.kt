@@ -197,10 +197,32 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "API key is mandatory; without it the catalog never loads and AA stays absent from the layered lookup. Some niche models aren't covered."),
         )
     ),
-    "documentation" to HelpContent(
-        title = "Documentation",
+    "about" to HelpContent(
+        title = "About",
         cards = listOf(
-            HelpCard("Overview", "An in-app browser over the project's developer documentation, bundled in the APK at `assets/docs/technical/`. Mobile-friendly rewrite of the `doc/` markdown tree: collapsible cards instead of wide tables, nested HTML trees instead of ASCII diagrams, dark theme matching the app. No network — every page is read from disk. The end-user manual is a sibling hub at `assets/docs/manual/` reached from its own entry point."),
+            HelpCard("Overview", "Lightweight hub reached from the home screen's About card (or the bottom-bar app icon). Shows the AI logo, the installed version, the build date stamped into the APK at compile time, and a link to the GitHub source. Two cards underneath route to the bundled documentation: the end-user Manual and the developer Technical documentation."),
+            HelpCard("Version + build date", "`Version <X.Y.Z>` is the `versionName` from the manifest (set in `ai/build.gradle`). `Built <timestamp>` is `BuildConfig.BUILD_TIMESTAMP`, stamped at gradle assemble time — so every fresh APK gets a unique stamp regardless of whether the versionName changed. Useful for cross-checking which build is on the device."),
+            HelpCard("GitHub link", "Opens `github.com/herbert256/ai` in the system browser. Public mirror of the source tree."),
+            HelpCard("Manual card", "Opens the end-user Manual — a per-screen walkthrough of every feature, bundled at `assets/docs/manual/`."),
+            HelpCard("Technical documentation card", "Opens the developer Technical documentation — architecture / data structures / build process / etc., bundled at `assets/docs/technical/`."),
+            HelpCard("Copyright + licence", "GPL v2.0 — the LICENSE file at the repo root has the full text. Two footer lines pinned at the bottom of the page so the licence stays in front of every user."),
+            HelpCard("Pitfalls", "The build timestamp moves on every assemble even for unchanged code (gradle stamps unconditionally). Use it for 'is the running APK the one I just built?' checks, not for change detection.")
+        )
+    ),
+    "manual" to HelpContent(
+        title = "Manual",
+        cards = listOf(
+            HelpCard("Overview", "End-user walkthrough of every screen and feature, bundled in the APK at `assets/docs/manual/`. Mirrors what a printed quick-start would cover: how to send a report, what each screen does, where the controls live. Sibling hub to the Technical documentation for developer-oriented reference. No network — every page is read from disk."),
+            HelpCard("Index", "The first page is a card-style table of contents grouped by use case (Getting started, Reports, Chat, Knowledge / RAG, Translation, Settings, etc.). Pages target users, not developers; concrete control names and label quotes match what's on-screen."),
+            HelpCard("Navigation", "Tap a card on the index to open that page. The top \"Jump to\" panel anchor-links to each section inside a long page. The system back button walks the browser history first, then exits."),
+            HelpCard("Authoritative source", "Hand-written; the code is the ultimate source of truth. When a screen and the manual disagree, the screen wins — open the page's underlying `.md` in the repo to file a fix."),
+            HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending a rewrite pass — they link back to the original `doc/<name>.md`. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
+        )
+    ),
+    "technical_documentation" to HelpContent(
+        title = "Technical documentation",
+        cards = listOf(
+            HelpCard("Overview", "Developer-oriented hub over the project's technical documentation, bundled in the APK at `assets/docs/technical/`. Mobile-friendly rewrite of the `doc/` markdown tree: collapsible cards instead of wide tables, nested HTML trees instead of ASCII diagrams, dark theme matching the app. Sibling hub to the end-user Manual. No network — every page is read from disk."),
             HelpCard("Index", "The first page is a card-style table of contents. Sections: For developers (Architecture, Development, API formats, Data structures, Secondary results, Model test, Cooldowns, Help system, AppLog, Report icons, Throttle), Subsystem deep dives (Knowledge / RAG, Local runtime, Translation, Share target, Backup & restore), Reference data (Providers, Repositories, Persistent state), Backlog (TODO)."),
             HelpCard("Navigation", "Tap a card on the index to open that doc. Inside a page, the top \"Jump to\" panel anchor-links to each section. Long reference sections (per data class, per provider) are collapsed by default — tap to expand. The system back button walks the browser history first, then exits the screen."),
             HelpCard("Authoritative source", "Documentation is hand-written; the code is the ultimate source of truth. The bundled HTML is a snapshot — when in doubt, the file pointers at the bottom of `index` lead back to the live source files."),

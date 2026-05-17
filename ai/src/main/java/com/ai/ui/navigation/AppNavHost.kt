@@ -1051,7 +1051,7 @@ fun AppNavHost(
                 onBack = safePopBack,
                 docsSubdir = "technical",
                 title = "Technical documentation",
-                helpTopic = "documentation"
+                helpTopic = "technical_documentation"
             )
         }
         composable(NavRoutes.DOCUMENTATION_MANUAL) {
@@ -1059,7 +1059,7 @@ fun AppNavHost(
                 onBack = safePopBack,
                 docsSubdir = "manual",
                 title = "Manual",
-                helpTopic = "documentation"
+                helpTopic = "manual"
             )
         }
         composable(NavRoutes.ABOUT) {
