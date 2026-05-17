@@ -523,18 +523,12 @@ fun AppNavHost(
             // Manage screen. Bare navigation ("ai_reports") leaves it
             // false — Manage as before.
             val initialView = entry.arguments?.getString("initialView") == "true"
-            // Belt-and-suspenders tracker update: every time this
-            // destination is in the foreground with a known reportId,
-            // record (reportId, mode). Covers paths the explicit
-            // call-site records miss — most notably the "create new
-            // report → AI_REPORTS" flow where the id isn't known at
-            // navigate time.
-            val trackedReportId by appViewModel.uiState.collectAsState()
-            androidx.compose.runtime.LaunchedEffect(trackedReportId.currentReportId, initialView) {
-                trackedReportId.currentReportId
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { com.ai.data.LastReportTracker.record(it, view = initialView) }
-            }
+            // Real-time tracker updates live inside ReportScreen,
+            // which watches the local showViewReportScreen flag and
+            // updates LastReportTracker on every Manage ↔ View
+            // toggle. Doing it here at the nav arg level would
+            // freeze the recorded mode to the entry path even after
+            // the user toggled inside the screen.
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,

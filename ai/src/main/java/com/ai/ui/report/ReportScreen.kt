@@ -605,6 +605,21 @@ private fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
     }
 }
 
+/** Writes (reportId, viewMode) into [com.ai.data.LastReportTracker]
+ *  whenever either changes. The home-page big-AI-logo reads this to
+ *  resume the user back into their last opened report in the same
+ *  mode they ended in. Extracted out of [ReportsScreen] so its
+ *  LaunchedEffect doesn't add bytecode to that function — which
+ *  already sits at the JVM 64 KB per-method ceiling. */
+@Composable
+private fun TrackLastReportMode(reportId: String?, viewMode: Boolean) {
+    LaunchedEffect(reportId, viewMode) {
+        reportId
+            ?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.LastReportTracker.record(it, view = viewMode) }
+    }
+}
+
 /** Wrapper around [ReportSelectFromReportScreen] for the +Report
  *  flow's previous-report picker overlay. Hosts the model-list
  *  conversion (Agent → ReportModel, with deletion fallback) plus
@@ -1182,6 +1197,11 @@ fun ReportsScreen(
     // [ReportsScreen], which already sits at the JVM 64 KB
     // per-method ceiling.
     SeedInitialViewReportScreen { showViewReportScreen = true }
+    // Track the user's CURRENT mode (Manage vs View) in real-time so
+    // the Hub's big-AI-logo "resume" knob lands them back where
+    // they actually were. Extracted out of [ReportsScreen] for the
+    // same bytecode-size reason as SeedInitialViewReportScreen.
+    TrackLastReportMode(reportId = currentReportId, viewMode = showViewReportScreen)
     // Action-row pickers — hoisted up here so they render as proper
     // full-screen overlays. When they lived inside GenerationPhase the
     // parent TitleBar + ActionRow had already painted above them, so
