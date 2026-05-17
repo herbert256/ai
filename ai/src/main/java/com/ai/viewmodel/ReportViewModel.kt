@@ -2590,9 +2590,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 withTracerTags(reportId = reportId, category = "icon_fan_out_2") {
                     val started = System.currentTimeMillis()
                     runCatching {
+                        // Reproduce the pair's actual conversation: the
+                        // pair was sent ONE user message — the resolved
+                        // meta prompt with @RESPONSE@ substituted to the
+                        // source body — and produced ONE assistant
+                        // response (pairContent). Then we add the chat-
+                        // continuation icon prompt. The previous 5-turn
+                        // shape (report prompt → source response → meta
+                        // → pair → ask) prepended a 2-turn exchange the
+                        // pair never actually had — confusing the model
+                        // and yielding a duplicate `metaPromptText` ==
+                        // sourceResponse cell when the meta template
+                        // was bare `@RESPONSE@`.
                         val messages = listOf(
-                            ChatMessage(role = "user", content = reportPrompt),
-                            ChatMessage(role = "assistant", content = sourceResponse),
                             ChatMessage(role = "user", content = metaPromptText),
                             ChatMessage(role = "assistant", content = pairContent),
                             ChatMessage(role = "user", content = chatPrompt.text)

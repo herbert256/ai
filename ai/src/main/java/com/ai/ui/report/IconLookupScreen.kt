@@ -230,23 +230,3 @@ fun buildChatContinuationApiInteraction(
     append("[assistant]\n").append((iconResponse ?: "").trim().ifBlank { "(pending)" })
 }
 
-/** Compose the 6-turn transcript used by the fan-out tier-1 icon
- *  call (mirrors `ReportViewModel.runFanOutTier1`):
- *  user=report prompt → assistant=source agent's response →
- *  user=meta prompt text → assistant=this pair's response →
- *  user=chat-tier icon prompt → assistant=returned emoji. */
-fun buildFanOutTier1ApiInteraction(
-    reportPrompt: String,
-    sourceResponse: String?,
-    metaPromptText: String,
-    pairContent: String?,
-    chatPrompt: String,
-    iconResponse: String?
-): String = buildString {
-    append("[user]\n").append(reportPrompt.trim()).append("\n\n")
-    append("[assistant]\n").append((sourceResponse ?: "(no source response)").trim()).append("\n\n")
-    append("[user]\n").append(metaPromptText.trim()).append("\n\n")
-    append("[assistant]\n").append((pairContent ?: "(no pair response)").trim()).append("\n\n")
-    append("[user]\n").append(chatPrompt.trim()).append("\n\n")
-    append("[assistant]\n").append((iconResponse ?: "").trim().ifBlank { "(pending)" })
-}

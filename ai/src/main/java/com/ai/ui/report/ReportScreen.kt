@@ -3445,11 +3445,13 @@ private fun PairIconDetailOverlay(
         ).replace("@RESPONSE@", sourceBody)
     }.orEmpty()
     val apiInteraction = when (pair.iconWinningTier) {
-        1 -> buildFanOutTier1ApiInteraction(
-            reportPrompt = loadedReportPrompt,
-            sourceResponse = sourceBody,
-            metaPromptText = resolvedMetaForDisplay,
-            pairContent = pair.content,
+        1 -> buildChatContinuationApiInteraction(
+            // Tier-1 reproduces the pair's actual exchange: ONE
+            // user message (the resolved meta prompt with the source
+            // body substituted) → assistant=pair.content → ask for
+            // emoji. Matches the 3-message API call shape.
+            reportPrompt = resolvedMetaForDisplay,
+            agentResponse = pair.content,
             chatPrompt = chatPrompt?.text.orEmpty(),
             iconResponse = pair.icon
         )
