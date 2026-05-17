@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "prompt_view_screen" to HelpContent(
+        title = "Help - Prompt — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the prompt panel inside [ReportsViewerScreen]. Reached from the 📝 Prompt tile on Report - view. Renders the report prompt as a single hero typography card with a Purple-to-Indigo gradient background — primary-document feel, no per-row chrome."),
+            HelpCard("What's on this screen", "Subject row: ✍️ + 'Prompt' in Purple, plus a 🌍 language badge when locked to a translation. Hero card: '✍️ Prompt' label on the left, the report's own emoji on the right of the header strip, the prompt body below rendered through the shared markdown pipeline so fenced code / tables / lists render properly."),
+            HelpCard("Reached from", "📝 Prompt tile on Report - view. The View screen's language picker is carried through: a non-Original tab swaps the body for the matching PROMPT TRANSLATE row when one exists. For copy / share / trace / Translation-compare, drop back to Report - manage and open the same prompt section there."),
+        )
+    ),
     "translate_view" to HelpContent(
         title = "Help - Translate — view",
         cards = listOf(
@@ -2899,6 +2907,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "fan_in_view" to listOf("help_glossary_operations", "concepts"),
     "fan_in_model_view" to listOf("help_glossary_operations", "concepts"),
     "translate_view" to listOf("help_glossary_operations", "help_translations"),
+    "prompt_view_screen" to listOf("help_glossary_operations", "help_translations"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====

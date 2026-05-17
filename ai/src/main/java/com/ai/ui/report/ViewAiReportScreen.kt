@@ -118,7 +118,6 @@ internal fun ViewAiReportScreen(
     /** Receives the View screen's currently-selected language so the
      *  opened sub-screen can lock itself to that language. null = no
      *  force; "" = force Original; non-empty = displayName. */
-    onViewPrompt: (String?) -> Unit,
     onViewReports: (String?) -> Unit,
     onOpenHtmlPreview: () -> Unit,
     onViewLog: () -> Unit,
@@ -223,6 +222,20 @@ internal fun ViewAiReportScreen(
             reportId = reportId,
             translationRunId = activeTranslateViewRunId,
             onBack = { translateViewRunId = null }
+        )
+        return
+    }
+    // Prompt "View" overlay — language captured at tap time so the
+    // opened screen renders the matching PROMPT TRANSLATE row for the
+    // active picker language. A "" string distinguishes "Prompt view
+    // open, locked to Original" from "Prompt view closed" (null).
+    var promptViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var promptViewOpen by rememberSaveable { mutableStateOf(false) }
+    if (promptViewOpen) {
+        PromptViewScreen(
+            reportId = reportId,
+            language = promptViewLanguage?.takeIf { it.isNotEmpty() },
+            onBack = { promptViewOpen = false; promptViewLanguage = null }
         )
         return
     }
@@ -511,7 +524,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewPrompt, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onViewReports, onOpenHtmlPreview, onViewLog, onViewIcons, onViewTrace) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -519,7 +532,10 @@ internal fun ViewAiReportScreen(
                 "Prompt", "📝", AppColors.Purple,
                 enabled = promptEnabled,
                 onMissingClick = if (!promptEnabled) ({ openPromptMissing() }) else null
-            ) { onViewPrompt(currentLanguageState.value) }))
+            ) {
+                promptViewLanguage = currentLanguageState.value
+                promptViewOpen = true
+            }))
             add(IdentifiedTile("doc:Reports", ViewTile(
                 "Reports", "📊", AppColors.Blue,
                 enabled = reportsEnabled,

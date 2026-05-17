@@ -3088,12 +3088,6 @@ private fun ReportPrimaryOverlays(
                 iconRefreshTick = uiState.iconRefreshTick,
                 onMissingPromptIcon = promptIconCallbacks.onKickoff,
                 moderationFlagged = moderationFlagged,
-                onViewPrompt = { lang ->
-                    onSelectedAgentForViewerChange(null)
-                    onViewerSectionChange("prompt")
-                    onViewerLockedLanguageChange(lang)
-                    onShowViewerChange(true)
-                },
                 onViewReports = { lang ->
                     onSelectedAgentForViewerChange(null)
                     onViewerSectionChange(null)
