@@ -410,6 +410,11 @@ fun ReportsHubScreen(
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToQuickLocalSearch: () -> Unit,
     onOpenReport: (String) -> Unit = {},
+    /** Routes the dashboard's "New AI report" top button into the
+     *  dedicated [NewAiReportScreen] wrapper. Wired by AppNavHost
+     *  to `navigate(NavRoutes.AI_NEW_REPORT_HUB)`. Unused until
+     *  commit 5 rewrites the hub body. */
+    @Suppress("UNUSED_PARAMETER") onNavigateToNewAiReport: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Re-fetch on every ON_RESUME — without this, navigating into a

@@ -335,7 +335,19 @@ fun AppNavHost(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.AI_REPORTS)
                     }
-                })
+                },
+                onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) })
+        }
+        composable(NavRoutes.AI_NEW_REPORT_HUB) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.hub.NewAiReportScreen(
+                onNavigateBack = safePopBack,
+                onNavigateHome = navigateHome,
+                onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
+                onNavigateToPromptHistory = { navController.navigate(NavRoutes.AI_PROMPT_HISTORY) },
+                onNavigateToExamplePrompts = { navController.navigate(NavRoutes.AI_EXAMPLE_PROMPT_PICKER) },
+                hasExamplePrompts = uiState.aiSettings.examplePrompts.isNotEmpty()
+            )
         }
         composable(NavRoutes.AI_SEARCH) {
             val context = LocalContext.current

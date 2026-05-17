@@ -31,6 +31,10 @@ object NavRoutes {
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
     const val AI_REPORTS_HUB = "ai_reports_hub"
+    /** Wrapper screen with three tap-through rows that previously
+     *  lived in the Reports hub's "Start" card. Routes to
+     *  [AI_NEW_REPORT] for the actual form screen. */
+    const val AI_NEW_REPORT_HUB = "ai_new_report_hub"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"
