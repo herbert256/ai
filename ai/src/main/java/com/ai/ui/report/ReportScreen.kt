@@ -1053,6 +1053,13 @@ fun ReportsScreen(
     // re-establishes when they reopen Export. Process death falls
     // back to All.
     var htmlPreviewLanguage by remember { mutableStateOf<ExportLanguage>(ExportLanguage.All) }
+    // Fan-out "View" overlay (content-only sibling of FanOutScreen).
+    // Set to a non-null metaPromptName when the user taps a fan-out
+    // tile on Report - view; cleared on back. The accompanying
+    // language carries the View screen's active picker so the opened
+    // screen renders the matching translated body for each pair.
+    var fanOutViewName by rememberSaveable { mutableStateOf<String?>(null) }
+    var fanOutViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var showEditPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditTitle by rememberSaveable { mutableStateOf(false) }
     var showEditParameters by rememberSaveable { mutableStateOf(false) }
@@ -1246,7 +1253,14 @@ fun ReportsScreen(
             onDeleteSecondaryRowById = onDeleteSecondaryWithRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
             onShowAdvancedParametersChange = { showAdvancedParameters = it },
-            onTranslateMissingItems = onTranslateMissingItems
+            onTranslateMissingItems = onTranslateMissingItems,
+            fanOutViewName = fanOutViewName,
+            fanOutViewLanguage = fanOutViewLanguage,
+            onOpenFanOutView = { name, lang ->
+                fanOutViewLanguage = lang
+                fanOutViewName = name
+            },
+            onCloseFanOutView = { fanOutViewName = null; fanOutViewLanguage = null }
         )
     ) return
 
@@ -2965,8 +2979,35 @@ private fun ReportPrimaryOverlays(
     onTranslateMissingItems: (reportId: String,
                               items: List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>,
                               targetLanguageName: String,
-                              targetLanguageNative: String) -> Unit
+                              targetLanguageNative: String) -> Unit,
+    /** When non-null, mounts [FanOutViewScreen] — the content-only
+     *  variant of the fan-out drill-in reached from the Report - view
+     *  tile. The management-heavy [FanOutScreen] reached from Report
+     *  - manage stays unchanged. */
+    fanOutViewName: String?,
+    fanOutViewLanguage: String?,
+    onOpenFanOutView: (metaPromptName: String, language: String?) -> Unit,
+    onCloseFanOutView: () -> Unit
 ): Boolean {
+    if (fanOutViewName != null && currentReportId != null) {
+        val rid = currentReportId
+        val name = fanOutViewName
+        val lang = fanOutViewLanguage
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { onCloseFanOutView() }
+        ) {
+            FanOutViewScreen(
+                reportId = rid,
+                metaPromptName = name,
+                language = lang?.takeIf { it.isNotEmpty() },
+                onBack = { onCloseFanOutView() }
+            )
+        }
+        return true
+    }
+
     if (showIconsView && singleResultAgentId == null && currentReportId != null) {
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
@@ -3016,8 +3057,12 @@ private fun ReportPrimaryOverlays(
                     fanOutItemsByName[summary.metaPromptName] = EveryItem(
                         label = summary.metaPromptName,
                         open = { lang ->
-                            onListLockedLanguageChange(lang)
-                            onListTargetChange(SecondaryKind.META, summary.metaPromptName, false)
+                            // Report - view's fan-out tile lands on the
+                            // dedicated content-only FanOutViewScreen
+                            // instead of the management-heavy
+                            // FanOutScreen (the latter is still reached
+                            // from Report - manage's fan-out row).
+                            onOpenFanOutView(summary.metaPromptName, lang)
                         }
                     )
                 }

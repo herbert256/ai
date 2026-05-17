@@ -729,6 +729,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
+    "fan_out_view" to HelpContent(
+        title = "Help - Fan-out — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the Fan-out manage screen. Reached from a Fan-out tile on Report - view. Renders every (Initiator → Answerer) pair as a chat-style exchange — the Initiator's original report response is the user bubble, the Answerer's fan-out reply is the assistant bubble. No status counters, throttle indicators, or restart / delete / re-run controls."),
+            HelpCard("Pair navigation", "Pairs are grouped by Answerer model — one big indigo header chip per Answerer, every (Initiator → Answerer) reply stacked under it. Long replies collapse to a preview with a Read more / Show less toggle. Scroll vertically through the whole run; back returns to Report - view."),
+            HelpCard("Reached from", "Tile labelled 🌀 <prompt name> on Report - view. The View screen's language picker is carried through — picking a translated tab shows the matching META TRANSLATE row for each pair when one exists (pairs without a translation fall back to the original reply so the thread stays continuous). For management (Restart failed, Remove benched, Run fan-icons, Run combine reports, …) drop back and open the run from Report - manage instead."),
+        )
+    ),
     "secondary_scope" to HelpContent(
         title = "Help - Secondary scope",
         cards = listOf(
@@ -2827,6 +2835,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "secondary_fan_out_l2" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_fan_out_onepage" to listOf("help_glossary_operations"),
+    "fan_out_view" to listOf("help_glossary_operations", "help_translations"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====
