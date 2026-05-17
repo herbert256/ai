@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  In-app AI logo. Same artwork as ic_launcher_foreground but with
+  the launcher's safe-zone padding stripped — the viewport matches
+  the content bbox (56 x 72), so the asset fills whatever Image
+  container it's rendered into. Used everywhere the app shows the
+  logo in-content (Hub home, About, Help footer, etc.).
+
+  ic_launcher_foreground stays at 108 x 108 because Android's
+  launcher icon spec requires the inner 66 % safe zone; cropping
+  it would mis-render in the home-screen grid.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="56dp"
+    android:height="72dp"
+    android:viewportWidth="56"
+    android:viewportHeight="72">
+    <!-- Shift the original 108 x 108 paths so the content bbox
+         (originally x:26..82, y:16..88) starts at (0,0). -->
+    <group android:translateX="-26" android:translateY="-16">
+
+        <!-- Letter A -->
+        <path
+            android:fillColor="#2962FF"
+            android:pathData="M28,75 L38,35 L48,35 L58,75 L50,75 L48,67 L38,67 L36,75 Z M40,60 L46,60 L43,47 Z"/>
+
+        <!-- Letter I -->
+        <path
+            android:fillColor="#2962FF"
+            android:pathData="M62,35 L70,35 L70,75 L62,75 Z"/>
+
+        <!-- Neural network nodes - top (converging to letter A) -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,24 a4,4 0 1,0 0.01,0 z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,20 a4,4 0 1,0 0.01,0 z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M78,24 a4,4 0 1,0 0.01,0 z"/>
+
+        <!-- Connection lines - top nodes to letter A -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.5"
+            android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L48,35"/>
+
+        <!-- Connection lines - bottom nodes from letter I -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="1.5"
+            android:pathData="M66,75 L33,83 M66,75 L55,87 M66,75 L81,83"/>
+
+        <!-- Neural network nodes - bottom -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M30,80 a4,4 0 1,0 0.01,0 z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,84 a4,4 0 1,0 0.01,0 z"/>
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M78,80 a4,4 0 1,0 0.01,0 z"/>
+    </group>
+</vector>
