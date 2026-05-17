@@ -28,28 +28,45 @@ import kotlinx.coroutines.withContext
  * with JS enabled so any inline scripts (table sorting, collapsibles,
  * the rerank-anchor highlight) behave as in the standalone export.
  *
- * The HTML is built off the main thread via [convertReportToHtml] (the
- * same helper Export uses) and then handed to the WebView once. We
- * scope the WebView lifecycle to the composition: cleanup runs when
+ * The HTML is built off the main thread via the same `*FromData`
+ * helpers the Export screen feeds and then handed to the WebView once.
+ * We scope the WebView lifecycle to the composition: cleanup runs when
  * the user backs out so the renderer doesn't hold onto the report
  * payload after the screen is gone.
+ *
+ * When [language] is non-null the preview slices the report via
+ * [buildLanguageViews] before rendering so the user's One-language
+ * pick from the Export screen reaches the WebView; null preserves the
+ * pre-refactor multi-language layout (the in-page language picker
+ * still works inside the WebView in that case).
  */
 @Composable
 fun HtmlPreviewScreen(
     reportId: String,
     detail: ReportExportDetail = ReportExportDetail.COMPLETE,
+    /** Language filter passed through from the Export screen's
+     *  Language card — same encoding as [shareReportAsExport]:
+     *  null = all languages, "" = original-only, non-empty = single
+     *  named translation. */
+    language: String? = null,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val state = produceState<PreviewState>(initialValue = PreviewState.Loading, reportId, detail) {
+    val state = produceState<PreviewState>(initialValue = PreviewState.Loading, reportId, detail, language) {
         value = withContext(Dispatchers.IO) {
             val report: Report? = ReportStorage.getReport(context, reportId)
             if (report == null) PreviewState.NotFound
             else {
+                val base = buildHtmlReportData(context, report)
+                val data: HtmlReportData = if (language == null) base else {
+                    val views = buildLanguageViews(base)
+                    val targetKey = if (language.isBlank()) LangTab.ORIGINAL_KEY else languageKey(language)
+                    views.firstOrNull { it.key == targetKey }?.data ?: base
+                }
                 val raw = when (detail) {
-                    ReportExportDetail.COMPLETE -> convertReportToHtml(context, report, getAppVersionForPreview(context))
-                    ReportExportDetail.SHORT -> buildShortHtml(context, report)
+                    ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersionForPreview(context))
+                    ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
                 }
                 // Both exporters open with `<h1>title</h1>`
                 // immediately after the body wrapper. The title bar

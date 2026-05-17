@@ -1019,6 +1019,11 @@ fun ReportsScreen(
     // opens it; the Export screen's "View in app" pipes its own
     // detail picker through.
     var htmlPreviewDetail by rememberSaveable { mutableStateOf<ReportExportDetail?>(null) }
+    // Optional language filter piped through from the Export screen's
+    // Language card. null = render every language (the in-WebView
+    // language picker stays interactive); "" = original-only;
+    // non-empty = single named translation. Cleared with the preview.
+    var htmlPreviewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var showEditPrompt by rememberSaveable { mutableStateOf(false) }
     var showEditTitle by rememberSaveable { mutableStateOf(false) }
     var showEditParameters by rememberSaveable { mutableStateOf(false) }
@@ -2202,7 +2207,11 @@ fun ReportsScreen(
                 onNavigateHome = onNavigateHome,
                 onExport = { fmt, det, act, lang, onProgress -> onExport(rid, fmt, det, act, lang, onProgress) },
                 onExportAll = { lang, onProgress -> onExportAll(rid, lang, onProgress) },
-                onViewInApp = { det, _ -> showExport = false; htmlPreviewDetail = det },
+                onViewInApp = { det, lang ->
+                    showExport = false
+                    htmlPreviewLanguage = lang
+                    htmlPreviewDetail = det
+                },
                 availableLanguages = exportLangTabs,
                 sourceLanguageIcon = sourceLanguageIcon
             )
@@ -2212,11 +2221,13 @@ fun ReportsScreen(
 
     if (htmlPreviewDetail != null && currentReportId != null) {
         val previewDetail = htmlPreviewDetail!!
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null }) {
+        val previewLanguage = htmlPreviewLanguage
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null; htmlPreviewLanguage = null }) {
             HtmlPreviewScreen(
                 reportId = currentReportId,
                 detail = previewDetail,
-                onBack = { htmlPreviewDetail = null }
+                language = previewLanguage,
+                onBack = { htmlPreviewDetail = null; htmlPreviewLanguage = null }
             )
         }
         return
@@ -2341,7 +2352,7 @@ fun ReportsScreen(
             pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
             showModerationPicker = true
         },
-        onOpenHtmlPreview = { htmlPreviewDetail = ReportExportDetail.COMPLETE },
+        onOpenHtmlPreview = { htmlPreviewLanguage = null; htmlPreviewDetail = ReportExportDetail.COMPLETE },
         onViewReports = {
             selectedAgentForViewer = null; viewerSection = null
             viewerLockedLanguage = null
