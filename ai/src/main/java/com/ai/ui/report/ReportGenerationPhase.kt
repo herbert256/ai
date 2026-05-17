@@ -575,22 +575,16 @@ internal fun ColumnScope.GenerationPhase(
         }
         "action" -> {
             Spacer(modifier = Modifier.height(4.dp))
+            // Regenerate / Delete / Export moved to the title-bar
+            // icon row (🔄 / 🗑 / 📤) — they used to also live here
+            // but a duplicate hit area on the same screen is just
+            // noise. Copy + Pin/Unpin stay because they have no
+            // matching title-bar icon.
             ActionRow {
-                CompactButton(
-                    onClick = { close(); onRequestRegenerate() },
-                    color = actionColor, text = "Regenerate",
-                    enabled = currentReportId != null && isComplete
-                )
                 CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
-                CompactButton(onClick = { close(); onRequestDelete() }, color = actionColor, text = "Delete")
                 CompactButton(
                     onClick = { onTogglePin(); pinTick++; close() },
                     color = actionColor, text = if (isPinned) "Unpin" else "Pin"
-                )
-                CompactButton(
-                    onClick = { close(); onRequestExport() },
-                    color = actionColor, text = "Export",
-                    enabled = currentReportId != null && isComplete
                 )
             }
         }
