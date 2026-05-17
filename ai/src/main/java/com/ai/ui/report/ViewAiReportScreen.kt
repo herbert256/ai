@@ -466,8 +466,12 @@ internal fun ViewAiReportScreen(
                 e
             } else null
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
+            // sourceRows is now single-element per META item — its id
+            // disambiguates two tiles that share a metaPromptName so
+            // the persisted tile-order map stays unique.
+            val rowId = item.sourceRows.firstOrNull()?.id ?: item.label
             IdentifiedTile(
-                id = "meta:${item.label}",
+                id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
                     label = item.label,
                     emoji = promptEmoji ?: "🧠",

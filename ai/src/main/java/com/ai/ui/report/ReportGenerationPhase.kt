@@ -126,43 +126,29 @@ internal fun buildEveryItems(
         }
         .groupBy { it.translateSourceTargetId!! }
         .mapValues { (_, rows) -> rows.mapNotNullTo(mutableSetOf()) { it.targetLanguage } }
+    // Each META row gets its own EveryItem (and therefore its own
+    // tile on Report - view), even when several share the same
+    // metaPromptName. Previously we collapsed same-name rows into
+    // one tile that opened a list picker; now the user sees every
+    // run laid out alongside the rest of the grid.
+    fun fold(lang: String): String =
+        if (reportLanguageName != null && lang == reportLanguageName) "" else lang
     val meta = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "meta" }
-        .groupBy { it.metaPromptName ?: "Meta" }
-        .map { (name, rows) ->
+        .map { row ->
+            val name = row.metaPromptName ?: "Meta"
             val prompt = promptByName[name]
-            // Available languages = union of own targetLanguage of
-            // every row in the group (null → "" for Original) and
-            // every cross-translate language for those rows. A
-            // language matching reportLanguageName collapses to ""
-            // (back-translation) so the Original tab un-grays once
-            // the user has translated this meta back to the source.
-            fun fold(lang: String): String =
-                if (reportLanguageName != null && lang == reportLanguageName) "" else lang
+            val own = row.targetLanguage?.takeIf { it.isNotBlank() } ?: ""
             val langs = mutableSetOf<String>()
-            rows.forEach { r ->
-                val own = r.targetLanguage?.takeIf { it.isNotBlank() } ?: ""
-                langs.add(if (own.isEmpty()) "" else fold(own))
-                translateByMetaId[r.id]?.forEach { trLang -> langs.add(fold(trLang)) }
-            }
-            if (rows.size == 1) {
-                val row = rows.first()
-                EveryItem(
-                    label = name,
-                    prompt = prompt,
-                    availableLanguages = langs,
-                    sourceRows = rows,
-                    open = { lang -> onOpenSecondaryRun(row.id, lang) }
-                )
-            } else {
-                EveryItem(
-                    label = name,
-                    prompt = prompt,
-                    availableLanguages = langs,
-                    sourceRows = rows,
-                    open = { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) }
-                )
-            }
+            langs.add(if (own.isEmpty()) "" else fold(own))
+            translateByMetaId[row.id]?.forEach { trLang -> langs.add(fold(trLang)) }
+            EveryItem(
+                label = name,
+                prompt = prompt,
+                availableLanguages = langs,
+                sourceRows = listOf(row),
+                open = { lang -> onOpenSecondaryRun(row.id, lang) }
+            )
         }
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
