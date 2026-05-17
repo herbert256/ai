@@ -571,7 +571,7 @@ fun TitleBar(
     Row(
         modifier = modifier.fillMaxWidth().layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
-            val shift = 10.dp.roundToPx()
+            val shift = 16.dp.roundToPx()
             layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
                 placeable.place(0, -shift)
             }
@@ -580,7 +580,7 @@ fun TitleBar(
     ) {
         AiLogoButton(
             onClick = navigateHome,
-            modifier = Modifier.offset(x = (-14).dp, y = (-10).dp)
+            modifier = Modifier.offset(x = (-14).dp, y = (-2).dp)
         )
         HelpButton(
             onClick = { navigateHelp(helpTopic) },
