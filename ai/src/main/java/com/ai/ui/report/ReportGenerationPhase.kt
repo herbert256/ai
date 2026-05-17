@@ -549,22 +549,36 @@ internal fun ColumnScope.GenerationPhase(
                     color = createColor, text = "Meta",
                     enabled = metaPrompts.isNotEmpty()
                 )
-                CompactButton(onClick = {
-                    // The rerank picker enumerates every configured
-                    // provider's models filtered to RERANK type; on
-                    // catalog-heavy setups that first composition can
-                    // take a noticeable beat. Toast on tap so the user
-                    // knows the click landed.
-                    android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
-                    close(); onOpenRerankPicker()
-                }, color = createColor, text = "Rerank")
-                CompactButton(onClick = {
-                    // Same loading-toast rationale as rerank — the
-                    // moderation picker filters every provider's
-                    // catalog down to MODERATION-typed entries.
-                    android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
-                    close(); onOpenModerationPicker()
-                }, color = createColor, text = "Moderation")
+                // Rerank / Moderation are single-shot per report — a
+                // second run would just overwrite the first's tile.
+                // Gray the buttons out once a result of that kind
+                // already exists on the report.
+                val hasRerank = secondaryCounts.rerank > 0
+                val hasModeration = secondaryCounts.moderation > 0
+                CompactButton(
+                    onClick = {
+                        // The rerank picker enumerates every configured
+                        // provider's models filtered to RERANK type; on
+                        // catalog-heavy setups that first composition can
+                        // take a noticeable beat. Toast on tap so the user
+                        // knows the click landed.
+                        android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
+                        close(); onOpenRerankPicker()
+                    },
+                    color = createColor, text = "Rerank",
+                    enabled = !hasRerank
+                )
+                CompactButton(
+                    onClick = {
+                        // Same loading-toast rationale as rerank — the
+                        // moderation picker filters every provider's
+                        // catalog down to MODERATION-typed entries.
+                        android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
+                        close(); onOpenModerationPicker()
+                    },
+                    color = createColor, text = "Moderation",
+                    enabled = !hasModeration
+                )
                 CompactButton(
                     onClick = { close(); onOpenFanOutPicker() },
                     color = createColor, text = "Fan out",
