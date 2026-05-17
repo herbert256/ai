@@ -5290,6 +5290,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             sourceReportId = sourceReportId,
             totalCost = newAgents.mapNotNull { it.cost }.sum()
         )
+        // Mirror the source's icon + language visible state onto the
+        // new report. Without this the inline icon / language rows on
+        // the new report's Report - manage screen would sit with a
+        // spinning ⏳ forever (icon null + error null = "generating",
+        // languageName null + error null = "detecting"), even though
+        // nothing is actually running — the fan-out derivation never
+        // schedules those API calls. Same shape as
+        // ReportStorage.copyReport's icon + language carry-over.
+        // Costs / tokens / trace files stay at defaults: those calls
+        // were paid for by the source.
+        newReport.icon = source.icon
+        newReport.iconErrorMessage = source.iconErrorMessage
+        newReport.languageName = source.languageName
+        newReport.languageIcon = source.languageIcon
+        newReport.languageIconErrorMessage = source.languageIconErrorMessage
         ReportStorage.persistReport(context, newReport)
         newReport.id
     }
