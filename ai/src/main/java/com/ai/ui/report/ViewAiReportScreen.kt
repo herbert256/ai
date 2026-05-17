@@ -586,12 +586,13 @@ internal fun ViewAiReportScreen(
                 reportsViewOpen = true
             }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))
-            add(IdentifiedTile("doc:HTML", ViewTile("HTML", "🌐", AppColors.Indigo) { onOpenHtmlPreview() }))
-            // Log + Trace tiles are deliberately omitted from the View
-            // grid — the content-only View surface focuses on the
-            // report's outputs, not its operational logs / API traces.
-            // Both destinations remain reachable from the result page's
-            // bottom-bar icons (📜 App Log, 🐞 Trace list).
+            // HTML preview, Log, Trace tiles are deliberately omitted
+            // from the View grid — the content-only View surface
+            // focuses on the report's outputs, not export views or
+            // operational logs / API traces. HTML preview remains
+            // reachable from Report - manage; Log + Trace from the
+            // result page's bottom-bar icons (📜 App Log, 🐞 Trace
+            // list).
             add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
         }
     }
