@@ -152,11 +152,18 @@ internal fun FanOutL1Screen(
         // Errors and Bench split the errored set — a benched entry
         // will recover once its cooldown lifts, so it's counted
         // separately instead of under Errors.
+        // Use iconStatus() in ICONS mode — it folds in the "no
+        // content but finished response" case (durationMs set,
+        // content blank) which lands as ERROR for icon purposes
+        // even though no iconErrorMessage was written. Counting on
+        // iconErrorMessage alone would silently drop those pairs
+        // from every counter and leave them unaccounted in the L1
+        // stats row (Total - Done - Errors - ... mismatch).
         val errorCount = if (isIconsMode)
-            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() && !benched(it.providerId, it.model) }
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.ERROR && !benched(it.providerId, it.model) }
             else run.pairs.values.count { it.status == PairStatus.ERROR && !benched(it.providerId, it.model) }
         val benchCount = if (isIconsMode)
-            run.pairs.values.count { !it.iconErrorMessage.isNullOrBlank() && benched(it.providerId, it.model) }
+            run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.ERROR && benched(it.providerId, it.model) }
             else run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
         val runningCount = if (isIconsMode)
             run.pairs.values.count { it.iconStatus(runningSet) == PairStatus.RUNNING }

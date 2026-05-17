@@ -206,11 +206,11 @@ fun FanOutScreen(
         while (true) {
             kotlinx.coroutines.delay(3_000)
             val current = engine.runs.value[runKey] ?: continue
-            val unsettled = current.pairs.values.any {
-                it.status != com.ai.data.PairStatus.DONE &&
-                    it.status != com.ai.data.PairStatus.ERROR
+            val settled = current.pairs.values.all {
+                it.status == com.ai.data.PairStatus.DONE ||
+                    it.status == com.ai.data.PairStatus.ERROR
             }
-            if (!unsettled) continue   // settled — nothing to refresh
+            if (settled) continue
             withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
         }
     }
