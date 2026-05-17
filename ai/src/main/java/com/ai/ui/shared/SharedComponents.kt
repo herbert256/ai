@@ -625,10 +625,15 @@ fun TitleBar(
 
 @Composable
 private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Image(
         painter = painterResource(R.drawable.brand_glyph),
         contentDescription = "Home",
-        modifier = modifier.size(52.dp).clickable(onClick = onClick)
+        modifier = modifier.size(52.dp).clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            onClick = onClick
+        )
     )
 }
 

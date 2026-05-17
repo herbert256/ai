@@ -189,11 +189,17 @@ fun HubScreen(
         val logoSize = (maxHeight - cardsHeight).coerceIn(80.dp, 160.dp)
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(40.dp))
+            val logoInteractionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
             Image(
                 painter = painterResource(id = R.drawable.brand_glyph),
                 contentDescription = "AI App Logo",
                 modifier = Modifier.size(logoSize).offset(y = (-32).dp)
-                    .then(if (hasAnyReport) Modifier.clickable { onOpenLatestReport() } else Modifier)
+                    .then(
+                        if (hasAnyReport) Modifier.clickable(
+                            interactionSource = logoInteractionSource,
+                            indication = null
+                        ) { onOpenLatestReport() } else Modifier
+                    )
             )
             // Inactive cards are hidden entirely (rather than rendered
             // grayed-out + non-clickable as in earlier builds). Each
