@@ -110,6 +110,16 @@ fun ViewScreenTitleBar(
             // ellipsize — overflow at the smaller size clips cleanly
             // and the user's title stays readable.
             var bigSizeFits by remember(reportTitle) { mutableStateOf(true) }
+            // Tapping the report title jumps back to the report's
+            // Manage screen. Hooked off [LocalNavigateToCurrentReport]
+            // which the Report - manage host wraps the View overlay
+            // in; help pages don't provide it, so on a help screen
+            // the title is plain text.
+            val navigateToManage = LocalNavigateToCurrentReport.current
+            val titleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
+            val titleModifier = Modifier.weight(1f).let {
+                if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
+            }
             Text(
                 text = reportTitle.orEmpty(),
                 color = Color.White,
@@ -124,7 +134,7 @@ fun ViewScreenTitleBar(
                         bigSizeFits = false
                     }
                 },
-                modifier = Modifier.weight(1f)
+                modifier = titleModifier
             )
             Text(
                 text = "❓",
