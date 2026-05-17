@@ -363,11 +363,15 @@ fun ReportsHubScreen(
             Button(
                 onClick = onNavigateToNewAiReport,
                 modifier = Modifier.weight(1f)
-            ) { Text("New AI report", maxLines = 1, softWrap = false) }
+            ) { Text("New", maxLines = 1, softWrap = false) }
             Button(
                 onClick = onNavigateToSearchAiReports,
                 modifier = Modifier.weight(1f)
-            ) { Text("Search AI reports", maxLines = 1, softWrap = false) }
+            ) { Text("Search", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = onNavigateToAllReports,
+                modifier = Modifier.weight(1f)
+            ) { Text("All", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(12.dp))
         ReportsHubListCard(
@@ -389,12 +393,6 @@ fun ReportsHubScreen(
             accentEmoji = "🕘", accentColor = AppColors.Blue,
             label = "Latest AI Reports", reports = latestReports
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onNavigateToAllReports,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-        ) { Text("All AI reports", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(16.dp))
     }
     }
