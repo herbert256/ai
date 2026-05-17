@@ -169,9 +169,12 @@ suspend fun shareReportAsExport(
     }
 
     onProgress(0, 1)
+    // HTML / PDF formats: skip the in-HTML JSON trace dump. Users
+    // who want the trace JSON pick the JSON format instead; Zipped
+    // HTML keeps its own per-language JSON view via ZippedHtmlExport.
     val html = when (detail) {
         ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
-        ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersion(context))
+        ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersion(context), includeJsonView = false)
     }
     onProgress(1, 1)
 

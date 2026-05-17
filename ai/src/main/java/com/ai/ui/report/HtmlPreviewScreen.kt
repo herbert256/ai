@@ -58,7 +58,7 @@ fun HtmlPreviewScreen(
             else {
                 val data = language.resolveSlice(buildHtmlReportData(context, report))
                 val raw = when (detail) {
-                    ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersionForPreview(context))
+                    ReportExportDetail.COMPLETE -> convertReportToHtmlFromData(data, getAppVersionForPreview(context), includeJsonView = false)
                     ReportExportDetail.SHORT -> buildShortHtmlFromData(data)
                 }
                 // Both exporters open with `<h1>title</h1>`

@@ -77,9 +77,11 @@ private fun buildMediumBlocks(data: com.ai.ui.report.HtmlReportData, short: Bool
     }
 
     if (!short) {
-        // Short skips the cost table and the JSON-trace dump per spec.
+        // DOCX / ODT used to also dump the redacted API traces here.
+        // Removed: traces belong in the JSON export format (or the
+        // per-language JSON view inside Zipped HTML). Keeping them
+        // duplicated across every long-form document was just noise.
         appendCosts(out, data)
-        appendTraces(out, data.traces)
     }
 
     if (!data.closeText.isNullOrBlank()) {

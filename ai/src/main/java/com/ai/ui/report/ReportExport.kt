@@ -278,14 +278,27 @@ internal fun openReportInChrome(context: android.content.Context, reportId: Stri
 // ===== HTML Conversion =====
 
 internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
-    return renderHtmlReport(buildHtmlReportData(context, report), appVersion)
+    // Legacy external-intent path used by share / email / browser
+    // actions. Match the Export screen's HTML format — no inline
+    // JSON trace dump. Use the JSON export format for that.
+    return renderHtmlReport(buildHtmlReportData(context, report), appVersion, includeJsonView = false)
 }
 
 /** Complete HTML renderer from a pre-built [HtmlReportData].
  *  Per-language exports feed a `buildLanguageViews(base)` slice
- *  in here so the translated content reaches the renderer. */
-internal fun convertReportToHtmlFromData(data: HtmlReportData, appVersion: String): String =
-    renderHtmlReport(data, appVersion)
+ *  in here so the translated content reaches the renderer.
+ *
+ *  [includeJsonView] toggles the in-HTML "JSON" tab that dumps the
+ *  redacted API traces. Standalone HTML / PDF / DOCX / ODT exports
+ *  and the in-app HTML preview pass `false` — those formats either
+ *  don't need an inline trace dump (the user can pick the JSON
+ *  format for that) or surface traces through their own renderer
+ *  (Zipped HTML, JSON). */
+internal fun convertReportToHtmlFromData(
+    data: HtmlReportData,
+    appVersion: String,
+    includeJsonView: Boolean = true
+): String = renderHtmlReport(data, appVersion, includeJsonView)
 
 /** Build the unified data shape every Medium-equivalent export consumes:
  *  the agent list with cost/anchor data, the secondary results, and the
@@ -554,7 +567,11 @@ private fun ApiTrace.toRedactedExportJson(): String {
 // rather than IDs, so identical button/card markup in different
 // language blocks doesn't collide.
 
-private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
+private fun renderHtmlReport(
+    data: HtmlReportData,
+    appVersion: String,
+    includeJsonView: Boolean = true
+): String {
     val sb = StringBuilder()
     sb.append(htmlHead(data.title))
     sb.append("<body><div class='container'>")
@@ -583,7 +600,7 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
     languages.forEachIndexed { i, lv ->
         val display = if (i == 0) "block" else "none"
         sb.append("<div class='lang-block' data-lang='${lv.key}' style='display:$display'>")
-        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"))
+        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"), includeJsonView = includeJsonView)
         sb.append("</div>")
     }
 
@@ -599,7 +616,12 @@ private fun renderHtmlReport(data: HtmlReportData, appVersion: String): String {
  *  the views whose content is shared across languages (Costs, JSON) or
  *  doesn't have meaningful translations (Reranks, Moderations) — those
  *  appear only in the Original block. */
-private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOriginal: Boolean) {
+private fun renderLanguageBlock(
+    sb: StringBuilder,
+    lv: HtmlLanguageView,
+    isOriginal: Boolean,
+    includeJsonView: Boolean = true
+) {
     val data = lv.data
     val defaultAllTogether = data.reportType == ReportType.TABLE
     val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
@@ -618,7 +640,7 @@ private fun renderLanguageBlock(sb: StringBuilder, lv: HtmlLanguageView, isOrigi
     val hasAgentCosts = data.agents.any { it.inputTokens != null }
     val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
     val hasCosts = isOriginal && (hasAgentCosts || hasSecondaryCosts)
-    val hasJson = isOriginal && data.traces.isNotEmpty()
+    val hasJson = isOriginal && data.traces.isNotEmpty() && includeJsonView
     val showReranks = isOriginal && reranks.isNotEmpty()
     val showModerations = isOriginal && moderations.isNotEmpty()
     val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0

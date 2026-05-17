@@ -109,7 +109,7 @@ internal suspend fun bulkExportAndShare(
             // HTML Short / Complete
             File(langDir, "${safeTitle}_short.html").writeText(buildShortHtmlFromData(data)); bump()
             File(langDir, "${safeTitle}_complete.html")
-                .writeText(convertReportToHtmlFromData(data, appVersion)); bump()
+                .writeText(convertReportToHtmlFromData(data, appVersion, includeJsonView = false)); bump()
             // DOCX Short / Complete
             File(langDir, "${safeTitle}_short.docx")
                 .writeBytes(buildDocxBytesFromData(data, short = true)); bump()
@@ -136,7 +136,7 @@ internal suspend fun bulkExportAndShare(
             // PDF Complete — JS-injected TOC page with computed page numbers
             run {
                 val pdfComplete = File(langDir, "${safeTitle}_complete.pdf")
-                val staticHtml = makeStaticForPdf(convertReportToHtmlFromData(data, appVersion))
+                val staticHtml = makeStaticForPdf(convertReportToHtmlFromData(data, appVersion, includeJsonView = false))
                 withContext(Dispatchers.Main) {
                     renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
                 }
