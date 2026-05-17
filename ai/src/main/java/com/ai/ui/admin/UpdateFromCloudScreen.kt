@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -209,14 +210,32 @@ fun UpdateFromCloudScreen(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-                    Text(
-                        "built " + com.ai.ui.admin.readBundledBuildStamp(context),
-                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        "installed " + com.ai.ui.admin.formatAppInstalledTime(context),
-                        color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
-                    )
+                    // Two columns so the timestamps line up despite
+                    // the different label widths ("built" / "installed").
+                    Row {
+                        Text(
+                            "built    ",
+                            color = AppColors.TextTertiary, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            com.ai.ui.admin.readBundledBuildStamp(context),
+                            color = AppColors.TextTertiary, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Row {
+                        Text(
+                            "installed",
+                            color = AppColors.TextTertiary, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            " " + com.ai.ui.admin.formatAppInstalledTime(context),
+                            color = AppColors.TextTertiary, fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
 
