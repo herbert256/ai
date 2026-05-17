@@ -52,7 +52,7 @@
         <path
             android:strokeColor="#FFFFFF"
             android:strokeWidth="1.5"
-            android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L48,35"/>
+            android:pathData="M30,28 L43,35 M54,24 L43,35 M78,28 L43,35"/>
 
         <!-- Connection lines - bottom nodes from letter I -->
         <path
