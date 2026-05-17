@@ -153,48 +153,66 @@ fun HelpScreen(
                     RelevantHelpPagesCard(related, onNavigateToTopic)
                 }
             } else {
-                CompactOverview(onNavigateToTopic, onNavigateToAbout)
+                CompactOverview(onNavigateToTopic)
             }
-            // Footer pinned to every help page: a back-to-Help-home
-            // link (per-topic pages only) plus an About link. The
-            // home page renders only the About link inside its
-            // CompactOverview Copyright card; we add nothing extra
-            // here for that case.
-            if (topic != null) {
-                HelpFooter(
-                    onNavigateToHelpHome = onNavigateToHelpHome,
-                    onNavigateToAbout = onNavigateToAbout
-                )
-            }
+            // Footer pinned to every help page. On per-topic pages
+            // the Help-home row is included; on Help home itself
+            // (rendered by CompactOverview) the same footer is
+            // appended without the Help-home row.
+            HelpFooter(
+                onNavigateToHelpHome = if (topic != null) onNavigateToHelpHome else null,
+                onNavigateToAbout = onNavigateToAbout
+            )
         }
     }
 }
 
 @Composable
 private fun HelpFooter(
-    onNavigateToHelpHome: () -> Unit,
+    onNavigateToHelpHome: (() -> Unit)?,
     onNavigateToAbout: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                androidx.compose.foundation.Image(
-                    painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ic_launcher_foreground),
-                    contentDescription = "Help home",
-                    alpha = 0.75f,
-                    modifier = Modifier.size(28.dp).padding(end = 4.dp)
-                )
-                Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (onNavigateToHelpHome != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ic_launcher_foreground),
+                        contentDescription = "Help home",
+                        alpha = 0.75f,
+                        modifier = Modifier.size(40.dp).padding(end = 6.dp)
+                    )
+                    Text("Help home", fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("ℹ️", fontSize = 14.sp, modifier = Modifier.width(24.dp))
-                Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("ℹ️", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                Text("About", fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable {
+                    context.startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://github.com/herbert256/ai")
+                        )
+                    )
+                },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🐙", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                Text(
+                    "GitHub: herbert256/ai",
+                    fontSize = 16.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                )
             }
         }
     }
@@ -222,8 +240,7 @@ private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick:
 
 @Composable
 private fun CompactOverview(
-    onNavigateToTopic: (String) -> Unit = {},
-    onNavigateToAbout: () -> Unit = {}
+    onNavigateToTopic: (String) -> Unit = {}
 ) {
     // Help-home search box — case-insensitive substring search
     // across every topic title + every card title + every card
@@ -328,18 +345,9 @@ private fun CompactOverview(
         "Copyright",
         "Copyright © Herbert Groot Jebbink. Licensed under the GNU General Public License v2.0 — see the LICENSE file at the root of the source repository."
     )
-    // About link on the home help page — per-topic pages get this
-    // plus a Help-home link via HelpFooter; the home page only
-    // surfaces About (it IS the help home).
-    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() }.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("ℹ️", fontSize = 14.sp, modifier = Modifier.width(24.dp))
-            Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-        }
-    }
+    // The About + GitHub footer is appended by HelpScreen via
+    // HelpFooter (no Help-home row on this page since we ARE the
+    // home).
 }
 
 /** Single result row in the Help-home search panel. [matchedCardTitle]
