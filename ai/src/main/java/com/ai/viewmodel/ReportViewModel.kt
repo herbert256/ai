@@ -5850,7 +5850,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val cancelled: Boolean = false,
         /** Cost-vs-speed knob the L1 screen exposes. Mutated via
          *  [setTranslationMode]; workers re-read on every queue pull. */
-        val mode: TranslationMode = TranslationMode.COST
+        val mode: TranslationMode = TranslationMode.COST,
+        /** The run's intended (provider, model) set — strings in the
+         *  same `"$providerId|$model"` shape as `translationModelKey`.
+         *  Surfaced on the L1 screen so every model the user picked
+         *  appears immediately, even before its worker has pulled
+         *  its first item; otherwise the cost-aware hesitation made
+         *  expensive models invisible for the first few seconds.
+         *  Populated at every TranslationRunState construction site. */
+        val models: List<String> = emptyList()
     ) {
         val total: Int get() = items.size
         val completed: Int get() = items.count { it.status == TranslationStatus.DONE || it.status == TranslationStatus.ERROR }
@@ -5991,7 +5999,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // Brand-new runId always has no persisted entry → COST.
                 // Kept explicit for symmetry with the resume / persisted
                 // reconstruction paths below.
-                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
+                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
+                models = models.distinctBy { (p, m) -> p.id to m }
+                    .map { (p, m) -> "${p.id}|$m" }
             )) }
             AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
@@ -6935,7 +6945,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             totalCostDollars = items.sumOf { it.costDollars },
             finished = true,
             cancelled = false,
-            mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
+            mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
+            // Distinct (providerId, model) tuples from the disk rows
+            // — skipping the blank-provider placeholder rows that
+            // haven't been claimed by a worker yet.
+            models = rows
+                .filter { it.providerId.isNotBlank() && it.model.isNotBlank() }
+                .map { "${it.providerId}|${it.model}" }
+                .distinct()
         )
     }
 
@@ -7125,7 +7142,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguageNative = targetLanguageNative,
                 items = persistedItems + items,
                 totalCostDollars = persistedItems.sumOf { it.costDollars },
-                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
+                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
+                models = runModels.map { (p, m) -> "${p.id}|$m" }
             )
             runs + (runId to merged)
         }

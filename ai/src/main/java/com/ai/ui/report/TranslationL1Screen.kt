@@ -116,24 +116,39 @@ internal fun TranslationL1Screen(
     // items (providerId/model still null) drop out — they show only
     // in the Queue stat. Sorted by items done, descending — so the
     // busiest model (full bar) stays at the top.
-    val modelRows = remember(items) {
-        items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
+    //
+    // We then union the run's intended model set (run.models) so any
+    // model that hasn't yet pulled an item — typically the expensive
+    // workers held by the cost-aware hesitation — appears as an empty
+    // zero-progress row at the bottom instead of staying invisible
+    // until its first item lands.
+    val runModels = run.models
+    val modelRows = remember(items, runModels) {
+        val byKey = items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
             .groupBy({ it.first }, { it.second })
-            .map { (key, its) ->
-                TranslationModelRow(
-                    modelKey = key,
-                    total = its.size,
-                    done = its.count { it.status == ReportViewModel.TranslationStatus.DONE },
-                    err = its.count { it.status == ReportViewModel.TranslationStatus.ERROR },
-                    running = its.count { it.status == ReportViewModel.TranslationStatus.RUNNING },
-                    cost = its.sumOf { it.costDollars }
+        val seen = byKey.keys.toMutableSet()
+        val rows = byKey.map { (key, its) ->
+            TranslationModelRow(
+                modelKey = key,
+                total = its.size,
+                done = its.count { it.status == ReportViewModel.TranslationStatus.DONE },
+                err = its.count { it.status == ReportViewModel.TranslationStatus.ERROR },
+                running = its.count { it.status == ReportViewModel.TranslationStatus.RUNNING },
+                cost = its.sumOf { it.costDollars }
+            )
+        }.toMutableList()
+        runModels.forEach { key ->
+            if (seen.add(key)) {
+                rows += TranslationModelRow(
+                    modelKey = key, total = 0, done = 0, err = 0, running = 0, cost = 0.0
                 )
             }
-            .sortedWith(
-                compareByDescending<TranslationModelRow> { it.done }
-                    .thenByDescending { it.total }
-                    .thenBy { it.modelKey.substringAfter('|').lowercase() }
-            )
+        }
+        rows.sortedWith(
+            compareByDescending<TranslationModelRow> { it.done }
+                .thenByDescending { it.total }
+                .thenBy { it.modelKey.substringAfter('|').lowercase() }
+        )
     }
     // Bar denominator: the busiest model's done count. That model
     // gets a full-width bar; the rest are proportional to it.
