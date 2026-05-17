@@ -38,6 +38,9 @@ object NavRoutes {
     /** Wrapper screen with four search-mode tap-throughs that used
      *  to live in the Reports hub's "Search" card. */
     const val AI_SEARCH_REPORTS = "ai_search_reports"
+    /** Paginated browser of every saved report — swipe-paged
+     *  HorizontalPager with auto-fit rows-per-page. */
+    const val AI_ALL_REPORTS = "ai_all_reports"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"

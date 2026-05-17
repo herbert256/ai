@@ -420,6 +420,11 @@ fun ReportsHubScreen(
      *  AppNavHost to `navigate(NavRoutes.AI_SEARCH_REPORTS)`.
      *  Unused until commit 5 rewrites the hub body. */
     @Suppress("UNUSED_PARAMETER") onNavigateToSearchAiReports: () -> Unit = {},
+    /** Routes the dashboard's "All AI reports" bottom button to
+     *  the paginated [AllAiReportsScreen]. Wired by AppNavHost to
+     *  `navigate(NavRoutes.AI_ALL_REPORTS)`. Unused until commit 5
+     *  rewrites the hub body. */
+    @Suppress("UNUSED_PARAMETER") onNavigateToAllReports: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // Re-fetch on every ON_RESUME — without this, navigating into a

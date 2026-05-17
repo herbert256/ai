@@ -337,7 +337,8 @@ fun AppNavHost(
                     }
                 },
                 onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
-                onNavigateToSearchAiReports = { navController.navigate(NavRoutes.AI_SEARCH_REPORTS) })
+                onNavigateToSearchAiReports = { navController.navigate(NavRoutes.AI_SEARCH_REPORTS) },
+                onNavigateToAllReports = { navController.navigate(NavRoutes.AI_ALL_REPORTS) })
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {
             val uiState by appViewModel.uiState.collectAsState()
@@ -359,6 +360,31 @@ fun AppNavHost(
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
                 onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) }
             )
+        }
+        composable(NavRoutes.AI_ALL_REPORTS) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
+                    onOpenManage = { rid ->
+                        scope.launch {
+                            reportViewModel.restoreCompletedReport(context, rid)
+                            navController.navigate(NavRoutes.aiReportManage())
+                        }
+                    },
+                    onOpenView = { rid ->
+                        scope.launch {
+                            reportViewModel.restoreCompletedReport(context, rid)
+                            navController.navigate(NavRoutes.aiReportView())
+                        }
+                    }
+                )
+            ) {
+                com.ai.ui.hub.AllAiReportsScreen(
+                    onNavigateBack = safePopBack,
+                    onNavigateHome = navigateHome
+                )
+            }
         }
         composable(NavRoutes.AI_SEARCH) {
             val context = LocalContext.current
