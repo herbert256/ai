@@ -510,7 +510,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "view_ai_report" to HelpContent(
-        title = "Help - Report",
+        title = "Help - View AI report",
         cards = listOf(
             HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Fan-in-model, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
