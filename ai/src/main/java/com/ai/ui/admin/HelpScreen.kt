@@ -163,11 +163,7 @@ fun HelpScreen(
             if (topic != null) {
                 HelpFooter(
                     onNavigateToHelpHome = onNavigateToHelpHome,
-                    onNavigateToAbout = onNavigateToAbout,
-                    // Suppress the "How it works" footer link when
-                    // we're already viewing it — no self-link.
-                    onNavigateToConcepts = if (topicId == "concepts") null
-                                           else ({ onNavigateToTopic("concepts") })
+                    onNavigateToAbout = onNavigateToAbout
                 )
             }
         }
@@ -177,11 +173,7 @@ fun HelpScreen(
 @Composable
 private fun HelpFooter(
     onNavigateToHelpHome: () -> Unit,
-    onNavigateToAbout: () -> Unit,
-    /** Tap target for the "How it works" cross-screen-behaviour
-     *  topic. Null when the user is already on that page so the
-     *  footer doesn't link to itself. */
-    onNavigateToConcepts: (() -> Unit)? = null
+    onNavigateToAbout: () -> Unit
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -189,17 +181,13 @@ private fun HelpFooter(
                 modifier = Modifier.fillMaxWidth().clickable { onNavigateToHelpHome() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("←", fontSize = 14.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                androidx.compose.foundation.Image(
+                    painter = androidx.compose.ui.res.painterResource(com.ai.R.drawable.ic_launcher_foreground),
+                    contentDescription = "Help home",
+                    alpha = 0.75f,
+                    modifier = Modifier.size(28.dp).padding(end = 4.dp)
+                )
                 Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-            }
-            if (onNavigateToConcepts != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable { onNavigateToConcepts() },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("🔧", fontSize = 14.sp, modifier = Modifier.width(24.dp))
-                    Text("How it works", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
