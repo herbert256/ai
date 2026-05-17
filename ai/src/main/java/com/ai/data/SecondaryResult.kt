@@ -482,6 +482,30 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Set just the [icon] field on any SecondaryResult row by
+     *  (reportId, resultId) — minimal mirror of [setFanOutIconAndTier]
+     *  with no tier / cost / promptUsed plumbing. Used by the per-row
+     *  Meta-tile alt-icon pick flow (View screen) so two tiles that
+     *  share a metaPromptName can carry distinct icons; the per-row
+     *  override takes precedence over the shared
+     *  [InternalPromptIconCache] entry. No-op when the row is gone. */
+    fun setRowIcon(
+        context: Context, reportId: String, resultId: String,
+        icon: String?
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(icon = icon)
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     /** Drop any prior icon / error state from the pair row so a
      *  re-launched fan-icons batch starts clean for these pairs.
      *  Leaves the row's main response untouched. */

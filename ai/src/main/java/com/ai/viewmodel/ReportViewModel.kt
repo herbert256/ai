@@ -992,6 +992,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.clearInternalPromptIconFanOut(key)
     }
 
+    /** Commit a picked alt-icon to a single SecondaryResult row
+     *  instead of the shared [InternalPromptIconCache] entry. Used
+     *  when the user opened the Find-alternative-icons flow from a
+     *  per-row Meta tile on the View screen: the per-row override
+     *  on disk wins over the cache entry in ViewAiReportScreen's
+     *  metaTiles fallback chain, so two tiles sharing a
+     *  metaPromptName can carry distinct icons. */
+    fun pickMetaRowIcon(
+        context: Context,
+        reportId: String,
+        rowId: String,
+        emoji: String
+    ) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            SecondaryResultStorage.setRowIcon(context, reportId, rowId, emoji)
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
+
     // ── Per-fan-out-pair icon Find-alt ──────────────────────────
     // Mirrors startAgentIconFanOut for fan-out pairs. Composes the
     // bundled `fan_out_alt` (the nudge) FIRST, then `fan_out` (the

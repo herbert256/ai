@@ -341,6 +341,9 @@ fun ReportsScreenNav(
             },
             onRestartFanOut = { prompt ->
                 reportViewModel.restartInternalPromptIconFanOut(prompt)
+            },
+            onPickRow = { reportId, rowId, emoji ->
+                reportViewModel.pickMetaRowIcon(context, reportId, rowId, emoji)
             }
         ),
         internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
@@ -643,7 +646,15 @@ data class InternalPromptIconCallbacks(
     val onKickoff: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     val onStartFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit = { _, _ -> },
     val onPick: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit = { _, _ -> },
-    val onRestartFanOut: (com.ai.model.InternalPrompt) -> Unit = { _ -> }
+    val onRestartFanOut: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Per-row override variant of [onPick]. Wired to
+     *  [com.ai.viewmodel.ReportViewModel.pickMetaRowIcon] so the picked
+     *  emoji lands on a single SecondaryResult row instead of the
+     *  shared per-(name,title) [com.ai.data.InternalPromptIconCache]
+     *  entry. Used when the icon detail / alt-pick flow was opened
+     *  from a per-row Meta tile — two tiles that share a
+     *  `metaPromptName` then carry distinct icons. */
+    val onPickRow: (reportId: String, rowId: String, emoji: String) -> Unit = { _, _, _ -> }
 )
 
 /** Bundle of fan-out + fan-icons runtime state for [ReportsScreen].
@@ -980,6 +991,13 @@ fun ReportsScreen(
     // candidate list lives separately from the per-agent and
     // per-report candidate maps. Cleared on back or after a pick.
     var promptIconDetailForId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Sibling of [promptIconDetailForId] — when non-null the icon
+    // detail / alt-pick flow was opened from a specific Meta
+    // SecondaryResult row, and the eventual alt pick should write to
+    // that row's `icon` field (per-row override) instead of the
+    // shared per-(name,title) cache entry. Null = legacy name-keyed
+    // path (every tile sharing that name picks up the new emoji).
+    var metaRowIdForPromptIcon by rememberSaveable { mutableStateOf<String?>(null) }
     // ── Translation-icon flow. Sibling of `promptIconDetailForId`
     // — when non-null, the user tapped the cached emoji on a
     // translation summary row and is now drilled into the
@@ -1365,6 +1383,7 @@ fun ReportsScreen(
             aiSettings = aiSettings,
             translationIconLanguageFor = translationIconLanguageFor,
             promptIconDetailForId = promptIconDetailForId,
+            targetMetaRowId = metaRowIdForPromptIcon,
             fanOutTargetAgentId = fanOutTargetAgentId,
             pairIconDetailFor = pairIconDetailFor,
             targetLanguageIcon = targetLanguageIcon,
@@ -1375,6 +1394,7 @@ fun ReportsScreen(
             translationIconCallbacks = translationIconCallbacks,
             languageIconCallbacks = languageIconCallbacks,
             onPickInternalPromptIcon = promptIconCallbacks.onPick,
+            onPickMetaRowIcon = promptIconCallbacks.onPickRow,
             onPickAgentIcon = onPickAgentIcon,
             onPickPairIcon = onPickPairIcon,
             onPickAlternativeIcon = onPickAlternativeIcon,
@@ -1390,6 +1410,7 @@ fun ReportsScreen(
                 agentIconDetailFor = null
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
+                metaRowIdForPromptIcon = null
                 translationIconLanguageFor = null
                 pairIconDetailFor = null
                 targetLanguageIcon = false
@@ -1414,6 +1435,7 @@ fun ReportsScreen(
                 agentIconDetailFor = null
                 fanOutTargetAgentId = null
                 promptIconDetailForId = null
+                metaRowIdForPromptIcon = null
                 translationIconLanguageFor = null
                 pairIconDetailFor = null
                 targetLanguageIcon = false
@@ -1561,12 +1583,16 @@ fun ReportsScreen(
                 else showFindIconsPicker = true
             },
             onNavigateToTraceFile = onNavigateToTraceFile,
-            onClose = { promptIconDetailForId = null }
+            onClose = {
+                promptIconDetailForId = null
+                metaRowIdForPromptIcon = null
+            }
         )
         if (handled) return
         // Prompt was deleted while the overlay was open — drop
         // the state so we don't sit on a blank screen.
         promptIconDetailForId = null
+        metaRowIdForPromptIcon = null
     }
 
     // Per-translation Translation-icon detail — extracted to a
@@ -2421,7 +2447,23 @@ fun ReportsScreen(
         onPrevReport = onPrevReport,
         onNextReport = onNextReport,
         onMissingPromptIcon = promptIconCallbacks.onKickoff,
-        onOpenInternalPromptIconDetail = { prompt -> promptIconDetailForId = prompt.id },
+        onOpenInternalPromptIconDetail = { prompt ->
+            // Legacy name-keyed path — no source row stamp, so a
+            // later alt pick writes to the shared cache entry. Kept
+            // for any future call site that still wants that
+            // behaviour; the inline meta-emoji uses the per-row
+            // variant below.
+            metaRowIdForPromptIcon = null
+            promptIconDetailForId = prompt.id
+        },
+        onOpenInternalPromptIconDetailForRow = { prompt, rowId ->
+            // Stamp BOTH state slots so MetaIconDetailOverlay's
+            // Find-alt flow knows to route the pick through
+            // onPickRow → SecondaryResultStorage.setRowIcon instead
+            // of the shared per-(name,title) InternalPromptIconCache.
+            metaRowIdForPromptIcon = rowId
+            promptIconDetailForId = prompt.id
+        },
         onMissingTranslationIcon = translationIconCallbacks.onKickoff,
         onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language },
         // Function reference (no lambda allocation) to keep the
@@ -3251,6 +3293,12 @@ private fun AlternativeIconsRouter(
     reportId: String,
     targetLanguage: String?,
     targetPromptId: String?,
+    /** Non-null when the per-row Meta-tile flow opened the alt-pick
+     *  overlay. Routes the pick to [onPickMetaRowIcon] (per-row icon
+     *  override on disk) instead of [onPickInternalPromptIcon] (the
+     *  shared per-(name,title) cache entry every tile of that name
+     *  would otherwise inherit). */
+    targetMetaRowId: String?,
     targetAgentId: String?,
     targetPairId: String?,
     targetLanguageIcon: Boolean,
@@ -3262,6 +3310,7 @@ private fun AlternativeIconsRouter(
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
     onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
+    onPickMetaRowIcon: (reportId: String, rowId: String, emoji: String) -> Unit,
     onPickAgentIcon: (String, String, String) -> Unit,
     onPickPairIcon: (String, String, String) -> Unit,
     onPickAlternativeIcon: (String, String, String) -> Unit,
@@ -3297,6 +3346,13 @@ private fun AlternativeIconsRouter(
                     val cand = candidates.filterIsInstance<IconCandidate.Done>()
                         .firstOrNull { "${it.provider.id}/${it.model}" == iconModel }
                     if (cand != null) translationIconCallbacks.onPick(targetLanguage, cand)
+                }
+                // Per-row variant wins when the icon flow was opened
+                // from a specific Meta tile — the pick lands on that
+                // row's `icon` field on disk so the other tiles
+                // sharing this prompt name keep their own icons.
+                targetPrompt != null && targetMetaRowId != null -> {
+                    onPickMetaRowIcon(reportId, targetMetaRowId, emoji)
                 }
                 targetPrompt != null -> {
                     val cand = candidates.filterIsInstance<IconCandidate.Done>()
@@ -4390,6 +4446,11 @@ private fun AlternativeIconsOverlayHost(
     aiSettings: com.ai.model.Settings,
     translationIconLanguageFor: String?,
     promptIconDetailForId: String?,
+    /** Non-null when the active prompt-icon flow was opened from a
+     *  specific SecondaryResult row — routes the eventual alt pick
+     *  through [onPickMetaRowIcon] (per-row override) instead of
+     *  [onPickInternalPromptIcon] (shared name-keyed cache). */
+    targetMetaRowId: String?,
     fanOutTargetAgentId: String?,
     pairIconDetailFor: String?,
     targetLanguageIcon: Boolean,
@@ -4400,6 +4461,7 @@ private fun AlternativeIconsOverlayHost(
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
     onPickInternalPromptIcon: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit,
+    onPickMetaRowIcon: (reportId: String, rowId: String, emoji: String) -> Unit,
     onPickAgentIcon: (String, String, String) -> Unit,
     onPickPairIcon: (String, String, String) -> Unit,
     onPickAlternativeIcon: (String, String, String) -> Unit,
@@ -4416,6 +4478,7 @@ private fun AlternativeIconsOverlayHost(
         reportId = reportId,
         targetLanguage = translationIconLanguageFor,
         targetPromptId = promptIconDetailForId,
+        targetMetaRowId = targetMetaRowId,
         targetAgentId = fanOutTargetAgentId,
         targetPairId = pairIconDetailFor,
         targetLanguageIcon = targetLanguageIcon,
@@ -4427,6 +4490,7 @@ private fun AlternativeIconsOverlayHost(
         translationIconCallbacks = translationIconCallbacks,
         languageIconCallbacks = languageIconCallbacks,
         onPickInternalPromptIcon = onPickInternalPromptIcon,
+        onPickMetaRowIcon = onPickMetaRowIcon,
         onPickAgentIcon = onPickAgentIcon,
         onPickPairIcon = onPickPairIcon,
         onPickAlternativeIcon = onPickAlternativeIcon,

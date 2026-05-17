@@ -253,6 +253,13 @@ internal data class GenerationPhaseHandlers(
     val onNextReport: () -> Unit = {},
     val onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     val onOpenInternalPromptIconDetail: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
+    /** Per-row variant of [onOpenInternalPromptIconDetail] — stamps
+     *  the source SecondaryResult id alongside the prompt so a later
+     *  Find-alternative-icons pick lands on that specific row's
+     *  `icon` field rather than the shared per-(name,title) cache
+     *  entry. Wired at the inline meta-emoji + the View screen's
+     *  meta tile click. */
+    val onOpenInternalPromptIconDetailForRow: (com.ai.model.InternalPrompt, String) -> Unit = { _, _ -> },
     val onMissingTranslationIcon: (String) -> Unit = { _ -> },
     val onOpenTranslationIconDetail: (String) -> Unit = { _ -> },
     /** Rebuild a translation run's in-memory state from disk —
@@ -370,6 +377,7 @@ internal fun ColumnScope.GenerationPhase(
     val onNextReport = handlers.onNextReport
     val onMissingPromptIcon = handlers.onMissingPromptIcon
     val onOpenInternalPromptIconDetail = handlers.onOpenInternalPromptIconDetail
+    val onOpenInternalPromptIconDetailForRow = handlers.onOpenInternalPromptIconDetailForRow
     val onMissingTranslationIcon = handlers.onMissingTranslationIcon
     val onOpenTranslationIconDetail = handlers.onOpenTranslationIconDetail
 
@@ -912,7 +920,14 @@ internal fun ColumnScope.GenerationPhase(
                                     emoji, fontSize = 16.sp,
                                     modifier = Modifier
                                         .width(24.dp)
-                                        .clickable { onOpenInternalPromptIconDetail(resolvedPrompt!!) }
+                                        .clickable {
+                                            // Per-row variant so a later
+                                            // alt-icon pick lands on THIS
+                                            // SecondaryResult row's `icon`
+                                            // field, not the shared
+                                            // per-(name,title) cache entry.
+                                            onOpenInternalPromptIconDetailForRow(resolvedPrompt!!, run.id)
+                                        }
                                 )
                             } else {
                                 Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))

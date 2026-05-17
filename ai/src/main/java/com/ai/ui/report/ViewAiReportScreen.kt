@@ -460,7 +460,14 @@ internal fun ViewAiReportScreen(
     val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
-            val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+            // Per-row icon override wins over the shared per-(name,title)
+            // cache entry. The row's `icon` is set by the Find-alternative-
+            // icons pick flow on this specific SecondaryResult — without
+            // this precedence two tiles that share a metaPromptName would
+            // both render the cache entry the last alt pick wrote.
+            val sourceRow = item.sourceRows?.firstOrNull()
+            val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
+            val promptEmoji = rowIcon ?: if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
                 if (e == null) onMissingPromptIcon(prompt)
                 e
@@ -469,7 +476,7 @@ internal fun ViewAiReportScreen(
             // sourceRows is now single-element per META item — its id
             // disambiguates two tiles that share a metaPromptName so
             // the persisted tile-order map stays unique.
-            val rowId = item.sourceRows?.firstOrNull()?.id ?: item.label
+            val rowId = sourceRow?.id ?: item.label
             IdentifiedTile(
                 id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
