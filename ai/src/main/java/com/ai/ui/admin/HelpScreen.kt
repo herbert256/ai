@@ -119,8 +119,26 @@ fun HelpScreen(
         topicId in VIEW_CHILD_HELP_TOPICS -> "view_ai_report"
         else -> "help_topic_view"
     }
+    // Help pages that describe a View-family screen render with the
+    // same ViewScreenTitleBar the View screens themselves use — keeps
+    // the visual cue consistent (you're in the View family) and the
+    // user's request: orange "Help" title, green subject = the
+    // matching View screen's name.
+    val isViewFamilyHelp =
+        topicId != null && (topicId == "view_ai_report" || topicId in VIEW_CHILD_HELP_TOPICS)
+    val viewFamilySubject = topic?.title?.removePrefix("Help - ")?.takeIf { it.isNotBlank() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = titleBarHelpTopic, title = topic?.title ?: "Help", onBackClick = onBack)
+        if (isViewFamilyHelp) {
+            ViewScreenTitleBar(
+                reportTitle = null,
+                screenTitle = "Help",
+                subject = viewFamilySubject,
+                helpTopic = titleBarHelpTopic ?: "view_ai_report",
+                onBack = onBack
+            )
+        } else {
+            TitleBar(helpTopic = titleBarHelpTopic, title = topic?.title ?: "Help", onBackClick = onBack)
+        }
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
