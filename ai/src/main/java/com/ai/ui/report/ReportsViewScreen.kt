@@ -187,6 +187,7 @@ private fun AgentResponseCard(
     ) {
         Box(
             modifier = Modifier
+                .align(Alignment.CenterHorizontally)
                 .padding(bottom = 10.dp)
                 .size(48.dp)
                 .clip(CircleShape)
