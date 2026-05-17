@@ -130,8 +130,8 @@ fun HelpScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         if (isViewFamilyHelp) {
             ViewScreenTitleBar(
-                reportTitle = null,
-                screenTitle = "Help",
+                reportTitle = "Help",
+                screenTitle = null,
                 subject = viewFamilySubject,
                 helpTopic = titleBarHelpTopic ?: "view_ai_report",
                 onBack = onBack
