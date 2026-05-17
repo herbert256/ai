@@ -174,18 +174,20 @@ fun ReportsViewScreen(
         PromptCard(report = report)
         // Counter "X / Y" — sits between the prompt card and the
         // green model-name subject so the page index reads as the
-        // header for the response below.
+        // header for the response below. Generous top padding gives
+        // the prompt card breathing room; the gap to the green
+        // subject below is intentionally tight (counter + model
+        // name read as a single label pair).
         Text(
             text = "${pagerState.currentPage + 1} / ${agents.size}",
             color = AppColors.TextTertiary, fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
         )
-        // Green subject line — the active page's model name. Extra
-        // vertical breathing room above + below so the subject reads
-        // as its own band, not crowded between the counter and the
-        // response card.
+        // Green subject line — the active page's model name. Pulled
+        // close to the counter so the two read as a paired label;
+        // 16 dp below to keep the response card from crowding.
         Text(
             text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
             color = AppColors.Green,
@@ -193,7 +195,7 @@ fun ReportsViewScreen(
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp)
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 16.dp)
         )
         HorizontalPager(
             state = pagerState,
