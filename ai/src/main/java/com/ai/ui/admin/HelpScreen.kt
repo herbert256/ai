@@ -112,12 +112,15 @@ fun HelpScreen(
     // help" page would be more confusing than useful. Empty string
     // routes through rootNavigateHelp → NavRoutes.HELP, which is
     // the topic-less landing page.
+    // ❓ on a help page now always falls back to the bare Help home
+    // (empty string → NavRoutes.HELP) — except for View-family pages,
+    // which redirect to the View grid's help. The old "Help - Help
+    // (this screen)" meta-topic (`help_topic_view`) was removed, so
+    // any path that used to point at it now opens Help home instead.
     val titleBarHelpTopic = when {
         topicId.isNullOrBlank() -> null
-        topicId == "help_topic_view" -> null
-        topicId in HELP_HOME_SUBPAGES -> ""
         topicId in VIEW_CHILD_HELP_TOPICS -> "view_ai_report"
-        else -> "help_topic_view"
+        else -> ""
     }
     // Help pages that describe a View-family screen render with the
     // same ViewScreenTitleBar the View screens themselves use — keeps

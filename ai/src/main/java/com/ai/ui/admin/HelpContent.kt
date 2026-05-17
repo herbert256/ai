@@ -407,17 +407,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Limitations", "(1) Rerank tables aren't translated (they're structured ranks, not prose). (2) JSON traces aren't translated. (3) Source-content updates after a translation are not auto-retranslated — restart the translation. (4) Translations don't carry their own cost-override store; they use the same pricing as any other call.")
         )
     ),
-    "help_topic_view" to HelpContent(
-        title = "Help - Help (this screen)",
-        cards = listOf(
-            HelpCard("Overview", "You're looking at one help topic. Each topic is a stack of cards — Overview / What we use it for / Endpoint / Freshness / Pitfalls / Related is the typical shape, but topics differ in detail. Card titles are blue; bodies are dim."),
-            HelpCard("Title bar — ◀ Back", "Returns to wherever you came from — the home Help page if you tapped a row in the Info-providers table; otherwise the screen whose ℹ️ icon brought you here."),
-            HelpCard("Title bar — 🏠 Home", "Returns to the AI Hub. Skips the back stack."),
-            HelpCard("Title bar — ❓ Help", "Opens this page (help for the help-topic screen). Hidden on the home Help page and on this meta-topic itself."),
-            HelpCard("Reaching this", "Three doors: home Help → Info-providers table tap; any screen's title-bar ℹ️ when it points at one of the 7 info providers (Source detail, Trace detail for a pricing fetch, External Services card, Refresh row); inline links such as the source labels on Model Info → Costs and Capabilities cards."),
-            HelpCard("Pitfalls", "Topics don't cross-link inside cards yet — the seven Info-provider topics are reachable only through the entry points listed above. Use the device back arrow / ◀ to navigate.")
-        )
-    ),
     "reports_hub" to HelpContent(
         title = "Help - AI Reports",
         cards = listOf(
