@@ -118,7 +118,13 @@ internal fun SecondaryResultsScreen(
     /** Open the unified Icon-lookup screen for a fan-out pair.
      *  Plumbed through to [FanOutActions.onOpenPairIconLookup]
      *  for the L2 long-press / L3 big-icon entry points. */
-    onOpenPairIconLookup: (String) -> Unit = {}
+    onOpenPairIconLookup: (String) -> Unit = {},
+    /** ICONS-mode "Remove errors" — bridged into
+     *  [FanOutActions.onClearFanIconErrors] by splitting the
+     *  runKey. (reportId, metaPromptId). */
+    onClearFanIconErrors: (String, String) -> Unit = { _, _ -> },
+    /** ICONS-mode "Restart errors". (reportId, metaPromptId). */
+    onRestartFanIconErrors: (String, String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -606,7 +612,15 @@ internal fun SecondaryResultsScreen(
                 onNavigateToModelInfo = onNavigateToModelInfo,
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
                 onOpenSecondary = { id -> openId = id },
-                onOpenPairIconLookup = onOpenPairIconLookup
+                onOpenPairIconLookup = onOpenPairIconLookup,
+                onClearFanIconErrors = { rk ->
+                    val parts = rk.split("|", limit = 2)
+                    if (parts.size == 2) onClearFanIconErrors(parts[0], parts[1])
+                },
+                onRestartFanIconErrors = { rk ->
+                    val parts = rk.split("|", limit = 2)
+                    if (parts.size == 2) onRestartFanIconErrors(parts[0], parts[1])
+                }
             )
             FanOutScreen(
                 engine = fanOutEngine,

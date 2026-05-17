@@ -10,13 +10,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -257,6 +261,72 @@ internal fun FanOutL1Screen(
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
+        }
+
+        // ICONS-mode error controls. When the icon batch has finished
+        // (nothing running / throttled / queued) but some pairs ended
+        // with an iconErrorMessage (rate-limited mid-batch, etc.) the
+        // user needs a way to act on them. Three buttons mirror the
+        // MAIN-mode controls but operate on the icon-chain only —
+        // dropping just the iconError sentinel + emoji state, not the
+        // underlying pair rows.
+        val iconHasErrors = isIconsMode && errorCount > 0 &&
+            runningCount == 0 && throttledHere == 0 && queuedCount == 0
+        var showIconErrorsDialog by remember { mutableStateOf(false) }
+        if (iconHasErrors) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { actions.onClearFanIconErrors(run.key) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                Button(
+                    onClick = { actions.onRestartFanIconErrors(run.key) },
+                    modifier = Modifier.weight(1f)
+                ) { Text("Restart errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                OutlinedButton(
+                    onClick = { showIconErrorsDialog = true },
+                    modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("View errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+        }
+        if (showIconErrorsDialog) {
+            val errored = remember(run, errorCount) {
+                run.pairs.values
+                    .filter { !it.iconErrorMessage.isNullOrBlank() && !benched(it.providerId, it.model) }
+                    .sortedWith(compareBy({ it.providerId }, { it.model }))
+            }
+            AlertDialog(
+                onDismissRequest = { showIconErrorsDialog = false },
+                title = { Text("Fan icons — errors (${errored.size})") },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
+                        .verticalScroll(rememberScrollState())) {
+                        errored.forEach { p ->
+                            Text(
+                                "${p.providerId} / ${com.ai.ui.shared.shortModelName(p.model)}",
+                                fontSize = 13.sp, color = AppColors.Blue,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                p.iconErrorMessage.orEmpty(),
+                                fontSize = 12.sp, color = AppColors.TextTertiary,
+                                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp)
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showIconErrorsDialog = false }) {
+                        Text("Close", maxLines = 1, softWrap = false)
+                    }
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

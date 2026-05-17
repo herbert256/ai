@@ -289,6 +289,12 @@ fun ReportsScreenNav(
             throttledFanIconsPairs = throttledFanIconsPairs,
             onLaunchFanIconsBatch = { rid, metaPromptId ->
                 reportViewModel.runFanIconsBatch(context, rid, metaPromptId)
+            },
+            onClearFanIconErrors = { rid, mp ->
+                reportViewModel.clearFanIconErrors(context, rid, mp)
+            },
+            onRestartFanIconErrors = { rid, mp ->
+                reportViewModel.restartFanIconErrors(context, rid, mp)
             }
         ),
         fanOutEngine = reportViewModel.fanOutEngine,
@@ -634,7 +640,15 @@ data class FanRuntimeBundle(
     val throttledFanOutPairs: Set<String> = emptySet(),
     val runningFanIconsPairs: Set<String> = emptySet(),
     val throttledFanIconsPairs: Set<String> = emptySet(),
-    val onLaunchFanIconsBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
+    val onLaunchFanIconsBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    /** Drop the iconError sentinel + emoji state on every errored
+     *  fan-out pair so they read as "no icon yet" rather than ❌.
+     *  Wired to the L1 ICONS "Remove errors" button. */
+    val onClearFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    /** Clear errors via [onClearFanIconErrors] and re-fire the
+     *  fan-icons batch on the just-cleared pairs. Wired to the L1
+     *  ICONS "Restart errors" button. */
+    val onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 )
 
 // ===== Main Reports Screen =====
@@ -2111,7 +2125,9 @@ fun ReportsScreen(
             onRerunFanOutPair = onRerunFanOutPair,
             onDeleteFanOutModel = onDeleteFanOutModel,
             forcedLanguage = listLockedLanguage,
-            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId }
+            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId },
+            onClearFanIconErrors = fanRuntime.onClearFanIconErrors,
+            onRestartFanIconErrors = fanRuntime.onRestartFanIconErrors
         )
         return
     }
@@ -3750,7 +3766,9 @@ private fun SecondaryResultsListMount(
     /** Plumbed all the way down to [FanOutActions.onOpenPairIconLookup]
      *  — set by the parent ReportsScreen to flip
      *  `pairIconDetailFor = pairId`. */
-    onOpenPairIconLookup: (String) -> Unit = {}
+    onOpenPairIconLookup: (String) -> Unit = {},
+    onClearFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
@@ -3870,7 +3888,9 @@ private fun SecondaryResultsListMount(
                 onSecondaryRefresh()
             },
             forcedLanguage = forcedLanguage,
-            onOpenPairIconLookup = onOpenPairIconLookup
+            onOpenPairIconLookup = onOpenPairIconLookup,
+            onClearFanIconErrors = onClearFanIconErrors,
+            onRestartFanIconErrors = onRestartFanIconErrors
         )
     }
 }

@@ -125,7 +125,16 @@ data class FanOutActions(
      *  the 6th adapter. Wired on the L2 row long-press and the
      *  L3 big centred icon. Argument is the pair's
      *  [com.ai.data.SecondaryResult.id]. */
-    val onOpenPairIconLookup: (String) -> Unit = {}
+    val onOpenPairIconLookup: (String) -> Unit = {},
+    /** ICONS-mode counterpart of onRemoveFailedPairs: clear the
+     *  iconError sentinel + emoji state on every pair whose
+     *  icon-chain failed in this fan-out, so they read as
+     *  fresh-pending without dropping the underlying pair row. */
+    val onClearFanIconErrors: (FanOutRunKey) -> Unit = {},
+    /** ICONS-mode counterpart of onRestartFailedPairs: clear the
+     *  iconError sentinel on every errored pair, then re-fire
+     *  the fan-icons batch (its pending filter picks them up). */
+    val onRestartFanIconErrors: (FanOutRunKey) -> Unit = {}
 )
 
 /**

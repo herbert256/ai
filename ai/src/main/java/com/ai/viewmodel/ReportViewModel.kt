@@ -2601,6 +2601,62 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         fanIconsJobs[fanIconsJobKey(reportId, metaPromptId)]?.cancel()
     }
 
+    /** Wipe the icon state on every fan-out pair of [metaPromptId]
+     *  whose icon-chain failed (iconErrorMessage != null). Doesn't
+     *  drop the pair row — just the icon + iconError + tier info,
+     *  so the L1/L2/L3 classifier reads the pair as "no icon yet"
+     *  rather than ❌. A subsequent fan-icons batch will pick them
+     *  up via the standard `icon == null` pending filter. */
+    fun clearFanIconErrors(context: Context, reportId: String, metaPromptId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val errored = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            !it.iconErrorMessage.isNullOrBlank()
+                    }
+                for (e in errored) {
+                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                }
+                AppLog.i(
+                    "FanIcons",
+                    "cleared icon state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}"
+                )
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+    }
+
+    /** Clear errors via [clearFanIconErrors], then re-fire the
+     *  fan-icons batch. The batch's standard pending filter
+     *  (`icon == null`) picks up the just-cleared pairs and
+     *  re-runs the chain on them; DONE pairs are left alone. */
+    fun restartFanIconErrors(context: Context, reportId: String, metaPromptId: String): Job? {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val errored = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            !it.iconErrorMessage.isNullOrBlank()
+                    }
+                for (e in errored) {
+                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
+                }
+                AppLog.i(
+                    "FanIcons",
+                    "cleared icon state on ${errored.size} errored pair(s) — restarting batch"
+                )
+            }
+        }
+        return runFanIconsBatch(context, reportId, metaPromptId)
+    }
+
     private suspend fun runFanOutTier1(
         context: Context, reportId: String, provider: AppService,
         pair: SecondaryResult, chatPrompt: InternalPrompt,
