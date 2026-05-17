@@ -119,10 +119,14 @@ fun ReportsViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // Title bar carries the orange screen title only — the per-
+        // model name moves below the prompt card as the green subject
+        // line, so the user reads top-to-bottom:
+        //   title bar → counter → prompt card → model → response.
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Model reports",
-            subject = activeAgent?.let { shortModelName(it.model) },
+            subject = null,
             helpTopic = "reports_view",
             onBack = onBack,
             onLogoClick = onBack
@@ -164,7 +168,8 @@ fun ReportsViewScreen(
             }
             return@Column
         }
-        // Counter "X / Y" — centred above the swipe-able card.
+        // Counter "X / Y" — moved up so it sits directly under the
+        // title, above the prompt card.
         Text(
             text = "${pagerState.currentPage + 1} / ${agents.size}",
             color = AppColors.TextTertiary, fontSize = 13.sp,
@@ -172,14 +177,68 @@ fun ReportsViewScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         )
+        // Prompt card: centered report icon + the report's prompt
+        // text — gives the user the question while they read each
+        // model's answer below.
+        PromptCard(report = report)
+        Spacer(modifier = Modifier.height(10.dp))
+        // Green subject line — the active page's model name.
+        Text(
+            text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
+            color = AppColors.Green,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
         ) { page ->
             val agent = agents[page]
             AgentResponseCard(
                 agent = agent,
                 overrideBody = translatedByAgentId[agent.agentId]
+            )
+        }
+    }
+}
+
+/** Compact prompt card shown above the per-agent response. The
+ *  report icon sits centred at the top; the prompt text below
+ *  reminds the user what every model was asked. */
+@Composable
+private fun PromptCard(report: Report) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+                .padding(bottom = 8.dp)
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(AppColors.Purple.copy(alpha = 0.22f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
+                fontSize = 22.sp
+            )
+        }
+        if (report.prompt.isBlank()) {
+            Text(text = "(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
+        } else {
+            Text(
+                text = report.prompt,
+                color = AppColors.TextPrimary,
+                fontSize = 14.sp,
+                lineHeight = 19.sp
             )
         }
     }
@@ -192,8 +251,11 @@ private fun AgentResponseCard(
 ) {
     val body = overrideBody ?: agent.responseBody.orEmpty()
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+    // wrapContentHeight so the card sits exactly as tall as its
+    // content; verticalScroll kicks in only when the response
+    // overflows the pager's remaining slot.
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
