@@ -547,9 +547,9 @@ internal fun ColumnScope.GenerationPhase(
         }
         "create" -> {
             Spacer(modifier = Modifier.height(4.dp))
-            // Indent the sub-row so it starts roughly under the
-            // "Create" Row 1 button (after Edit + 6dp gap).
-            ActionRow(startPadding = 52.dp) {
+            // Five sub-buttons + a start indent would push the row
+            // onto a second line, so leave flush-left.
+            ActionRow {
                 CompactButton(
                     onClick = { close(); onOpenMetaPicker() },
                     color = createColor, text = "Meta",
@@ -587,8 +587,8 @@ internal fun ColumnScope.GenerationPhase(
             // noise. Copy + Pin/Unpin stay because they have no
             // matching title-bar icon.
             // Indent the sub-row so it starts roughly under the
-            // "Action" Row 1 button (after Edit + Create + gaps).
-            ActionRow(startPadding = 120.dp) {
+            // "Create" Row 1 button (just past Edit + 6 dp gap).
+            ActionRow(startPadding = 50.dp) {
                 CompactButton(onClick = { close(); onCopy() }, color = actionColor, text = "Copy")
                 CompactButton(
                     onClick = { onTogglePin(); pinTick++; close() },
