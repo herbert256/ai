@@ -373,6 +373,19 @@ fun modelLabel(
 fun shortModelName(model: String): String =
     if (model.contains('/')) model.substringAfterLast('/') else model
 
+/** Translate a SecondaryResult's stored `errorMessage` into something
+ *  the user wants to read. Today the only rewrite is the legacy
+ *  "Interrupted by app restart" marker (stamped by the resume-on-open
+ *  sweep before commit d2cbf97c renamed it to "No data yet") → the
+ *  user-friendly equivalent. Anything else passes through unchanged.
+ *  Apply at render time so persisted rows from before the rename
+ *  don't keep showing the system-y wording. */
+fun friendlyErrorMessage(raw: String?): String = when (raw) {
+    null -> ""
+    "Interrupted by app restart" -> "No data yet"
+    else -> raw
+}
+
 /**
  * Tiny "vision-capable" badge for model lists. Renders nothing when the
  * model isn't flagged so the row stays compact for the long tail of

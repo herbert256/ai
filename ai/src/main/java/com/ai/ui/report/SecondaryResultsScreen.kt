@@ -768,8 +768,14 @@ private fun ColumnScope.MetaResultsPickerView(
     Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         when {
             selected.errorMessage != null -> {
+                // Translate the legacy "Interrupted by app restart"
+                // marker (any persisted row stamped before commit
+                // d2cbf97c carries it) into the user-friendly
+                // "No data yet" so the user no longer sees system
+                // language on a row that just hasn't been re-run yet.
+                val msg = com.ai.ui.shared.friendlyErrorMessage(selected.errorMessage)
                 Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
-                Text(selected.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary,
+                Text(msg, fontSize = 13.sp, color = AppColors.TextSecondary,
                     modifier = Modifier.padding(top = 4.dp))
             }
             selected.content.isNullOrBlank() -> {
