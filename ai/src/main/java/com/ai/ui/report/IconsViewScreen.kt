@@ -278,9 +278,10 @@ private fun FanOutSection(
         }
         val entries = bySource.entries.toList()
         entries.forEachIndexed { idx, (sourceAgentId, responderRows) ->
-            if (idx > 0) {
-                HorizontalDivider(color = AppColors.BorderUnfocused, thickness = 1.dp)
-            }
+            // Divider above every row, including the first — paired
+            // with the trailing divider after the last row so each
+            // initiator sits in its own bracketed band.
+            HorizontalDivider(color = AppColors.BorderUnfocused, thickness = 1.dp)
             val initiator = agents.firstOrNull { it.agentId == sourceAgentId }
             val initiatorGlyph = initiator?.icon?.takeIf { it.isNotBlank() } ?: "🤖"
             Row(
@@ -316,6 +317,9 @@ private fun FanOutSection(
                     }
                 }
             }
+        }
+        if (entries.isNotEmpty()) {
+            HorizontalDivider(color = AppColors.BorderUnfocused, thickness = 1.dp)
         }
     }
 }
