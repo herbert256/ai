@@ -502,13 +502,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         )
     ),
     "view_ai_report" to HelpContent(
-        title = "Help - View AI Report",
+        title = "Help - Report — view",
         cards = listOf(
-            HelpCard("Overview", "Tile-grid launcher reached from the result screen's bottom-bar ℹ️ icon. Replaces the old Row 1 \"View\" CompactButton — every sub-view it used to expose lives here as a card, with breathing room."),
-            HelpCard("Documents", "Always-on tiles: Prompt opens the resolved prompt text · Reports shows the per-agent response list · Costs is the per-call cost table · HTML is the in-app HTML preview · Log opens the App Log Viewer pre-filtered to this report. Icons (the per-model emoji grid) only appears when Settings → Generate per model icons is on."),
-            HelpCard("Computed", "One tile per kind that this report has at least one row of: Meta · Rerank · Fan-out · Fan-in · Fan-in-model · Translate. A small badge in the top-right of each tile shows the count. Tapping a tile with exactly one item opens that item directly; tapping a tile with two or more items expands an inline list below the grid — tap a row to open its detail."),
-            HelpCard("Destinations", "Every tile routes to the existing full-screen view (no UI was rewritten); the launcher just changes how you reach it. Back from the destination returns to the report, the same as before."),
-            HelpCard("Reorder cards (long-press + drag)", "Long-press any tile (~500 ms — short tap still opens its destination) until the device gives a small haptic, then drag it onto the tile you want it to swap with and release. The new order persists globally — \"Costs first\" on one report means Costs first on every report. Tiles never seen before (a new Meta prompt, a Computed kind that hadn't shown up yet) append at the end of the grid; drag them where you want once and they stay there.")
+            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Fan-in-model, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
+            HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open."),
+            HelpCard("Where to go next", "Tap any tile to drill in — the View pages are designed for reading, not for managing. If you need to delete, regenerate, re-rank, run a new meta or fan-out, or look at the API traces, tap back to the report and switch to Report - manage from the title bar — that's the home for hands-on work.")
         )
     ),
     // Per-scope Icon-lookup help — one topic for each of the six
@@ -732,81 +730,81 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "fan_out_view" to HelpContent(
         title = "Help - Fan-out — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the Fan-out manage screen. Reached from a Fan-out tile on Report - view. Renders every (Initiator → Answerer) pair as a chat-style exchange — the Initiator's original report response is the user bubble, the Answerer's fan-out reply is the assistant bubble. No status counters, throttle indicators, or restart / delete / re-run controls."),
-            HelpCard("Pair navigation", "Pairs are grouped by Answerer model — one big indigo header chip per Answerer, every (Initiator → Answerer) reply stacked under it. Long replies collapse to a preview with a Read more / Show less toggle. Scroll vertically through the whole run; back returns to Report - view."),
-            HelpCard("Reached from", "Tile labelled 🌀 <prompt name> on Report - view. The View screen's language picker is carried through — picking a translated tab shows the matching META TRANSLATE row for each pair when one exists (pairs without a translation fall back to the original reply so the thread stays continuous). For management (Restart failed, Remove benched, Run fan-icons, Run combine reports, …) drop back and open the run from Report - manage instead."),
+            HelpCard("What you see", "Every fan-out reply in the run, laid out as a chat-style thread. Each answering model has its own header chip with the model name and a count of how many replies it produced; under that header sit the (initiator → answerer) exchanges as two bubbles per row — the initiator's original report response on one side, the answerer's reply on the other. Scroll vertically through the whole conversation."),
+            HelpCard("How to read it", "Replies are grouped by answering model so you can see how a single model handled every initiator in one place. Long replies collapse to a preview line with a 'Read more' toggle — tap to expand, tap again to collapse. When you've picked a translated language on the parent View screen, the answerer's bubble shows the translated text with a small 🌍 badge; rows without a translation fall back to the original reply so the thread stays continuous."),
+            HelpCard("Where to go next", "If you want to restart failed pairs, drop benched models, run combine-reports, or look at the per-call API traces, tap back to the report and open the fan-out from Report - manage — that's the home for hands-on work.")
         )
     ),
     "costs_view" to HelpContent(
         title = "Help - Costs — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the report cost table. Reached from the 💰 Costs tile on Report - view. Surfaces a single hero card with the grand-total USD figure and a stack of horizontal-bar rows — one per spend bucket (Reports, Meta, Fan-out, Fan-in, Translate, Moderation, Rerank, Icons, Language). Bar length is proportional to that bucket's share of the total."),
-            HelpCard("What's on this screen", "Hero card: 💰 Total in big Yellow type plus a tally of total call count and bucket count. Per-bucket rows: percentage of grand total, absolute USD amount, a horizontal bar coloured Yellow-to-Orange that visualises that share at a glance, and the bucket's per-call count. Zero-cost buckets are skipped entirely; sub-1% buckets still render a sliver so they don't disappear."),
-            HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
+            HelpCard("What you see", "What this report has cost so far. A big yellow 💰 Total at the top sums every API call this report has fired; below it, a row per spending bucket — Reports, Meta, Fan-out, Fan-in, Translate, Moderation, Rerank, Icons, Language — showing how much of the total went there."),
+            HelpCard("How to read it", "Each bucket row carries three things: the percentage of the grand total, the absolute amount, and a horizontal bar coloured yellow-to-orange whose length matches that share. A glance tells you whether one kind dominates spending or the cost is spread out. Buckets that cost nothing are hidden entirely; very small buckets still render a thin sliver so they don't disappear. The call count on the right tells you how many requests landed in that bucket."),
+            HelpCard("Where to go next", "If you want to sort calls, look at individual call traces, or see the adjustment line for items you've deleted, tap back to the report and open Costs from Report - manage — the management screen keeps the per-call drill-in and trace links this View deliberately skips.")
         )
     ),
     "reports_view" to HelpContent(
-        title = "Help - Reports — view",
+        title = "Help - Model reports",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the per-agent response viewer. Reached from the 📊 Reports tile on Report - view. Renders every successful agent's response as a card with a large circular agent emoji on the left and the response body via the shared markdown pipeline on the right. No model picker, no per-row trace / delete / regenerate."),
-            HelpCard("What's on this screen", "Subject row: 📊 + 'Reports' in Blue, plus a 🌍 language badge when locked to a translation. Per agent: a 48 dp circle with the agent's report emoji (or 🤖 fallback) on the left; provider in Blue + shortened model in the tertiary text below, then the response body. AGENT TRANSLATE rows automatically substitute when the active language is non-Original."),
-            HelpCard("Reached from", "📊 Reports tile on Report - view. The language picker is carried through. For per-row regenerate / remove benched / continue-in-chat / trace, drop back to Report - manage."),
+            HelpCard("What you see", "One model's response at a time, shown as a single card with the model's emoji centred at the top and the answer body below it. A small counter sits above the card — 'X / Y' tells you which model you're on and how many there are in total. The green subject line in the title bar shows the current model's short name, so you can always see which one you're reading."),
+            HelpCard("How to read it", "Swipe left to move to the next model, swipe right to go back. The model's own emoji (or 🤖 when it doesn't have one yet) marks the card; the answer body renders headings, lists, tables, code blocks, and reasoning sections like the rest of the app. If you've picked a translated language on the parent View screen, the body shows the translated reply for each model when one exists; otherwise the original answer stays put."),
+            HelpCard("Where to go next", "If you want to delete a model's response, regenerate one, continue in chat from a reply, or jump into an API trace, tap back to the report and open the model row from Report - manage — that's where every per-model action lives.")
         )
     ),
     "prompt_view_screen" to HelpContent(
         title = "Help - Prompt — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the prompt panel inside [ReportsViewerScreen]. Reached from the 📝 Prompt tile on Report - view. Renders the report prompt as a single hero typography card with a Purple-to-Indigo gradient background — primary-document feel, no per-row chrome."),
-            HelpCard("What's on this screen", "Subject row: ✍️ + 'Prompt' in Purple, plus a 🌍 language badge when locked to a translation. Hero card: '✍️ Prompt' label on the left, the report's own emoji on the right of the header strip, the prompt body below rendered through the shared markdown pipeline so fenced code / tables / lists render properly."),
-            HelpCard("Reached from", "📝 Prompt tile on Report - view. The View screen's language picker is carried through: a non-Original tab swaps the body for the matching PROMPT TRANSLATE row when one exists. For copy / share / trace / Translation-compare, drop back to Report - manage and open the same prompt section there."),
+            HelpCard("What you see", "The original prompt that drove this report, presented as a single hero card on a purple-to-indigo gradient — the document feel, no clutter around it. The report's own emoji shows in the header strip; the prompt body sits below with full markdown formatting (headings, lists, tables, code blocks all render properly)."),
+            HelpCard("How to read it", "If the prompt was long or technical you can scroll the card to see the whole thing. When a translated language is active on the parent View screen, the body switches to that language's translation of the prompt if one has been made; otherwise the original prompt stays visible."),
+            HelpCard("Where to go next", "If you want to copy, share, edit, or compare the prompt with its translation side-by-side, tap back to the report and open the prompt from Report - manage — those actions live on the manage side.")
         )
     ),
     "translate_view" to HelpContent(
         title = "Help - Translate — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the translation-run drill-in. Reached from a 🌍 Translate tile on Report - view. Loads every TRANSLATE row in the run and renders each as a stacked pair of cards — neutral source on top, Orange-accented translation below. Long bodies collapse with a Read more / Show less toggle, mirroring the Fan-out View pattern."),
-            HelpCard("What's on this screen", "Subject row carries the target language (native name when available) in Orange + a count badge of rows in the run. Per row: a small label naming the source kind (📝 Report prompt / 🤖 provider+model agent / 🧠 meta name) above the pair. Source card renders the source body; Translation card renders the translated content. Both use the shared markdown pipeline."),
-            HelpCard("Reached from", "🌍 Translate tile on Report - view. Each translation-run is its own tile; tapping opens this screen for that run. For deleting individual translations, regenerating, or jumping into the API trace, drop back to Report - manage."),
+            HelpCard("What you see", "Every item this translation run produced — the prompt, the per-model responses, and any meta replies — laid out one row at a time. Each row is a stacked pair: the original on top in a neutral card, the translation below it on an orange-accented card. A small label above each pair tells you which source it's translating (📝 prompt, 🤖 a specific model's response, or 🧠 a meta result)."),
+            HelpCard("How to read it", "The target language shows as the green subject in the title bar so you always know which language you're reading. Long bodies collapse to a preview with a 'Read more' toggle — tap to expand, tap again to collapse. Source and translation use the same markdown rendering so headings, lists, tables, and code blocks line up between the two."),
+            HelpCard("Where to go next", "If you want to delete individual translations, regenerate a row, or look at the API trace for a translation call, tap back to the report and open the translation from Report - manage.")
         )
     ),
     "fan_in_model_view" to HelpContent(
         title = "Help - Fan-in-model — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the fan-in-model META detail. Reached from the 🧩 Fan-in-model tile on Report - view. Renders every sibling fan-in-model row sharing this run's metaPromptName as a horizontal pager — swipe between models without leaving the screen."),
-            HelpCard("What's on this screen", "Tab strip: one chip per model in the run, the active model bolded and Blue-tinted. Pager: each page is a full-width Blue-gradient card with 🧩 + the scope (provider / model) the run is focused on, the synthesising model in the sublabel, and the synthesised body via the shared markdown pipeline. Below the body, a 'Synthesised from' credits strip names the source report agents."),
-            HelpCard("Reached from", "🧩 Fan-in-model tile on Report - view. Tapping the tile lands on the seed row's page; swiping switches to the sibling pages. For per-row regenerate, delete, or trace, drop back to Report - manage."),
+            HelpCard("What you see", "One per-model synthesis at a time, with a tab strip across the top — one chip per model that contributed a synthesis. The active model is bold and blue-tinted; the others sit dimmer next to it. The card below shows that model's synthesis on a blue-gradient background, with a 'Synthesised from' strip at the bottom naming each source response that fed into it."),
+            HelpCard("How to read it", "Swipe left or right between models, or tap a chip in the strip to jump straight there. Each model's synthesis renders with full markdown — headings, tables, lists, code blocks, reasoning sections all behave the way they do elsewhere in the app. The credits strip uses each source agent's own emoji so you can spot at a glance which models fed the synthesis."),
+            HelpCard("Where to go next", "If you want to regenerate a per-model synthesis, delete one, or look at its API trace, tap back to the report and open the fan-in-model row from Report - manage.")
         )
     ),
     "fan_in_view" to HelpContent(
         title = "Help - Fan-in — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the fan-in META detail. Reached from the 🪢 Fan-in tile on Report - view. Renders the synthesised output as a single hero card with a Green accent gradient, then a compact 'Synthesised from' credits strip naming each source agent that fed into the run."),
-            HelpCard("What's on this screen", "Synthesis hero: 🪢 + 'Synthesis' header, the synthesising provider + shortened model below, then the synthesised body rendered through the shared markdown pipeline (tables, code, headings, <think> regions all behave the same as everywhere else). Credits strip: one rounded Green pill per source agent showing its icon (or 🤖 fallback) + provider / shortened model."),
-            HelpCard("Reached from", "🪢 Fan-in tile on Report - view. With a single fan-in row the tile opens this screen directly; with N≥2 rows the tile expands an inline picker first. For the original prompt body, regenerate, delete, or trace, drop back to Report - manage."),
+            HelpCard("What you see", "The synthesised output from a fan-in — one model's unified answer that drew on every contributing response. The synthesis sits in a single hero card on a green accent gradient with a 🪢 header; the body uses full markdown so headings, lists, tables, code blocks, and reasoning sections all render properly. Below the body, a compact 'Synthesised from' strip names each source response that fed into this run."),
+            HelpCard("How to read it", "The hero shows the synthesising model's name under the 🪢 header — that's the model that did the combining. The credits strip uses each contributing model's own emoji so you can recognise the sources at a glance. If a contributor never picked up its own emoji, 🤖 stands in. Scroll the screen vertically for long synthesis bodies."),
+            HelpCard("Where to go next", "If you want to regenerate the synthesis, delete it, or look at the API trace, tap back to the report and open the fan-in from Report - manage — that's where every per-row action lives.")
         )
     ),
     "moderation_view" to HelpContent(
         title = "Help - Moderation — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the moderation table. Reached from the 🚩 Moderation tile on Report - view. Renders one card per agent with a traffic-light row of category chips (red = fired, amber = elevated score, green = clean). A summary banner up top tells you whether anything flagged across the whole run."),
-            HelpCard("What's on this screen", "Verdict hero: 🚩 + flagged-vs-clean tally, accent red when anything fired, green when everything came back clean. Per-agent card: the agent's provider + shortened model in the header, a 🚩 callout line listing fired categories when present, then a FlowRow of category chips. Each chip carries the category name and its numeric score so the intensity is visible without tapping."),
-            HelpCard("Reached from", "🚩 Moderation tile on Report - view. With a single moderation row the tile opens this screen directly; with N≥2 rows the tile expands an inline picker and tapping one row opens this screen for that row. For per-row drill-down with the moderated text shown, deletion, or re-running with a different model, drop back to Report - manage."),
+            HelpCard("What you see", "A safety check across every model response on this report. The hero up top gives the overall verdict — red 🚩 when at least one response flagged anything, green when everything came back clean — and tells you how many responses were checked. Below, one card per model: the model's name in the header, the flagged categories called out next to a 🚩 when any fired, then a row of category chips covering every category the moderator looked at."),
+            HelpCard("How to read it", "Each chip is colour-coded like a traffic light — red means that category fired, amber means the score sits in the elevated range without quite crossing the line, green means clean. The number on the chip is the moderator's score for that category, so you can see how close to (or far from) the threshold each call was without tapping anything. A card with no 🚩 callout passed every check."),
+            HelpCard("Where to go next", "If you want to see the moderated text alongside the verdict, delete a moderation result, or re-run with a different moderator, tap back to the report and open the moderation row from Report - manage.")
         )
     ),
     "rerank_view" to HelpContent(
         title = "Help - Rerank — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the rerank detail screen. Reached from the 🏆 Rerank tile on Report - view. Renders the rerank result as a numbered podium — Rank 1/2/3 each get a large gold/silver/bronze accent card; Rank 4 and beyond render as slimmer numbered rows. No delete / regenerate / 🐞 / Top-N picker — drop back to Report - manage for any of that."),
-            HelpCard("What's on this screen", "Top 3 cards: 🥇/🥈/🥉 medal on the left, the agent's provider + shortened model in the header, the model's reason snippet on the body. Score badge (0/100) shows on the right of each. Rank 4+ rows: a small circular rank chip, agent label, two-line reason snippet, compact score. The rerank's own prompt name reads as the green title in the header strip."),
-            HelpCard("Reached from", "🏆 Rerank tile on Report - view. With a single rerank row the tile opens this screen directly; with N≥2 rerank rows the tile expands an inline picker and tapping one row opens this screen for that row. For Top-N scope edits, deletion, or re-running with a different model, drop back to Report - manage."),
+            HelpCard("What you see", "A ranked list of the model responses on this report — the rerank's verdict on which answers it considered strongest. The top three sit in large podium cards with 🥇/🥈/🥉 medals; rank four onwards continues as slimmer numbered rows below. Each row carries the responding model's name, the rerank's score for that answer (out of 100), and the reason the rerank gave for that placement."),
+            HelpCard("How to read it", "Cards are sorted top-to-bottom by rank — the best at the top, then second, then third, then everything else in numbered order. The score badge on the right of each card lets you see at a glance how close the ranks are: clustered scores mean it was a tight race, big gaps mean the rerank had a clear opinion. The rerank's prompt name reads as the green subject in the title bar."),
+            HelpCard("Where to go next", "If you want to change the Top-N scope, delete this rerank, or re-run it with a different model, tap back to the report and open the rerank row from Report - manage.")
         )
     ),
     "meta_view" to HelpContent(
         title = "Help - Meta — view",
         cards = listOf(
-            HelpCard("Overview", "Content-only sibling of the META detail screen. Reached from a Meta tile on Report - view. Lays the originating report prompt out as a hero 'Question' card with the report's emoji on the left, then the meta's reply below as a single large answer card. No delete / regenerate / multi-language delete chooser / 🐞 / Find-icons / alt-icon picker — drop back to Report - manage for any of that."),
-            HelpCard("What's on this screen", "Question card: Purple-gradient hero panel with ❓ (or the report's own icon) + the report prompt rendered through the shared markdown pipeline. Answer card: the meta's emoji + name in Purple in the header row, provider / shortened model immediately below, then the meta content in the markdown body. <think> regions, tables, fenced code, headings render exactly like everywhere else in the app."),
-            HelpCard("Reached from", "Per-meta tile on Report - view (one tile per persisted META row, label = the meta prompt name). The View screen's language picker carries through — a non-Original tab swaps the body for the matching META TRANSLATE row when one exists. For management (rerun, delete, retitle, find-icons), drop back to Report - manage."),
+            HelpCard("What you see", "A two-card 'question and answer' layout. The top hero is the original report prompt — the question this meta was asked to think about — rendered on a purple gradient with the report's own emoji. Below it sits the meta's reply card with the meta's emoji and name in the header, the model that produced the reply underneath, and the answer body in the main panel."),
+            HelpCard("How to read it", "The answer body renders headings, lists, tables, code blocks, and reasoning sections the same way the rest of the app does. Each meta tile carries its own icon — picking a new icon for one meta affects only that tile, never the others sharing the same name. When you've picked a translated language on the parent View screen, the answer card swaps to that language's translation when one exists; otherwise the original reply stays put."),
+            HelpCard("Where to go next", "If you want to regenerate the meta, delete it, rename it, or hunt for a different icon, tap back to the report and open the meta row from Report - manage — every per-meta action lives there.")
         )
     ),
     "secondary_scope" to HelpContent(
@@ -2829,13 +2827,9 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "report_html_preview" to HelpContent(
         title = "Help - HTML preview",
         cards = listOf(
-            HelpCard("Overview", "Inline WebView rendering of a report's HTML — the same HTML the file export produces, but rendered live with JavaScript enabled so table sorting / collapsibles / rerank anchors stay interactive."),
-            HelpCard("Title bar", "Back returns to the Report detail screen. The title reads *HTML preview* (full) or *HTML preview (short)* depending on which detail level you launched. The report's emoji + title appear as the subject when set."),
-            HelpCard("Body", "The entire content area is the WebView. Scroll, tap intra-document anchors (e.g. a Rerank row jumping back to the source agent), and use system-back to leave."),
-            HelpCard("HTML source", "Built off-thread via `convertReportToHtml(report)` (full detail) or `buildShortHtml(report)` (short detail) and loaded via `loadDataWithBaseURL(baseUrl = about:blank)`. The `<h1>` is stripped in preview only — the title bar already shows it. Standalone HTML exports keep the `<h1>` intact."),
-            HelpCard("Security", "`about:blank` baseUrl + `setAllowFileAccess(false)` + `setAllowContentAccess(false)` mean a malicious script in a model's response can't read local files or content provider URIs. JavaScript stays enabled so legit interactive features work."),
-            HelpCard("Pitfalls", "The preview renders whatever the export builder produced — if a model returned malformed HTML, you see it as-is. Use *Export → HTML file* if you need a saved copy."),
-            HelpCard("Reached from", "Report detail → Export → View HTML preview (full or short), or via deep link with the report id.")
+            HelpCard("What you see", "The same HTML page you'd get from a full HTML export, rendered live inside the app. The title reads 'HTML preview' for the full detail level or 'HTML preview (short)' when you launched the lighter version. The entire body is the document — prompt, model responses, costs, anything else the export builds — laid out as it would appear in a browser."),
+            HelpCard("How to read it", "Scroll the document vertically; tap intra-page anchors (for example, a rerank row pointing back to the model that produced an answer) to jump around inside the page. Interactive features the export bakes in — sortable tables, collapsibles — work the same here as they do in a saved HTML file. The preview always shows one language at a time so there's no language picker inside the WebView; pick the language up front on the Export screen and the preview renders that slice."),
+            HelpCard("Where to go next", "If you want a saved copy you can share or open in a real browser, tap back and use Export → HTML file. The preview is for a quick look; the export is what you send to people.")
         )
     ),
     "report_meta_run" to HelpContent(
