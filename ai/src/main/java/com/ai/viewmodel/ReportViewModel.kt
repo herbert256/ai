@@ -4479,7 +4479,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 } catch (e: Exception) {
                     AppLog.w("BgResumeSweep", "iteration failed: ${e.javaClass.simpleName}: ${e.message}")
                 }
-                kotlinx.coroutines.delay(120_000L)
+                kotlinx.coroutines.delay(30_000L)
             }
         }
     }
