@@ -175,7 +175,7 @@ private fun HelpFooter(
     val context = androidx.compose.ui.platform.LocalContext.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (onNavigateToHelpHome != null) {
@@ -432,7 +432,7 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
     if (hits.isEmpty()) {
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Text("No matches", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                Text("No matches", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "Nothing in any help topic matched \"$query\". Try a shorter or differently-spelled term.",
@@ -482,7 +482,7 @@ private fun RelevantHelpPagesCard(
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             related.forEach { (id, title) ->
                 Row(
@@ -503,7 +503,7 @@ private fun RelevantHelpPagesCard(
 private fun HelpSection(title: String, content: String) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             Text(content, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
         }
@@ -526,7 +526,7 @@ private fun HelpIconTable() {
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Title bar icons", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("Title bar icons", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(8.dp))
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
@@ -560,7 +560,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "Third-party services the app reads model metadata + pricing from. Same seven that appear on Model Info → Sources. Tap a row for the details.",
@@ -695,7 +695,7 @@ private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
     if (services.isEmpty()) return
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Cloud providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("Cloud providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "AI services the app dispatches chat / report / embedding calls to. Tap a row for setup, models, pricing, and pitfalls specific to that provider.",
