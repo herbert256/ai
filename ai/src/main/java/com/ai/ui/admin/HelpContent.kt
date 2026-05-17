@@ -745,6 +745,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Reached from", "💰 Costs tile on Report - view. For sortable per-call breakdowns, per-row trace links, the deleted-items adjustment line, or the All-API-calls drill-in, drop back and open the cost section from Report - manage instead — that surface keeps every management affordance the View screen deliberately omits."),
         )
     ),
+    "moderation_view" to HelpContent(
+        title = "Help - Moderation — view",
+        cards = listOf(
+            HelpCard("Overview", "Content-only sibling of the moderation table. Reached from the 🚩 Moderation tile on Report - view. Renders one card per agent with a traffic-light row of category chips (red = fired, amber = elevated score, green = clean). A summary banner up top tells you whether anything flagged across the whole run."),
+            HelpCard("What's on this screen", "Verdict hero: 🚩 + flagged-vs-clean tally, accent red when anything fired, green when everything came back clean. Per-agent card: the agent's provider + shortened model in the header, a 🚩 callout line listing fired categories when present, then a FlowRow of category chips. Each chip carries the category name and its numeric score so the intensity is visible without tapping."),
+            HelpCard("Reached from", "🚩 Moderation tile on Report - view. With a single moderation row the tile opens this screen directly; with N≥2 rows the tile expands an inline picker and tapping one row opens this screen for that row. For per-row drill-down with the moderated text shown, deletion, or re-running with a different model, drop back to Report - manage."),
+        )
+    ),
     "rerank_view" to HelpContent(
         title = "Help - Rerank — view",
         cards = listOf(
@@ -2863,6 +2871,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "costs_view" to listOf("help_glossary_operations", "help_costs"),
     "meta_view" to listOf("help_glossary_operations", "report_meta"),
     "rerank_view" to listOf("help_glossary_operations", "concepts"),
+    "moderation_view" to listOf("help_glossary_operations", "concepts"),
     "moderation_call_detail" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== Chat =====
