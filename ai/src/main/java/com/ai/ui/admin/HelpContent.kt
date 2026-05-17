@@ -2484,6 +2484,81 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pricing & quirks", "OpenAI-compatible. The `/<owner>/<model>/<quant>` three-part id convention is the structural quirk — copy ids verbatim from their catalog. Pricing falls through to fallbacks."),
             HelpCard("Pitfalls", "The quantization-in-id convention catches new users — `meta-llama/llama-3.3-70b-instruct` (without `/fp-8`) returns 404. Smaller catalog than Together / Fireworks; newer entrant means less LiteLLM coverage so pricing tiers may have gaps."),
         )
+    ),
+    "applog_list" to HelpContent(
+        title = "Application log — file list",
+        cards = listOf(
+            HelpCard("Overview", "List of daily-rotating application log files stored under `<filesDir>/applog/`. Each file captures one calendar day filtered by the level threshold set in Settings → Logging. Rows show the date (YYYY-MM-DD) and on-disk size."),
+            HelpCard("Title bar — 🗑", "Clears every log file after confirmation. The currently-active in-memory session writes are dropped too — the next log call starts a fresh file."),
+            HelpCard("Tap a row", "Opens the per-file detail view with search, tag filter, level filter, time-range filter, copy + share. Files appear newest-first."),
+            HelpCard("Empty state", "Shows the current threshold so you can tell when nothing's been written because everything is below it (e.g. threshold = WARN and no warnings have fired today). A red banner appears instead if the log writer hit a disk / IO error — message + dropped-line count surfaced inline."),
+            HelpCard("Source", "Files are written by [com.ai.viewmodel.AppLog]; the list is re-read on every screen resume so detail-view deletes propagate."),
+            HelpCard("Pitfalls", "Old files are kept until you delete them — set a calendar reminder if storage matters. Toast messages route through AppLog too: WARN / ERROR levels also flash a toast, but the file is the authoritative record."),
+            HelpCard("Reached from", "Settings → Logging and tracing → Application log.")
+        )
+    ),
+    "applog_detail" to HelpContent(
+        title = "Application log — file detail",
+        cards = listOf(
+            HelpCard("Overview", "Filtered view of one log file's entries, newest-first. Stack traces are folded into their header line; tap any row to expand it full-screen."),
+            HelpCard("Title bar — Copy / Share / 🗑", "Copy and Share open a chooser dialog (last N lines / complete log / filtered-only). 🗑 deletes the entire file with confirmation — back returns to the file list with the deletion already reflected."),
+            HelpCard("Row colour = level", "🔴 ERROR / 🟠 WARN / 🟢 INFO / 🔵 DEBUG / grey TRACE. The level chips at the top toggle visibility — every level is on by default."),
+            HelpCard("Search box", "Case-insensitive substring match across the header line + every continuation line. The ✕ clears the box. Combined with the level / tag / time filters — every active filter is AND-ed."),
+            HelpCard("Tag dropdown + level chips", "Tag picks one tag from the file's distinct set (`(any)` = no filter). Level chips multi-select TRACE/DEBUG/INFO/WARN/ERROR."),
+            HelpCard("Time range", "Start / End buttons open clock pickers. Constraints are HH:mm. Each has a Clear button to drop the bound."),
+            HelpCard("Counter line", "\"Showing X of Y\" shows the filter result vs. total. A *Clear filters* link appears whenever at least one filter is active."),
+            HelpCard("Prev / Next file", "Swipe horizontally on the content area to walk to the previous / next day's file. Filters persist across the swap — useful for following a single tag across midnight."),
+            HelpCard("Reached from", "Tap a row on the Application log list. Some screens (Report → View Log) deep-link in with the search pre-seeded to the report id.")
+        )
+    ),
+    "external_intent" to HelpContent(
+        title = "External request",
+        cards = listOf(
+            HelpCard("Overview", "Confirmation gate shown before this app fulfils a cross-app share / `ACTION_SEND` request. Another app is asking AI to generate a report with instructions embedded in the intent — review what will happen before spending API credits."),
+            HelpCard("Title bar — Back", "Cancels the request and returns to the calling app. Nothing is sent; no API calls fire."),
+            HelpCard("Prompt card", "Shows the optional title + a preview of the AI prompt (first 400 chars, truncated with …) + the system-prompt snippet (first 120 chars) if one was passed."),
+            HelpCard("Will-do card", "One-line headline of the action: *Generate a report immediately*, *Open the editor with prompt pre-filled*, or *Open agent / model selection*. Lists the report type and target models / agents when the caller pinned them; otherwise notes that you'll pick on the next screen."),
+            HelpCard("Side-effects card (red)", "Only shown when the intent specifies post-generation actions: send email, open in browser, share via the system sheet, or return data to the caller app. Each is bulleted so you can spot a malicious or unexpected effect before confirming."),
+            HelpCard("Confirm", "*Generate* on the bottom bar commits — auto-generate flows fire the report; editor / picker flows open with the prompt pre-filled. Side-effects fire only on the generate path."),
+            HelpCard("Pitfalls", "A malicious caller could ask the app to email a report to an attacker's address or open a sketchy URL — review the side-effects card carefully. Cancel always returns to the caller with no data leakage."),
+            HelpCard("Reached from", "Android share dialog → AI app, or a deep link of the form `com.ai.ACTION_NEW_REPORT`.")
+        )
+    ),
+    "inaccessible_models" to HelpContent(
+        title = "Inaccessible models",
+        cards = listOf(
+            HelpCard("Overview", "Curated list of model definitions that your account genuinely can't reach — no API key, capability mismatch, Together's non-serverless tier, geo-blocked endpoints, etc. Entries are dimmed in pickers and dropped from Test All Models runs instead of marked FAIL."),
+            HelpCard("Title bar — Back / 🏠", "Back returns to Settings → AI Models. 🏠 jumps to the home screen."),
+            HelpCard("Rows", "One row per `(provider, model)` pair. Shows the provider id + the model name + the reason for inaccessibility (first 80 chars). Sorted alphabetically."),
+            HelpCard("Edit / Delete", "Tap a row to open the model picker and replace the entry with a different model. Long-press to delete — instant, no confirm."),
+            HelpCard("Auto-population", "The Test All Models engine adds entries automatically when a probe returns a sentinel like \"Unable to access non-serverless\". You can also curate the list by hand."),
+            HelpCard("Effect on pickers", "Entries here are dimmed in the New Report / Test All / Find Icons pickers. They're not deleted — the model still exists in your settings; it just won't fire calls in normal flows."),
+            HelpCard("Pitfalls", "Removing an entry restores the model to normal pickers at full brightness — useful when an account upgrade unlocked a tier the test engine had flagged."),
+            HelpCard("Reached from", "Settings → AI Models → Inaccessible models.")
+        )
+    ),
+    "report_html_preview" to HelpContent(
+        title = "HTML preview",
+        cards = listOf(
+            HelpCard("Overview", "Inline WebView rendering of a report's HTML — the same HTML the file export produces, but rendered live with JavaScript enabled so table sorting / collapsibles / rerank anchors stay interactive."),
+            HelpCard("Title bar", "Back returns to the Report detail screen. The title reads *HTML preview* (full) or *HTML preview (short)* depending on which detail level you launched. The report's emoji + title appear as the subject when set."),
+            HelpCard("Body", "The entire content area is the WebView. Scroll, tap intra-document anchors (e.g. a Rerank row jumping back to the source agent), and use system-back to leave."),
+            HelpCard("HTML source", "Built off-thread via `convertReportToHtml(report)` (full detail) or `buildShortHtml(report)` (short detail) and loaded via `loadDataWithBaseURL(baseUrl = about:blank)`. The `<h1>` is stripped in preview only — the title bar already shows it. Standalone HTML exports keep the `<h1>` intact."),
+            HelpCard("Security", "`about:blank` baseUrl + `setAllowFileAccess(false)` + `setAllowContentAccess(false)` mean a malicious script in a model's response can't read local files or content provider URIs. JavaScript stays enabled so legit interactive features work."),
+            HelpCard("Pitfalls", "The preview renders whatever the export builder produced — if a model returned malformed HTML, you see it as-is. Use *Export → HTML file* if you need a saved copy."),
+            HelpCard("Reached from", "Report detail → Export → View HTML preview (full or short), or via deep link with the report id.")
+        )
+    ),
+    "report_meta_run" to HelpContent(
+        title = "Run a meta prompt",
+        cards = listOf(
+            HelpCard("Overview", "Full-screen editor for the meta prompt's text body, shown between the Scope screen and the model picker. Lets you tweak the template for this run only — the stored InternalPrompt is left untouched."),
+            HelpCard("Title bar — Back", "Cancels and returns to the Scope screen. The state survives the trip so re-entering the Run page shows your unedited starting text again (the editor reseeds from the prompt's stored body)."),
+            HelpCard("Prompt editor", "OutlinedTextField (min 8 lines) seeded with `metaPrompt.text`. Edits are local — they don't write back to Settings → Internal prompts. If you want the changes to stick, copy them into the prompt definition by hand after the run."),
+            HelpCard("Continue button", "Hoisted to the top of the page so it's reachable without scrolling past a long template. Passes a copy of the meta prompt with the edited text to the model picker; the original stays unchanged."),
+            HelpCard("Variables", "Substitution placeholders (`@PROMPT@`, `@RESPONSE@`, `@NAME@`, `@TITLE@`, etc.) remain literal in the editor — they're resolved at call time by the engine. Don't expand them by hand."),
+            HelpCard("Reached from", "Settings → Internal prompts → run a meta-category prompt, OR from a report's Run → Meta → pick a prompt → Continue (after the Scope screen).")
+        )
     )
 )
 
