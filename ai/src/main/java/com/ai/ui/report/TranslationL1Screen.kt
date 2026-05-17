@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -157,6 +158,42 @@ internal fun TranslationL1Screen(
             onDelete = { confirmDelete = true }
         )
         com.ai.ui.shared.HardcodedSubjectRow(subject)
+
+        // Mode toggle — switches the cost-aware hesitation in the
+        // worker loop. Mid-run interactive: workers re-read the
+        // selection on every queue pull, so the bias change takes
+        // effect within ~1s. Persisted per-runId so a restart lands
+        // in the same mode the user picked. See ReportViewModel
+        // TranslationMode + setTranslationMode + costPenaltyMs.
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Order: Speed | Mixed | Cost — left-to-right matches the
+            // user-facing speed-vs-cost spectrum.
+            listOf(
+                ReportViewModel.TranslationMode.SPEED to "Speed",
+                ReportViewModel.TranslationMode.MIXED to "Mixed",
+                ReportViewModel.TranslationMode.COST to "Cost"
+            ).forEach { (m, label) ->
+                FilterChip(
+                    selected = run.mode == m,
+                    onClick = { actions.onSetMode(runId, m) },
+                    label = {
+                        Text(
+                            label,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         // Stats panel — pinned at the top, kept visible even once the
         // whole run is done. Translations expose no throttled set, so

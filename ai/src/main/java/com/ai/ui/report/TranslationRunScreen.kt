@@ -94,7 +94,11 @@ data class TranslationActions(
      *  Wired on the L1 🐞 icon. */
     val onNavigateToTraceRunList: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    val onNavigateHome: () -> Unit = {}
+    val onNavigateHome: () -> Unit = {},
+    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
+     *  Workers re-read the mode on every queue pull, so the new bias
+     *  kicks in within one chunk (~1s). Persisted per-runId. */
+    val onSetMode: (runId: String, mode: ReportViewModel.TranslationMode) -> Unit = { _, _ -> }
 )
 
 /**

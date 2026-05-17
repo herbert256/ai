@@ -5775,6 +5775,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
     enum class TranslationKind { TITLE, PROMPT, AGENT_RESPONSE, META }
 
+    /** Per-run optimisation knob exposed on the L1 screen — switches
+     *  the cost-aware hesitation built into [startTranslation]'s
+     *  worker loop. Mutable mid-run: each worker re-reads the current
+     *  value before pulling the next item, so flipping the toggle
+     *  takes effect on the next pull (in-flight calls keep running).
+     *  Persisted per-runId via [com.ai.data.TranslationModeStore] so
+     *  the choice survives app restarts.
+     *  - [COST] (default): full bias — penalty = `(myAvg / cheapest − 1) × 100ms`,
+     *    capped at 120 s. Expensive models pull only what cheap ones
+     *    can't keep up with.
+     *  - [MIXED]: softened bias — multiplier 20, cap 5 s. Still
+     *    favours cheap models but expensive ones stay engaged.
+     *  - [SPEED]: no hesitation — every model pulls as fast as its
+     *    per-host caps allow. Highest throughput, highest spend. */
+    enum class TranslationMode { COST, MIXED, SPEED }
+
     /** One row on the translation progress screen. [sourceText] is what
      *  gets fed to the model; [translatedText] is filled in on DONE.
      *  [costDollars] is the per-call cost in USD (input + output) for
@@ -5831,7 +5847,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val items: List<TranslationItem>,
         val totalCostDollars: Double = 0.0,
         val finished: Boolean = false,
-        val cancelled: Boolean = false
+        val cancelled: Boolean = false,
+        /** Cost-vs-speed knob the L1 screen exposes. Mutated via
+         *  [setTranslationMode]; workers re-read on every queue pull. */
+        val mode: TranslationMode = TranslationMode.COST
     ) {
         val total: Int get() = items.size
         val completed: Int get() = items.count { it.status == TranslationStatus.DONE || it.status == TranslationStatus.ERROR }
@@ -5968,7 +5987,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 sourceReportId = sourceReportId,
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
-                items = itemsWithIds
+                items = itemsWithIds,
+                // Brand-new runId always has no persisted entry → COST.
+                // Kept explicit for symmetry with the resume / persisted
+                // reconstruction paths below.
+                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
             )) }
             AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
@@ -6085,6 +6108,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // seed above already supplies a 2-sample
                             // prior, so the bias is live from item 1.
                             fun costPenaltyMs(): Long {
+                                // Re-read the user-chosen mode on every
+                                // call so the L1 toggle takes effect on
+                                // the very next pull. setTranslationMode
+                                // writes; we read.
+                                val curMode = _translationRuns.value[runId]?.mode ?: TranslationMode.COST
+                                if (curMode == TranslationMode.SPEED) return 0L
                                 val mine = modelCost[modelKey] ?: return 0L
                                 if (mine.first < 2) return 0L
                                 val myAvg = mine.second / mine.first
@@ -6093,20 +6122,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     .filter { it.first >= 2 }
                                     .minOfOrNull { it.second / it.first } ?: return 0L
                                 if (cheapest <= 0.0) return 0L
-                                return ((myAvg / cheapest - 1.0) * 100.0)
-                                    .coerceIn(0.0, 120_000.0).toLong()
+                                // COST: full 100ms-per-ratio penalty, 120s cap.
+                                // MIXED: 20ms-per-ratio, 5s cap — still
+                                // favours cheap models but a 100× outlier
+                                // hesitates 2 s instead of 10 s and an
+                                // extreme outlier 5 s instead of 2 minutes.
+                                val (mult, cap) = when (curMode) {
+                                    TranslationMode.COST -> 100.0 to 120_000.0
+                                    TranslationMode.MIXED -> 20.0 to 5_000.0
+                                    TranslationMode.SPEED -> return 0L  // handled above
+                                }
+                                return ((myAvg / cheapest - 1.0) * mult)
+                                    .coerceIn(0.0, cap).toLong()
                             }
-                            // Wait out the penalty in 1s chunks so the
-                            // worker still notices the run finishing
-                            // (channel closed) promptly instead of
-                            // sitting out a long hesitation.
+                            // Re-evaluating loop — the penalty is
+                            // re-read every 1s chunk so a mid-hesitation
+                            // mode flip (COST → SPEED) interrupts within
+                            // a second instead of finishing the prior
+                            // hesitation. Worker also notices the run
+                            // finishing (channel closed) promptly via
+                            // the remaining.get() guard.
                             suspend fun costHesitate() {
-                                val penalty = costPenaltyMs()
-                                var waited = 0L
-                                while (waited < penalty && remaining.get() > 0) {
-                                    val chunk = minOf(1_000L, penalty - waited)
-                                    delay(chunk)
-                                    waited += chunk
+                                while (remaining.get() > 0) {
+                                    val penalty = costPenaltyMs()
+                                    if (penalty <= 0L) return
+                                    delay(minOf(1_000L, penalty))
                                 }
                             }
                             // A benched model stops pulling — its share
@@ -6516,6 +6556,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
+     *  Persists to [com.ai.data.TranslationModeStore] so the choice
+     *  survives a process kill / app restart, and updates the
+     *  in-memory [_translationRuns] so the worker's per-pull mode
+     *  read (in [startTranslation]'s `costPenaltyMs`) picks up the
+     *  new value on the next item. In-flight calls keep running on
+     *  whichever model they're already on. */
+    fun setTranslationMode(runId: String, mode: TranslationMode) {
+        com.ai.data.TranslationModeStore.set(runId, mode)
+        _translationRuns.update { runs ->
+            val cur = runs[runId] ?: return@update runs
+            if (cur.mode == mode) return@update runs
+            runs + (runId to cur.copy(mode = mode))
+        }
+    }
+
     fun consumeTranslationRun(runId: String) {
         _translationRuns.update { it - runId }
     }
@@ -6545,6 +6601,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, sourceReportId)
             _translationRuns.update { it - runId }
+            // Drop the persisted Speed/Mixed/Cost pick so the prefs
+            // file doesn't accumulate entries for deleted runs.
+            com.ai.data.TranslationModeStore.remove(runId)
         }
     }
 
@@ -6867,7 +6926,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             items = items,
             totalCostDollars = items.sumOf { it.costDollars },
             finished = true,
-            cancelled = false
+            cancelled = false,
+            mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
         )
     }
 
@@ -7056,7 +7116,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
                 items = persistedItems + items,
-                totalCostDollars = persistedItems.sumOf { it.costDollars }
+                totalCostDollars = persistedItems.sumOf { it.costDollars },
+                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST
             )
             runs + (runId to merged)
         }

@@ -491,7 +491,8 @@ fun ReportsScreenNav(
             onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
             onCancelItem = { runId, itemId -> reportViewModel.cancelTranslationItem(runId, itemId) },
             onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) },
-            onDeleteRun = { sourceId, runId -> reportViewModel.deleteTranslationRun(context, sourceId, runId) }
+            onDeleteRun = { sourceId, runId -> reportViewModel.deleteTranslationRun(context, sourceId, runId) },
+            onSetMode = { runId, mode -> reportViewModel.setTranslationMode(runId, mode) }
         ),
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
@@ -608,7 +609,10 @@ data class TranslationLifecycleCallbacks(
     /** Delete a whole translation run — cancels + joins the runner,
      *  then deletes every persisted row. Returns the Job so the
      *  detail screen can await it behind a "Deleting…" popup. */
-    val onDeleteRun: (sourceReportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null }
+    val onDeleteRun: (sourceReportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null },
+    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
+     *  Wired by ReportsScreenNav to ReportViewModel.setTranslationMode. */
+    val onSetMode: (runId: String, mode: com.ai.viewmodel.ReportViewModel.TranslationMode) -> Unit = { _, _ -> }
 )
 
 /** Four translation-icon callbacks plumbed through [ReportsScreen]
@@ -2077,7 +2081,8 @@ fun ReportsScreen(
                     onNavigateToTraceList = { onNavigateToTraceListFiltered(rid, "Translation") },
                     onNavigateToTraceRunList = onNavigateToTraceRunList,
                     onNavigateToModelInfo = onNavigateToModelInfo,
-                    onNavigateHome = onNavigateHome
+                    onNavigateHome = onNavigateHome,
+                    onSetMode = translationLifecycle.onSetMode
                 ),
                 onBack = { openTranslationRunId = null }
             )

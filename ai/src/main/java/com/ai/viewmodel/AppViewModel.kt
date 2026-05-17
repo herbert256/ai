@@ -744,6 +744,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.v(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
         AppLog.v(tag, "  init PromptCache"); PromptCache.init(application)
         AppLog.v(tag, "  init InternalPromptIconCache"); InternalPromptIconCache.init(application)
+        AppLog.v(tag, "  init TranslationModeStore"); com.ai.data.TranslationModeStore.init(application)
         AppLog.d(tag, "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms")
 
         AppLog.d(tag, "→ Load prefs")
