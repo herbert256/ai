@@ -308,10 +308,18 @@ internal fun TranslationL1Screen(
         // Restart re-fires every errored item including benched ones
         // (a benched item just re-confirms its cooldown — cheap).
         val restartN = errorCount + benchCount
+        // Multi-model runs route each failed item to a model OTHER
+        // than the one that failed (round-robin over the rest), so
+        // the user gets a meaningful retry instead of hitting the
+        // same wall twice. Mono-model runs retry on the same model.
+        val modelCount = modelRows.size
+        val modelNote = if (modelCount > 1)
+            " This run uses $modelCount models — failed entries will switch to a different model than the one that failed."
+        else ""
         ReloadConfirmationDialog(
             target = "",
             title = "Restart failed items?",
-            message = "Re-fires $restartN failed call${if (restartN == 1) "" else "s"}. The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
+            message = "Re-fires $restartN failed call${if (restartN == 1) "" else "s"}.$modelNote The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
             confirmLabel = "Restart",
             onConfirm = {
                 confirmRestartFailed = false

@@ -6582,7 +6582,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
         if (rows.isEmpty()) return@launch
-        runTranslationSubset(context, sourceReportId, runId, rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() }, deleteRowIds = rows.map { it.id })
+        runTranslationSubset(
+            context, sourceReportId, runId,
+            rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
+            deleteRowIds = rows.map { it.id },
+            // Multi-model runs: avoid retrying on the same model
+            // that just failed. runTranslationSubset round-robins
+            // each failed entry over the other models on the run.
+            switchModelOnFail = true
+        )
     }
 
     /** Drop every errored translation row from [runId] without
@@ -6871,7 +6879,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  picks the models (typically from another existing
          *  translation run on the same report). Falls back to the
          *  per-run derivation when null. */
-        modelsOverride: List<Pair<AppService, String>>? = null
+        modelsOverride: List<Pair<AppService, String>>? = null,
+        /** Restart-failed flag — when true AND the run uses more
+         *  than one (provider, model) tuple, each failed item is
+         *  reassigned to a model OTHER than the one it failed on
+         *  (round-robin over the remaining set). Off by default to
+         *  preserve [startMissingTranslations]' "reuse the recorded
+         *  model" semantics, which has no failed-on model to avoid. */
+        switchModelOnFail: Boolean = false
     ) {
         if (targetKindPairs.isEmpty()) return
         val translateRows = SecondaryResultStorage
@@ -7025,10 +7040,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
 
         // Pair each item with the model context it should run
-        // under. Failed-row retries reuse the (provider, model)
-        // recorded on disk for that (kind, target). New items
-        // (startMissing — no row yet) round-robin over the run's
-        // distinct model set.
+        // under. Default: failed-row retries reuse the (provider,
+        // model) recorded on disk so the retry hits the same model
+        // that failed. With [switchModelOnFail] AND a multi-model
+        // run, round-robin over the OTHER models on the run
+        // instead — the failed model has already proved itself
+        // unreliable for this entry. New items (startMissing — no
+        // row yet) always round-robin over the run's distinct
+        // model set.
         val assignments: List<Pair<TranslationItem, ModelCtx>> = items.mapIndexed { idx, item ->
             val targetKey = when (item.kind) {
                 TranslationKind.TITLE -> "TITLE" to "title"
@@ -7037,12 +7056,24 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 TranslationKind.META -> "META" to (item.target ?: "")
             }
             val originRow = rowByKindTarget[targetKey]
-            val ctx = originRow
-                ?.let { r -> AppService.findById(r.providerId)?.let { p -> ctxByKey[p.id to r.model] } }
-                ?: run {
+            val originPair: Pair<String, String>? = originRow?.let { r ->
+                AppService.findById(r.providerId)?.let { p -> p.id to r.model }
+            }
+            val alternatives: List<Pair<AppService, String>> =
+                if (switchModelOnFail && runModels.size > 1 && originPair != null) {
+                    runModels.filterNot { (p, m) -> (p.id to m) == originPair }
+                } else emptyList()
+            val ctx = when {
+                alternatives.isNotEmpty() -> {
+                    val (p, m) = alternatives[idx % alternatives.size]
+                    ctxByKey[p.id to m]
+                }
+                originPair != null -> ctxByKey[originPair]
+                else -> {
                     val (p, m) = runModels[idx % runModels.size]
                     ctxByKey[p.id to m]
                 }
+            }
             item to (ctx ?: ctxByKey.values.first())
         }
 
