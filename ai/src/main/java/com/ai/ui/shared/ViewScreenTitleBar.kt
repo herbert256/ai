@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,7 +68,19 @@ fun ViewScreenTitleBar(
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
-    Column(modifier = Modifier.fillMaxWidth()) {
+    // Pull the whole bar up 16 dp AND shrink its measured height by
+    // the same amount so the AI logo lands at the same y as the
+    // Report - manage TitleBar (which uses the same trick — see
+    // SharedComponents.kt TitleBar). Without this the View bar
+    // would sit 16 dp lower than the manage bar because both
+    // screens add a 16 dp top padding to their root Column.
+    Column(modifier = Modifier.fillMaxWidth().layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val shift = 16.dp.roundToPx()
+        layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
+            placeable.place(0, -shift)
+        }
+    }) {
         Row(
             modifier = Modifier
                 // Outset 12 dp on each side so the AI logo and help
@@ -99,11 +112,17 @@ fun ViewScreenTitleBar(
             Image(
                 painter = painterResource(R.drawable.brand_glyph),
                 contentDescription = "Home",
-                modifier = Modifier.size(52.dp).clickable(
-                    interactionSource = logoInteractionSource,
-                    indication = null,
-                    onClick = { navigateHome() }
-                )
+                // y = -7 dp matches the offset on the AI logo in the
+                // standard TitleBar (SharedComponents.kt), so both
+                // bars place the logo at the same screen y.
+                modifier = Modifier
+                    .offset(y = (-7).dp)
+                    .size(52.dp)
+                    .clickable(
+                        interactionSource = logoInteractionSource,
+                        indication = null,
+                        onClick = { navigateHome() }
+                    )
             )
             // Prefer the bigger 24 sp size; if the title would overflow
             // the centre slot, drop to 18 sp instead. We never
