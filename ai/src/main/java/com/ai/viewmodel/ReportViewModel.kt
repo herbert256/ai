@@ -2353,6 +2353,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             TierResult.RateLimited -> {
                 rateLimitedHosts.add(pairHost)
                 AppLog.w("FanOutIcons", "tier 1 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
+                // Persist an error so the L1/L2/L3 row flips to ❌
+                // instead of sitting at 🕓 forever. Relaunching the
+                // fan-icons batch will retry this pair (pending
+                // filter gates on icon == null).
+                SecondaryResultStorage.setFanOutIconError(
+                    context, reportId, pair.id,
+                    "rate-limited at tier 1 (chat-continuation) — host $pairHost hit 429, relaunch to retry"
+                )
                 return
             }
             TierResult.Miss -> { /* cascade to tier 2 */ }
@@ -2372,6 +2380,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             TierResult.RateLimited -> {
                 rateLimitedHosts.add(pairHost)
                 AppLog.w("FanOutIcons", "tier 2 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
+                SecondaryResultStorage.setFanOutIconError(
+                    context, reportId, pair.id,
+                    "rate-limited at tier 2 (one-shot) — host $pairHost hit 429, relaunch to retry"
+                )
                 return
             }
             TierResult.Miss -> { /* cascade to tier 3 */ }
@@ -2390,6 +2402,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // host (that would wrongly skip pairs whose own model
                 // is that provider). Just stop this pair's chain.
                 AppLog.w("FanOutIcons", "tier 3 rate-limited (429) for pair=${pair.id} — chain stopped")
+                SecondaryResultStorage.setFanOutIconError(
+                    context, reportId, pair.id,
+                    "rate-limited at tier 3 (fixed agent) — relaunch to retry"
+                )
                 return
             }
             TierResult.Miss -> { /* fall through to the 📝 fallback */ }
@@ -2480,6 +2496,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 val host = providerHost(provider)
                                 if (host in rateLimitedHosts) {
                                     AppLog.d("FanIcons", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
+                                    // Persist a sentinel so the UI flips
+                                    // from PENDING (🕓 forever) to ERROR
+                                    // (❌). Relaunching the batch picks
+                                    // these up (the `pending` filter
+                                    // gates on `icon == null`, not on
+                                    // errorMessage), so the user can
+                                    // retry without first clearing.
+                                    SecondaryResultStorage.setFanOutIconError(
+                                        context, reportId, pair.id,
+                                        "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
+                                    )
                                     return@async
                                 }
                                 val hostCap = perHostCaps[host]
