@@ -469,7 +469,7 @@ internal fun ViewAiReportScreen(
             // sourceRows is now single-element per META item — its id
             // disambiguates two tiles that share a metaPromptName so
             // the persisted tile-order map stays unique.
-            val rowId = item.sourceRows.firstOrNull()?.id ?: item.label
+            val rowId = item.sourceRows?.firstOrNull()?.id ?: item.label
             IdentifiedTile(
                 id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
