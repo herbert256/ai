@@ -107,8 +107,7 @@ fun ModerationViewScreen(
             screenTitle = "Moderation",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "moderation_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

@@ -91,8 +91,7 @@ fun HtmlPreviewScreen(
             screenTitle = if (detail == ReportExportDetail.SHORT) "HTML preview (short)" else "HTML preview",
             subject = null,
             helpTopic = "report_html_preview",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
 
         when (val s = state.value) {

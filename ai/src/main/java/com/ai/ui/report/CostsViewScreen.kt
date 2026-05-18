@@ -82,8 +82,7 @@ fun CostsViewScreen(
             screenTitle = "Costs",
             subject = null,
             helpTopic = "costs_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

@@ -132,8 +132,7 @@ fun PromptViewScreen(
             // slot null keeps the bar uncluttered.
             subject = null,
             helpTopic = "prompt_view_screen",
-            onBack = { onBack(activeLangState.value.ifBlank { null }) },
-            onLogoClick = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {
             Box(

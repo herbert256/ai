@@ -63,17 +63,18 @@ fun ViewScreenTitleBar(
     screenTitle: String?,
     subject: String?,
     helpTopic: String,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit,
-    /** Override the AI-logo tap target. Default = navigate to the
-     *  app home (via [LocalNavigateHome]). Child View screens pass
-     *  their own onBack here so a logo tap returns to the parent
-     *  View tile grid instead of jumping all the way home. */
-    onLogoClick: (() -> Unit)? = null
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
-    val effectiveLogoClick: () -> Unit = onLogoClick ?: { navigateHome() }
+    // AI logo always navigates to the app Hub — matches the
+    // standard [TitleBar] and the universal rule "top-left AI icon
+    // goes home from anywhere in the app". The previous
+    // onLogoClick override that let sub-View screens send the logo
+    // to their own onBack is gone; Android back / gesture still
+    // routes through each screen's BackHandler.
+    val effectiveLogoClick: () -> Unit = { navigateHome() }
     // Proactively clear the global BottomIconBar state. A parent
     // screen's TitleBar (Manage flow, Single-result, etc.) may have
     // SideEffect-published its icons just before this View overlay

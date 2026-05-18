@@ -119,8 +119,7 @@ fun MetaViewScreen(
             screenTitle = "Meta",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "meta_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

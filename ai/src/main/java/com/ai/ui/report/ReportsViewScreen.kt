@@ -166,8 +166,7 @@ fun ReportsViewScreen(
             screenTitle = "Model reports",
             subject = null,
             helpTopic = "reports_view",
-            onBack = { onBack(activeLangState.value.ifBlank { null }) },
-            onLogoClick = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {
             Box(

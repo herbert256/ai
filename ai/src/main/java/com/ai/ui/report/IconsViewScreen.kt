@@ -136,8 +136,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
             screenTitle = "Icons",
             subject = null,
             helpTopic = "icons_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
 
         if (report == null) {

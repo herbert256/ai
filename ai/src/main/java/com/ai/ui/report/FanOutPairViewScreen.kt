@@ -121,8 +121,7 @@ fun FanOutPairViewScreen(
             screenTitle = "Fan-out pair",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_pair_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
 
         if (pairs.isEmpty()) {

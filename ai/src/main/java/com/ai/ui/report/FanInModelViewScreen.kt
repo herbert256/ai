@@ -110,8 +110,7 @@ fun FanInModelViewScreen(
             screenTitle = "Fan-in-model",
             subject = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_model_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

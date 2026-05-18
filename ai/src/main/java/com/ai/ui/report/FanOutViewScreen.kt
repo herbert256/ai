@@ -158,8 +158,7 @@ fun FanOutViewScreen(
             screenTitle = "Fan-out",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = onBack
         )
         if (report == null) {
             Box(
