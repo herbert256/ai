@@ -978,14 +978,13 @@ private fun TitleBarActionStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(extraSpacing)
     ) {
-        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
-        // 👁 lives just before ℹ️ — the View slot is "open the report's
-        // tile grid" while ℹ️ is "open Model Info"; they're distinct
-        // intents and currently never both wired at the same time, but
-        // ordering keeps the strip stable if a future screen wants
-        // both. Larger glyph (18 sp vs the standard 16 sp) mirrors
-        // the slightly-bigger eye on every per-row report list.
+        // 👁 view lives at the leftmost slot of the strip on every
+        // Manage screen — the user's "View icon must be the
+        // leftmost icon" rule. Larger glyph (18 sp vs the standard
+        // 16 sp) mirrors the slightly-bigger eye on every per-row
+        // report list.
         if (onOpenView != null) TitleBarIcon("👁", Color.Unspecified, onOpenView, width = 32.dp, scale = scale, fontSize = 18.sp)
+        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
         // 🔧 manage — same glyph the per-row 🔧 uses on every reports
         // list. Wired by every View screen so the bottom-bar lets
         // the user jump back to Report - manage (or a specific
