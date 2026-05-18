@@ -275,6 +275,12 @@ fun ReportsViewScreen(
  *  see which language is active. */
 @Composable
 private fun PromptCard(report: Report, languageIcon: String?) {
+    // Prefer the live LocalReportIcon (refreshed via iconRefreshTick
+    // by the report-overlay parent) so an in-flight icon-gen
+    // completion updates this card without waiting for the screen to
+    // remount. Falls back to the report's persisted icon, then "📄".
+    val liveIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
+    val displayedIcon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: "📄"
     Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -285,7 +291,7 @@ private fun PromptCard(report: Report, languageIcon: String?) {
             // Transparent oversized glyph — no background tint, no Box
             // wrapper, just the emoji centred above the prompt text.
             Text(
-                text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
+                text = displayedIcon,
                 fontSize = 44.sp,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
