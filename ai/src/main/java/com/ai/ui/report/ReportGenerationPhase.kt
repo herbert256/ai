@@ -729,6 +729,14 @@ internal fun ColumnScope.GenerationPhase(
     // cents + ¢). Rendered above the progress bar so the layout
     // matches the pre-totals-relocation order: subject → progress →
     // list. The running cost stays visible while scrolling.
+    //
+    // Wrapped with a top + bottom Spacer so the green title has
+    // more breathing room above (against the white report title)
+    // and below (against the progress bar / list start). The
+    // HardcodedSubjectRow itself has an internal -8 dp offset that
+    // pulls it up tight; the leading spacer offsets that, the
+    // trailing spacer adds room below.
+    Spacer(modifier = Modifier.height(8.dp))
     com.ai.ui.shared.HardcodedSubjectRow(
         text = uiState.genericPromptTitle,
         trailing = {
@@ -748,7 +756,7 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
     )
-    Spacer(modifier = Modifier.height(2.dp))
+    Spacer(modifier = Modifier.height(10.dp))
 
     // Progress is in-flight UI: shown only while at least one agent is
     // still pending. Drops out once every agent finishes (or in
