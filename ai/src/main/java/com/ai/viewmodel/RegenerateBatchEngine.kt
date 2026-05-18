@@ -59,6 +59,28 @@ class RegenerateBatchEngine internal constructor(
      *  restart / cancel. */
     private val orchestratorJobs = ConcurrentHashMap<String, Job>()
 
+    /** Prior-cost snapshot taken just before a phase resets its
+     *  rows on disk — the dispatchers overwrite cost fields with
+     *  the new call's numbers, so without these snapshots the
+     *  user would see only the new cost (and total) after a
+     *  regenerate. After each row reaches SUCCESS the snapshot
+     *  is added back onto the row so the displayed cost is
+     *  (prior + new) — matching the user's mental model of "I'm
+     *  paying twice; show me both". Keyed by rowId; cleared as
+     *  each row's snapshot is consumed. */
+    private data class CostSnapshot(
+        val inputTokens: Int,
+        val outputTokens: Int,
+        val inputCost: Double,
+        val outputCost: Double,
+        // LANGUAGE phase only — the second-call (icon) numbers.
+        val langIconInputTokens: Int = 0,
+        val langIconOutputTokens: Int = 0,
+        val langIconInputCost: Double = 0.0,
+        val langIconOutputCost: Double = 0.0
+    )
+    private val costSnapshots = ConcurrentHashMap<String, CostSnapshot>()
+
     /** True once a job exists in either memory or disk for this
      *  report. Cheap UI guard used by the Manage screen's row
      *  composable. */
@@ -301,6 +323,20 @@ class RegenerateBatchEngine internal constructor(
                 return PhaseOutcome.ERROR
             }
             val statuses = readRowStatuses(context, reportId, phase, rowIds)
+            // Add the prior cost back onto each row that just
+            // flipped to SUCCESS (one-shot — costSnapshots.remove
+            // ensures it's done once). Snapshot is consumed
+            // BEFORE the disk read happens at the next poll, so the
+            // row's now-accumulated cost is correct before any UI
+            // recompute.
+            val currentJob = RegenerateBatchStorage.get(context, reportId) ?: return PhaseOutcome.ERROR
+            statuses.forEach { (rowId, status) ->
+                if (status !is RowStatus.Success) return@forEach
+                val priorState = currentJob.tasks.firstOrNull { it.rowId == rowId }?.state
+                if (priorState == RegenerateTaskState.RUNNING) {
+                    applyCostSnapshot(context, reportId, phase, rowId)
+                }
+            }
             mutateJob(context, reportId) { j ->
                 j.copy(
                     tasks = j.tasks.map { t ->
@@ -443,6 +479,11 @@ class RegenerateBatchEngine internal constructor(
         context: Context, reportId: String,
         phaseTasks: List<RegenerateTask>, phase: RegeneratePhase
     ) {
+        // Snapshot prior costs before resetting — see [costSnapshots]
+        // doc-comment. Each row's snapshot is consumed when the row
+        // reaches SUCCESS in awaitPhaseCompletion.
+        snapshotPhaseCosts(context, reportId, phaseTasks, phase)
+
         when (phase) {
             RegeneratePhase.ICON -> {
                 ReportStorage.clearReportIcon(context, reportId)
@@ -481,6 +522,116 @@ class RegenerateBatchEngine internal constructor(
                     SecondaryResultStorage.resetRowToPlaceholder(context, reportId, it.rowId)
                 }
             }
+        }
+    }
+
+    /** Capture each row's current cost + token state so it can be
+     *  added back after the re-dispatch lands. Indexed by rowId in
+     *  [costSnapshots]. */
+    private fun snapshotPhaseCosts(
+        context: Context, reportId: String,
+        phaseTasks: List<RegenerateTask>, phase: RegeneratePhase
+    ) {
+        when (phase) {
+            RegeneratePhase.ICON -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                costSnapshots[REPORT_ICON_ROW_ID] = CostSnapshot(
+                    inputTokens = report.iconInputTokens,
+                    outputTokens = report.iconOutputTokens,
+                    inputCost = report.iconInputCost,
+                    outputCost = report.iconOutputCost
+                )
+            }
+            RegeneratePhase.LANGUAGE -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                costSnapshots[REPORT_LANGUAGE_ROW_ID] = CostSnapshot(
+                    inputTokens = report.languageInputTokens,
+                    outputTokens = report.languageOutputTokens,
+                    inputCost = report.languageInputCost,
+                    outputCost = report.languageOutputCost,
+                    langIconInputTokens = report.languageIconInputTokens,
+                    langIconOutputTokens = report.languageIconOutputTokens,
+                    langIconInputCost = report.languageIconInputCost,
+                    langIconOutputCost = report.languageIconOutputCost
+                )
+            }
+            RegeneratePhase.AGENTS -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                phaseTasks.forEach { task ->
+                    val a = report.agents.firstOrNull { it.agentId == task.rowId } ?: return@forEach
+                    costSnapshots[task.rowId] = CostSnapshot(
+                        inputTokens = a.tokenUsage?.inputTokens ?: 0,
+                        outputTokens = a.tokenUsage?.outputTokens ?: 0,
+                        inputCost = a.inputCost ?: 0.0,
+                        outputCost = a.outputCost ?: 0.0
+                    )
+                }
+            }
+            RegeneratePhase.FAN_ICONS -> {
+                val rows = SecondaryResultStorage.listForReport(context, reportId)
+                    .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
+                rows.forEach { r ->
+                    costSnapshots[r.id] = CostSnapshot(
+                        inputTokens = r.iconInputTokens,
+                        outputTokens = r.iconOutputTokens,
+                        inputCost = r.iconInputCost,
+                        outputCost = r.iconOutputCost
+                    )
+                }
+            }
+            else -> {
+                val rows = SecondaryResultStorage.listForReport(context, reportId)
+                    .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
+                rows.forEach { r ->
+                    costSnapshots[r.id] = CostSnapshot(
+                        inputTokens = r.tokenUsage?.inputTokens ?: 0,
+                        outputTokens = r.tokenUsage?.outputTokens ?: 0,
+                        inputCost = r.inputCost ?: 0.0,
+                        outputCost = r.outputCost ?: 0.0
+                    )
+                }
+            }
+        }
+    }
+
+    /** Add a row's pre-reset cost back onto its now-fresh disk
+     *  fields. Called exactly once per row, the first time the
+     *  row flips to SUCCESS. */
+    private fun applyCostSnapshot(
+        context: Context, reportId: String,
+        phase: RegeneratePhase, rowId: String
+    ) {
+        val snap = costSnapshots.remove(rowId) ?: return
+        when (phase) {
+            RegeneratePhase.ICON -> ReportStorage.accumulateReportIconCost(
+                context, reportId,
+                addInputTokens = snap.inputTokens, addOutputTokens = snap.outputTokens,
+                addInputCost = snap.inputCost, addOutputCost = snap.outputCost
+            )
+            RegeneratePhase.LANGUAGE -> ReportStorage.accumulateReportLanguageCost(
+                context, reportId,
+                addLangInputTokens = snap.inputTokens, addLangOutputTokens = snap.outputTokens,
+                addLangInputCost = snap.inputCost, addLangOutputCost = snap.outputCost,
+                addLangIconInputTokens = snap.langIconInputTokens,
+                addLangIconOutputTokens = snap.langIconOutputTokens,
+                addLangIconInputCost = snap.langIconInputCost,
+                addLangIconOutputCost = snap.langIconOutputCost
+            )
+            RegeneratePhase.AGENTS -> ReportStorage.accumulateAgentCost(
+                context, reportId, rowId,
+                addInputTokens = snap.inputTokens, addOutputTokens = snap.outputTokens,
+                addInputCost = snap.inputCost, addOutputCost = snap.outputCost
+            )
+            RegeneratePhase.FAN_ICONS -> SecondaryResultStorage.accumulateRowFanIconCost(
+                context, reportId, rowId,
+                addInputTokens = snap.inputTokens, addOutputTokens = snap.outputTokens,
+                addInputCost = snap.inputCost, addOutputCost = snap.outputCost
+            )
+            else -> SecondaryResultStorage.accumulateRowCost(
+                context, reportId, rowId,
+                addInputTokens = snap.inputTokens, addOutputTokens = snap.outputTokens,
+                addInputCost = snap.inputCost, addOutputCost = snap.outputCost
+            )
         }
     }
 

@@ -572,6 +572,93 @@ object ReportStorage {
         }
     }
 
+    /** Add the prior cost back onto an agent's now-fresh cost
+     *  fields after a successful Regenerate-batch agent re-dispatch.
+     *  Without this the new call's cost overwrites the previous
+     *  run's cost; the user paid for both, so the displayed cost
+     *  should be the sum. */
+    fun accumulateAgentCost(
+        context: Context, reportId: String, agentId: String,
+        addInputTokens: Int, addOutputTokens: Int,
+        addInputCost: Double, addOutputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return
+            val a = report.agents[idx]
+            val newIn = (a.inputCost ?: 0.0) + addInputCost
+            val newOut = (a.outputCost ?: 0.0) + addOutputCost
+            val updated = a.copy(
+                inputCost = newIn,
+                outputCost = newOut,
+                cost = newIn + newOut,
+                tokenUsage = TokenUsage(
+                    inputTokens = (a.tokenUsage?.inputTokens ?: 0) + addInputTokens,
+                    outputTokens = (a.tokenUsage?.outputTokens ?: 0) + addOutputTokens
+                )
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
+                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
+            saveReport(report.copy(
+                agents = newAgents,
+                totalCost = newTotal,
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+    }
+
+    /** Add prior icon-gen cost back onto the report's icon* fields
+     *  after a successful Regenerate-batch ICON-phase re-dispatch. */
+    fun accumulateReportIconCost(
+        context: Context, reportId: String,
+        addInputTokens: Int, addOutputTokens: Int,
+        addInputCost: Double, addOutputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            saveReport(report.copy(
+                iconInputTokens = report.iconInputTokens + addInputTokens,
+                iconOutputTokens = report.iconOutputTokens + addOutputTokens,
+                iconInputCost = report.iconInputCost + addInputCost,
+                iconOutputCost = report.iconOutputCost + addOutputCost,
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+    }
+
+    /** Add prior language-flow costs back onto the report's
+     *  language* + languageIcon* fields after a successful
+     *  Regenerate-batch LANGUAGE-phase re-dispatch. Both the
+     *  detection call and the icon call are folded into one
+     *  accumulator since the engine treats LANGUAGE as one phase. */
+    fun accumulateReportLanguageCost(
+        context: Context, reportId: String,
+        addLangInputTokens: Int, addLangOutputTokens: Int,
+        addLangInputCost: Double, addLangOutputCost: Double,
+        addLangIconInputTokens: Int, addLangIconOutputTokens: Int,
+        addLangIconInputCost: Double, addLangIconOutputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            saveReport(report.copy(
+                languageInputTokens = report.languageInputTokens + addLangInputTokens,
+                languageOutputTokens = report.languageOutputTokens + addLangOutputTokens,
+                languageInputCost = report.languageInputCost + addLangInputCost,
+                languageOutputCost = report.languageOutputCost + addLangOutputCost,
+                languageIconInputTokens = report.languageIconInputTokens + addLangIconInputTokens,
+                languageIconOutputTokens = report.languageIconOutputTokens + addLangIconOutputTokens,
+                languageIconInputCost = report.languageIconInputCost + addLangIconInputCost,
+                languageIconOutputCost = report.languageIconOutputCost + addLangIconOutputCost,
+                timestamp = System.currentTimeMillis()
+            ))
+        }
+    }
+
     fun bumpReportTimestamp(context: Context, reportId: String) {
         init(context)
         lock.withLock {

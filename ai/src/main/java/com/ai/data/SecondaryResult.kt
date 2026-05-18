@@ -564,6 +564,62 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Add prior cost + token counts back onto a row's inputCost /
+     *  outputCost / tokenUsage after a successful Regenerate-batch
+     *  re-dispatch overwrote them. Used for META / FAN_OUT / FAN_IN
+     *  / TRANSLATIONS phases. */
+    fun accumulateRowCost(
+        context: Context, reportId: String, resultId: String,
+        addInputTokens: Int, addOutputTokens: Int,
+        addInputCost: Double, addOutputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                inputCost = (current.inputCost ?: 0.0) + addInputCost,
+                outputCost = (current.outputCost ?: 0.0) + addOutputCost,
+                tokenUsage = TokenUsage(
+                    inputTokens = (current.tokenUsage?.inputTokens ?: 0) + addInputTokens,
+                    outputTokens = (current.tokenUsage?.outputTokens ?: 0) + addOutputTokens
+                )
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Add prior fan-out-icon cost + tokens back onto a fan-out
+     *  pair row's iconInputCost / iconOutputCost / iconInputTokens
+     *  / iconOutputTokens after a successful Regenerate-batch
+     *  FAN_ICONS-phase re-dispatch. */
+    fun accumulateRowFanIconCost(
+        context: Context, reportId: String, resultId: String,
+        addInputTokens: Int, addOutputTokens: Int,
+        addInputCost: Double, addOutputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                iconInputTokens = current.iconInputTokens + addInputTokens,
+                iconOutputTokens = current.iconOutputTokens + addOutputTokens,
+                iconInputCost = current.iconInputCost + addInputCost,
+                iconOutputCost = current.iconOutputCost + addOutputCost
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {
