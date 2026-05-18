@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,42 +75,59 @@ fun MetaViewScreen(
     val context = LocalContext.current
 
     data class Loaded(
-        val result: SecondaryResult?,
-        val translatedContent: String?,
+        // Every META row on this report (sorted by timestamp) so the
+        // pager can swipe across them. The initially-tapped row sets
+        // the starting page.
+        val allMetaRows: List<SecondaryResult>,
+        // resultId → translated body for the active language. Null
+        // map means no translations / Original.
+        val translatedByRowId: Map<String, String>,
         val report: Report?
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, null, null),
-        reportId, resultId, language
+        initialValue = Loaded(emptyList(), emptyMap(), null),
+        reportId, language
     ) {
         value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, reportId, resultId)
+            val metas = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.META)
+                .filter { !it.content.isNullOrBlank() }
+                .sortedBy { it.timestamp }
             val translates = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.TRANSLATE)
             val rep = ReportStorage.getReport(context, reportId)
-            val translated = if (!language.isNullOrEmpty()) {
-                translates.firstOrNull {
-                    it.translateSourceKind == "META" &&
-                        it.translateSourceTargetId == resultId &&
-                        it.targetLanguage == language &&
-                        !it.content.isNullOrBlank()
-                }?.content
-            } else null
-            Loaded(r, translated, rep)
+            val translatedMap: Map<String, String> = if (!language.isNullOrEmpty()) {
+                translates
+                    .filter {
+                        it.translateSourceKind == "META" &&
+                            it.targetLanguage == language &&
+                            !it.content.isNullOrBlank() &&
+                            !it.translateSourceTargetId.isNullOrBlank()
+                    }
+                    .associate { it.translateSourceTargetId!! to it.content!! }
+            } else emptyMap()
+            Loaded(metas, translatedMap, rep)
         }
     }
     val loaded = loadedState.value
-    val result = loaded.result
     val report = loaded.report
-    val activeContent = loaded.translatedContent
-        ?: result?.content.orEmpty()
-    val title = result?.metaPromptName?.takeIf { it.isNotBlank() }
-        ?: result?.let { com.ai.data.legacyKindDisplayName(it.kind) }
+    val rows = loaded.allMetaRows
+
+    // Pager — one page per META row. Initial page is the resultId
+    // the user tapped, snapped to the loaded list's index.
+    val initialIndex = remember(rows, resultId) {
+        rows.indexOfFirst { it.id == resultId }.coerceAtLeast(0)
+    }
+    val pagerState = rememberPagerState(initialPage = initialIndex) {
+        rows.size.coerceAtLeast(1)
+    }
+    val activeRow = rows.getOrNull(pagerState.currentPage)
+    val title = activeRow?.metaPromptName?.takeIf { it.isNotBlank() }
+        ?: activeRow?.let { com.ai.data.legacyKindDisplayName(it.kind) }
         ?: "Meta"
-    val provider = result?.let { AppService.findById(it.providerId)?.id ?: it.providerId }.orEmpty()
-    val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
-    val cachedIcon = result?.metaPromptName?.let { InternalPromptIconCache.get(it, title) }
+    val rowIcon = activeRow?.icon?.takeIf { it.isNotBlank() }
+    val cachedIcon = activeRow?.metaPromptName?.let { InternalPromptIconCache.get(it, title) }
     val displayedEmoji = rowIcon ?: cachedIcon ?: "🧠"
 
     Column(
@@ -118,7 +138,10 @@ fun MetaViewScreen(
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Meta",
-            subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
+            // Green metaPromptName subject dropped per the user's
+            // spec — the purple title row below already shows the
+            // active row's prompt name.
+            subject = null,
             helpTopic = "meta_view",
             onBack = onBack
         )
@@ -152,7 +175,7 @@ fun MetaViewScreen(
                 )
             }
         }
-        if (result == null) {
+        if (rows.isEmpty()) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
                 contentAlignment = Alignment.TopCenter
@@ -165,120 +188,42 @@ fun MetaViewScreen(
             return@Column
         }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-        ) {
-            // Hero "❓ Question" card — the report prompt rendered as
-            // the question that produced this meta answer. Purple
-            // gradient + report icon on the left ties it visually to
-            // the meta tile that just got tapped.
-            item {
-                QuestionHero(
-                    promptText = report?.prompt.orEmpty(),
-                    reportIcon = report?.icon
-                )
-            }
-            // Answer card — large body with the meta's content rendered
-            // through the shared markdown pipeline. Per-provider /
-            // -model attribution sits on the header row so the user
-            // sees who answered.
-            item {
-                AnswerCard(
-                    emoji = displayedEmoji,
-                    title = title,
-                    provider = provider,
-                    model = result.model,
-                    body = activeContent
-                )
+        // One page per META row — swipe → previous / next meta.
+        // The Question card and the per-card header (emoji + title +
+        // provider) are gone per the user's spec: the top row above
+        // already shows the active meta's emoji + name, so each page
+        // renders just the body card.
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val row = rows[page]
+            val body = loaded.translatedByRowId[row.id]?.takeIf { it.isNotBlank() }
+                ?: row.content.orEmpty()
+            // LazyColumn for orientation-locked vertical scroll —
+            // plays cleanly with the parent HorizontalPager's drag
+            // detection so a swipe across long body text still flips
+            // the page.
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+            ) {
+                item { AnswerCard(body = body) }
             }
         }
     }
 }
 
 @Composable
-private fun QuestionHero(promptText: String, reportIcon: String?) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(AppColors.Purple.copy(alpha = 0.32f), AppColors.Purple.copy(alpha = 0.06f))
-                )
-            )
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = reportIcon?.takeIf { it.isNotBlank() } ?: "❓",
-                fontSize = 26.sp,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text(
-                text = "Question",
-                color = AppColors.TextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        if (promptText.isBlank()) {
-            Text(
-                text = "(no prompt recorded)",
-                color = AppColors.TextTertiary, fontSize = 13.sp
-            )
-        } else {
-            // Markdown renderer — prompt may contain inline formatting
-            // when it's been pasted from a larger document.
-            ContentWithThinkSections(analysis = promptText)
-        }
-    }
-}
-
-@Composable
-private fun AnswerCard(
-    emoji: String,
-    title: String,
-    provider: String,
-    model: String,
-    body: String
-) {
+private fun AnswerCard(body: String) {
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = emoji,
-                fontSize = 22.sp,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = AppColors.Purple,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = "$provider / ${shortModelName(model)}",
-                    color = AppColors.TextTertiary,
-                    fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.modelInfoViewClickable(
-                        com.ai.data.AppService.findById(provider), model
-                    )
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(2.dp))
         if (body.isBlank()) {
             Text(
                 text = "(no content)",
