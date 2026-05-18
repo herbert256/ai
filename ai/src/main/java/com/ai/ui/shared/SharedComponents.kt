@@ -280,6 +280,16 @@ sealed class ViewJump {
  *  routes hit `navController.navigate(...)` directly). */
 val LocalPendingViewOverManage = compositionLocalOf<MutableState<ViewJump?>?> { null }
 
+/** Counter bumped by `ReportPrimaryOverlays`' layered-View "go to
+ *  main View" path (the Report-title tap on a View sub-screen that
+ *  was opened ON TOP of a Manage overlay). [com.ai.ui.report.ViewAiReportScreen]
+ *  reads this and keys its inner overlay state on it, so a bump
+ *  resets every sub-View overlay (rerank / moderation / fan-in / …)
+ *  back to the tile grid in the same composition pass — no
+ *  flicker, no leftover sub-View from before the round-trip
+ *  through Manage. Null on screens outside the AI_REPORTS route. */
+val LocalMainViewResetTick = compositionLocalOf<MutableState<Int>?> { null }
+
 /** Set on every screen that's "deeper" than the AI Report Result
  *  page (overlay screens inside the result page — Edit Prompt /
  *  Title / Models / Parameters / Export / Translation Compare /

@@ -144,6 +144,14 @@ internal fun ViewAiReportScreen(
     // for the LIFO BackHandler model that keeps every View layer
     // popping one step at a time.
     androidx.activity.compose.BackHandler { onBack() }
+    // Reset tick — bumped by ReportPrimaryOverlays' layered-View
+    // "go to main View" path (Report-title tap on a View screen
+    // that was mounted ON TOP of a Manage overlay). Every
+    // sub-View overlay var below is keyed on this so a tick bump
+    // wipes their state in the same composition pass, landing the
+    // user on a fresh tile grid instead of the previously-open
+    // sub-View that rememberSaveable would otherwise restore.
+    val resetTick = com.ai.ui.shared.LocalMainViewResetTick.current?.value ?: 0
     // Per-tile content-only "View" overlay state. Owned by
     // ViewAiReportScreen rather than the parent so adding new view
     // overlays one-per-commit doesn't grow ReportsScreen's bytecode
@@ -152,7 +160,7 @@ internal fun ViewAiReportScreen(
     // tapping back inside that overlay clears the flag and returns to
     // the grid here. rememberSaveable so a rotation while the costs
     // screen is up doesn't snap back to the grid.
-    var showCostsView by rememberSaveable { mutableStateOf(false) }
+    var showCostsView by rememberSaveable(resetTick) { mutableStateOf(false) }
     if (showCostsView) {
         val backToMain: () -> Unit = { showCostsView = false }
         androidx.compose.runtime.CompositionLocalProvider(
@@ -169,8 +177,8 @@ internal fun ViewAiReportScreen(
     // that share a metaPromptName open the correct row. Language is
     // captured at tap time so the opened MetaViewScreen renders the
     // matching TRANSLATE row for the active picker language.
-    var metaViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
-    var metaViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var metaViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var metaViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeMetaViewRowId = metaViewRowId
     if (activeMetaViewRowId != null) {
         val backToMain: () -> Unit = { metaViewRowId = null; metaViewLanguage = null }
@@ -191,9 +199,9 @@ internal fun ViewAiReportScreen(
     // closes Rerank and opens Reports scrolled to that agent's page.
     // The actual ReportsViewScreen mount lives further down (after
     // the language-picker setup) — these vars are shared.
-    var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
-    var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
-    var reportsViewInitialAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    var reportsViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var reportsViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
+    var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     // First-composition seed for the Reports sub-overlay. Wired by
     // [NavRoutes.aiReportViewAtAgent] (used by Model Info View's
     // Last-Usage rows) → AppNavHost reads the
@@ -215,7 +223,7 @@ internal fun ViewAiReportScreen(
         }
     }
     // Rerank "View" overlay — keyed by the RERANK row id.
-    var rerankViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var rerankViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeRerankViewRowId = rerankViewRowId
     if (activeRerankViewRowId != null) {
         val backToMain: () -> Unit = { rerankViewRowId = null }
@@ -236,7 +244,7 @@ internal fun ViewAiReportScreen(
         return
     }
     // Moderation "View" overlay — keyed by the MODERATION row id.
-    var moderationViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var moderationViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeModerationViewRowId = moderationViewRowId
     if (activeModerationViewRowId != null) {
         val backToMain: () -> Unit = { moderationViewRowId = null }
@@ -252,7 +260,7 @@ internal fun ViewAiReportScreen(
         return
     }
     // Fan-in "View" overlay — keyed by the fan-in META row id.
-    var fanInViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var fanInViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeFanInViewRowId = fanInViewRowId
     if (activeFanInViewRowId != null) {
         val backToMain: () -> Unit = { fanInViewRowId = null }
@@ -270,7 +278,7 @@ internal fun ViewAiReportScreen(
     // Fan-in-model "View" overlay — keyed by the seed fan-in-model
     // META row id; the screen loads every sibling row sharing the
     // same metaPromptName and renders a pager over them.
-    var fanInModelViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
+    var fanInModelViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeFanInModelViewRowId = fanInModelViewRowId
     if (activeFanInModelViewRowId != null) {
         val backToMain: () -> Unit = { fanInModelViewRowId = null }
@@ -288,7 +296,7 @@ internal fun ViewAiReportScreen(
     // Translate "View" overlay — keyed by translationRunId so all
     // siblings of a single Translate batch render together as a
     // stacked source/translation list.
-    var translateViewRunId by rememberSaveable { mutableStateOf<String?>(null) }
+    var translateViewRunId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeTranslateViewRunId = translateViewRunId
     if (activeTranslateViewRunId != null) {
         val backToMain: () -> Unit = { translateViewRunId = null }
@@ -310,8 +318,8 @@ internal fun ViewAiReportScreen(
     // picker setup further down, because it reads [viewLangTabs] +
     // [selectedViewLangKey] to propagate the user's swiped-to
     // language back up.
-    var promptViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
-    var promptViewOpen by rememberSaveable { mutableStateOf(false) }
+    var promptViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var promptViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
     // Reports overlay vars are declared higher up (hoisted so the
     // rerank mount can flip them) — re-using the same identifiers
     // here.
@@ -319,7 +327,7 @@ internal fun ViewAiReportScreen(
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
     // so a rotation doesn't snap the list shut mid-read.
-    var expandedKind by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedKind by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
 
     // Persisted tile-order — survives reports / restarts. Stored as
     // a comma-separated list of tile identifiers under SharedPreferences
