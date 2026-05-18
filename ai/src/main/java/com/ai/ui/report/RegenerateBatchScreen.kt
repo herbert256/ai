@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,6 +76,10 @@ fun RegenerateBatchScreen(
     val job = jobs[reportId]
     BackHandler { onBack() }
 
+    var showDeleteConfirm by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(false)
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -83,7 +88,12 @@ fun RegenerateBatchScreen(
         TitleBar(
             helpTopic = "regenerate_batch",
             title = "Regenerate report",
-            onBackClick = onBack
+            onBackClick = onBack,
+            // Bottom-bar 🗑 — confirms then drops the persisted
+            // RegenerateJob + clears the Regenerate row from the
+            // Manage screen. Routes through the engine so any
+            // in-flight orchestrator coroutine is cancelled first.
+            onDelete = { showDeleteConfirm = true }
         )
         if (job == null) {
             Box(modifier = Modifier.fillMaxSize().padding(top = 32.dp), contentAlignment = Alignment.TopCenter) {
@@ -100,6 +110,31 @@ fun RegenerateBatchScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         TaskList(job)
+    }
+    if (showDeleteConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete regenerate batch?") },
+            text = {
+                Text(
+                    "Removes the regenerate job from this report. " +
+                        "Any in-flight phase is cancelled; rows that already " +
+                        "finished keep their new content. The report itself is untouched."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showDeleteConfirm = false
+                    engine.deleteJob(context, reportId)
+                    onBack()
+                }) { Text("Delete", color = AppColors.Red) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
