@@ -2,6 +2,7 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import android.content.Context
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -829,6 +830,19 @@ internal fun ViewAiReportScreen(
     val swipeDensity = androidx.compose.ui.platform.LocalDensity.current
     val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
     var swipeDragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // Transient status pinned at top-center for ~1 second when the
+    // user swipes — either "Loading report" (when a neighbour is
+    // about to load) or "No more reports" (when they swiped past an
+    // edge). statusTick bumps per swipe so a fresh swipe restarts
+    // the dismissal timer instead of being eaten by a stale delay.
+    var swipeStatus by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var statusTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.compose.runtime.LaunchedEffect(statusTick) {
+        if (swipeStatus != null) {
+            kotlinx.coroutines.delay(1000)
+            swipeStatus = null
+        }
+    }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .pointerInput(swipeNav) {
@@ -836,8 +850,18 @@ internal fun ViewAiReportScreen(
                     onDragStart = { swipeDragX = 0f },
                     onDragEnd = {
                         when {
-                            swipeDragX > swipeThresholdPx -> swipeNav?.onPrev?.invoke()
-                            swipeDragX < -swipeThresholdPx -> swipeNav?.onNext?.invoke()
+                            swipeDragX > swipeThresholdPx -> {
+                                val nav = swipeNav
+                                swipeStatus = if (nav?.hasPrev == true) "Loading report" else "No more reports"
+                                statusTick++
+                                nav?.onPrev?.invoke()
+                            }
+                            swipeDragX < -swipeThresholdPx -> {
+                                val nav = swipeNav
+                                swipeStatus = if (nav?.hasNext == true) "Loading report" else "No more reports"
+                                statusTick++
+                                nav?.onNext?.invoke()
+                            }
                         }
                         swipeDragX = 0f
                     },
@@ -857,6 +881,32 @@ internal fun ViewAiReportScreen(
             helpTopic = "view_ai_report",
             onBack = onBack
         )
+
+        // Transient swipe status — shows "Loading report" when the
+        // user swipes onto a real neighbour and "No more reports"
+        // when they swipe past an edge. Auto-dismissed after ~1 s
+        // by the LaunchedEffect above. Renders an empty Spacer when
+        // null so the rest of the layout doesn't jump as the
+        // message appears / disappears.
+        val currentStatus = swipeStatus
+        if (currentStatus != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = currentStatus,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
+                        .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                )
+            }
+        }
 
         // One picker for the whole View screen; tile clicks below
         // forward the active language to the opened sub-screen.

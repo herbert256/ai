@@ -377,12 +377,14 @@ fun ReportsHubScreen(
         Spacer(modifier = Modifier.height(12.dp))
         ReportsHubListCard(
             accentEmoji = "⚠️", accentColor = AppColors.Red,
-            label = "AI Reports with problems", reports = homeReportLists.problems
+            label = "AI Reports with problems", reports = homeReportLists.problems,
+            showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
             accentEmoji = "⏳", accentColor = AppColors.Orange,
-            label = "Running AI reports", reports = homeReportLists.running
+            label = "Running AI reports", reports = homeReportLists.running,
+            showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
@@ -402,14 +404,19 @@ fun ReportsHubScreen(
 /** One of the four list cards on the rewritten Reports hub
  *  dashboard. Shows a header (accent emoji + label + count badge)
  *  and up to 5 [com.ai.ui.shared.ReportListRow]s. Empty cards
- *  render dimmed at `alpha = 0.35f` with an italic "(none)" line
- *  so the layout doesn't shift when a category fills / empties. */
+ *  render dimmed at `alpha = 0.35f`. With [showEmptyHint] true the
+ *  card spells the absence out with an italic "(none)" line —
+ *  used by Pinned / Latest where the user might still want to act
+ *  on the slot. The top two cards (Problems / Running) pass false
+ *  so an empty state quietly shows only the dimmed header — those
+ *  categories are noise when empty. */
 @Composable
 private fun ReportsHubListCard(
     accentEmoji: String,
     accentColor: Color,
     label: String,
-    reports: List<Report>
+    reports: List<Report>,
+    showEmptyHint: Boolean = true
 ) {
     val empty = reports.isEmpty()
     Card(
@@ -430,13 +437,15 @@ private fun ReportsHubListCard(
                 Text(text = reports.size.toString(), fontSize = 12.sp, color = AppColors.TextTertiary)
             }
             if (empty) {
-                Text(
-                    text = "(none)",
-                    fontSize = 12.sp,
-                    color = AppColors.TextTertiary,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    modifier = Modifier.padding(start = 26.dp, top = 4.dp, bottom = 2.dp)
-                )
+                if (showEmptyHint) {
+                    Text(
+                        text = "(none)",
+                        fontSize = 12.sp,
+                        color = AppColors.TextTertiary,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        modifier = Modifier.padding(start = 26.dp, top = 4.dp, bottom = 2.dp)
+                    )
+                }
             } else {
                 reports.take(5).forEach { r ->
                     com.ai.ui.shared.ReportListRow(

@@ -319,7 +319,9 @@ fun ReportsScreenNav(
                     val targetId = reportIdsNewestFirst[currentIdx - 1]
                     scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
                 }
-            }
+            },
+            hasPrev = hasPrevReport,
+            hasNext = hasNextReport
         )
     }
     CompositionLocalProvider(

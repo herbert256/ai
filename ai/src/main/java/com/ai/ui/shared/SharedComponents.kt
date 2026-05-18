@@ -251,7 +251,13 @@ data class ReportNeighborNav(
     val onPrev: () -> Unit,
     /** Chronologically next = newer report. No-op when there
      *  isn't one. */
-    val onNext: () -> Unit
+    val onNext: () -> Unit,
+    /** True when an older neighbour exists. The swipe handler on
+     *  the main View grid reads this to decide whether to flash
+     *  "Loading report" or "No more reports". */
+    val hasPrev: Boolean = false,
+    /** True when a newer neighbour exists. */
+    val hasNext: Boolean = false
 )
 
 val LocalReportNeighborNav = compositionLocalOf<ReportNeighborNav?> { null }
