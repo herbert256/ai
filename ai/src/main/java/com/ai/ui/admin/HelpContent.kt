@@ -488,6 +488,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             // surfaces them.
         )
     ),
+    "regenerate_batch" to HelpContent(
+        title = "Help - Regenerate report",
+        cards = listOf(
+            HelpCard("Overview", "The 🔁 icon on the Manage screen opens a confirm dialog; OK enqueues an app-restart-survivable batch that re-runs everything on the report in a fixed order. Replaces the legacy one-shot regenerate that only touched the agent rows."),
+            HelpCard("Phase order", "1) Model reports (agents). 2) Meta — single-call meta + rerank + moderation. 3) Fan-out — every fan-out pair. 4) Fan-in — combined-report rows. 5) Translations. 6) Fan-icons — re-runs the icon chain for every fan-out pair that previously had an icon. The batch moves to the next phase only when every row in the current phase is SUCCESS."),
+            HelpCard("Halt + restart on error", "Halts on the first row that ends ❌ in any phase. The Regenerate row on Manage turns ❌. Fix the offending row (delete + rerun via the existing per-row UI), then either tap Restart on the Regenerate detail screen OR wait — the same 30 s background sweep that resumes stuck translation / fan-out runs also auto-resumes a paused Regenerate batch once the row's error clears."),
+            HelpCard("Survives app kill", "The job's task list + status lives on disk under <filesDir>/regenerate/<reportId>.json. App-restart sweep at ReportViewModel.startBackgroundResumeSweep rehydrates the engine + revives the orchestrator coroutine; rows mid-flight finish themselves and the batch picks up from the current phase."),
+            HelpCard("Cancel + re-enqueue", "The detail screen's Cancel button stops scheduling new phases (in-flight HTTP calls finish normally). Tap Restart to resume from where it stopped. A fresh enqueue (tap 🔁 again) replaces the existing job and starts from phase 1."),
+            HelpCard("Detail screen", "Tap the 🔁 Regenerate row on Manage. Shows every task grouped by phase with status icon + started / ended / duration timestamps. Per-task error messages render in red beneath the task label.")
+        )
+    ),
     "update_from_cloud" to HelpContent(
         title = "Help - Update from cloud",
         cards = listOf(

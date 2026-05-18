@@ -870,6 +870,13 @@ internal fun ColumnScope.GenerationPhase(
     // row without invoking @Composable functions.
     val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
+        // Regenerate batch — top of body when a RegenerateJob is
+        // active for this report. Hoisted into its own composable
+        // (RegenerateBatchManageRow) to keep this LazyColumn body
+        // under the JVM 64 KB per-method ceiling.
+        item(key = "regen-batch-row") {
+            RegenerateBatchManageRow()
+        }
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status

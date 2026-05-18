@@ -533,6 +533,37 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Reset a row to "stale placeholder" — clear content,
+     *  errorMessage, durationMs, tokenUsage and costs so the
+     *  resume-stale path picks it up and re-dispatches. Leaves
+     *  the row's prompt / model / scope / metaPromptName fields
+     *  intact so the dispatcher can reconstruct the call.
+     *  Used by [com.ai.viewmodel.RegenerateBatchEngine] when a
+     *  phase starts so every row in that phase shows ⏳ before
+     *  the dispatcher fires. No-op when the row is gone. */
+    fun resetRowToPlaceholder(context: Context, reportId: String, resultId: String) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                content = null,
+                errorMessage = null,
+                durationMs = null,
+                tokenUsage = null,
+                inputCost = null,
+                outputCost = null,
+                // Bump timestamp so the dispatcher sees a fresh row.
+                timestamp = System.currentTimeMillis()
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {

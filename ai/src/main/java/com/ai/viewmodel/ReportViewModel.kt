@@ -72,7 +72,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  activity. Drop-in for `Dispatchers.IO` at report-section
      *  `viewModelScope.launch` sites; `return@launch` stays valid
      *  because the `launch` call itself is unchanged. */
-    private fun reportLogContext(logId: String?) =
+    internal fun reportLogContext(logId: String?) =
         Dispatchers.IO + AppLog.currentLogId.asContextElement(logId)
 
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
@@ -161,6 +161,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  legacy `runningFanOutPairs`, `fanOutPairJobs`, and the 500 ms
      *  polling loop. */
     val fanOutEngine: FanOutEngine = FanOutEngine(appViewModel, this)
+
+    /** Per-report orchestrator for the "Regenerate report" batch
+     *  job. Replaces the legacy one-shot [regenerateReport] call —
+     *  the title-bar 🔁 icon's confirm dialog now calls
+     *  `regenerateBatchEngine.enqueueAndStart` instead. */
+    val regenerateBatchEngine: RegenerateBatchEngine = RegenerateBatchEngine(appViewModel, this)
 
     /** Runtime owner for the "Test all models" run (Housekeeping →
      *  Test). One run, persisted to its own JSON document. */
@@ -3385,6 +3391,100 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Re-fire EVERY agent on [reportId] from scratch, regardless of
+     *  the model-list / prompt / parameters diff that the public
+     *  [regenerateReport] uses to decide what to re-run. Each agent
+     *  is reset to PENDING and re-dispatched via [executeReportTask].
+     *  Returns immediately — dispatch runs on viewModelScope. Used
+     *  by [com.ai.viewmodel.RegenerateBatchEngine]'s AGENTS phase.
+     *
+     *  Mirrors the agent-dispatch portion of [regenerateReport] but
+     *  skips the prompt/params diff, the staged-edit-models merge,
+     *  and the secondary/translation cascade — the engine handles
+     *  cascading itself one phase at a time. */
+    fun forceRegenerateAllAgents(context: Context, reportId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val state = appViewModel.uiState.value
+            val ai = state.aiSettings
+            val rebuilt = reportToModels(report, ai)
+            val agentIds = rebuilt.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
+            val swarmIds = rebuilt.filter { it.sourceType == "swarm" && it.type == "model" }
+                .mapNotNull { it.sourceId }.toSet()
+            val directIds = rebuilt.filter { it.sourceType == "model" }
+                .map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val agents = agentIds.mapNotNull { ai.getAgentById(it) }
+            val swarmMembers = ai.getMembersForSwarms(swarmIds)
+            val swarmMemberIds = swarmMembers.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val uniqueDirectIds = directIds.filter { it !in swarmMemberIds }.toSet()
+            val directModels = uniqueDirectIds.mapNotNull { mid ->
+                val parts = mid.removePrefix("swarm:").split(":", limit = 2)
+                val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null)
+                    ?: return@mapNotNull null
+                SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
+            }
+            val reportLevelSystemPrompt = state.reportSystemPromptId
+                ?.let { ai.getSystemPromptById(it)?.prompt }
+            val tasks = buildReportTasks(
+                ai, agents, swarmMembers + directModels, emptyMap(),
+                state.externalSystemPrompt, reportLevelSystemPrompt
+            )
+            if (tasks.isEmpty()) return@launch
+            // Reset every existing agent to PENDING so the row shows
+            // ⏳ while the new dispatch is in flight.
+            val existingIds = report.agents.map { it.agentId }.toSet()
+            for (task in tasks) {
+                if (task.resultId in existingIds) {
+                    ReportStorage.resetAgentToPending(context, reportId, task.resultId)
+                }
+            }
+            _agentResults.update { existing ->
+                existing.filterKeys { k -> k !in tasks.map { it.resultId }.toSet() }
+            }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            withTracerTags(reportId = reportId, category = "Batch regenerate agents") {
+                val baseOverride = state.reportAdvancedParameters
+                val withWeb = if (report.webSearchTool)
+                    (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
+                else baseOverride
+                val overrideParams = if (report.reasoningEffort != null)
+                    (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
+                else withWeb
+                coroutineScope {
+                    interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
+                        async {
+                            val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                            try {
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.report.withPermit {
+                                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                            executeReportTask(
+                                                context, reportId, report.prompt, overrideParams, task,
+                                                report.imageBase64, report.imageMime,
+                                                isRegeneration = true
+                                            )
+                                        }
+                                    }
+                                }
+                            } finally {
+                                releaser.release()
+                            }
+                            // Per-agent icon-chain auto-fire — same shape as regenerateReport.
+                            val perModelOn = appViewModel.uiState.value.generalSettings.perModelIconGenEnabled
+                            if (perModelOn) {
+                                val ra = ReportStorage.getReport(context, reportId)
+                                    ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
+                                    runReportIconsForAgent(context, reportId, ra, report.prompt, ai)
+                                }
+                            }
+                        }
+                    }.awaitAll()
+                }
+            }
+        }
+    }
+
     private suspend fun cascadeMetasAndTranslations(
         context: Context, reportId: String
     ) {
@@ -4476,6 +4576,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             resumeStaleMetaPlaceholder(context, reportId, row)
         }
 
+        // 5. Regenerate batch: ask the engine to reconcile any
+        //    persisted RegenerateJob for this report. Idempotent;
+        //    no-op when DONE / CANCELLED, revives a stale RUNNING
+        //    orchestrator (process-kill recovery), or auto-resumes
+        //    a PAUSED_ON_ERROR job whose offending row was fixed.
+        regenerateBatchEngine.reconcile(context, reportId)
+
         // 4. Legacy fallback: any other stale row we can't reconstruct
         //    (fan-in single, model-fan-in, deleted prompt for a non-
         //    fan-out single meta, deleted provider) gets the honest ❌
@@ -4587,7 +4694,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  from the current report state, and calls [executeSecondaryTask]
      *  with the same placeholder so the in-place row transitions
      *  from ⏳ to ✅/❌ rather than being replaced by a fresh row. */
-    private fun resumeStaleMetaPlaceholder(
+    internal fun resumeStaleMetaPlaceholder(
         context: Context,
         reportId: String,
         placeholder: SecondaryResult

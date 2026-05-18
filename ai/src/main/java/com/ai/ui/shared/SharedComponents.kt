@@ -334,6 +334,23 @@ data class ReportNeighborNav(
 
 val LocalReportNeighborNav = compositionLocalOf<ReportNeighborNav?> { null }
 
+/** Optional handle to the per-report Regenerate batch engine.
+ *  Provided by [com.ai.ui.report.ReportsScreenNav] so deep
+ *  descendants (the Manage screen's Regenerate row + the
+ *  full-screen detail) can read state without threading it
+ *  through every intermediate composable's parameter list —
+ *  same trick used for [LocalReportNeighborNav]. Null when the
+ *  current navigation context isn't a report screen. */
+val LocalRegenerateBatchEngine = compositionLocalOf<com.ai.viewmodel.RegenerateBatchEngine?> { null }
+
+/** Shared state slot for the "Regenerate batch detail screen is
+ *  open for reportId X" overlay. Provided by ReportsScreenNav so
+ *  both the Regenerate row's click handler (sets it to a reportId)
+ *  AND the overlay-mount site (reads it + clears it on back)
+ *  share the same value. */
+val LocalRegenerateBatchOpenState =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

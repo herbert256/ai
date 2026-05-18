@@ -343,6 +343,23 @@ fun ReportsScreenNav(
     // on this so a bump force-resets every sub-View (rerank /
     // moderation / fan-in / …) back to the tile grid.
     val mainViewResetTick = remember { mutableStateOf(0) }
+    // Detail-screen open state for the "Regenerate report" batch.
+    // Hoisted to this composable (instead of ReportsScreen) to keep
+    // ReportsScreen under the JVM 64 KB method-size ceiling. Both
+    // the Regenerate row's click handler (deep in the tree) and the
+    // overlay mount site read this through LocalRegenerateBatchOpenState.
+    val openRegenerateBatchReportId = rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
+    ) { mutableStateOf<String?>(null) }
+    val openRegenBatchId = openRegenerateBatchReportId.value
+    if (openRegenBatchId != null) {
+        RegenerateBatchOverlay(
+            reportId = openRegenBatchId,
+            engine = reportViewModel.regenerateBatchEngine,
+            onClose = { openRegenerateBatchReportId.value = null }
+        )
+        return
+    }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -357,7 +374,9 @@ fun ReportsScreenNav(
         ),
         com.ai.ui.shared.LocalReportNeighborNav provides neighborNav,
         com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage,
-        com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick
+        com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick,
+        com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
+        com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId
     ) {
     ReportsScreen(
         uiState = uiState,
@@ -534,7 +553,10 @@ fun ReportsScreenNav(
         onMarkParametersChanged = {
             viewModel.updateUiState { it.copy(hasPendingParametersChange = true) }
         },
-        onRegenerate = { rid -> reportViewModel.regenerateReport(context, rid) },
+        // Title-bar 🔁 → confirm dialog → enqueue a Regenerate
+        // batch job (app-restart-survivable, phased through every
+        // category) instead of the legacy one-shot regenerateReport.
+        onRegenerate = { rid -> reportViewModel.regenerateBatchEngine.enqueueAndStart(context, rid) },
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },
