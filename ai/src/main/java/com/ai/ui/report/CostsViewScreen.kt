@@ -174,14 +174,16 @@ fun CostsViewScreen(
                 .filter { it.cents > 0.0001 }
                 .sortedByDescending { it.cents }
         }
-        // Per-(provider, model) roll-up. Same shape as `bucketed`
-        // above so the same BucketBar renderer paints both modes.
+        // Per-model roll-up. Same shape as `bucketed` above so the
+        // same BucketBar renderer paints both modes. Provider name
+        // is dropped per the user's spec — when the same model is
+        // served by multiple providers their costs collapse into one
+        // row.
         val modeled = remember(data) {
             val byModel = LinkedHashMap<String, BucketTotal>()
             data.rows.forEach { row ->
-                val key = if (row.providerDisplay.isNotBlank() && row.model.isNotBlank())
-                    "${row.providerDisplay} / ${row.model}"
-                else row.providerDisplay.ifBlank { row.model.ifBlank { row.type } }
+                val key = com.ai.ui.shared.shortModelName(row.model)
+                    .ifBlank { row.type }
                 val total = row.inputCents + row.outputCents
                 val cur = byModel[key]
                 byModel[key] = if (cur == null) BucketTotal(key, total, 1)
