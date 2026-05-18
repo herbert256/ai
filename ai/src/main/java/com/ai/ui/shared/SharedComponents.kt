@@ -390,6 +390,12 @@ data class TitleBarIcons(
     val onBack: (() -> Unit)?,
     val onChat: (() -> Unit)?,
     val onInfo: (() -> Unit)?,
+    /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
+     *  Model Info) — this one opens the View tile grid for the
+     *  active report. Wired from Report - manage so the bottom-bar
+     *  carries the same glyph as the per-row eye icon on every
+     *  reports list. Null → glyph hidden. */
+    val onOpenView: (() -> Unit)? = null,
     val onCopy: (() -> Unit)?,
     val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
@@ -627,6 +633,11 @@ fun TitleBar(
     onTrace: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onInfo: (() -> Unit)? = null,
+    /** Optional 👁 view-report hook. Opens the per-report View tile
+     *  grid. Wired from Report - manage; replaces the old ℹ️ slot
+     *  there so the bottom bar carries the same glyph as the per-row
+     *  eye icon on every reports list. Null → glyph hidden. */
+    onOpenView: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
     onChat: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
@@ -701,6 +712,7 @@ fun TitleBar(
         onBack = onBackClick,
         onChat = onChat,
         onInfo = onInfo,
+        onOpenView = onOpenView,
         onCopy = onCopy,
         onShare = onShare,
         onReload = onReload,
@@ -861,6 +873,7 @@ private fun TitleBarActionStrip(
     onReload: (() -> Unit)?,
     onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
+    onOpenView: (() -> Unit)?,
     onCopy: (() -> Unit)?,
     onShare: (() -> Unit)?,
     onTranslationCompare: (() -> Unit)?,
@@ -880,6 +893,13 @@ private fun TitleBarActionStrip(
         horizontalArrangement = Arrangement.spacedBy(extraSpacing)
     ) {
         if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
+        // 👁 lives just before ℹ️ — the View slot is "open the report's
+        // tile grid" while ℹ️ is "open Model Info"; they're distinct
+        // intents and currently never both wired at the same time, but
+        // ordering keeps the strip stable if a future screen wants
+        // both. Larger glyph (18 sp vs the standard 16 sp) mirrors
+        // the slightly-bigger eye on every per-row report list.
+        if (onOpenView != null) TitleBarIcon("👁", Color.Unspecified, onOpenView, width = 32.dp, scale = scale, fontSize = 18.sp)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
@@ -918,7 +938,11 @@ private fun TitleBarIcon(
      *  the bottom-bar 📌 pin icon to fade itself when the report isn't
      *  pinned — emoji glyphs ignore [tint] on Android (they're bitmap-
      *  rendered) so alpha is the reliable way to show an "off" state. */
-    alpha: Float = 1f
+    alpha: Float = 1f,
+    /** Glyph point size before scaling. Defaults to the strip's
+     *  standard 16 sp; callers that need a slightly larger icon
+     *  (👁 view) can bump it. */
+    fontSize: androidx.compose.ui.unit.TextUnit = 16.sp
 ) {
     Box(
         modifier = Modifier.size(width = width * scale, height = 32.dp * scale)
@@ -927,7 +951,7 @@ private fun TitleBarIcon(
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = emoji, fontSize = 16.sp * scale,
+            text = emoji, fontSize = fontSize * scale,
             color = if (tint == Color.Unspecified) Color.White else tint
         )
     }
@@ -945,6 +969,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onBack = icons?.onBack
     val onChat = icons?.onChat
     val onInfo = icons?.onInfo
+    val onOpenView = icons?.onOpenView
     val onCopy = icons?.onCopy
     val onShare = icons?.onShare
     val onReload = icons?.onReload
@@ -960,6 +985,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     var slotCount = 0
     fun slot(w: Int) { stripBase += w; slotCount++ }
     if (onChat != null) slot(28)
+    // 👁 renders a touch wider so the slightly larger glyph (matches
+    // the per-row eye on every reports list) doesn't collide with
+    // its neighbours.
+    if (onOpenView != null) slot(32)
     if (onInfo != null) slot(28)
     if (onCopy != null) slot(28)
     if (onPin != null) slot(28)
@@ -1020,6 +1049,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onReload = onReload,
                 onChat = onChat,
                 onInfo = onInfo,
+                onOpenView = onOpenView,
                 onCopy = onCopy,
                 onShare = onShare,
                 onTranslationCompare = onTranslationCompare,
@@ -1242,17 +1272,21 @@ fun ReportRowActionIcons(
     onDelete: ((String) -> Unit)? = null,
     reportId: String? = null
 ) {
+    // 👁 leads the strip and renders a couple of points larger than
+    // the other action icons — view is the dominant action on every
+    // report list, so the eye sits first and a little bigger to
+    // pull focus.
+    Text(
+        "👁", fontSize = 22.sp,
+        modifier = Modifier
+            .clickable { onOpenView() }
+            .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+    )
     Text(
         "🔧", fontSize = 18.sp,
         modifier = Modifier
             .clickable { onOpenManage() }
-            .padding(horizontal = 4.dp, vertical = 4.dp)
-    )
-    Text(
-        "👁", fontSize = 18.sp,
-        modifier = Modifier
-            .clickable { onOpenView() }
-            .padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     )
     if (onDelete != null && reportId != null) {
         Text(

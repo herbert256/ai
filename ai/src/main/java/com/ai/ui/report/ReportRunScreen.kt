@@ -143,7 +143,7 @@ internal fun ReportRunScreen(
                 onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
                 onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
                 onDelete = if (currentReportId != null) generationHandlers.onDelete else null,
-                onInfo = if (currentReportId != null) onOpenViewReport else null,
+                onOpenView = if (currentReportId != null) onOpenViewReport else null,
                 onChat = if (uiState.genericPromptText.isNotBlank()) {
                     { onChatWithReportPrompt(uiState.genericPromptText) }
                 } else null,
