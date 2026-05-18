@@ -923,6 +923,14 @@ internal fun ColumnScope.GenerationPhase(
                             // replace ✅ with the emoji (clickable to
                             // open the Meta-icon detail screen).
                             // Otherwise fall back to plain ✅.
+                            // Precedence: per-row override (set by
+                            // Find-alt → pickMetaRowIcon, stored on
+                            // run.icon) wins over the shared
+                            // per-(name,title) cache. Without this the
+                            // user can pick a distinct icon for one of
+                            // two rows that share a metaPromptName and
+                            // see the cache value keep showing here.
+                            val rowIcon = run.icon?.takeIf { it.isNotBlank() }
                             val emoji = if (
                                 uiState.generalSettings.useInternalPromptsIcons &&
                                 resolvedPrompt != null &&
@@ -931,14 +939,18 @@ internal fun ColumnScope.GenerationPhase(
                                 val tick = uiState.iconRefreshTick
                                 androidx.compose.runtime.remember(
                                     resolvedPrompt.id, resolvedPrompt.name,
-                                    resolvedPrompt.title, tick
+                                    resolvedPrompt.title, tick, rowIcon
                                 ) {
-                                    val cached = com.ai.data.InternalPromptIconCache
-                                        .get(resolvedPrompt.name, resolvedPrompt.title)
-                                    if (cached == null) onMissingPromptIcon(resolvedPrompt)
-                                    cached
+                                    if (rowIcon != null) {
+                                        rowIcon
+                                    } else {
+                                        val cached = com.ai.data.InternalPromptIconCache
+                                            .get(resolvedPrompt.name, resolvedPrompt.title)
+                                        if (cached == null) onMissingPromptIcon(resolvedPrompt)
+                                        cached
+                                    }
                                 }
-                            } else null
+                            } else rowIcon
                             if (emoji != null) {
                                 Text(
                                     emoji, fontSize = 16.sp,

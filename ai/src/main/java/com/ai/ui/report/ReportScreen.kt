@@ -2885,7 +2885,12 @@ private fun rememberReportRuntimeState(
     }
 
     val finishedSignature = translationRuns.filter { it.isFinished }.map { it.runId }.toSet()
-    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick) {
+    // iconRefreshTick is in the key set so a per-row icon pick
+    // (pickMetaRowIcon → setRowIcon writes to disk + bumps the tick)
+    // reloads secondaryRuns from disk; without it the in-memory list
+    // keeps the old SecondaryResult.icon value and the View tile +
+    // Manage row never reflect the user's pick.
+    LaunchedEffect(currentReportId, isComplete, uiState.activeSecondaryBatches, finishedSignature, secondaryRefreshTick, uiState.iconRefreshTick) {
         val rid = currentReportId ?: run {
             secondaryCounts = SecondaryResultStorage.Counts(0, 0, 0, 0)
             secondaryRuns = emptyList()
