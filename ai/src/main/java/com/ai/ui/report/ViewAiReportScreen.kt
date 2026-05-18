@@ -153,10 +153,15 @@ internal fun ViewAiReportScreen(
     // screen is up doesn't snap back to the grid.
     var showCostsView by rememberSaveable { mutableStateOf(false) }
     if (showCostsView) {
-        CostsViewScreen(
-            reportId = reportId,
-            onBack = { showCostsView = false }
-        )
+        val backToMain: () -> Unit = { showCostsView = false }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            CostsViewScreen(
+                reportId = reportId,
+                onBack = backToMain
+            )
+        }
         return
     }
     // Meta "View" overlay — keyed by the META row id so two tiles
@@ -167,12 +172,17 @@ internal fun ViewAiReportScreen(
     var metaViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     val activeMetaViewRowId = metaViewRowId
     if (activeMetaViewRowId != null) {
-        MetaViewScreen(
-            reportId = reportId,
-            resultId = activeMetaViewRowId,
-            language = metaViewLanguage?.takeIf { it.isNotEmpty() },
-            onBack = { metaViewRowId = null; metaViewLanguage = null }
-        )
+        val backToMain: () -> Unit = { metaViewRowId = null; metaViewLanguage = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            MetaViewScreen(
+                reportId = reportId,
+                resultId = activeMetaViewRowId,
+                language = metaViewLanguage?.takeIf { it.isNotEmpty() },
+                onBack = backToMain
+            )
+        }
         return
     }
     // Reports overlay var declarations hoisted here so the rerank
@@ -187,38 +197,53 @@ internal fun ViewAiReportScreen(
     var rerankViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeRerankViewRowId = rerankViewRowId
     if (activeRerankViewRowId != null) {
-        RerankViewScreen(
-            reportId = reportId,
-            resultId = activeRerankViewRowId,
-            onBack = { rerankViewRowId = null },
-            onOpenReportForAgent = { agentId ->
-                rerankViewRowId = null
-                reportsViewInitialAgentId = agentId
-                reportsViewOpen = true
-            }
-        )
+        val backToMain: () -> Unit = { rerankViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            RerankViewScreen(
+                reportId = reportId,
+                resultId = activeRerankViewRowId,
+                onBack = backToMain,
+                onOpenReportForAgent = { agentId ->
+                    rerankViewRowId = null
+                    reportsViewInitialAgentId = agentId
+                    reportsViewOpen = true
+                }
+            )
+        }
         return
     }
     // Moderation "View" overlay — keyed by the MODERATION row id.
     var moderationViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeModerationViewRowId = moderationViewRowId
     if (activeModerationViewRowId != null) {
-        ModerationViewScreen(
-            reportId = reportId,
-            resultId = activeModerationViewRowId,
-            onBack = { moderationViewRowId = null }
-        )
+        val backToMain: () -> Unit = { moderationViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            ModerationViewScreen(
+                reportId = reportId,
+                resultId = activeModerationViewRowId,
+                onBack = backToMain
+            )
+        }
         return
     }
     // Fan-in "View" overlay — keyed by the fan-in META row id.
     var fanInViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeFanInViewRowId = fanInViewRowId
     if (activeFanInViewRowId != null) {
-        FanInViewScreen(
-            reportId = reportId,
-            resultId = activeFanInViewRowId,
-            onBack = { fanInViewRowId = null }
-        )
+        val backToMain: () -> Unit = { fanInViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            FanInViewScreen(
+                reportId = reportId,
+                resultId = activeFanInViewRowId,
+                onBack = backToMain
+            )
+        }
         return
     }
     // Fan-in-model "View" overlay — keyed by the seed fan-in-model
@@ -227,11 +252,16 @@ internal fun ViewAiReportScreen(
     var fanInModelViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeFanInModelViewRowId = fanInModelViewRowId
     if (activeFanInModelViewRowId != null) {
-        FanInModelViewScreen(
-            reportId = reportId,
-            resultId = activeFanInModelViewRowId,
-            onBack = { fanInModelViewRowId = null }
-        )
+        val backToMain: () -> Unit = { fanInModelViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            FanInModelViewScreen(
+                reportId = reportId,
+                resultId = activeFanInModelViewRowId,
+                onBack = backToMain
+            )
+        }
         return
     }
     // Translate "View" overlay — keyed by translationRunId so all
@@ -240,11 +270,16 @@ internal fun ViewAiReportScreen(
     var translateViewRunId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeTranslateViewRunId = translateViewRunId
     if (activeTranslateViewRunId != null) {
-        TranslateViewScreen(
-            reportId = reportId,
-            translationRunId = activeTranslateViewRunId,
-            onBack = { translateViewRunId = null }
-        )
+        val backToMain: () -> Unit = { translateViewRunId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            TranslateViewScreen(
+                reportId = reportId,
+                translationRunId = activeTranslateViewRunId,
+                onBack = backToMain
+            )
+        }
         return
     }
     // Prompt "View" overlay state — only the var declarations sit
@@ -384,20 +419,28 @@ internal fun ViewAiReportScreen(
                 }
             }
         }
-        PromptViewScreen(
-            reportId = reportId,
-            availableLanguages = promptLanguages,
-            initialLanguage = promptViewLanguage,
-            onBack = { activeLang ->
-                val target = activeLang ?: ""
-                val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
-                    else viewLangTabs.firstOrNull { it.displayName == target }?.key
-                        ?: selectedViewLangKey
-                selectedViewLangKey = newKey
-                promptViewOpen = false
-                promptViewLanguage = null
-            }
-        )
+        val backToMain: () -> Unit = {
+            promptViewOpen = false
+            promptViewLanguage = null
+        }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            PromptViewScreen(
+                reportId = reportId,
+                availableLanguages = promptLanguages,
+                initialLanguage = promptViewLanguage,
+                onBack = { activeLang ->
+                    val target = activeLang ?: ""
+                    val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
+                        else viewLangTabs.firstOrNull { it.displayName == target }?.key
+                            ?: selectedViewLangKey
+                    selectedViewLangKey = newKey
+                    promptViewOpen = false
+                    promptViewLanguage = null
+                }
+            )
+        }
         return
     }
     // Same shape as the PromptView language plumbing above. The block
@@ -413,22 +456,31 @@ internal fun ViewAiReportScreen(
                 }
             }
         }
-        ReportsViewScreen(
-            reportId = reportId,
-            availableLanguages = reportsLanguages,
-            initialLanguage = reportsViewLanguage,
-            initialAgentId = reportsViewInitialAgentId,
-            onBack = { activeLang ->
-                val target = activeLang ?: ""
-                val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
-                    else viewLangTabs.firstOrNull { it.displayName == target }?.key
-                        ?: selectedViewLangKey
-                selectedViewLangKey = newKey
-                reportsViewOpen = false
-                reportsViewLanguage = null
-                reportsViewInitialAgentId = null
-            }
-        )
+        val backToMain: () -> Unit = {
+            reportsViewOpen = false
+            reportsViewLanguage = null
+            reportsViewInitialAgentId = null
+        }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            ReportsViewScreen(
+                reportId = reportId,
+                availableLanguages = reportsLanguages,
+                initialLanguage = reportsViewLanguage,
+                initialAgentId = reportsViewInitialAgentId,
+                onBack = { activeLang ->
+                    val target = activeLang ?: ""
+                    val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
+                        else viewLangTabs.firstOrNull { it.displayName == target }?.key
+                            ?: selectedViewLangKey
+                    selectedViewLangKey = newKey
+                    reportsViewOpen = false
+                    reportsViewLanguage = null
+                    reportsViewInitialAgentId = null
+                }
+            )
+        }
         return
     }
 
