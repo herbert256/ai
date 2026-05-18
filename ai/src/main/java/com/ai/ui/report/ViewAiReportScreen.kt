@@ -905,10 +905,26 @@ internal fun ViewAiReportScreen(
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
             val prompt = item.prompt
-            val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
-                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                if (e == null) onMissingPromptIcon(prompt)
-                e
+            // Fan-out items synthesised from fanOutSummaries carry no
+            // [prompt] object — just item.label = the metaPromptName.
+            // Use the precise (name, title) cache lookup when [prompt]
+            // is present; otherwise fall back to the looser getByName
+            // lookup keyed on item.label so the dynamic icon still
+            // surfaces. Without this branch the synthesised entries
+            // always showed the static 🌀 fallback.
+            val promptEmoji = if (useInternalPromptsIcons) {
+                when {
+                    prompt != null && prompt.name.isNotBlank() -> {
+                        val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                        if (e == null) onMissingPromptIcon(prompt)
+                        e
+                    }
+                    item.label.isNotBlank() -> {
+                        com.ai.data.InternalPromptIconCache.getByName(item.label)
+                            ?.takeIf { it.isNotBlank() }
+                    }
+                    else -> null
+                }
             } else null
             IdentifiedTile(
                 id = "fan_out:${item.label}",
