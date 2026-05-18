@@ -109,10 +109,9 @@ fun RerankViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
-            // Per the user's spec: no "Rerank" screen-title (the user
-            // already knows which screen they're on from the tile they
-            // tapped) and no green metaPromptName subject either.
-            screenTitle = null,
+            screenTitle = "Rerank",
+            // Green metaPromptName subject still dropped per the
+            // user's spec — the orange "Rerank" line alone is enough.
             subject = null,
             helpTopic = "rerank_view",
             onBack = onBack
