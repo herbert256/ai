@@ -41,6 +41,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -238,9 +239,11 @@ fun ReportsViewScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
         )
-        // Green subject line — the active page's model name. Pulled
-        // close to the counter so the two read as a paired label;
-        // 16 dp below to keep the response card from crowding.
+        // Green subject line — the active page's model name. Tap →
+        // View Model Info for this (provider, model). Pulled close
+        // to the counter so the two read as a paired label.
+        val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
+        val activeModelId = activeAgent?.model.orEmpty()
         Text(
             text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
             color = AppColors.Green,
@@ -249,6 +252,7 @@ fun ReportsViewScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 16.dp)
+                .modelInfoViewClickable(activeProvider, activeModelId)
         )
         HorizontalPager(
             state = pagerState,

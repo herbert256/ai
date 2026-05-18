@@ -217,6 +217,21 @@ fun AppNavHost(
     val rootNavigateToModelInfo: (AppService, String) -> Unit = { p, m ->
         navController.navigate(NavRoutes.aiModelInfo(p.id, m))
     }
+    // View-flavoured siblings — set as CompositionLocals so any View
+    // screen can navigate to the read-only model-info / agent / flock
+    // / swarm pages without prop-drilling through 30+ args.
+    val rootNavigateToModelInfoView: (AppService, String) -> Unit = { p, m ->
+        navController.navigate(NavRoutes.aiModelInfoView(p.id, m))
+    }
+    val rootNavigateToAgentView: (String) -> Unit = { id ->
+        navController.navigate(NavRoutes.aiAgentView(id))
+    }
+    val rootNavigateToFlockView: (String) -> Unit = { id ->
+        navController.navigate(NavRoutes.aiFlockView(id))
+    }
+    val rootNavigateToSwarmView: (String) -> Unit = { id ->
+        navController.navigate(NavRoutes.aiSwarmView(id))
+    }
     val rootNavigateHome: () -> Unit = {
         navController.navigate(NavRoutes.AI) {
             popUpTo(NavRoutes.AI) { inclusive = false }
@@ -237,6 +252,10 @@ fun AppNavHost(
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
+        com.ai.ui.shared.LocalNavigateToModelInfoView provides rootNavigateToModelInfoView,
+        com.ai.ui.shared.LocalNavigateToAgentView provides rootNavigateToAgentView,
+        com.ai.ui.shared.LocalNavigateToFlockView provides rootNavigateToFlockView,
+        com.ai.ui.shared.LocalNavigateToSwarmView provides rootNavigateToSwarmView,
         com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
         com.ai.ui.shared.LocalShowBackArrow provides rootUiStateForLayout.generalSettings.showBackArrow,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
@@ -732,6 +751,62 @@ fun AppNavHost(
                     onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
+        }
+        // View-flavoured Model Info — read-only sibling of AI_MODEL_INFO
+        // reached from any model-name click on a View Report screen.
+        composable(NavRoutes.AI_MODEL_INFO_VIEW) { entry ->
+            val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
+            val model = try { java.net.URLDecoder.decode(entry.arguments?.getString("model") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            val uiState by appViewModel.uiState.collectAsState()
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            if (provider != null) {
+                val orKey = uiState.generalSettings.openRouterApiKey.ifBlank {
+                    AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
+                }
+                com.ai.ui.models.ModelInfoViewScreen(
+                    provider = provider,
+                    modelName = model,
+                    openRouterApiKey = orKey,
+                    huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
+                    aiSettings = uiState.aiSettings,
+                    repository = appViewModel.repository,
+                    onOpenReport = { rid ->
+                        scope.launch {
+                            reportViewModel.restoreCompletedReport(context, rid)
+                            navController.navigate(NavRoutes.AI_REPORTS)
+                        }
+                    },
+                    onBack = safePopBack
+                )
+            }
+        }
+        composable(NavRoutes.AI_AGENT_VIEW) { entry ->
+            val agentId = entry.arguments?.getString("agentId") ?: ""
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.settings.AgentViewScreen(
+                agentId = agentId,
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack
+            )
+        }
+        composable(NavRoutes.AI_FLOCK_VIEW) { entry ->
+            val flockId = entry.arguments?.getString("flockId") ?: ""
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.settings.FlockViewScreen(
+                flockId = flockId,
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack
+            )
+        }
+        composable(NavRoutes.AI_SWARM_VIEW) { entry ->
+            val swarmId = entry.arguments?.getString("swarmId") ?: ""
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.settings.SwarmViewScreen(
+                swarmId = swarmId,
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack
+            )
         }
         composable(NavRoutes.AI_MANUAL_OVERRIDE_ADD) { entry ->
             val providerId = entry.arguments?.getString("provider") ?: ""

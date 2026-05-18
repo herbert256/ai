@@ -37,6 +37,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -270,7 +271,10 @@ private fun AnswerCard(
                     text = "$provider / ${shortModelName(model)}",
                     color = AppColors.TextTertiary,
                     fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.modelInfoViewClickable(
+                        com.ai.data.AppService.findById(provider), model
+                    )
                 )
             }
         }

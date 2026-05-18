@@ -39,6 +39,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -178,7 +179,9 @@ fun FanOutViewScreen(
         Spacer(modifier = Modifier.height(8.dp))
         CounterAndName(
             counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
-            modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty()
+            modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
+            providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
+            modelId = activeInitiator?.model.orEmpty()
         )
         HorizontalPager(
             state = initiatorPagerState,
@@ -201,7 +204,9 @@ fun FanOutViewScreen(
         CounterAndName(
             counter = if (responders.isEmpty()) "0 / 0"
                 else "${responderPagerState.currentPage + 1} / ${responders.size}",
-            modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty()
+            modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
+            providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
+            modelId = activeResponder?.model.orEmpty()
         )
         if (responders.isEmpty()) {
             Box(
@@ -238,9 +243,16 @@ fun FanOutViewScreen(
 
 /** Counter + green model name pair shown above each card. Same
  *  vertical rhythm as Model reports (counter = tight against the
- *  green name; subject sits close to the card below). */
+ *  green name; subject sits close to the card below). The green
+ *  model name is clickable → View Model Info when
+ *  [providerService] is non-null. */
 @Composable
-private fun CounterAndName(counter: String, modelLabel: String) {
+private fun CounterAndName(
+    counter: String,
+    modelLabel: String,
+    providerService: com.ai.data.AppService? = null,
+    modelId: String = ""
+) {
     Text(
         text = counter,
         color = AppColors.TextTertiary, fontSize = 13.sp,
@@ -256,6 +268,7 @@ private fun CounterAndName(counter: String, modelLabel: String) {
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)
+            .modelInfoViewClickable(providerService, modelId)
     )
 }
 

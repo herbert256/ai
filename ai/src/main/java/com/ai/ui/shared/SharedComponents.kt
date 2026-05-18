@@ -185,6 +185,28 @@ val LocalNavigateToModelInfo = compositionLocalOf<(com.ai.data.AppService, Strin
     { _, _ -> }
 }
 
+/** View-flavoured sibling of [LocalNavigateToModelInfo] — routes to
+ *  the read-only Model Info "view" screen instead of the management
+ *  one. Wired by the View family's model-name labels via
+ *  [modelInfoViewClickable]. Default no-op so non-View screens
+ *  that don't override silently fall through. */
+val LocalNavigateToModelInfoView = compositionLocalOf<(com.ai.data.AppService, String) -> Unit> {
+    { _, _ -> }
+}
+
+/** View-flavoured nav to a read-only Agent screen. Wired from the
+ *  Workers card on the View Model Info screen + any other place
+ *  a View context shows an Agent label. */
+val LocalNavigateToAgentView = compositionLocalOf<(String) -> Unit> { {} }
+
+/** View-flavoured nav to a read-only Flock screen. Same shape as
+ *  [LocalNavigateToAgentView]. */
+val LocalNavigateToFlockView = compositionLocalOf<(String) -> Unit> { {} }
+
+/** View-flavoured nav to a read-only Swarm screen. Same shape as
+ *  [LocalNavigateToAgentView]. */
+val LocalNavigateToSwarmView = compositionLocalOf<(String) -> Unit> { {} }
+
 /** Provided by AppNavHost so the title-bar Help icon can navigate
  *  to a help page without prop-drilling a callback. The argument is
  *  the screen-specific topic ID (e.g., "agents", "report_result");
@@ -382,6 +404,20 @@ fun Modifier.modelInfoClickable(
 ): Modifier {
     if (providerService == null || model.isBlank()) return this
     val nav = LocalNavigateToModelInfo.current
+    return this.clickable { nav(providerService, model) }
+}
+
+/** View-flavoured sibling of [modelInfoClickable] — routes to the
+ *  read-only Model Info "view" screen via [LocalNavigateToModelInfoView].
+ *  Used by every View Report screen so a model-name tap opens the
+ *  fancy view-style sibling instead of the management screen. */
+@Composable
+fun Modifier.modelInfoViewClickable(
+    providerService: com.ai.data.AppService?,
+    model: String
+): Modifier {
+    if (providerService == null || model.isBlank()) return this
+    val nav = LocalNavigateToModelInfoView.current
     return this.clickable { nav(providerService, model) }
 }
 
