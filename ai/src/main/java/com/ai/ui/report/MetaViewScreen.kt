@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -114,13 +115,23 @@ fun MetaViewScreen(
     val report = loaded.report
     val rows = loaded.allMetaRows
 
-    // Pager — one page per META row. Initial page is the resultId
-    // the user tapped, snapped to the loaded list's index.
-    val initialIndex = remember(rows, resultId) {
-        rows.indexOfFirst { it.id == resultId }.coerceAtLeast(0)
-    }
-    val pagerState = rememberPagerState(initialPage = initialIndex) {
+    // Pager — one page per META row. `produceState` starts with an
+    // empty rows list and the real list arrives async, so
+    // `rememberPagerState(initialPage = …)` would settle on page 0
+    // (wrong meta if the user tapped a non-first one). Land on
+    // page 0 initially, then jump to the tapped row's index via a
+    // LaunchedEffect once the data lands. Keyed on (rows, resultId)
+    // so the jump only re-runs when either changes.
+    val pagerState = rememberPagerState(initialPage = 0) {
         rows.size.coerceAtLeast(1)
+    }
+    LaunchedEffect(rows, resultId) {
+        if (rows.isNotEmpty()) {
+            val idx = rows.indexOfFirst { it.id == resultId }
+            if (idx >= 0 && idx != pagerState.currentPage) {
+                pagerState.scrollToPage(idx)
+            }
+        }
     }
     val activeRow = rows.getOrNull(pagerState.currentPage)
     val title = activeRow?.metaPromptName?.takeIf { it.isNotBlank() }
