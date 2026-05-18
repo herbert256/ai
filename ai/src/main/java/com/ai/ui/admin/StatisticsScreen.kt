@@ -503,6 +503,13 @@ fun ManualCostOverrideEntryScreen(
         initialModel = modelId,
         initialInputPerMillion = existing?.promptPrice?.times(1_000_000),
         initialOutputPerMillion = existing?.completionPrice?.times(1_000_000),
+        // When an override is already on file for this (provider, model),
+        // surface the bottom-bar 👯 — the user can keep the prices and
+        // repoint at a different (provider, model) to add a parallel
+        // override without retyping.
+        isEditingExisting = existing != null,
+        originalProviderId = providerId.takeIf { existing != null },
+        originalModel = modelId.takeIf { existing != null },
         onSave = { provider, model, inp, outp ->
             PricingCache.setManualPricing(context, provider, model, inp, outp)
             onBack()
@@ -521,7 +528,15 @@ internal fun AddManualOverrideScreen(
     initialProviderId: String? = null,
     initialModel: String? = null,
     initialInputPerMillion: Double? = null,
-    initialOutputPerMillion: Double? = null
+    initialOutputPerMillion: Double? = null,
+    /** True when the caller has loaded an existing override into the
+     *  form. Surfaces the bottom-bar 👯 duplicate icon. */
+    isEditingExisting: Boolean = false,
+    /** When [isEditingExisting], the (provider, model) of the source
+     *  override — used to disable Save in duplicate mode when the
+     *  user hasn't repointed yet, so the original isn't overwritten. */
+    originalProviderId: String? = null,
+    originalModel: String? = null
 ) {
     BackHandler { onBack() }
     var selectedProvider by remember {
@@ -533,6 +548,13 @@ internal fun AddManualOverrideScreen(
     var showProviderSelect by remember { mutableStateOf(false) }
     var showModelSelect by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    val dup = com.ai.ui.shared.rememberDuplicateMode(
+        isEditingExisting = isEditingExisting
+    )
+    val isAddMode = dup.isAddMode
+    val keyMatchesOriginal = originalProviderId != null && originalModel != null &&
+        selectedProvider?.id == originalProviderId && model == originalModel
 
     // Full-screen overlays for selection
     if (showProviderSelect && selectedProvider != null) {
@@ -549,15 +571,21 @@ internal fun AddManualOverrideScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "cost_override", title = "Add Override", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "cost_override",
+            title = if (isAddMode) "Add Override" else "Edit Override",
+            onBackClick = onBack,
+            onCopyReport = dup.copyTrigger
+        )
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = {
             val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
             val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
             if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp)
-        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null,
+        }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null &&
+            !(isAddMode && keyMatchesOriginal),
             modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Save", maxLines = 1, softWrap = false) }
+        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
