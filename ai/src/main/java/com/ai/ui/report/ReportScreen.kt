@@ -3254,12 +3254,25 @@ private fun ReportPrimaryOverlays(
             { onShowViewReportScreenChange(false) }
         }
         val openManageJump: (com.ai.ui.shared.ManageJump) -> Unit = { jump ->
-            // Close the View overlay first; the Manage sub-overlay
-            // state-flip below then lands on the appropriate Manage
-            // screen on the next recomposition.
-            onShowViewReportScreenChange(false)
+            // For sub-overlay jumps we LEAVE [showViewReportScreen]
+            // true and only flip the Manage state var: the existing
+            // condition at ReportScreen.kt:3195 hides View whenever
+            // any of the Manage sub-overlay flags is non-null, so
+            // Manage renders on top. When the Manage overlay's
+            // BackHandler clears its flag, View matches the
+            // condition again and remounts — ViewAiReportScreen's
+            // own [rememberSaveable] sub-overlay state (e.g.
+            // rerankViewRowId) is restored via the standard Compose
+            // SaveableStateRegistry, so the user lands back on the
+            // exact sub-View they came from.
+            //
+            // [ManageJump.Main] is the exception: there's no Manage
+            // sub-overlay to render on top, so we must close View
+            // to reveal the Report - manage main screen.
             when (jump) {
-                is com.ai.ui.shared.ManageJump.Main -> Unit
+                is com.ai.ui.shared.ManageJump.Main -> {
+                    onShowViewReportScreenChange(false)
+                }
                 is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.ReportsViewer -> {
