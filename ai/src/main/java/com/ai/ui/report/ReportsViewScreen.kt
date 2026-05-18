@@ -2,6 +2,7 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -23,8 +25,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -226,65 +231,93 @@ fun ReportsViewScreen(
             }
             return@Column
         }
-        // Prompt card lives in its own HorizontalPager — one page per
-        // language. Swipe the card to flip the whole screen (prompt
-        // text + agent-response translation set) to the previous /
-        // next language. The agent pager below stays for swiping
-        // between models on the active language.
-        if (languages.size <= 1) {
-            PromptCard(report = report, languageIcon = null, promptOverride = null)
-        } else {
-            HorizontalPager(
-                state = langPagerState,
-                modifier = Modifier.fillMaxWidth()
-            ) { page ->
-                val lang = languages[page.coerceIn(0, languages.size - 1)]
-                val flag = when {
-                    lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
-                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                }
-                // Per-page prompt text. Non-Original pages prefer the
-                // matching TRANSLATE row (translateSourceKind=PROMPT,
-                // targetLanguage=lang); fall back to report.prompt if
-                // no translation row exists yet. Re-derived inside the
-                // lambda so off-screen pre-rendered pages bind to the
-                // correct page's content, not the active page's.
-                val promptOverride = if (lang.isBlank()) null
-                    else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
-                PromptCard(report = report, languageIcon = flag, promptOverride = promptOverride)
-            }
+        // Prompt-card collapse toggle. When expanded, the prompt
+        // pager occupies 1/3 of the area below the title bar
+        // (weight 1f) and the response pager below it gets the
+        // other 2/3 (weight 2f). Collapsed → the prompt shrinks to
+        // a compact one-row preview (small icon + first non-blank
+        // line of the prompt) and the response pager fills the
+        // freed space. Mirrors the fan-out View screen pattern.
+        var promptExpanded by rememberSaveable { mutableStateOf(true) }
+        val resolvedActivePrompt: String = run {
+            val lang = if (languages.isEmpty()) "" else
+                languages[langPagerState.currentPage.coerceIn(0, languages.size - 1)]
+            if (lang.isBlank()) report.prompt
+            else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() } ?: report.prompt
         }
-        // Counter "X / Y" — sits between the prompt card and the
-        // green model-name subject so the page index reads as the
-        // header for the response below. Generous top padding gives
-        // the prompt card breathing room; the gap to the green
-        // subject below is intentionally tight (counter + model
-        // name read as a single label pair).
-        Text(
-            text = "${pagerState.currentPage + 1} / ${agents.size}",
-            color = AppColors.TextTertiary, fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(top = 24.dp)
-        )
-        // Green subject line — the active page's model name. Tap →
-        // View Model Info for this (provider, model). Pulled close
-        // to the counter so the two read as a paired label.
+        if (promptExpanded) {
+            if (languages.size <= 1) {
+                PromptCard(
+                    report = report, languageIcon = null, promptOverride = null,
+                    onCollapse = { promptExpanded = false },
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                )
+            } else {
+                HorizontalPager(
+                    state = langPagerState,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                ) { page ->
+                    val lang = languages[page.coerceIn(0, languages.size - 1)]
+                    val flag = when {
+                        lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                        else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                    }
+                    // Per-page prompt text. Non-Original pages prefer the
+                    // matching TRANSLATE row (translateSourceKind=PROMPT,
+                    // targetLanguage=lang); fall back to report.prompt if
+                    // no translation row exists yet. Re-derived inside the
+                    // lambda so off-screen pre-rendered pages bind to the
+                    // correct page's content, not the active page's.
+                    val promptOverride = if (lang.isBlank()) null
+                        else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
+                    PromptCard(
+                        report = report, languageIcon = flag, promptOverride = promptOverride,
+                        onCollapse = { promptExpanded = false },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        } else {
+            CollapsedPromptRow(
+                report = report,
+                preview = resolvedActivePrompt,
+                onExpand = { promptExpanded = true }
+            )
+        }
+        // Combined response header — green model name left, X / Y
+        // counter right, both on the same row. Tap on the model
+        // name → View Model Info for this (provider, model).
+        Spacer(modifier = Modifier.height(12.dp))
         val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
         val activeModelId = activeAgent?.model.orEmpty()
-        Text(
-            text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
-            color = AppColors.Green,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 16.dp)
-                .modelInfoViewClickable(activeProvider, activeModelId)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
+                color = AppColors.Green,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+                    .modelInfoViewClickable(activeProvider, activeModelId)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "${pagerState.currentPage + 1} / ${agents.size}",
+                color = AppColors.TextTertiary, fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
         HorizontalPager(
             state = pagerState,
-            modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+            // When the prompt card is expanded the prompt pager
+            // claims weight 1f above — give the response pager
+            // weight 2f for the 1/3 / 2/3 split. When the prompt is
+            // collapsed only this pager has a weight, so it fills
+            // the freed space automatically.
+            modifier = Modifier.fillMaxWidth().weight(2f)
         ) { page ->
             val agent = agents[page]
             AgentResponseCard(
@@ -295,6 +328,39 @@ fun ReportsViewScreen(
     }
 }
 
+/** Compact one-row preview shown in place of the Prompt card
+ *  when the user collapses it. Matches the fan-out View screen's
+ *  CollapsedInitiatorRow shape: small report icon + first
+ *  non-blank line of the active prompt + ▼ affordance on the
+ *  right. Tapping anywhere on the row re-expands the card. */
+@Composable
+private fun CollapsedPromptRow(report: Report, preview: String, onExpand: () -> Unit) {
+    val liveIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
+    val icon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: "📄"
+    val firstLine = preview.lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+        ?: "(no prompt recorded)"
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .clickable { onExpand() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = icon, fontSize = 20.sp)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = firstLine,
+            color = AppColors.TextSecondary, fontSize = 13.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "▼", color = AppColors.TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
 /** Compact prompt card shown above the per-agent response. The
  *  report icon sits centred at the top; the prompt text below
  *  reminds the user what every model was asked. When the report
@@ -302,7 +368,13 @@ fun ReportsViewScreen(
  *  small overlay in the card's top-right corner so the user can
  *  see which language is active. */
 @Composable
-private fun PromptCard(report: Report, languageIcon: String?, promptOverride: String?) {
+private fun PromptCard(
+    report: Report,
+    languageIcon: String?,
+    promptOverride: String?,
+    onCollapse: (() -> Unit)? = null,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
     // Prefer the live LocalReportIcon (refreshed via iconRefreshTick
     // by the report-overlay parent) so an in-flight icon-gen
     // completion updates this card without waiting for the screen to
@@ -315,12 +387,18 @@ private fun PromptCard(report: Report, languageIcon: String?, promptOverride: St
     // to the report's own prompt.
     val bodyText = promptOverride ?: report.prompt
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+        // verticalScroll on the body so a long prompt scrolls
+        // inside the card's weight(1f) allocation instead of
+        // pushing the response section off the bottom.
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 6.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
             // Transparent oversized glyph — no background tint, no Box
             // wrapper, just the emoji centred above the prompt text.
             Text(
@@ -341,14 +419,31 @@ private fun PromptCard(report: Report, languageIcon: String?, promptOverride: St
                 )
             }
         }
-        if (!languageIcon.isNullOrBlank()) {
-            Text(
-                text = languageIcon,
-                fontSize = 24.sp,
+        // Top-right corner — language flag (when multi-language)
+        // and the ▲ collapse affordance share a single Row so
+        // both glyphs read together without overlap. Tapping ▲
+        // shrinks the prompt section to a single CollapsedPromptRow
+        // above (caller flips the state).
+        if (!languageIcon.isNullOrBlank() || onCollapse != null) {
+            Row(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 8.dp)
-            )
+                    .padding(top = 4.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!languageIcon.isNullOrBlank()) {
+                    Text(text = languageIcon, fontSize = 24.sp)
+                }
+                if (onCollapse != null) {
+                    if (!languageIcon.isNullOrBlank()) Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "▲",
+                        color = AppColors.TextSecondary, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { onCollapse() }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
+                }
+            }
         }
     }
 }
