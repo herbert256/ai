@@ -103,8 +103,19 @@ fun FanInViewScreen(
     val result = loaded.result
     val report = loaded.report
 
-    val title = result?.metaPromptName?.takeIf { it.isNotBlank() } ?: "Fan-in"
-    val providerDisplay = result?.let { AppService.findById(it.providerId)?.id ?: it.providerId }.orEmpty()
+    val metaPromptName = result?.metaPromptName?.takeIf { it.isNotBlank() }
+    // Dynamic per-prompt icon for this fan-in (matches the View
+    // tile grid's Fan-in cards). Per-row override wins; falls back
+    // to the cached emoji for this metaPromptName; final fallback
+    // is the static 🪢 used elsewhere.
+    val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
+    val cachedIcon = metaPromptName?.let {
+        com.ai.data.InternalPromptIconCache.get(it, it)
+    }
+    val headerIcon = rowIcon ?: cachedIcon ?: "🪢"
+    // Model name that did the fan-in synthesis — shown next to
+    // the icon. Provider name dropped per the user's spec.
+    val modelLabel = result?.model?.let { shortModelName(it) }.orEmpty()
 
     // Available languages for this row: Original ("") first, then
     // every targetLanguage with a non-blank META TRANSLATE row.
@@ -140,27 +151,37 @@ fun FanInViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
         } ?: navToManageMain
+        // Orange screen-title spells out the fan-in's internal-
+        // prompt name ("Fan In - <name>"); green subject row is
+        // dropped so the header reads on a single line.
+        val screenTitleLabel = if (metaPromptName != null) "Fan In - $metaPromptName" else "Fan In"
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Fan-in",
-            subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
+            screenTitle = screenTitleLabel,
+            subject = null,
             helpTopic = "fan_in_view",
             onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
+        // Header row: dynamic per-prompt icon + the synthesis
+        // model name. Provider name dropped per the user's spec.
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "🪢", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
+            Text(text = headerIcon, fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
             Text(
-                text = title,
-                fontSize = 28.sp,
+                text = modelLabel,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = AppColors.Green,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
+                    .modelInfoViewClickable(
+                        result?.let { AppService.findById(it.providerId) },
+                        result?.model.orEmpty()
+                    )
             )
         }
         if (result == null) {
@@ -199,14 +220,7 @@ fun FanInViewScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
             ) {
-                item {
-                    SynthesisHero(
-                        providerDisplay = providerDisplay,
-                        model = result.model,
-                        body = body,
-                        languageIcon = pageFlag
-                    )
-                }
+                item { SynthesisBodyCard(body = body, languageIcon = pageFlag) }
             }
         }
         // Credits strip sits below the language pager — same set
@@ -217,7 +231,11 @@ fun FanInViewScreen(
 }
 
 @Composable
-private fun SynthesisHero(providerDisplay: String, model: String, body: String, languageIcon: String?) {
+private fun SynthesisBodyCard(body: String, languageIcon: String?) {
+    // Content card carries only the synthesised body now. The
+    // previous in-card icon + "Synthesis" + provider/model row
+    // is gone — that information lives in the screen-title bar
+    // and the new header row above per the user's spec.
     Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
@@ -230,28 +248,8 @@ private fun SynthesisHero(providerDisplay: String, model: String, body: String, 
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "🪢", fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Synthesis",
-                        color = AppColors.TextPrimary,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "$providerDisplay / ${shortModelName(model)}",
-                        color = AppColors.TextTertiary,
-                        fontSize = 12.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.modelInfoViewClickable(
-                            com.ai.data.AppService.findById(providerDisplay), model
-                        )
-                    )
-                }
-            }
             if (body.isBlank()) {
                 Text(
                     text = "No data yet",
