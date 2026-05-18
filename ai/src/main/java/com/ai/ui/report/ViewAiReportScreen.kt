@@ -844,16 +844,17 @@ internal fun ViewAiReportScreen(
             // both render the cache entry the last alt pick wrote.
             val sourceRow = item.sourceRows?.firstOrNull()
             val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
-            // Dynamic generated emoji (cached per-prompt) wins over
-            // the per-row override and the static fallback — the
-            // dynamic icon is what the user wants to see; the row
-            // override and "🧠" default are backups.
+            // Precedence: per-row user pick (set by Find-alt on a
+            // single Meta row via pickMetaRowIcon) wins over the
+            // shared per-prompt cache so two tiles that share a
+            // metaPromptName can carry distinct icons. The dynamic
+            // cache then wins over the static 🧠 fallback.
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
                 if (e == null) onMissingPromptIcon(prompt)
                 e
             } else null
-            val promptEmoji = cachedEmoji ?: rowIcon
+            val promptEmoji = rowIcon ?: cachedEmoji
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // sourceRows is now single-element per META item — its id
             // disambiguates two tiles that share a metaPromptName so
@@ -948,15 +949,15 @@ internal fun ViewAiReportScreen(
             val prompt = item.prompt
             val sourceRow = item.sourceRows?.firstOrNull()
             val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
-            // Dynamic generated emoji wins over the per-row override
-            // and the static 🪢 fallback — same pattern as the Meta
-            // tiles above.
+            // Precedence: per-row user pick wins over the shared
+            // cache so two Fan-in tiles sharing a metaPromptName can
+            // carry distinct icons. Same precedence as the Meta tile.
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
                 if (e == null) onMissingPromptIcon(prompt)
                 e
             } else null
-            val promptEmoji = cachedEmoji ?: rowIcon
+            val promptEmoji = rowIcon ?: cachedEmoji
             val rowId = sourceRow?.id ?: item.label
             IdentifiedTile(
                 id = "fan_in:${item.label}:$rowId",
