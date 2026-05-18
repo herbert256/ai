@@ -104,9 +104,17 @@ fun FanOutViewScreen(
                     it.metaPromptName == metaPromptName &&
                     !it.content.isNullOrBlank()
             }
+            // Pull BOTH META and AGENT translates. META rows are
+            // keyed off pair.id and feed the responder body; AGENT
+            // rows are keyed off the initiator's agentId and feed
+            // the initiator body. The previous load only pulled
+            // META so the top card always showed the original
+            // language while the bottom card respected the user's
+            // language picker.
             val translates = allSecondary.filter {
                 it.kind == SecondaryKind.TRANSLATE &&
-                    it.translateSourceKind == "META" &&
+                    (it.translateSourceKind == "META" ||
+                        it.translateSourceKind == "AGENT") &&
                     !it.content.isNullOrBlank()
             }
             Loaded(rep, pairs, translates)
@@ -245,8 +253,22 @@ fun FanOutViewScreen(
                         ) { page ->
                             val agentId = initiatorIds[page]
                             val agent = report.agents.firstOrNull { it.agentId == agentId }
-                            val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                            val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                            // When the user picked a translated
+                            // language on the parent View screen,
+                            // surface the AGENT translate for this
+                            // initiator. Falls back to the original
+                            // body when no translate row exists for
+                            // this (agent, language).
+                            val translatedBody = if (!language.isNullOrEmpty()) {
+                                translates.firstOrNull {
+                                    it.translateSourceKind == "AGENT" &&
+                                        it.translateSourceTargetId == agentId &&
+                                        it.targetLanguage == language
+                                }?.content?.takeIf { it.isNotBlank() }
+                            } else null
+                            val body = translatedBody ?: originalBody
                                 ?: "(initiator response no longer available)"
                             FanOutBodyCard(
                                 reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
@@ -257,8 +279,19 @@ fun FanOutViewScreen(
                     }
                 } else {
                     val agent = activeInitiatorId?.let { aid -> report.agents.firstOrNull { it.agentId == aid } }
-                    val previewBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                    // Match the expanded-card translation lookup so
+                    // the preview line shows the translated body
+                    // when a language is active.
+                    val translatedBody = if (!language.isNullOrEmpty() && activeInitiatorId != null) {
+                        translates.firstOrNull {
+                            it.translateSourceKind == "AGENT" &&
+                                it.translateSourceTargetId == activeInitiatorId &&
+                                it.targetLanguage == language
+                        }?.content?.takeIf { it.isNotBlank() }
+                    } else null
+                    val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                         ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                    val previewBody = (translatedBody ?: originalBody)
                         ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
                         ?: "(initiator response no longer available)"
                     CollapsedInitiatorRow(
