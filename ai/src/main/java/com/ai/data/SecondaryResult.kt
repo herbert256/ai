@@ -352,10 +352,47 @@ object SecondaryResultStorage {
                 AppLog.e("SecondaryResultStorage", "Refusing to save result that escapes report dir: ${result.id}")
                 return false
             }
-            target.writeTextAtomic(gson.toJson(result))
+            // Cost accumulation: re-read the on-disk row and add
+            // its prior cost / token counts to the incoming result.
+            // For fresh runs the prior is null/0 → additive ≡
+            // overwrite (no behaviour change). For a Regenerate
+            // batch re-dispatch the prior is the previous run's
+            // expenditure, so the saved row reflects (prior + new).
+            // Caller-controlled overwrites that don't want
+            // accumulation should write via [save] instead.
+            val toWrite = mergeCostFromDisk(target, result)
+            target.writeTextAtomic(gson.toJson(toWrite))
             listCache[result.reportId]?.remove(target.name)
         }
         return true
+    }
+
+    /** Re-reads the existing on-disk row and adds its prior cost
+     *  counters onto [incoming]. The result's other fields win.
+     *  Returns [incoming] unchanged when the disk row can't be
+     *  read or has no prior cost. */
+    private fun mergeCostFromDisk(target: File, incoming: SecondaryResult): SecondaryResult {
+        val existing = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+            catch (_: Exception) { return incoming }
+        val priorIn = existing.inputCost ?: 0.0
+        val priorOut = existing.outputCost ?: 0.0
+        val priorInTokens = existing.tokenUsage?.inputTokens ?: 0
+        val priorOutTokens = existing.tokenUsage?.outputTokens ?: 0
+        if (priorIn == 0.0 && priorOut == 0.0 && priorInTokens == 0 && priorOutTokens == 0) {
+            return incoming
+        }
+        val newIn = incoming.inputCost ?: 0.0
+        val newOut = incoming.outputCost ?: 0.0
+        val newInTokens = incoming.tokenUsage?.inputTokens ?: 0
+        val newOutTokens = incoming.tokenUsage?.outputTokens ?: 0
+        return incoming.copy(
+            inputCost = priorIn + newIn,
+            outputCost = priorOut + newOut,
+            tokenUsage = TokenUsage(
+                inputTokens = priorInTokens + newInTokens,
+                outputTokens = priorOutTokens + newOutTokens
+            )
+        )
     }
 
     /** Atomically bumps the row's main [SecondaryResult.inputCost] /
@@ -506,6 +543,32 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Regenerate-batch variant of [clearFanOutIconState] — clears
+     *  the icon + iconErrorMessage + winning tier so the row
+     *  re-reads as "icon-less" (FAN_ICONS phase will re-fire the
+     *  chain) BUT preserves icon* cost / token counters. The
+     *  dispatcher's additive cost write adds the new chain's
+     *  expenditure onto the prior. */
+    fun clearFanOutIconStateKeepingCost(
+        context: Context, reportId: String, resultId: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                icon = null,
+                iconWinningTier = null,
+                iconErrorMessage = null
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     /** Drop any prior icon / error state from the pair row so a
      *  re-launched fan-icons batch starts clean for these pairs.
      *  Leaves the row's main response untouched. */
@@ -534,13 +597,14 @@ object SecondaryResultStorage {
     }
 
     /** Reset a row to "stale placeholder" — clear content,
-     *  errorMessage, durationMs, tokenUsage and costs so the
-     *  resume-stale path picks it up and re-dispatches. Leaves
-     *  the row's prompt / model / scope / metaPromptName fields
-     *  intact so the dispatcher can reconstruct the call.
-     *  Used by [com.ai.viewmodel.RegenerateBatchEngine] when a
-     *  phase starts so every row in that phase shows ⏳ before
-     *  the dispatcher fires. No-op when the row is gone. */
+     *  errorMessage, durationMs so the resume-stale path picks
+     *  it up and re-dispatches. Preserves cost / tokenUsage —
+     *  the dispatcher's [saveIfStillPresent] adds the new
+     *  call's cost onto the prior. Leaves prompt / model /
+     *  scope / metaPromptName fields intact so the dispatcher
+     *  can reconstruct the call. Used by
+     *  [com.ai.viewmodel.RegenerateBatchEngine] when a phase
+     *  starts. No-op when the row is gone. */
     fun resetRowToPlaceholder(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {
@@ -553,67 +617,8 @@ object SecondaryResultStorage {
                 content = null,
                 errorMessage = null,
                 durationMs = null,
-                tokenUsage = null,
-                inputCost = null,
-                outputCost = null,
                 // Bump timestamp so the dispatcher sees a fresh row.
                 timestamp = System.currentTimeMillis()
-            )
-            target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
-        }
-    }
-
-    /** Add prior cost + token counts back onto a row's inputCost /
-     *  outputCost / tokenUsage after a successful Regenerate-batch
-     *  re-dispatch overwrote them. Used for META / FAN_OUT / FAN_IN
-     *  / TRANSLATIONS phases. */
-    fun accumulateRowCost(
-        context: Context, reportId: String, resultId: String,
-        addInputTokens: Int, addOutputTokens: Int,
-        addInputCost: Double, addOutputCost: Double
-    ) {
-        init(context)
-        lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
-            val target = File(dir, "$resultId.json")
-            if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
-            val updated = current.copy(
-                inputCost = (current.inputCost ?: 0.0) + addInputCost,
-                outputCost = (current.outputCost ?: 0.0) + addOutputCost,
-                tokenUsage = TokenUsage(
-                    inputTokens = (current.tokenUsage?.inputTokens ?: 0) + addInputTokens,
-                    outputTokens = (current.tokenUsage?.outputTokens ?: 0) + addOutputTokens
-                )
-            )
-            target.writeTextAtomic(gson.toJson(updated))
-            listCache[reportId]?.remove(target.name)
-        }
-    }
-
-    /** Add prior fan-out-icon cost + tokens back onto a fan-out
-     *  pair row's iconInputCost / iconOutputCost / iconInputTokens
-     *  / iconOutputTokens after a successful Regenerate-batch
-     *  FAN_ICONS-phase re-dispatch. */
-    fun accumulateRowFanIconCost(
-        context: Context, reportId: String, resultId: String,
-        addInputTokens: Int, addOutputTokens: Int,
-        addInputCost: Double, addOutputCost: Double
-    ) {
-        init(context)
-        lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
-            val target = File(dir, "$resultId.json")
-            if (!target.exists()) return
-            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
-                catch (_: Exception) { return }
-            val updated = current.copy(
-                iconInputTokens = current.iconInputTokens + addInputTokens,
-                iconOutputTokens = current.iconOutputTokens + addOutputTokens,
-                iconInputCost = current.iconInputCost + addInputCost,
-                iconOutputCost = current.iconOutputCost + addOutputCost
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

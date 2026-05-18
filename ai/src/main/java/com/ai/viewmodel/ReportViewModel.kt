@@ -3431,11 +3431,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             )
             if (tasks.isEmpty()) return@launch
             // Reset every existing agent to PENDING so the row shows
-            // ⏳ while the new dispatch is in flight.
+            // ⏳ while the new dispatch is in flight. Use the
+            // *KeepingCost variant so prior expenditure stays on
+            // disk; the dispatcher's additive cost write adds the
+            // new call's cost onto the prior.
             val existingIds = report.agents.map { it.agentId }.toSet()
             for (task in tasks) {
                 if (task.resultId in existingIds) {
-                    ReportStorage.resetAgentToPending(context, reportId, task.resultId)
+                    ReportStorage.resetAgentToPendingKeepingCost(context, reportId, task.resultId)
                 }
             }
             _agentResults.update { existing ->

@@ -374,17 +374,26 @@ object ReportStorage {
                 if (relatedQuestions != null) agent.relatedQuestions = relatedQuestions
                 if (rawUsageJson != null) agent.rawUsageJson = rawUsageJson
             }
-            if (tokenUsage != null) agent.tokenUsage = tokenUsage
+            // Additive cost + token writes: the new call's
+            // numbers are ADDED onto whatever's already on disk
+            // so a Regenerate-batch re-dispatch shows (prior +
+            // new) instead of just the latest call's expenditure.
+            // For fresh runs the prior is null/0 so additive ≡
+            // overwrite — no change in behaviour. Error paths
+            // pass cost=null and so don't touch the counters.
+            if (tokenUsage != null) {
+                agent.tokenUsage = TokenUsage(
+                    inputTokens = (agent.tokenUsage?.inputTokens ?: 0) + tokenUsage.inputTokens,
+                    outputTokens = (agent.tokenUsage?.outputTokens ?: 0) + tokenUsage.outputTokens
+                )
+            }
             if (cost != null) {
-                agent.cost = cost
+                agent.cost = (agent.cost ?: 0.0) + cost
                 report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
                     report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
             }
-            // Pin the in / out cost halves at run time so a later
-            // catalog re-price doesn't shift the historical
-            // numbers shown on the Costs cards.
-            if (inputCost != null) agent.inputCost = inputCost
-            if (outputCost != null) agent.outputCost = outputCost
+            if (inputCost != null) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
+            if (outputCost != null) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
             if (durationMs != null) agent.durationMs = durationMs
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
@@ -572,92 +581,6 @@ object ReportStorage {
         }
     }
 
-    /** Add the prior cost back onto an agent's now-fresh cost
-     *  fields after a successful Regenerate-batch agent re-dispatch.
-     *  Without this the new call's cost overwrites the previous
-     *  run's cost; the user paid for both, so the displayed cost
-     *  should be the sum. */
-    fun accumulateAgentCost(
-        context: Context, reportId: String, agentId: String,
-        addInputTokens: Int, addOutputTokens: Int,
-        addInputCost: Double, addOutputCost: Double
-    ) {
-        init(context)
-        lock.withLock {
-            val report = loadReport(reportId) ?: return
-            val idx = report.agents.indexOfFirst { it.agentId == agentId }
-            if (idx < 0) return
-            val a = report.agents[idx]
-            val newIn = (a.inputCost ?: 0.0) + addInputCost
-            val newOut = (a.outputCost ?: 0.0) + addOutputCost
-            val updated = a.copy(
-                inputCost = newIn,
-                outputCost = newOut,
-                cost = newIn + newOut,
-                tokenUsage = TokenUsage(
-                    inputTokens = (a.tokenUsage?.inputTokens ?: 0) + addInputTokens,
-                    outputTokens = (a.tokenUsage?.outputTokens ?: 0) + addOutputTokens
-                )
-            )
-            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
-            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
-                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
-            saveReport(report.copy(
-                agents = newAgents,
-                totalCost = newTotal,
-                timestamp = System.currentTimeMillis()
-            ))
-        }
-    }
-
-    /** Add prior icon-gen cost back onto the report's icon* fields
-     *  after a successful Regenerate-batch ICON-phase re-dispatch. */
-    fun accumulateReportIconCost(
-        context: Context, reportId: String,
-        addInputTokens: Int, addOutputTokens: Int,
-        addInputCost: Double, addOutputCost: Double
-    ) {
-        init(context)
-        lock.withLock {
-            val report = loadReport(reportId) ?: return
-            saveReport(report.copy(
-                iconInputTokens = report.iconInputTokens + addInputTokens,
-                iconOutputTokens = report.iconOutputTokens + addOutputTokens,
-                iconInputCost = report.iconInputCost + addInputCost,
-                iconOutputCost = report.iconOutputCost + addOutputCost,
-                timestamp = System.currentTimeMillis()
-            ))
-        }
-    }
-
-    /** Add prior language-flow costs back onto the report's
-     *  language* + languageIcon* fields after a successful
-     *  Regenerate-batch LANGUAGE-phase re-dispatch. Both the
-     *  detection call and the icon call are folded into one
-     *  accumulator since the engine treats LANGUAGE as one phase. */
-    fun accumulateReportLanguageCost(
-        context: Context, reportId: String,
-        addLangInputTokens: Int, addLangOutputTokens: Int,
-        addLangInputCost: Double, addLangOutputCost: Double,
-        addLangIconInputTokens: Int, addLangIconOutputTokens: Int,
-        addLangIconInputCost: Double, addLangIconOutputCost: Double
-    ) {
-        init(context)
-        lock.withLock {
-            val report = loadReport(reportId) ?: return
-            saveReport(report.copy(
-                languageInputTokens = report.languageInputTokens + addLangInputTokens,
-                languageOutputTokens = report.languageOutputTokens + addLangOutputTokens,
-                languageInputCost = report.languageInputCost + addLangInputCost,
-                languageOutputCost = report.languageOutputCost + addLangOutputCost,
-                languageIconInputTokens = report.languageIconInputTokens + addLangIconInputTokens,
-                languageIconOutputTokens = report.languageIconOutputTokens + addLangIconOutputTokens,
-                languageIconInputCost = report.languageIconInputCost + addLangIconInputCost,
-                languageIconOutputCost = report.languageIconOutputCost + addLangIconOutputCost,
-                timestamp = System.currentTimeMillis()
-            ))
-        }
-    }
 
     fun bumpReportTimestamp(context: Context, reportId: String) {
         init(context)
@@ -714,10 +637,13 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
+            // Additive cost / token writes (see updateAgentStatus).
             saveReport(report.copy(
                 icon = icon, iconErrorMessage = null,
-                iconInputTokens = inputTokens, iconOutputTokens = outputTokens,
-                iconInputCost = inputCost, iconOutputCost = outputCost,
+                iconInputTokens = report.iconInputTokens + inputTokens,
+                iconOutputTokens = report.iconOutputTokens + outputTokens,
+                iconInputCost = report.iconInputCost + inputCost,
+                iconOutputCost = report.iconOutputCost + outputCost,
                 iconTraceFile = traceFile,
                 iconPromptUsed = promptUsed ?: report.iconPromptUsed,
                 timestamp = System.currentTimeMillis()
@@ -806,13 +732,14 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
+            // Additive cost / token writes (see updateAgentStatus).
             saveReport(report.copy(
                 languageName = name,
                 languageIconErrorMessage = null,
-                languageInputTokens = inputTokens,
-                languageOutputTokens = outputTokens,
-                languageInputCost = inputCost,
-                languageOutputCost = outputCost,
+                languageInputTokens = report.languageInputTokens + inputTokens,
+                languageOutputTokens = report.languageOutputTokens + outputTokens,
+                languageInputCost = report.languageInputCost + inputCost,
+                languageOutputCost = report.languageOutputCost + outputCost,
                 languageTraceFile = traceFile,
                 languageRawResponse = rawResponse,
                 timestamp = System.currentTimeMillis()
@@ -842,14 +769,15 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
+            // Additive cost / token writes (see updateAgentStatus).
             saveReport(report.copy(
                 languageIcon = icon,
                 languageIconModel = model,
                 languageIconErrorMessage = null,
-                languageIconInputTokens = inputTokens,
-                languageIconOutputTokens = outputTokens,
-                languageIconInputCost = inputCost,
-                languageIconOutputCost = outputCost,
+                languageIconInputTokens = report.languageIconInputTokens + inputTokens,
+                languageIconOutputTokens = report.languageIconOutputTokens + outputTokens,
+                languageIconInputCost = report.languageIconInputCost + inputCost,
+                languageIconOutputCost = report.languageIconOutputCost + outputCost,
                 languageIconTraceFile = traceFile,
                 languageIconRawResponse = rawResponse,
                 languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
@@ -929,6 +857,23 @@ object ReportStorage {
     /** Wipe icon + error + tokens + cost so a regenerate-with-prompt-
      *  change run starts fresh on ⏳. Used by [regenerateReport] when
      *  the prompt was edited. */
+    /** Regenerate-batch variant of [clearReportIcon] — clears the
+     *  icon + iconErrorMessage so the row re-reads as "running"
+     *  but PRESERVES the icon* cost / token counters. The
+     *  dispatcher's additive cost write on the new icon-gen call
+     *  adds its expenditure onto the prior. */
+    fun clearReportIconKeepingCost(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                icon = null, iconErrorMessage = null,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     fun clearReportIcon(context: Context, reportId: String): Boolean {
         init(context)
         return lock.withLock {
@@ -943,11 +888,14 @@ object ReportStorage {
         }
     }
 
-    /** Reset every language-flow field on [reportId] — both the
-     *  detection call (languageName + cost fields) and the icon
-     *  call (languageIcon + cost / error / trace fields). Used by
+    /** Reset language-flow placeholder fields on [reportId] —
+     *  the detected language + the language-icon emoji + any
+     *  error so the row reads as "running" again. Preserves
+     *  language* / languageIcon* cost + token fields so the
+     *  Regenerate-batch additive cost writes add the new call's
+     *  numbers onto the prior expenditure. Used by
      *  [com.ai.viewmodel.RegenerateBatchEngine] when the LANGUAGE
-     *  phase starts so the row shows ⏳ before the dispatcher fires. */
+     *  phase starts. */
     fun clearReportLanguage(context: Context, reportId: String): Boolean {
         init(context)
         return lock.withLock {
@@ -955,19 +903,9 @@ object ReportStorage {
             saveReport(report.copy(
                 languageName = null,
                 languageIcon = null,
-                languageIconModel = null,
-                languageIconPromptUsed = null,
                 languageIconErrorMessage = null,
-                languageIconInputTokens = 0,
-                languageIconOutputTokens = 0,
-                languageIconInputCost = 0.0,
-                languageIconOutputCost = 0.0,
                 languageIconTraceFile = null,
                 languageIconRawResponse = null,
-                languageInputTokens = 0,
-                languageOutputTokens = 0,
-                languageInputCost = 0.0,
-                languageOutputCost = 0.0,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -1297,6 +1235,38 @@ object ReportStorage {
      *  than overwriting on top of stale data. Used by the in-place
      *  Regenerate path: prompt / parameter changes mark every agent as
      *  PENDING again before the new fan-out runs. */
+    /** Regenerate-batch variant of [resetAgentToPending] — clears
+     *  every "result" field on an agent (status, body, error,
+     *  citations, duration, icon) BUT preserves cost + tokenUsage
+     *  so the dispatcher's additive cost write adds the new
+     *  call's expenditure onto the prior. */
+    fun resetAgentToPendingKeepingCost(context: Context, reportId: String, agentId: String) {
+        init(context)
+        lock.withLock {
+            val report = loadReport(reportId) ?: return
+            val agent = report.agents.find { it.agentId == agentId } ?: return
+            agent.reportStatus = ReportStatus.PENDING
+            agent.httpStatus = null
+            agent.requestHeaders = null
+            agent.requestBody = null
+            agent.responseHeaders = null
+            agent.responseBody = null
+            agent.errorMessage = null
+            agent.citations = null
+            agent.searchResults = null
+            agent.relatedQuestions = null
+            agent.rawUsageJson = null
+            agent.durationMs = null
+            // Per-agent main-call icon belongs to the previous
+            // response; clear it (but NOT the icon-call cost
+            // counters which represent prior expenditure).
+            agent.icon = null
+            agent.iconErrorMessage = null
+            report.completedAt = null
+            saveReport(report)
+        }
+    }
+
     fun resetAgentToPending(context: Context, reportId: String, agentId: String) {
         init(context)
         lock.withLock {
