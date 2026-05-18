@@ -10,10 +10,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -45,13 +48,19 @@ class MainActivity : ComponentActivity() {
             val viewModel: AppViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
             val fullScreen = uiState.generalSettings.fullScreen
+            // View screens publish a hide-status-bar request via the
+            // LocalStatusBarHideCount counter (incremented per active
+            // ViewScreenTitleBar). Combine with the user's Full screen
+            // setting: hide whenever either is asking for it.
+            val statusBarHideCount = remember { mutableIntStateOf(0) }
+            val hideStatusBar = fullScreen || statusBarHideCount.intValue > 0
             // Apply / restore the Android status-bar hide based on the
-            // user's Full screen toggle. WindowInsetsControllerCompat
-            // is idempotent so re-running on every recomposition where
-            // fullScreen changed is fine.
-            LaunchedEffect(fullScreen) {
+            // combined signal. WindowInsetsControllerCompat is
+            // idempotent so re-running on every recomposition where
+            // the derived flag changed is fine.
+            LaunchedEffect(hideStatusBar) {
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
-                if (fullScreen) {
+                if (hideStatusBar) {
                     controller.systemBarsBehavior =
                         WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     controller.hide(WindowInsetsCompat.Type.statusBars())
@@ -61,13 +70,16 @@ class MainActivity : ComponentActivity() {
             }
 
             AppTheme {
+                CompositionLocalProvider(
+                    com.ai.ui.shared.LocalStatusBarHideCount provides statusBarHideCount
+                ) {
                 Scaffold(
-                    // Pad the status bar only when it's visible — with
-                    // Full screen on the bar is hidden so there's no
-                    // inset to reserve for it. Both system bars share
-                    // the app's #0A0A0A background so drawing under
-                    // the gesture pill stays visually consistent.
-                    modifier = if (fullScreen) Modifier.fillMaxSize()
+                    // Pad the status bar only when it's visible — when
+                    // hidden the inset shrinks to 0 so there's no slot
+                    // to reserve. Both system bars share the app's
+                    // #0A0A0A background so drawing under the gesture
+                    // pill stays visually consistent.
+                    modifier = if (hideStatusBar) Modifier.fillMaxSize()
                                else Modifier.fillMaxSize().statusBarsPadding()
                 ) { innerPadding ->
                     AppNavHost(
@@ -87,6 +99,7 @@ class MainActivity : ComponentActivity() {
                         appViewModel = viewModel
                     )
                 }
+                } // close CompositionLocalProvider for LocalStatusBarHideCount
             }
         }
     }

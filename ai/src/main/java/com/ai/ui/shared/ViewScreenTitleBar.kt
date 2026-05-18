@@ -88,6 +88,20 @@ fun ViewScreenTitleBar(
             if (bottomIconState.value != null) bottomIconState.value = null
         }
     }
+    // Request the Android status bar hidden while this View screen
+    // is on stage. Counter-based so sub-View overlays stacked over
+    // the main View tile grid don't fight each other — both add 1
+    // on mount, both subtract 1 on dispose; the bar stays hidden
+    // through nested transitions and re-appears once the last View
+    // screen leaves. MainActivity reads the counter (combined with
+    // the user's Full screen setting) to drive the actual hide.
+    val statusBarHideCount = com.ai.ui.shared.LocalStatusBarHideCount.current
+    if (statusBarHideCount != null) {
+        androidx.compose.runtime.DisposableEffect(Unit) {
+            statusBarHideCount.value = statusBarHideCount.value + 1
+            onDispose { statusBarHideCount.value = statusBarHideCount.value - 1 }
+        }
+    }
     // Pull the whole bar up 16 dp AND shrink its measured height by
     // the same amount so the AI logo lands at the same y as the
     // Report - manage TitleBar (which uses the same trick — see

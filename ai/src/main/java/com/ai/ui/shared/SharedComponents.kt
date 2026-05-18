@@ -218,6 +218,16 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** Reference-counted "hide the Android status bar" request, set
+ *  by every active [ViewScreenTitleBar] on mount and decremented
+ *  on dispose. MainActivity reads `value > 0` (combined with the
+ *  user's Full screen setting) to decide whether to hide. Counter
+ *  rather than boolean because sub-View overlays nest under the
+ *  main View overlay — both fire onMount before the sub-View's
+ *  onDispose runs, so a flat boolean would flicker. Null on the
+ *  default — call sites guard against unprovided. */
+val LocalStatusBarHideCount = compositionLocalOf<MutableState<Int>?> { null }
+
 /** Set on every screen that's "deeper" than the AI Report Result
  *  page (overlay screens inside the result page — Edit Prompt /
  *  Title / Models / Parameters / Export / Translation Compare /
