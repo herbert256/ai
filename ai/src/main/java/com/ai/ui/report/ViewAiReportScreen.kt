@@ -996,8 +996,14 @@ internal fun ViewAiReportScreen(
                 onSelect = { selectedViewLangKey = it },
                 useIcons = true,
                 originalIcon = originalLanguageIcon,
-                iconFontSize = 44.sp,
-                centered = true
+                // Slightly bigger glyphs (was 44 sp) per the
+                // user's "a little bigger" spec. singleRow=true
+                // forces a non-wrapping Row + horizontalScroll
+                // fallback so the icons always stay on a single
+                // line.
+                iconFontSize = 50.sp,
+                centered = true,
+                singleRow = true
             )
         }
 

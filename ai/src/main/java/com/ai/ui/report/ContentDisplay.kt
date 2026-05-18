@@ -130,6 +130,11 @@ internal fun LanguagePickerRow(
     /** When true the FlowRow's children centre horizontally
      *  (defaults to start-aligned, which is the original behaviour). */
     centered: Boolean = false,
+    /** When true the row never wraps — children are laid out in a
+     *  single horizontal line that scrolls horizontally if it
+     *  overflows. Used by the Main View tile grid which asks for
+     *  "a little bigger icons, must fit on one row". */
+    singleRow: Boolean = false,
     // Icon-mode children carry their own 6dp left padding (tap-area
     // headroom), so the FlowRow's own start padding is dropped to
     // 10dp — the first glyph then lands at 10 + 6 = 16dp, lined up
@@ -142,13 +147,7 @@ internal fun LanguagePickerRow(
     )
 ) {
     if (languages.size <= 1) return
-    @OptIn(ExperimentalLayoutApi::class)
-    FlowRow(
-        modifier = modifier,
-        horizontalArrangement = if (centered) Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-                                else Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+    val rowContent: @Composable () -> Unit = {
         languages.forEach { lang ->
             val isSelected = lang.key == selectedKey
             val emoji = if (useIcons) {
@@ -189,6 +188,24 @@ internal fun LanguagePickerRow(
                 }
             }
         }
+    }
+    if (singleRow) {
+        // Non-wrapping single Row, scrolls horizontally when many
+        // languages exceed the screen width.
+        Row(
+            modifier = modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = if (centered) Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                                    else Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) { rowContent() }
+    } else {
+        @OptIn(ExperimentalLayoutApi::class)
+        FlowRow(
+            modifier = modifier,
+            horizontalArrangement = if (centered) Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                                    else Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) { rowContent() }
     }
 }
 
