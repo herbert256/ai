@@ -321,8 +321,16 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             val provider = AppService.findById(agent.provider)
             val pricing = provider?.let { PricingCache.getPricing(context, it, agent.model) }
             val tu = agent.tokenUsage
-            val inCost = if (tu != null && pricing != null) tu.inputTokens * pricing.promptPrice else null
-            val outCost = if (tu != null && pricing != null) tu.outputTokens * pricing.completionPrice else null
+            // Prefer the persisted run-time cost split. Fall back
+            // to live pricing × tokens only for legacy rows that
+            // pre-date the freeze landing in the agent storage —
+            // those rows have null inputCost / outputCost.
+            val persistedIn = agent.inputCost
+            val persistedOut = agent.outputCost
+            val inCost: Double? = persistedIn
+                ?: if (tu != null && pricing != null) tu.inputTokens * pricing.promptPrice else null
+            val outCost: Double? = persistedOut
+                ?: if (tu != null && pricing != null) tu.outputTokens * pricing.completionPrice else null
             HtmlAgentData(
                 agentId = agent.agentId, agentName = agent.agentName, provider = provider,
                 providerDisplay = provider?.id ?: agent.provider, model = agent.model,

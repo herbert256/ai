@@ -3092,6 +3092,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+        // Pin the in / out cost halves at run time using the
+        // [PricingCache] prices in effect right now. The Costs
+        // cards prefer the persisted split, so a later catalog
+        // re-price won't shift the historical numbers shown on
+        // an old report. Mirrors the secondary-result path's
+        // long-standing "freeze on completion" behaviour.
+        val (frozenInputCost, frozenOutputCost) = response.tokenUsage?.let { tu ->
+            val pricing = PricingCache.getPricing(context, task.runtimeAgent.provider, task.runtimeAgent.model)
+            PricingCache.computeInOutCost(tu, pricing)
+        } ?: (0.0 to 0.0)
 
         // Persist the terminal state under NonCancellable so a Stop /
         // navigate-away that arrives between the API return and this
@@ -3104,7 +3114,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             if (response.isSuccess) {
                 ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
                     response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
-                    response.tokenUsage, cost, response.citations, response.searchResults,
+                    response.tokenUsage, cost,
+                    response.tokenUsage?.let { frozenInputCost },
+                    response.tokenUsage?.let { frozenOutputCost },
+                    response.citations, response.searchResults,
                     response.relatedQuestions, response.rawUsageJson, durationMs)
             } else {
                 ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,

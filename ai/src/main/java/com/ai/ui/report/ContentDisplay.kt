@@ -918,13 +918,19 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val providerEnum = AppService.findById(agent.provider)
         val tu = agent.tokenUsage!!
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, agent.model) }
-        // Use PricingCache.computeInOutCost so apiCost-bearing
-        // responses (Perplexity / xAI / OpenRouter search-tier
-        // surcharges) are reflected — naïve `tokens × pricing`
-        // ignores apiCost and undercounts by the surcharge,
-        // which is what Report-Manage's agentCost (via
-        // computeCost) already captures.
-        val (inDollars, outDollars) = pricing?.let { PricingCache.computeInOutCost(tu, it) } ?: (0.0 to 0.0)
+        // Prefer the cost split that was pinned at run completion
+        // (frozen at the prices in effect when the report ran). Fall
+        // back to live PricingCache.computeInOutCost only for legacy
+        // rows written before the freeze landed (agent.inputCost ==
+        // null && agent.outputCost == null). Without this fallback
+        // every old report would show $0 / blank for agent rows.
+        val persistedIn = agent.inputCost
+        val persistedOut = agent.outputCost
+        val (inDollars, outDollars) = if (persistedIn != null || persistedOut != null) {
+            (persistedIn ?: 0.0) to (persistedOut ?: 0.0)
+        } else {
+            pricing?.let { PricingCache.computeInOutCost(tu, it) } ?: (0.0 to 0.0)
+        }
         val inCents = inDollars * 100
         val outCents = outDollars * 100
         CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)

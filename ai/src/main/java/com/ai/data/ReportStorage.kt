@@ -22,6 +22,15 @@ data class ReportAgent(
     var errorMessage: String? = null,
     var tokenUsage: TokenUsage? = null,
     var cost: Double? = null,
+    /** Persisted USD cost split, captured at run completion using
+     *  the [com.ai.data.PricingCache] prices in effect at that
+     *  moment. Pinned at run time — the View / Manage cost cards
+     *  read these straight from disk so a later catalog re-price
+     *  doesn't shift the historical agent cost. Null on legacy
+     *  rows written before the freeze landed; the renderer falls
+     *  back to live PricingCache recomputation for those. */
+    var inputCost: Double? = null,
+    var outputCost: Double? = null,
     var citations: List<String>? = null,
     var searchResults: List<SearchResult>? = null,
     var relatedQuestions: List<String>? = null,
@@ -328,7 +337,9 @@ object ReportStorage {
         context: Context, reportId: String, agentId: String, status: ReportStatus,
         httpStatus: Int? = null, requestHeaders: String? = null, requestBody: String? = null,
         responseHeaders: String? = null, responseBody: String? = null, errorMessage: String? = null,
-        tokenUsage: TokenUsage? = null, cost: Double? = null, citations: List<String>? = null,
+        tokenUsage: TokenUsage? = null, cost: Double? = null,
+        inputCost: Double? = null, outputCost: Double? = null,
+        citations: List<String>? = null,
         searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
         rawUsageJson: String? = null, durationMs: Long? = null
     ) {
@@ -369,6 +380,11 @@ object ReportStorage {
                 report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
                     report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
             }
+            // Pin the in / out cost halves at run time so a later
+            // catalog re-price doesn't shift the historical
+            // numbers shown on the Costs cards.
+            if (inputCost != null) agent.inputCost = inputCost
+            if (outputCost != null) agent.outputCost = outputCost
             if (durationMs != null) agent.durationMs = durationMs
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
@@ -383,11 +399,13 @@ object ReportStorage {
     fun markAgentSuccess(
         context: Context, reportId: String, agentId: String, httpStatus: Int,
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
+        inputCost: Double? = null, outputCost: Double? = null,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
         relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
     ) = updateAgentStatus(context, reportId, agentId, ReportStatus.SUCCESS, httpStatus,
         responseHeaders = responseHeaders, responseBody = responseBody, tokenUsage = tokenUsage,
-        cost = cost, citations = citations, searchResults = searchResults,
+        cost = cost, inputCost = inputCost, outputCost = outputCost,
+        citations = citations, searchResults = searchResults,
         relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs)
 
     fun markAgentError(
@@ -418,11 +436,13 @@ object ReportStorage {
     suspend fun markAgentSuccessAsync(
         context: Context, reportId: String, agentId: String, httpStatus: Int,
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
+        inputCost: Double? = null, outputCost: Double? = null,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
         relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
     ) = withContext(Dispatchers.IO) {
         markAgentSuccess(
             context, reportId, agentId, httpStatus, responseHeaders, responseBody, tokenUsage, cost,
+            inputCost, outputCost,
             citations, searchResults, relatedQuestions, rawUsageJson, durationMs
         )
     }
