@@ -1030,10 +1030,6 @@ internal fun ViewAiReportScreen(
             screenTitle = null,
             subject = null,
             helpTopic = "view_ai_report",
-            // Main View tile grid keeps the Android status bar
-            // visible — the user dwells here longer than any sub-View
-            // and asked for the system clock to stay on screen.
-            hideStatusBar = false,
             onOpenManage = navToManageMain,
             onBack = onBack
         )

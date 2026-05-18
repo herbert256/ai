@@ -10,13 +10,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -47,17 +44,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: AppViewModel = viewModel()
             val uiState by viewModel.uiState.collectAsState()
-            val fullScreen = uiState.generalSettings.fullScreen
-            // View screens publish a hide-status-bar request via the
-            // LocalStatusBarHideCount counter (incremented per active
-            // ViewScreenTitleBar). Combine with the user's Full screen
-            // setting: hide whenever either is asking for it.
-            val statusBarHideCount = remember { mutableIntStateOf(0) }
-            val hideStatusBar = fullScreen || statusBarHideCount.intValue > 0
-            // Apply / restore the Android status-bar hide based on the
-            // combined signal. WindowInsetsControllerCompat is
-            // idempotent so re-running on every recomposition where
-            // the derived flag changed is fine.
+            // User-controlled "Full screen" setting is the only thing
+            // that hides the Android status bar now. The earlier
+            // per-View counter mechanism (LocalStatusBarHideCount)
+            // has been removed — View screens no longer hide the
+            // system bar at all.
+            val hideStatusBar = uiState.generalSettings.fullScreen
             LaunchedEffect(hideStatusBar) {
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
                 if (hideStatusBar) {
@@ -70,9 +62,6 @@ class MainActivity : ComponentActivity() {
             }
 
             AppTheme {
-                CompositionLocalProvider(
-                    com.ai.ui.shared.LocalStatusBarHideCount provides statusBarHideCount
-                ) {
                 Scaffold(
                     // Pad the status bar only when it's visible — when
                     // hidden the inset shrinks to 0 so there's no slot
@@ -99,7 +88,6 @@ class MainActivity : ComponentActivity() {
                         appViewModel = viewModel
                     )
                 }
-                } // close CompositionLocalProvider for LocalStatusBarHideCount
             }
         }
     }
