@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -67,35 +69,43 @@ fun ModerationViewScreen(
     data class Loaded(
         val result: SecondaryResult?,
         val agentLabels: Map<Int, String>,
+        val agentResponses: Map<Int, String>,
         val reportTitle: String?
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), null),
+        initialValue = Loaded(null, emptyMap(), emptyMap(), null),
         reportId, resultId
     ) {
         value = withContext(Dispatchers.IO) {
             val r = SecondaryResultStorage.get(context, reportId, resultId)
             val report = ReportStorage.getReport(context, reportId)
-            val labels = report?.agents
+            val successful = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                ?.mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    (idx + 1) to "$provDisplay / ${shortModelName(agent.model)}"
-                }?.toMap()
-                ?: emptyMap()
-            Loaded(r, labels, report?.title)
+                .orEmpty()
+            // Provider name dropped per the user's spec — just the
+            // short model name for the per-card header.
+            val labels = successful.mapIndexed { idx, agent ->
+                (idx + 1) to shortModelName(agent.model)
+            }.toMap()
+            // The model's response body — the same text that was
+            // moderated. Rendered in a response card below the per-
+            // model moderation card so the user can read what the
+            // chips refer to without leaving the screen.
+            val responses = successful.mapIndexed { idx, agent ->
+                (idx + 1) to (agent.responseBody ?: "")
+            }.toMap()
+            Loaded(r, labels, responses, report?.title)
         }
     }
     val loaded = loadedState.value
     val result = loaded.result
     val agentLabels = loaded.agentLabels
+    val agentResponses = loaded.agentResponses
 
     val rows = remember(result) {
         result?.content?.let { parseModerationRows(it) } ?: emptyList()
     }
-    val title = result?.metaPromptName?.takeIf { it.isNotBlank() } ?: "Moderation"
-    val anyFlagged = rows.any { it.flagged }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -105,25 +115,14 @@ fun ModerationViewScreen(
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Moderation",
-            subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
+            // Green metaPromptName subject + the big 🚩/title row
+            // beneath it are gone per the user's spec — the orange
+            // "Moderation" screen-title plus the per-card chips read
+            // cleanly enough on their own.
+            subject = null,
             helpTopic = "moderation_view",
             onBack = onBack
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "🚩", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
-            Text(
-                text = title,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (anyFlagged) AppColors.Red else AppColors.Green,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-        }
         if (result == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
@@ -169,19 +168,62 @@ fun ModerationViewScreen(
         }
         // Hero summary banner — overall verdict at the top.
         VerdictHero(rows.size, rows.count { it.flagged })
+        // Per-model HorizontalPager: one page per agent. Swipe → next
+        // model. Counter sits between the verdict hero and the card
+        // so the user reads top-to-bottom:
+        //   title → verdict → X / Y → moderation card → response card.
+        val pagerState = rememberPagerState(initialPage = 0) { rows.size }
         Spacer(modifier = Modifier.height(12.dp))
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-        ) {
-            items(rows) { r ->
+        Text(
+            text = "${pagerState.currentPage + 1} / ${rows.size}",
+            color = AppColors.TextTertiary, fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
+        )
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { page ->
+            val r = rows[page]
+            Column(
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 AgentModerationCard(
                     row = r,
                     label = agentLabels[r.id] ?: "[${r.id}] (unknown)",
                     categories = allCategories
                 )
+                ResponseCard(body = agentResponses[r.id].orEmpty())
+                Spacer(modifier = Modifier.height(16.dp))
             }
+        }
+    }
+}
+
+/** Plain card showing the model's response body — the text that was
+ *  moderated. Blue accent so it visually pairs with the moderation
+ *  chips above without competing with the red/green verdict signal. */
+@Composable
+private fun ResponseCard(body: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = "Response",
+            color = AppColors.Blue, fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (body.isBlank()) {
+            Text("(no response)", color = AppColors.TextTertiary, fontSize = 13.sp)
+        } else {
+            ContentWithThinkSections(analysis = body)
         }
     }
 }
