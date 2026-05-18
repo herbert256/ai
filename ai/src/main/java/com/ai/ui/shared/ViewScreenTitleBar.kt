@@ -3,14 +3,11 @@ package com.ai.ui.shared
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -126,6 +123,12 @@ fun ViewScreenTitleBar(
     // SharedComponents.kt TitleBar). Without this the View bar
     // would sit 16 dp lower than the manage bar because both
     // screens add a 16 dp top padding to their root Column.
+    // Three-column Row: AI logo on the left, a centre Column with
+    // the white report title + orange screen title (+ optional
+    // green subject) stacked, and the ❓ help icon on the right.
+    // Putting both text rows in the SAME centre Column guarantees
+    // their horizontal centres line up — they share the column's
+    // bounds, so there is no alignment math to keep in sync.
     Column(modifier = Modifier.fillMaxWidth().layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         val shift = 16.dp.roundToPx()
@@ -138,8 +141,7 @@ fun ViewScreenTitleBar(
                 // Outset 12 dp on each side so the AI logo and help
                 // icon visually break out of the parent screen's
                 // 16 dp horizontal padding and sit closer to the
-                // screen edges. Rows 2 + 3 stay inside the parent
-                // padding for a slightly nested look.
+                // screen edges.
                 .layout { measurable, constraints ->
                     val outsetPx = 12.dp.roundToPx()
                     val widenedMax = if (constraints.maxWidth == Constraints.Infinity) {
@@ -161,18 +163,10 @@ fun ViewScreenTitleBar(
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Left column — AI logo.
             Image(
                 painter = painterResource(R.drawable.brand_glyph),
                 contentDescription = "Home",
-                // The View bar's logo is bigger than the standard
-                // TitleBar's because the View family suppresses the
-                // bottom action icons — the logo grows into the
-                // vertical space the orange screen title occupies.
-                // No upward offset here (the standard TitleBar uses
-                // -7 dp): the bigger logo plus the orange title row
-                // below it want the AI logo to sit a touch lower
-                // than the standard bar's, not pulled tight to the
-                // top.
                 modifier = Modifier
                     .size(76.dp)
                     .clickable(
@@ -181,105 +175,68 @@ fun ViewScreenTitleBar(
                         onClick = effectiveLogoClick
                     )
             )
-            // Prefer the bigger 24 sp size; if the title would overflow
-            // the centre slot, drop to 18 sp instead. We never
-            // ellipsize — overflow at the smaller size clips cleanly
-            // and the user's title stays readable.
+            // Centre column — stacked title texts. All children use
+            // fillMaxWidth + textAlign Center so they share the same
+            // horizontal centre. The column is vertically centred
+            // inside the Row (verticalAlignment Center) so it sits
+            // inside the 76 dp logo's vertical span.
             var bigSizeFits by remember(reportTitle) { mutableStateOf(true) }
-            // Tapping the report title jumps back to the report's
-            // Manage screen. Hooked off [LocalNavigateToCurrentReport]
-            // which the Report - manage host wraps the View overlay
-            // in; help pages don't provide it, so on a help screen
-            // the title is plain text.
             val navigateToManage = LocalNavigateToCurrentReport.current
             val titleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
-            // Lift the report title up tight against the top of the
-            // bar so it leaves vertical room for the orange screen
-            // title that sits in the same band below. The 76 dp logo
-            // dominates the Row's measured height so shifting this
-            // smaller Text by -14 dp doesn't change the Row's height.
-            val titleModifier = Modifier.weight(1f).offset(y = (-14).dp).let {
-                if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                val reportTitleMod = Modifier.fillMaxWidth().let {
+                    if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
+                }
+                Text(
+                    text = reportTitle.orEmpty(),
+                    color = Color.White,
+                    fontSize = if (bigSizeFits) 24.sp else 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                    textAlign = TextAlign.Center,
+                    onTextLayout = { result ->
+                        if (bigSizeFits && result.hasVisualOverflow) {
+                            bigSizeFits = false
+                        }
+                    },
+                    modifier = reportTitleMod
+                )
+                if (!screenTitle.isNullOrBlank()) {
+                    Text(
+                        text = screenTitle,
+                        color = AppColors.Orange,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (!subject.isNullOrBlank()) {
+                    Text(
+                        text = subject,
+                        color = AppColors.Green,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
-            Text(
-                text = reportTitle.orEmpty(),
-                color = Color.White,
-                fontSize = if (bigSizeFits) 24.sp else 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Clip,
-                textAlign = TextAlign.Center,
-                onTextLayout = { result ->
-                    if (bigSizeFits && result.hasVisualOverflow) {
-                        bigSizeFits = false
-                    }
-                },
-                modifier = titleModifier
-            )
+            // Right column — help icon.
             Text(
                 text = "❓",
                 fontSize = 40.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
-                    .offset(y = (-7).dp)
                     .clickable { navigateHelp(helpTopic) }
-            )
-        }
-        if (!screenTitle.isNullOrBlank()) {
-            // Pull the orange screen title up so it sits inside the
-            // vertical span of the (now bigger) AI logo + help icon
-            // row. The icons are at the left / right edges and the
-            // orange title is centred — they share vertical space
-            // without overlapping horizontally.
-            val viewTitleLift = (-32).dp
-            // Horizontal alignment with the report title above: the
-            // report title lives between a 76 dp logo (with -12 dp
-            // outset) on the left and the ~40 dp ❓ icon (with the
-            // same outset) on the right, so its centre is shifted
-            // ~18 dp to the right of the container centre. The
-            // orange title is full-width centred — left-pad it by
-            // twice that diff so its centre matches.
-            val centreAlignPadStart = 36.dp
-            Text(
-                text = screenTitle,
-                color = AppColors.Orange,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-                    .padding(start = centreAlignPadStart)
-                    .offset(y = viewTitleLift)
-            )
-            if (!subject.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subject,
-                    color = AppColors.Green,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                        .padding(start = centreAlignPadStart)
-                        .offset(y = viewTitleLift)
-                )
-            }
-        } else if (!subject.isNullOrBlank()) {
-            // Help pages render subject without a screen title — keep
-            // its prior position unchanged in that case.
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subject,
-                color = AppColors.Green,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
