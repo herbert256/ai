@@ -160,9 +160,14 @@ fun PromptViewScreen(
                 lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
                 else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
             }
+            // Prefer the live LocalReportIcon (refreshed via
+            // iconRefreshTick by the report-overlay parent) so a
+            // fresh icon-gen result lands without remount; fall
+            // back to the persisted icon on the loaded report.
+            val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
             PromptPageCard(
                 body = body,
-                reportIcon = report.icon,
+                reportIcon = liveReportIcon ?: report.icon,
                 languageIcon = perPageIcon
             )
         }

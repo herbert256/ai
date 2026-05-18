@@ -183,6 +183,10 @@ fun FanOutViewScreen(
             providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
             modelId = activeInitiator?.model.orEmpty()
         )
+        // Live icon from the report-overlay parent — picks up a
+        // fresh icon-gen completion without waiting for a remount.
+        val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
+            ?: report.icon
         HorizontalPager(
             state = initiatorPagerState,
             modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
@@ -193,7 +197,7 @@ fun FanOutViewScreen(
                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
                 ?: "(initiator response no longer available)"
             FanOutBodyCard(
-                reportIcon = report.icon,
+                reportIcon = liveReportIcon,
                 body = body,
                 borderColor = AppColors.Purple.copy(alpha = 0.35f)
             )
@@ -232,7 +236,7 @@ fun FanOutViewScreen(
                 } else null
                 val body = translated ?: pair.content.orEmpty()
                 FanOutBodyCard(
-                    reportIcon = report.icon,
+                    reportIcon = liveReportIcon,
                     body = body,
                     borderColor = AppColors.Blue.copy(alpha = 0.35f)
                 )
