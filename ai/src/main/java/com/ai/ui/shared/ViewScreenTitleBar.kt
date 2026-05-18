@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -163,15 +164,16 @@ fun ViewScreenTitleBar(
             Image(
                 painter = painterResource(R.drawable.brand_glyph),
                 contentDescription = "Home",
-                // y = -7 dp matches the offset on the AI logo in the
-                // standard TitleBar (SharedComponents.kt), so both
-                // bars place the logo at the same screen y.
                 // The View bar's logo is bigger than the standard
                 // TitleBar's because the View family suppresses the
                 // bottom action icons — the logo grows into the
                 // vertical space the orange screen title occupies.
+                // No upward offset here (the standard TitleBar uses
+                // -7 dp): the bigger logo plus the orange title row
+                // below it want the AI logo to sit a touch lower
+                // than the standard bar's, not pulled tight to the
+                // top.
                 modifier = Modifier
-                    .offset(y = (-7).dp)
                     .size(76.dp)
                     .clickable(
                         interactionSource = logoInteractionSource,
@@ -191,13 +193,12 @@ fun ViewScreenTitleBar(
             // the title is plain text.
             val navigateToManage = LocalNavigateToCurrentReport.current
             val titleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
-            // Lift the centred title + the ❓ icon up the same 7 dp
-            // the AI logo uses so all three Row 1 elements share a
-            // baseline. Plain `Modifier.offset(y = (-7).dp)` is fine
-            // because the Row's measured height is dominated by the
-            // 52 dp logo — shifting the smaller Text doesn't change
-            // the Row's height.
-            val titleModifier = Modifier.weight(1f).offset(y = (-7).dp).let {
+            // Lift the report title up tight against the top of the
+            // bar so it leaves vertical room for the orange screen
+            // title that sits in the same band below. The 76 dp logo
+            // dominates the Row's measured height so shifting this
+            // smaller Text by -14 dp doesn't change the Row's height.
+            val titleModifier = Modifier.weight(1f).offset(y = (-14).dp).let {
                 if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
             }
             Text(
@@ -230,11 +231,16 @@ fun ViewScreenTitleBar(
             // vertical span of the (now bigger) AI logo + help icon
             // row. The icons are at the left / right edges and the
             // orange title is centred — they share vertical space
-            // without overlapping horizontally. -32 dp = -12 dp
-            // baseline + the extra 24 dp the bigger logo added to
-            // Row 1's height (so the title's screen position is
-            // roughly unchanged from the 52 dp-logo era).
+            // without overlapping horizontally.
             val viewTitleLift = (-32).dp
+            // Horizontal alignment with the report title above: the
+            // report title lives between a 76 dp logo (with -12 dp
+            // outset) on the left and the ~40 dp ❓ icon (with the
+            // same outset) on the right, so its centre is shifted
+            // ~18 dp to the right of the container centre. The
+            // orange title is full-width centred — left-pad it by
+            // twice that diff so its centre matches.
+            val centreAlignPadStart = 36.dp
             Text(
                 text = screenTitle,
                 color = AppColors.Orange,
@@ -242,7 +248,9 @@ fun ViewScreenTitleBar(
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().offset(y = viewTitleLift)
+                modifier = Modifier.fillMaxWidth()
+                    .padding(start = centreAlignPadStart)
+                    .offset(y = viewTitleLift)
             )
             if (!subject.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
@@ -254,7 +262,9 @@ fun ViewScreenTitleBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().offset(y = viewTitleLift)
+                    modifier = Modifier.fillMaxWidth()
+                        .padding(start = centreAlignPadStart)
+                        .offset(y = viewTitleLift)
                 )
             }
         } else if (!subject.isNullOrBlank()) {
